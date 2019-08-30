@@ -41,16 +41,3 @@ Extra: battery & power charger/booster - docs will follow later.
 
 We are also working on the kit that you could buy from us that will include a 3d printed case, QR code scanner, battery and charging circuit, but without the main part - dev board. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
 
-## A few screenshots
-
-Pictures are crappy, sorry. Working hard, no time for studio pictures :-P
-
-Video, nice pictures and proper documentation will appear as soon as the code is ready.
-
-### Init screens
-
-![](pictures/init.jpg)
-
-### Wallet screens
-
-![](pictures/wallet.jpg)
