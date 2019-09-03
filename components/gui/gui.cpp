@@ -220,6 +220,12 @@ static void cb_load_wallet(lv_obj_t * obj, lv_event_t event){
     }    
 }
 
+static void cb_add_cosigner(lv_obj_t * obj, lv_event_t event){
+    if(event == LV_EVENT_RELEASED){
+        lv_async_call(request_new_cosigner, NULL);
+    }    
+}
+
 void gui_wallets_menu_show(void * ptr){
     lv_obj_t * scr;
     if(ptr == NULL){
@@ -265,7 +271,7 @@ void gui_cosigners_menu_show(void * ptr){
         y+=100;
     }
 
-    obj = gui_button_create(scr, "Add new cosigner (scan)", cb_not_imeplemnted);
+    obj = gui_button_create(scr, "Add new cosigner (scan)", cb_add_cosigner);
     lv_obj_set_y(obj, lv_obj_get_y(obj)-100);
     obj = gui_button_create(scr, "Back", cb_to_main_menu);
 }
@@ -319,6 +325,12 @@ static void cb_more_keys(lv_obj_t * obj, lv_event_t event){
         lv_obj_set_y(obj, y);
         lv_obj_set_user_data(obj, 6);
         y+=100;
+    }
+}
+
+static void cb_get_psbt(lv_obj_t * obj, lv_event_t event){
+    if(event == LV_EVENT_RELEASED){
+        lv_async_call(get_psbt, NULL);
     }
 }
 
@@ -387,7 +399,7 @@ void gui_main_menu_show(void * ptr){
     obj = gui_button_create(scr, "Cosigners", cb_list_cosigners);
     lv_obj_set_y(obj, y);
     y+=100;
-    obj = gui_button_create(scr, "Sign transaction", cb_not_imeplemnted);
+    obj = gui_button_create(scr, "Sign transaction", cb_get_psbt);
     lv_obj_set_y(obj, y);
     y+=100;
     obj = gui_button_create(scr, "Verify", cb_not_imeplemnted);

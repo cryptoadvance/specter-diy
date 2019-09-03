@@ -1,7 +1,7 @@
 /**
  * DISCLAIMER
  * This is our "functional prototype", this means that even though
- * it is fully functional, there are plenty of security holes and bugs.
+ * it is kinda functional, there are plenty of security holes and bugs.
  * That's why you are not able to store your private keys here - 
  * only public information. And you should NOT trust this wallet
  * Use it carefully, on the testnet, otherwise you could lose your funds.
@@ -18,6 +18,7 @@
 #include "Bitcoin.h"
 #include "tpcal.h"
 #include "main.h"
+#include "PSBT.h"
 
 int maybe_create_default_wallet();
 
@@ -28,8 +29,11 @@ HDPrivateKey root;
 PrivateKey id_key;
 const Network * network = &Testnet;
 char storage_path[100] = "";
+PSBT psbt;
 
 wallet_t wallet;
+
+static std::string temp_data;
 
 void update(){
     gui_update();
@@ -105,6 +109,78 @@ void show_key(int type){
 			return;
 	}
 	gui_qr_alert_create("Master key", msg, msg, "OK");
+}
+
+void add_cosigner_confirmed(void * ptr){
+    gui_main_menu_show(NULL);
+    gui_alert_create("Sorry", "Not implemented yet", "OK");
+}
+
+void add_cosigner(const char * data){
+    gui_prompt_create("Add new cosigner key?", data, "OK", add_cosigner_confirmed, "Cancel", gui_main_menu_show);
+}
+
+void request_new_cosigner(void * ptr){
+    host_request_data(add_cosigner);
+}
+
+void sign_psbt(void * ptr){
+    psbt.sign(root);
+    uint8_t * raw = new uint8_t[psbt.length()];
+    size_t len = psbt.serialize(raw, psbt.length());
+    string b64 = toBase64(raw, len);
+    gui_main_menu_show(NULL); // screen to go back to
+    gui_qr_alert_create("Signed transaction", b64.c_str(), "Scan it", "OK");
+}
+
+void show_psbt(){
+    char title[30];
+    string msg = "Sending to:\n\n";
+    string change = "";
+    float send_amount = 0;
+    for(int i=0; i<psbt.tx.outputsNumber; i++){
+        if(!psbt.isMine(i, root)){
+            send_amount += psbt.tx.txOuts[i].btcAmount();
+            msg += psbt.tx.txOuts[i].address(network);
+            char s[20];
+            sprintf(s, ": %.8f BTC\n\n", psbt.tx.txOuts[i].btcAmount());
+            msg += s;
+        }else{
+            if(change.length() == 0){
+                change = "Change outputs:\n\n";
+            }
+            change += psbt.tx.txOuts[i].address(network);
+            char s[20];
+            sprintf(s, ": %.8f BTC\n\n", psbt.tx.txOuts[i].btcAmount());
+            change += s;
+        }
+    }
+    char s[100];
+    sprintf(s, "Fee: %.8f BTC (%.2f percent)", float(psbt.fee())/1e8, float(psbt.fee())/1e8/send_amount*100);
+    msg += change;
+    msg += s;
+    send_amount += float(psbt.fee())/1e8;
+    sprintf(title, "Sending %.8f BTC\nfrom <Wallet name>", send_amount);
+    gui_prompt_create(title, msg.c_str(), "Sign", sign_psbt, "Cancel", gui_main_menu_show);
+}
+
+void parse_psbt(const char * data){
+    uint8_t * raw = new uint8_t[strlen(data)*3/4];
+    size_t len = fromBase64(data, strlen(data), raw, strlen(data)*3/4);
+    if(len > 0){
+        psbt.reset();
+        len = psbt.parse(raw, len);
+    }
+    delete [] raw;
+    if(len <= 0){
+        gui_alert_create("Parsing error", "Failed to parse transaction", "OK");
+        return;
+    }
+    show_psbt();
+}
+
+void get_psbt(void * ptr){
+    host_request_data(parse_psbt);
 }
 
 int create_dir(const char * path){

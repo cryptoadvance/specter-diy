@@ -28,5 +28,7 @@ const char * get_wallet_name(int i);
 int get_cosigners_number();
 const char * get_cosigner_name(int i);
 int load_wallet(int num);
+void request_new_cosigner(void * ptr);
+void get_psbt(void * ptr);
 
 #endif // __WALLET_H__
