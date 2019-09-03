@@ -334,6 +334,12 @@ static void cb_get_psbt(lv_obj_t * obj, lv_event_t event){
     }
 }
 
+static void cb_scan_address(lv_obj_t * obj, lv_event_t event){
+    if(event == LV_EVENT_RELEASED){
+        lv_async_call(verify_address, NULL);
+    }
+}
+
 void gui_keys_menu_show(void * ptr){
     lv_obj_t * scr;
     if(ptr == NULL){
@@ -402,7 +408,7 @@ void gui_main_menu_show(void * ptr){
     obj = gui_button_create(scr, "Sign transaction", cb_get_psbt);
     lv_obj_set_y(obj, y);
     y+=100;
-    obj = gui_button_create(scr, "Verify", cb_not_imeplemnted);
+    obj = gui_button_create(scr, "Verify address", cb_scan_address);
     lv_obj_set_y(obj, y);
     y+=100;
     obj = gui_button_create(scr, "Use another password", cb_set_password);

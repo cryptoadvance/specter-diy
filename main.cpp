@@ -417,6 +417,40 @@ int load_wallet(int num){
     gui_qr_alert_create(wallet.name, (string("bitcoin:")+address).c_str(), address.c_str(), "OK");
 	return 0;
 }
+void check_address(const char * data){
+    char address[100];
+    char type[10];
+    char derivation[100];
+    sscanf(data, "address=%s\ntype=%s\n%s", address, type, derivation);
+
+    string fingerprint = root.fingerprint();
+    if(memcmp(fingerprint.c_str(), derivation, 8) != 0){
+        gui_alert_create("Error", "Wrong fingerprint in derivation", "OK");
+        return;
+    }
+    HDPublicKey xpub = root.derive(derivation+9).derive(address).xpub();
+    if(!xpub.isValid()){
+        gui_alert_create("Error", "Wrong derivation", "OK");
+        return;
+    }
+    PublicKey pub = xpub;
+    string addr = "unsupported";
+    if(strcmp(type, "P2PKH") == 0){
+        addr = pub.legacyAddress(network);
+    }
+    if(strcmp(type, "P2WPKH") == 0){
+        addr = pub.segwitAddress(network);
+    }
+    if(strcmp(type, "P2SH_P2WPKH") == 0){
+        addr = pub.nestedSegwitAddress(network);
+    }
+    // gui_alert_create("Your address", s.c_str(), "OK");
+    gui_qr_alert_create("Your address", (string("bitcoin:")+addr).c_str(), addr.c_str(), "OK");
+}
+
+void verify_address(void * ptr){
+    host_request_data(check_address);
+}
 
 int get_wallets_number(){
 	int i=0;
