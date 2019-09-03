@@ -566,8 +566,8 @@ int main(){
     gui_start();	   // start the gui
 
     // for testing, pre-defined mnemonic
-    init_keys("also panda decline code guard palace spread squirrel stereo sudden fee noodle", "test");
-    gui_set_mnemonic("also panda decline code guard palace spread squirrel stereo sudden fee noodle");
+    // init_keys("also panda decline code guard palace spread squirrel stereo sudden fee noodle", "test");
+    // gui_set_mnemonic("also panda decline code guard palace spread squirrel stereo sudden fee noodle");
 
     while(1){
     	update();
