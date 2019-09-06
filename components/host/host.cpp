@@ -8,9 +8,15 @@ static char qrbuf[1000];
 
 static void (*data_callback)(const char * data) = NULL;
 
-void host_request_data(void (*callback)(const char * data)){
+void host_request_data(void (*callback)(const char * data), void (*cb_error)(int error)){
 	data_callback = callback;
-	qrscanner.trigger = 0;
+	// qrscanner.trigger = 0;
+    int err = qrscanner.scan(qrbuf, sizeof(qrbuf));
+    if(err < 0){
+        cb_error(err);
+    }else{
+        callback(qrbuf);
+    }
 }
 
 void host_update(){
@@ -25,5 +31,5 @@ void host_update(){
 
 void host_init(){
 	memset(qrbuf, 0, 1000);
-	qrscanner.setBuffer(qrbuf, sizeof(qrbuf));
+	// qrscanner.setBuffer(qrbuf, sizeof(qrbuf));
 }

@@ -42,12 +42,6 @@ void cb_data_ready(const char * buffer){
     lv_label_set_text(txt, buffer);
 }
 
-void cb_scan(lv_obj_t * btn, lv_event_t event){
-    // int res = qrscanner.scan(qrbuf, sizeof(qrbuf));
-    lv_label_set_text(txt, "Scanning...");
-    host_request_data(cb_data_ready);
-}
-
 void gui_init(){
     lv_init();
     tft_init();

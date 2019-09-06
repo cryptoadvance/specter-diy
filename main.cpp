@@ -46,6 +46,10 @@ void update(){
 	}
 }
 
+void cb_err(int err){
+    gui_alert_create("Error", "Scanning QR code failed - timout?\n\nTry again.", "OK");
+}
+
 void set_network(int net){
 	string fingerprint = root.fingerprint();
 	switch(net){
@@ -121,7 +125,7 @@ void add_cosigner(const char * data){
 }
 
 void request_new_cosigner(void * ptr){
-    host_request_data(add_cosigner);
+    host_request_data(add_cosigner, cb_err);
 }
 
 void sign_psbt(void * ptr){
@@ -180,7 +184,7 @@ void parse_psbt(const char * data){
 }
 
 void get_psbt(void * ptr){
-    host_request_data(parse_psbt);
+    host_request_data(parse_psbt, cb_err);
 }
 
 int create_dir(const char * path){
@@ -449,7 +453,7 @@ void check_address(const char * data){
 }
 
 void verify_address(void * ptr){
-    host_request_data(check_address);
+    host_request_data(check_address, cb_err);
 }
 
 int get_wallets_number(){

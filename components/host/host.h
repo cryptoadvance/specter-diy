@@ -3,6 +3,6 @@
 
 void host_init();
 void host_update();
-void host_request_data(void (*callback)(const char * data));
+void host_request_data(void (*callback)(const char * data), void (*cb_error)(int error));
 
 #endif
