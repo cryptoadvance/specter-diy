@@ -29,7 +29,7 @@ Main part of the device is the developer board:
 
 For QR code scanner you have several options.
 
-Option 1. Lazy, no soldering required, extremely nice scanner but pretty expensive:
+Option 1. Lazy, minimal soldering required, extremely nice scanner but pretty expensive:
 
 - [Barcode Click](https://www.mikroe.com/barcode-click) + [Adapter](https://www.mikroe.com/arduino-uno-click-shield)
 
