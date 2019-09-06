@@ -39,10 +39,10 @@ void update(){
     gui_update();
     host_update();
 	if(btn){
-		gui_calibrate();
-		while(btn){
-			wait(0.1);
-		}
+        while(btn){
+            wait(0.1);
+        }
+        gui_calibrate();
 	}
 }
 

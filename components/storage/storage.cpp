@@ -8,17 +8,14 @@ QSPIFBlockDevice bd(MBED_CONF_QSPIF_QSPI_IO0,MBED_CONF_QSPIF_QSPI_IO1,MBED_CONF_
         MBED_CONF_QSPIF_QSPI_SCK,MBED_CONF_QSPIF_QSPI_CSN,MBED_CONF_QSPIF_QSPI_POLARITY_MODE,MBED_CONF_QSPIF_QSPI_FREQ);
 LittleFileSystem fs("internal", &bd);
 
-int erase(){
-    int err = fs.unmount();
-    if(err < 0){
-        return err;
-    }
-    // FIXME: zero everything there
-    err = fs.reformat(&bd);
-    if(err < 0){
-        return err;
-    }
+int storage_erase(){
+    // FIXME: should erase everything
+    // FIXME: should also zero the whole memory
+    int err = fs.reformat(NULL);
+    return err;
+    // return fs.remove("/internal/gui/calibration");
 }
+
 void listRoot(){
     // Display the root directory
     printf("Opening the root directory... ");

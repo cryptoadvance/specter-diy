@@ -124,7 +124,7 @@ void gui_calibration_save(lv_point_t * points){
     fwrite(points, sizeof(lv_point_t), 4, f);
     fclose(f);
 
-    gui_calibration_load();
+    tounchpad_calibrate(points);
 
     gui_alert_create("Done.\nNow, let's make it clear.",
         "This wallet doesn't store your private keys, "
@@ -443,5 +443,15 @@ void gui_start(){
 }
 
 void gui_calibrate(){
+    lv_point_t points[4];
+    points[0].x = 0;
+    points[0].y = 0;
+    points[1].x = TFT_HOR_RES;
+    points[1].y = 0;
+    points[2].x = TFT_HOR_RES;
+    points[2].y = TFT_VER_RES;
+    points[3].x = 0;
+    points[3].y = TFT_VER_RES;
+    tounchpad_calibrate(points);
     tpcal_create(gui_calibration_save);
 }

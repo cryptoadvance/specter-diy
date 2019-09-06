@@ -8,6 +8,6 @@ int storage_init();
 // int save(const char * fname, const char * content);
 // bool dirExists(const char * dirname);
 // int makeDir(const char * dirname);
-// int erase();
+int storage_erase();
 
 #endif
