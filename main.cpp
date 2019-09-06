@@ -19,6 +19,7 @@
 #include "tpcal.h"
 #include "main.h"
 #include "PSBT.h"
+#include "Electrum.h"
 
 int maybe_create_default_wallet();
 
@@ -30,6 +31,7 @@ PrivateKey id_key;
 const Network * network = &Testnet;
 char storage_path[100] = "";
 PSBT psbt;
+ElectrumTx etx;
 
 wallet_t wallet;
 
@@ -128,6 +130,15 @@ void request_new_cosigner(void * ptr){
     host_request_data(add_cosigner, cb_err);
 }
 
+void sign_etx(void * ptr){
+    etx.sign(root.hardenedChild(49).hardenedChild(network->bip32).hardenedChild(0));
+    uint8_t * raw = new uint8_t[etx.length()];
+    size_t len = etx.serialize(raw, etx.length());
+    string b43 = toBase43(raw, len);
+    gui_main_menu_show(NULL); // screen to go back to
+    gui_qr_alert_create("Signed transaction", b43.c_str(), "Scan it", "OK");
+}
+
 void sign_psbt(void * ptr){
     psbt.sign(root);
     uint8_t * raw = new uint8_t[psbt.length()];
@@ -136,6 +147,50 @@ void sign_psbt(void * ptr){
     gui_main_menu_show(NULL); // screen to go back to
     gui_qr_alert_create("Signed transaction", b64.c_str(), "Scan it", "OK");
 }
+
+void show_etx(){
+    char title[30];
+    string msg = "Sending to:\n\n";
+    string change = "";
+    float send_amount = 0;
+    HDPublicKey xpub = root.hardenedChild(49).hardenedChild(network->bip32).hardenedChild(0).xpub().child(1);
+    for(int i=0; i<etx.tx.outputsNumber; i++){
+        // electrum doesn't provide derivation information for change, we need to bruteforce
+        // TODO: store a range of change addresses to help bruteforce while we don't have PSBT plugin
+        bool is_change = false;
+        string addr = etx.tx.txOuts[i].address(network);
+        for(int j=0; j<20; j++){ // 20 addresses for now
+            PublicKey pub = xpub.child(j);
+            if(pub.nestedSegwitAddress(network) == addr){
+                is_change = true;
+                break;
+            }
+        }
+        if(!is_change){
+            send_amount += etx.tx.txOuts[i].btcAmount();
+            msg += addr;
+            char s[20];
+            sprintf(s, ": %.8f BTC\n\n", etx.tx.txOuts[i].btcAmount());
+            msg += s;
+        }else{
+            if(change.length() == 0){
+                change = "Change outputs:\n\n";
+            }
+            change += addr;
+            char s[20];
+            sprintf(s, ": %.8f BTC\n\n", etx.tx.txOuts[i].btcAmount());
+            change += s;
+        }
+    }
+    char s[100];
+    sprintf(s, "Fee: %.8f BTC (%.2f percent)", float(etx.fee())/1e8, float(etx.fee())/1e8/send_amount*100);
+    msg += change;
+    msg += s;
+    send_amount += float(etx.fee())/1e8;
+    sprintf(title, "Sending %.8f BTC\nfrom <Wallet name>", send_amount);
+    gui_prompt_create(title, msg.c_str(), "Sign", sign_etx, "Cancel", gui_main_menu_show);
+}
+
 
 void show_psbt(){
     char title[30];
@@ -168,6 +223,21 @@ void show_psbt(){
     gui_prompt_create(title, msg.c_str(), "Sign", sign_psbt, "Cancel", gui_main_menu_show);
 }
 
+void parse_etx(const char * data){
+    uint8_t * raw = new uint8_t[strlen(data)*3/4];
+    size_t len = fromBase43(data, strlen(data), raw, strlen(data)*3/4);
+    if(len > 0){
+        etx.reset();
+        len = etx.parse(raw, len);
+    }
+    delete [] raw;
+    if(len <= 0){
+        gui_alert_create("Parsing error", "Failed to parse transaction", "OK");
+        return;
+    }
+    show_etx();
+}
+
 void parse_psbt(const char * data){
     uint8_t * raw = new uint8_t[strlen(data)*3/4];
     size_t len = fromBase64(data, strlen(data), raw, strlen(data)*3/4);
@@ -185,6 +255,10 @@ void parse_psbt(const char * data){
 
 void get_psbt(void * ptr){
     host_request_data(parse_psbt, cb_err);
+}
+
+void get_etx(void * ptr){
+    host_request_data(parse_etx, cb_err);
 }
 
 int create_dir(const char * path){
@@ -587,6 +661,7 @@ void init_keys(const char * mnemonic, const char * password){
 /* TODO:
  * - refactor storage
  * - get rid of unsecure functions like fscanf
+ * - add hmac on wallet files to check integrity
  */
 int main(){
 	// just in case
@@ -604,8 +679,8 @@ int main(){
     gui_start();	   // start the gui
 
     // for testing, pre-defined mnemonic
-    // init_keys("also panda decline code guard palace spread squirrel stereo sudden fee noodle", "test");
-    // gui_set_mnemonic("also panda decline code guard palace spread squirrel stereo sudden fee noodle");
+    init_keys("also panda decline code guard palace spread squirrel stereo sudden fee noodle", "test");
+    gui_set_mnemonic("also panda decline code guard palace spread squirrel stereo sudden fee noodle");
 
     while(1){
     	update();

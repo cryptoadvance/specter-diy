@@ -328,6 +328,12 @@ static void cb_get_psbt(lv_obj_t * obj, lv_event_t event){
     }
 }
 
+static void cb_get_etx(lv_obj_t * obj, lv_event_t event){
+    if(event == LV_EVENT_RELEASED){
+        lv_async_call(get_etx, NULL);
+    }
+}
+
 static void cb_scan_address(lv_obj_t * obj, lv_event_t event){
     if(event == LV_EVENT_RELEASED){
         lv_async_call(verify_address, NULL);
@@ -396,10 +402,13 @@ void gui_main_menu_show(void * ptr){
     obj = gui_button_create(scr, "Master keys", cb_master_keys);
     lv_obj_set_y(obj, y);
     y+=100;
-    obj = gui_button_create(scr, "Cosigners", cb_list_cosigners);
+    // obj = gui_button_create(scr, "Cosigners", cb_list_cosigners);
+    // lv_obj_set_y(obj, y);
+    // y+=100;
+    obj = gui_button_create(scr, "Sign PSBT transaction", cb_get_psbt);
     lv_obj_set_y(obj, y);
     y+=100;
-    obj = gui_button_create(scr, "Sign transaction", cb_get_psbt);
+    obj = gui_button_create(scr, "Sign Electrum transaction", cb_get_etx);
     lv_obj_set_y(obj, y);
     y+=100;
     obj = gui_button_create(scr, "Verify address", cb_scan_address);

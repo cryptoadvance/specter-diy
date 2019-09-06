@@ -30,6 +30,7 @@ const char * get_cosigner_name(int i);
 int load_wallet(int num);
 void request_new_cosigner(void * ptr);
 void get_psbt(void * ptr);
+void get_etx(void * ptr);
 void verify_address(void * ptr);
 
 #endif // __WALLET_H__
