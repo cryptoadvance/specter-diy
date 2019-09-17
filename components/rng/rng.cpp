@@ -20,7 +20,7 @@ uint32_t rng_get_random_number(void){
 }
 
 size_t rng_get_random_buffer(uint8_t * arr, size_t len){
-    for(uint i=0; 4*i<len; i++){
+    for(unsigned i=0; 4*i<len; i++){
         uint32_t r = rng_get_random_number();
         if( i*4+1< len ){
             memcpy(arr+i*4, &r, 4);
