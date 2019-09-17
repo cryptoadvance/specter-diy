@@ -365,7 +365,7 @@ static void btn_event_cb(lv_obj_t * scr, lv_event_t event)
                 sprintf(buf+strlen(buf),"\npoint%d: (%d,%d)", i, line_points[i].x, line_points[i].y);
             }
             lv_obj_del(circ_area);
-            state = TP_CAL_STATE_WAIT_LEAVE;            
+            state = TP_CAL_STATE_WAIT_LEAVE;
         } else {
             sprintf(buf, "Click the circle in\n"
                     "lower left-hand corner\n"
@@ -424,7 +424,7 @@ static void draw_rect(){
     line_points[3].x = 0;
     line_points[3].y = LV_VER_RES;
 
-    void tounchpad_calibrate(line_points);
+    tounchpad_calibrate(line_points);
 
     /*Copy the previous line and apply the new style*/
     line = lv_line_create(lv_scr_act(), NULL);

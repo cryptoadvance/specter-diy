@@ -88,7 +88,7 @@ static void gui_show_mnemonic(lv_obj_t * tbl, bool check){
     int cellnum = 0;
     int word_start = 0;
     char word[10] = "";
-    for(uint i=0; i<strlen(mnemonic); i++){
+    for(unsigned i=0; i<strlen(mnemonic); i++){
         if(mnemonic[i]==' '){
             memset(word, 0, sizeof(word));
             memcpy(word, mnemonic + word_start, i - word_start);
