@@ -24,17 +24,17 @@ void listRoot(){
     if (!d) {
         error("error: %s (%d)\r\n", strerror(errno), -errno);
     }
- 
+
     printf("root directory:\r\n");
     while (true) {
         struct dirent *e = readdir(d);
         if (!e) {
             break;
         }
- 
+
         printf("    %s\r\n", e->d_name);
     }
- 
+
     printf("Closing the root directory... ");
     int err = closedir(d);
     printf("%s\r\n", (err < 0 ? "Fail :(" : "OK"));
@@ -69,13 +69,14 @@ int save(const char * fname, const char * content){
         error("error: %s (%d)\r\n", strerror(errno), -errno);
         return errno;
     }
- 
+
     int err = fprintf(f, "%s", content);
     if (err < 0) {
         printf("Fail :(\r\n");
         error("error: %s (%d)\r\n", strerror(errno), -errno);
         return errno;
     }
+		return 1;
 }
 
 bool dirExists(const char * dirname){
@@ -118,7 +119,7 @@ static int qspi_init(){
         if (!f) {
             error("error: %s (%d)\r\n", strerror(errno), -errno);
         }
- 
+
         for (int i = 0; i < 10; i++) {
             printf("\rWriting numbers (%d/%d)... ", i, 10);
             err = fprintf(f, "    %d\r\n", i);
@@ -128,7 +129,7 @@ static int qspi_init(){
             }
         }
         printf("\rWriting numbers (%d/%d)... OK\r\n", 10, 10);
- 
+
         printf("Seeking file... ");
         err = fseek(f, 0, SEEK_SET);
         printf("%s\r\n", (err < 0 ? "Fail :(" : "OK"));
@@ -136,30 +137,30 @@ static int qspi_init(){
             error("error: %s (%d)\r\n", strerror(errno), -errno);
         }
     }
- 
+
     // Go through and increment the numbers
     for (int i = 0; i < 10; i++) {
         printf("\rIncrementing numbers (%d/%d)... ", i, 10);
- 
+
         // Get current stream position
         long pos = ftell(f);
- 
+
         // Parse out the number and increment
         int32_t number;
         fscanf(f, "%d", &number);
         number += 1;
- 
+
         // Seek to beginning of number
         fseek(f, pos, SEEK_SET);
-    
+
         // Store number
         fprintf(f, "    %d\r\n", number);
- 
+
         // Flush between write and read on same file
         fflush(f);
     }
     printf("\rIncrementing numbers (%d/%d)... OK\r\n", 10, 10);
- 
+
     // Close the file which also flushes any cached writes
     printf("Closing \"/internal/numbers.txt\"... ");
     err = fclose(f);
@@ -167,7 +168,7 @@ static int qspi_init(){
     if (err < 0) {
         error("error: %s (%d)\r\n", strerror(errno), -errno);
     }
-    
+
     // Display the root directory
     printf("Opening the root directory... ");
     DIR *d = opendir("/internal/");
@@ -175,24 +176,24 @@ static int qspi_init(){
     if (!d) {
         error("error: %s (%d)\r\n", strerror(errno), -errno);
     }
- 
+
     printf("root directory:\r\n");
     while (true) {
         struct dirent *e = readdir(d);
         if (!e) {
             break;
         }
- 
+
         printf("    %s\r\n", e->d_name);
     }
- 
+
     printf("Closing the root directory... ");
     err = closedir(d);
     printf("%s\r\n", (err < 0 ? "Fail :(" : "OK"));
     if (err < 0) {
         error("error: %s (%d)\r\n", strerror(errno), -errno);
     }
- 
+
     // Display the numbers file
     printf("Opening \"/internal/numbers.txt\"... ");
     f = fopen("/internal/numbers.txt", "r");
@@ -200,20 +201,20 @@ static int qspi_init(){
     if (!f) {
         error("error: %s (%d)\r\n", strerror(errno), -errno);
     }
- 
+
     printf("numbers:\r\n");
     while (!feof(f)) {
         int c = fgetc(f);
         printf("%c", c);
     }
- 
+
     printf("\rClosing \"/internal/numbers.txt\"... ");
     err = fclose(f);
     printf("%s\r\n", (err < 0 ? "Fail :(" : "OK"));
     if (err < 0) {
         error("error: %s (%d)\r\n", strerror(errno), -errno);
     }
- 
+
     // Tidy up
     printf("Unmounting... ");
     err = fs.unmount();
@@ -221,7 +222,7 @@ static int qspi_init(){
     if (err < 0) {
         error("error: %s (%d)\r\n", strerror(-err), err);
     }
-        
+
     printf("Mbed OS filesystem example done!\r\n");
 }
 #endif
