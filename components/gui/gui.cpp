@@ -97,7 +97,7 @@ int gui_calibration_load(){
     }
     closedir(d);
     // check if we need to calibrate the screen
-    FILE *f = fopen("/internal/gui/calibraion", "r");
+    FILE *f = fopen("/internal/gui/calibration", "r");
     if(!f){
         fs_err("Calibration file is missing...");
         return -3;
@@ -111,7 +111,7 @@ int gui_calibration_load(){
 
 void gui_calibration_save(lv_point_t * points){
 
-    FILE *f = fopen("/internal/gui/calibraion", "w+");
+    FILE *f = fopen("/internal/gui/calibration", "w+");
     if(!f){
         fs_err("Failed to write calibration file");
     }
@@ -201,7 +201,7 @@ static void cb_to_main_menu(lv_obj_t * obj, lv_event_t event){
 static void cb_set_password(lv_obj_t * obj, lv_event_t event){
     if(event == LV_EVENT_RELEASED){
         lv_async_call(gui_password_enter_show, lv_scr_act());
-    }    
+    }
 }
 
 static void cb_load_wallet(lv_obj_t * obj, lv_event_t event){
@@ -211,13 +211,13 @@ static void cb_load_wallet(lv_obj_t * obj, lv_event_t event){
         if(err != 0){
             return;
         }
-    }    
+    }
 }
 
 static void cb_add_cosigner(lv_obj_t * obj, lv_event_t event){
     if(event == LV_EVENT_RELEASED){
         lv_async_call(request_new_cosigner, NULL);
-    }    
+    }
 }
 
 void gui_wallets_menu_show(void * ptr){
