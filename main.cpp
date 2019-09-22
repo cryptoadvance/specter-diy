@@ -288,30 +288,42 @@ void process_action(int action){
 // handles data from the host
 static void process_data(int action, uint8_t * buf, size_t len){
     int err;
-    char * derivation = NULL;
+    string derivation;
     char * b64 = NULL;
     switch(action){
         case VERIFY_ADDRESS:
-            // TODO: parse descriptors instead (to support multisig verification)
-            // first check if it starts with a fingerprint or `m/`
-            derivation = (char *) buf;
-            if(memcmp(buf, "m/", 2)!=0){
-                // if not - fine, just do +9 characters (8 char fingerprint + /)
-                derivation = (char *)buf + 9;
-                // but check that fingerprint is ok
-                if(memcmp(buf, keystore.fingerprint, 8) != 0){
+        {
+            // TODO: refactor to support multisig and bitcoin:addr?index=X codes
+            char address[100];
+            char type[10];
+            char der[100];
+            int res = sscanf((char *)buf, "address=%s\ntype=%s\n%s", address, type, der);
+            if(res > 0){ // if "address=<addr>\ntype=<type>\n<der>" format is used
+                if(memcmp(der, keystore.fingerprint, 8) != 0){
                     show_err("Wrong fingerprint");
                     return;
                 }
+                derivation = string(der+9)+string(address+1);
+            }else{
+                if(memcmp(buf, "m/", 2)!=0){
+                    // check that fingerprint is ok
+                    if(memcmp(buf, keystore.fingerprint, 8) != 0){
+                        show_err("Wrong fingerprint");
+                        return;
+                    }
+                    derivation = ((char *)buf + 9);
+                }else{
+                    derivation = (char *) buf;
+                }
             }
             char * bech32_addr;
-            err = keystore_get_addr(&keystore, derivation, network, &bech32_addr, KEYSTORE_BECH32_ADDRESS);
+            err = keystore_get_addr(&keystore, derivation.c_str(), network, &bech32_addr, KEYSTORE_BECH32_ADDRESS);
             if(err){
                 show_err("failed to derive address");
                 return;
             }
             char * base58_addr;
-            err = keystore_get_addr(&keystore, derivation, network, &base58_addr, KEYSTORE_BASE58_ADDRESS);
+            err = keystore_get_addr(&keystore, derivation.c_str(), network, &base58_addr, KEYSTORE_BASE58_ADDRESS);
             if(err){
                 show_err("failed to derive address");
                 return;
@@ -320,7 +332,9 @@ static void process_data(int action, uint8_t * buf, size_t len){
             wally_free_string(bech32_addr);
             wally_free_string(base58_addr);
             break;
+        }
         case SIGN_PSBT:
+        {
             b64 = (char *) buf;
             if(psbt!=NULL){
                 wally_psbt_free(psbt);
@@ -337,6 +351,7 @@ static void process_data(int action, uint8_t * buf, size_t len){
                 psbt = NULL;
             }
             break;
+        }
     }
 }
 

@@ -9,6 +9,6 @@
 /** put in debug.h your hardcoded debug mnemonic */
 // #include "debug.h"
 /** or put it here and uncomment this line */
-#define DEBUG_MNEMONIC "also panda decline code guard palace spread squirrel stereo sudden fee noodle"
+// #define DEBUG_MNEMONIC "also panda decline code guard palace spread squirrel stereo sudden fee noodle"
 
 #endif // __SPECTER_CONFIG_H__
