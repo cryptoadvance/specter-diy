@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 
 #include "specter_config.h"
 #include "helpers.h"
@@ -30,6 +31,8 @@
  
 #include "wally_psbt.h"
 #include "wally_script.h"
+
+using std::string;
 
 #define NO_ACTION       0
 #define VERIFY_ADDRESS  1

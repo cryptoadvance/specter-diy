@@ -2,6 +2,7 @@
 #include "helpers.h"
 #include "gui.h"
 #include "gui_common.h"
+#include <string>
 
 #include "tft.h"
 #include "touchpad.h"
@@ -32,9 +33,6 @@ static void onMillisecondTicker(void){
 
 static int base = BASE_UNDEFINED;
 static char input_buffer[501] = "";
-
-static struct timeval tmo;
-static fd_set readfds;
 
 static int action = GUI_NO_ACTION;
 static int value = 0;
