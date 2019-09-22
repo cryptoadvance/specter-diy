@@ -29,11 +29,11 @@ Main part of the device is the developer board:
 
 For QR code scanner you have several options.
 
-Option 1. Lazy, minimal soldering required, extremely nice scanner but pretty expensive:
+**Option 1.** Lazy, minimal soldering required, extremely nice scanner but pretty expensive:
 
 - [Barcode Click](https://www.mikroe.com/barcode-click) + [Adapter](https://www.mikroe.com/arduino-uno-click-shield)
 
-Option 2. Requires some soldering / mounting and configuration:
+**Option 2.** Requires some soldering / mounting and configuration:
 
 - [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to configure it to use UART for communication, solder a wire to the trigger button and connect to the D5 pin of the board.
 
@@ -41,3 +41,11 @@ Extra: battery & power charger/booster - docs will follow later.
 
 We are also working on the kit that you could buy from us that will include a 3d printed case, QR code scanner, battery and charging circuit, but without the main part - dev board. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
 
+## Dev plan
+
+- [x] Single key functionality
+- [ ] Multisig
+- [ ] SD card support
+- [ ] Reckless storage
+- [ ] Smartcard integration
+- [ ] Secure boot

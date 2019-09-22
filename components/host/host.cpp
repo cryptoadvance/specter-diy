@@ -1,4 +1,5 @@
 #include "host.h"
+#include "specter_config.h"
 #include "mbed.h"
 #include "QRScanner.h"
 #include "helpers.h"
@@ -10,7 +11,7 @@ static float tmax;
 
 QRScanner qrscanner(D5, D1, D0);
 // buffer to store external scans
-static char qrbuf[1001];
+static char * qrbuf = NULL;
 
 void host_update(){
     if(qrscanner.getStatus() == QR_EXTERNAL){
@@ -31,9 +32,10 @@ void host_update(){
 }
 
 void host_init(int flags, float timeout){
+    qrbuf = (char *)calloc(SPECTER_HOST_INPUT_SIZE, 1);
     host_flags = flags;
-    memset(qrbuf, 0, 1000);
-    qrscanner.setBuffer(qrbuf, sizeof(qrbuf)-1);
+    memset(qrbuf, 0, SPECTER_HOST_INPUT_SIZE);
+    qrscanner.setBuffer(qrbuf, SPECTER_HOST_INPUT_SIZE-1);
     tmax = timeout;
 }
 
@@ -61,8 +63,8 @@ int host_send(uint8_t * data, size_t len){
 void host_flush(){
     qrscanner.trigger = 1;
     host_flags = host_flags & 0xE;
-    memset(qrbuf, 0, sizeof(qrbuf));
-    qrscanner.setBuffer(qrbuf, sizeof(qrbuf));
+    memset(qrbuf, 0, SPECTER_HOST_INPUT_SIZE);
+    qrscanner.setBuffer(qrbuf, SPECTER_HOST_INPUT_SIZE);
 }
 
 size_t host_read(uint8_t * buf, size_t len){

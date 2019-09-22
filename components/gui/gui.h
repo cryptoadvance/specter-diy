@@ -43,6 +43,7 @@ void gui_show_main_screen();
 void gui_show_xpub(const char * fingerprint, const char * derivation, const char * xpub);
 void gui_show_addresses(const char * derivation, const char * segwit_addr, const char * base58_addr);
 void gui_show_psbt(uint64_t out_amount, uint64_t change_amount, uint64_t fee, uint8_t num_outputs, txout_t * outputs);
+void gui_show_signed_psbt(const char * output);
 
 void gui_calibrate();
 

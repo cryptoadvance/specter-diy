@@ -19,7 +19,6 @@
 #include "helpers.h"
 #include "storage.h"
 #include "gui.h"
-// #include "tpcal.h"
 #include "rng.h"
 #include "host.h"
 #include "keystore.h"
@@ -269,8 +268,8 @@ void process_action(int action){
             char * output = NULL;
             if(keystore_sign_psbt(&keystore, psbt, &output) == 0){
                 printf("%s\r\n", output);
+                gui_show_signed_psbt(output);
                 wally_free_string(output);
-                gui_show_main_screen();
             }else{
                 show_err("failed to sign transaction");
             }
@@ -359,12 +358,13 @@ void update(){
             in_action = NO_ACTION;
         }
     }
-	if(btn){
-		while(btn){
-			wait(0.1);
-		}
+
+    if(btn){ // If blue button is pressed - calibrate touchscreen
+        while(btn){
+            wait(0.1);
+        }
         gui_calibrate();
-	}
+    }
 }
 
 int main(){
@@ -390,8 +390,8 @@ int main(){
 
     // for debug purposes - hardcoded mnemonic
     // TODO: add reckless storage option
-#ifdef SPECTER_DEBUG
-    char debug_mnemonic[] = "also panda decline code guard palace spread squirrel stereo sudden fee noodle";
+#ifdef DEBUG_MNEMONIC
+    char debug_mnemonic[] = DEBUG_MNEMONIC;
     sstrcopy(debug_mnemonic, &mnemonic);
     gui_get_password();             // go directly to "enter password" screen
 #else
@@ -399,7 +399,7 @@ int main(){
 #endif
 
     while(1){
-    	update();
+        update();
     }
     // should never reach this, but still
     wally_cleanup(0);
