@@ -1,11 +1,11 @@
 #include "keystore.h"
-#include "helpers.h"
 #include <stdio.h>
 #include "wally_crypto.h"
 #include "wally_bip32.h"
 #include "wally_bip39.h"
 #include "wally_address.h"
 #include "wally_script.h"
+#include "networks.h"
 
 static uint32_t * parse_derivation(const char * path, size_t * derlen){
     static const char VALID_CHARS[] = "0123456789/'h";
@@ -158,8 +158,57 @@ int keystore_output_is_change(const keystore_t * key, const struct wally_psbt * 
     if(i >= psbt->num_outputs){
         return 0;
     }
-    
-    return 0;
+    if(psbt->outputs[i].keypaths == NULL){
+        return 0;
+    }
+    if(psbt->outputs[i].keypaths->num_items != 1){
+        printf("keystore: multisig change detection is not supported yet\r\n");
+        return 0;
+    }
+    struct ext_key * pk = NULL;
+    // TODO: fix for multiple keypaths
+    bip32_key_from_parent_path_alloc(key->root, 
+        psbt->outputs[i].keypaths->items[0].origin.path, 
+        psbt->outputs[i].keypaths->items[0].origin.path_len, 
+        BIP32_FLAG_KEY_PRIVATE, &pk);
+    size_t script_type;
+    wally_scriptpubkey_get_type(psbt->tx->outputs[i].script, psbt->tx->outputs[i].script_len, &script_type);
+    // should deal with all script types, only P2WPKH for now
+
+    // doesn't matter, we just compare strings...
+    // TODO: refactor with scriptpubkey instead of addresses
+    const network_t * network = &Mainnet;
+    char * addr = NULL;
+    char * addr2 = NULL;
+    uint8_t bytes[21];
+    switch(script_type){
+        case WALLY_SCRIPT_TYPE_P2WPKH:
+            wally_addr_segwit_from_bytes(psbt->tx->outputs[i].script, psbt->tx->outputs[i].script_len, network->bech32, 0, &addr);
+            wally_bip32_key_to_addr_segwit(pk, network->bech32, 0, &addr2);
+            break;
+        case WALLY_SCRIPT_TYPE_P2SH:
+            bytes[0] = network->p2sh;
+            memcpy(bytes+1, psbt->tx->outputs[i].script+2, 20);
+            wally_base58_from_bytes(bytes, 21, BASE58_FLAG_CHECKSUM, &addr);
+            wally_bip32_key_to_address(pk, WALLY_ADDRESS_TYPE_P2SH_P2WPKH, network->p2sh, &addr2);
+            break;
+        case WALLY_SCRIPT_TYPE_P2PKH:
+            bytes[0] = network->p2pkh;
+            memcpy(bytes+1, psbt->tx->outputs[i].script+3, 20);
+            wally_base58_from_bytes(bytes, 21, BASE58_FLAG_CHECKSUM, &addr);
+            wally_bip32_key_to_address(pk, WALLY_ADDRESS_TYPE_P2PKH, network->p2pkh, &addr2);
+            break;
+        default:
+            return 0;
+    }
+    int res = 0;
+    if(strcmp(addr, addr2) == 0){
+        res = 1;
+    }
+    bip32_key_free(pk);
+    wally_free_string(addr2);
+    wally_free_string(addr);
+    return res;
 }
 
 int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char ** output){
