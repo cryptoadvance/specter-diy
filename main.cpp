@@ -11,678 +11,397 @@
  */
 
 #include "mbed.h"
-#include "rng.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "specter_config.h"
+#include "helpers.h"
 #include "storage.h"
 #include "gui.h"
+// #include "tpcal.h"
+#include "rng.h"
 #include "host.h"
-#include "Bitcoin.h"
-#include "tpcal.h"
-#include "main.h"
-#include "PSBT.h"
-#include "Electrum.h"
+#include "keystore.h"
+#include "networks.h"
 
-int maybe_create_default_wallet();
+#include "wally_core.h"
+#include "wally_bip39.h"
+#include "wally_address.h"
+ 
+#include "wally_psbt.h"
+#include "wally_script.h"
+
+#define NO_ACTION       0
+#define VERIFY_ADDRESS  1
+#define SIGN_PSBT       2
+
+static char * mnemonic = NULL;
+static char * password = NULL;
+
+static keystore_t keystore;
+static const network_t * network = &Testnet;
+
+static int in_action = NO_ACTION;
+static struct wally_psbt * psbt = NULL;
 
 Serial pc(SERIAL_TX, SERIAL_RX, 115200);
 DigitalIn btn(USER_BUTTON);
 
-HDPrivateKey root;
-PrivateKey id_key;
-const Network * network = &Testnet;
-char storage_path[100] = "";
-PSBT psbt;
-ElectrumTx etx;
+// generates a mnemonic from entropy
+// TODO: should it be moved to keystore?
+void generate_mnemonic(size_t n){
+    uint8_t * rnd;
+    rnd = (uint8_t *) malloc(n);
+    rng_get_random_buffer(rnd, n);
+    bip39_mnemonic_from_bytes(NULL, rnd, n, &mnemonic);
+    wally_bzero(rnd, n);
+    free(rnd);
+}
 
-wallet_t wallet;
+// securely copies the string and zeroes input
+void sstrcopy(char * input, char ** output){
+    if(*output!=NULL){
+        wally_bzero(*output, strlen(*output));
+        free(*output);
+        *output = NULL;
+    }
+    *output = (char*)calloc(strlen(input)+1, sizeof(char));
+    strcpy(*output, input);
+    wally_bzero(input, strlen(input));
+}
 
-static std::string temp_data;
+// initializes keystore from mnemonic and password
+void init_keys(const char * mnemonic, const char * password, keystore_t * keys){
+    logit("main", "init_keys");
+    keystore_init(mnemonic, password, keys);
+}
+
+// sets default extended keys paths in the GUI
+void set_default_xpubs(){
+    // set default xpubs derivations
+    char single[20];
+    char multisig[20];
+    sprintf(single, "m/84h/%luh/0h", network->bip32);
+    sprintf(multisig, "m/48h/%luh/0h/2h", network->bip32);
+    gui_set_default_xpubs(single, multisig);
+}
+
+// parses psbt, constructs all the addresses and amounts and sends to GUI
+static int show_psbt(const struct wally_psbt * psbt){
+    // check if we can sign it and all fields are ok
+    int res = keystore_check_psbt(&keystore, psbt);
+    if(res!=0){
+        if(res & KEYSTORE_PSBTERR_CANNOT_SIGN){
+            show_err("Can't sign the transaction");
+            return -1;
+        }
+        if(res & KEYSTORE_PSBTERR_MIXED_INPUTS){
+            show_err("Mixed inputs are not supported yet");
+            return -1;
+        }
+        if(res & KEYSTORE_PSBTERR_WRONG_FIELDS){
+            show_err("Something is wrong with transaction fields");
+            return -1;
+        }
+        if(res & KEYSTORE_PSBTERR_UNSUPPORTED_POLICY){
+            show_err("Script policy is not supported");
+            return -1;
+        }
+        show_err("Something is wrong with transaction");
+            return -1;
+    }
+
+    uint64_t in_amount = 0;
+    uint64_t out_amount = 0;
+    uint64_t change_amount = 0;
+    uint64_t fee = 0;
+
+    for(int i = 0; i < psbt->num_inputs; i++){
+        if(!psbt->inputs[i].witness_utxo){
+            show_err("Unsupported legacy transaction or missing prevout information");
+            return -1;
+        }
+        in_amount += psbt->inputs[i].witness_utxo->satoshi;
+    }
+
+    txout_t * outputs;
+    outputs = (txout_t *)calloc(psbt->num_outputs, sizeof(txout_t));
+
+    for(int i=0; i < psbt->tx->num_outputs; i++){
+        size_t script_type;
+        wally_scriptpubkey_get_type(psbt->tx->outputs[i].script, psbt->tx->outputs[i].script_len, &script_type);
+        char * addr = NULL;
+        uint8_t bytes[21];
+        // should deal with all script types, only P2WPKH for now
+        switch(script_type){
+            case WALLY_SCRIPT_TYPE_P2WPKH:
+            case WALLY_SCRIPT_TYPE_P2WSH:
+                wally_addr_segwit_from_bytes(psbt->tx->outputs[i].script, psbt->tx->outputs[i].script_len, network->bech32, 0, &addr);
+                break;
+            case WALLY_SCRIPT_TYPE_P2SH:
+                bytes[0] = network->p2sh;
+                memcpy(bytes+1, psbt->tx->outputs[i].script+2, 20);
+                wally_base58_from_bytes(bytes, 21, BASE58_FLAG_CHECKSUM, &addr);
+                break;
+            case WALLY_SCRIPT_TYPE_P2PKH:
+                bytes[0] = network->p2pkh;
+                memcpy(bytes+1, psbt->tx->outputs[i].script+3, 20);
+                wally_base58_from_bytes(bytes, 21, BASE58_FLAG_CHECKSUM, &addr);
+                break;
+        }
+        if(!addr){
+            addr = (char *)malloc(20);
+            sprintf(addr, "...custom script...");
+        }
+        outputs[i].address = addr;
+        outputs[i].amount = psbt->tx->outputs[i].satoshi;
+        char * warning = NULL;
+        outputs[i].is_change = keystore_output_is_change(&keystore, psbt, i, &warning);
+        outputs[i].warning = warning;
+
+        out_amount += psbt->tx->outputs[i].satoshi;
+    }
+    fee = in_amount-out_amount;
+    gui_show_psbt(out_amount, change_amount, fee, psbt->num_outputs, outputs);
+    for(int i=0; i<psbt->num_outputs; i++){
+        if(outputs[i].address != NULL){
+            wally_free_string(outputs[i].address);
+        }
+        if(outputs[i].warning != NULL){
+            wally_free_string(outputs[i].warning);
+        }
+    }
+    free(outputs);
+    return 0;
+}
+
+// handles user action from GUI
+void process_action(int action){
+    switch(action){
+        case GUI_SECURE_SHUTDOWN:
+        {   
+            logit("main", "shutting down...");
+            char * s = gui_get_str();
+            wally_bzero(s, strlen(s));
+            wally_cleanup(0);
+            exit(0);
+            break; // no need really
+        }
+        case GUI_GENERATE_KEY: 
+        {
+            logit("main", "generating a key...");
+            int v = gui_get_value();
+            if(v % 3 != 0 || v < 12 || v > 24){
+                v = SPECTER_MNEMONIC_WORDS;
+            }
+            generate_mnemonic(v*16/12);
+            gui_show_mnemonic(mnemonic);
+            break;
+        }
+        case GUI_PROCESS_MNEMONIC:
+        {
+            logit("main", "processing mnemonic...");
+            char * str = gui_get_str();
+            if(bip39_mnemonic_validate(NULL, str)!=WALLY_OK){
+                show_err("mnemonic is not correct");
+            }else{
+                sstrcopy(str, &mnemonic);
+                logit("main", "mnemonic is saved in memory");
+                gui_get_password();
+            }
+            break;
+        }
+        case GUI_PROCESS_PASSWORD:
+        {
+            logit("main", "processing password");
+            char * str = gui_get_str();
+            sstrcopy(str, &password);
+            logit("main", "password is saved in memory");
+            init_keys(mnemonic, password, &keystore);
+            // delete password from memory - we don't need it anymore
+            wally_bzero(password, strlen(password));
+            free(password);
+            password = NULL;
+            
+            gui_show_main_screen();
+            break;
+        }
+        case GUI_PROCESS_NETWORK:
+        {
+            int val = gui_get_value();
+            if(val >= 0 && val < NETWORKS_NUM){
+                network = networks[val];
+                gui_set_network(val);
+                set_default_xpubs();
+                gui_show_main_screen();
+            }else{
+                show_err("No such network");
+            }
+            break;
+        }
+        case GUI_SHOW_XPUB:
+        {
+            char * str = gui_get_str();
+            char *xpub = NULL;
+            keystore_get_xpub(&keystore, str, network, &xpub); // keys, derivation, network, string
+            gui_show_xpub(keystore.fingerprint, str, xpub);    //[fingerprint/derivation]xpub
+            wally_free_string(xpub);
+            break;
+        }
+        case GUI_VERIFY_ADDRESS:
+        {
+            logit("main", "verify address triggered");
+            host_request_data();
+            in_action = VERIFY_ADDRESS;
+            break;
+        }
+        case GUI_SIGN_PSBT:
+        {
+            logit("main", "PSBT triggered");
+            host_request_data();
+            in_action = SIGN_PSBT;
+            break;
+        }
+        case GUI_PSBT_CONFIRMED:
+        {
+            logit("main", "Signing transaction...");
+            char * output = NULL;
+            if(keystore_sign_psbt(&keystore, psbt, &output) == 0){
+                printf("%s\r\n", output);
+                wally_free_string(output);
+                gui_show_main_screen();
+            }else{
+                show_err("failed to sign transaction");
+            }
+            break;
+        }
+        case GUI_BACK:
+        {
+            gui_show_init_screen();
+            break;
+        }
+        default:
+            show_err("unrecognized action");
+    }
+}
+
+// handles data from the host
+static void process_data(int action, uint8_t * buf, size_t len){
+    int err;
+    char * derivation = NULL;
+    char * b64 = NULL;
+    switch(action){
+        case VERIFY_ADDRESS:
+            // TODO: parse descriptors instead (to support multisig verification)
+            // first check if it starts with a fingerprint or `m/`
+            derivation = (char *) buf;
+            if(memcmp(buf, "m/", 2)!=0){
+                // if not - fine, just do +9 characters (8 char fingerprint + /)
+                derivation = (char *)buf + 9;
+                // but check that fingerprint is ok
+                if(memcmp(buf, keystore.fingerprint, 8) != 0){
+                    show_err("Wrong fingerprint");
+                    return;
+                }
+            }
+            char * bech32_addr;
+            err = keystore_get_addr(&keystore, derivation, network, &bech32_addr, KEYSTORE_BECH32_ADDRESS);
+            if(err){
+                show_err("failed to derive address");
+                return;
+            }
+            char * base58_addr;
+            err = keystore_get_addr(&keystore, derivation, network, &base58_addr, KEYSTORE_BASE58_ADDRESS);
+            if(err){
+                show_err("failed to derive address");
+                return;
+            }
+            gui_show_addresses((char *)buf, bech32_addr, base58_addr);
+            wally_free_string(bech32_addr);
+            wally_free_string(base58_addr);
+            break;
+        case SIGN_PSBT:
+            b64 = (char *) buf;
+            if(psbt!=NULL){
+                wally_psbt_free(psbt);
+                psbt = NULL;
+            }
+            err = wally_psbt_from_base64(b64, &psbt);
+            if(err!=WALLY_OK){
+                show_err("failed to parse psbt transaction");
+                return;
+            }
+            err = show_psbt(psbt);
+            if(err){
+                wally_psbt_free(psbt);
+                psbt = NULL;
+            }
+            break;
+    }
+}
 
 void update(){
     gui_update();
+    int action = gui_get_action();
+    if(action != GUI_NO_ACTION){
+        process_action(action);
+        gui_clear_action();
+    }
     host_update();
-	if(btn){
-        while(btn){
-            wait(0.1);
+    if(in_action != NO_ACTION){
+        size_t len = host_data_available();
+        if(len > 0){
+            logit("main", "data!");
+            uint8_t * buf = host_get_data();
+            process_data(in_action, buf, len);
+            host_flush();
+            in_action = NO_ACTION;
         }
+    }
+	if(btn){
+		while(btn){
+			wait(0.1);
+		}
         gui_calibrate();
 	}
 }
 
-void cb_err(int err){
-    gui_alert_create("Error", "Scanning QR code failed - timout?\n\nTry again.", "OK");
-}
-
-void set_network(int net){
-	string fingerprint = root.fingerprint();
-	switch(net){
-		case 1:
-			network = &Mainnet;
-		    sprintf(storage_path, "/internal/%s/mainnet/", fingerprint.c_str());
-		    maybe_create_default_wallet();
-			gui_alert_create("Selected Main network", "Be careful plz", "OK");
-			break;
-		case 2:
-			network = &Testnet;
-		    sprintf(storage_path, "/internal/%s/testnet/", fingerprint.c_str());
-		    maybe_create_default_wallet();
-			gui_alert_create("Selected Test network", "Coins worth nothing here", "OK");
-			break;
-		case 3:
-			network = &Regtest;
-		    sprintf(storage_path, "/internal/%s/regtest/", fingerprint.c_str());
-		    maybe_create_default_wallet();
-			gui_alert_create("Selected Regtest", "I suppose you know what you are doing", "OK");
-			break;
-		default:
-			network = &Testnet;
-		    sprintf(storage_path, "/internal/%s/testnet/", fingerprint.c_str());
-		    maybe_create_default_wallet();
-			gui_alert_create("Error", "Wrong network. Switched back to Testnet.", "OK");
-	}
-}
-
-void show_key(int type){
-	char msg[200];
-	HDPublicKey pub;
-	switch(type){
-		case 1: // segwit
-			pub = root.hardenedChild(84).hardenedChild(network->bip32).hardenedChild(0).xpub();
-			sprintf(msg,"[%s/84h/%dh/0h]%s", root.fingerprint().c_str(), network->bip32, pub.toString().c_str());
-			break;
-		case 2: // nested
-			pub = root.hardenedChild(49).hardenedChild(network->bip32).hardenedChild(0).xpub();
-			sprintf(msg,"[%s/49h/%dh/0h]%s", root.fingerprint().c_str(), network->bip32, pub.toString().c_str());
-			break;
-		case 3: // legacy
-			pub = root.hardenedChild(44).hardenedChild(network->bip32).hardenedChild(0).xpub();
-			sprintf(msg,"[%s/44h/%dh/0h]%s", root.fingerprint().c_str(), network->bip32, pub.toString().c_str());
-			break;
-		case 4: // segwit
-			pub = root.hardenedChild(48).hardenedChild(network->bip32).hardenedChild(0).hardenedChild(2).xpub();
-			sprintf(msg,"[%s/48h/%dh/0h/2h]%s", root.fingerprint().c_str(), network->bip32, pub.toString().c_str());
-			break;
-		case 5: // nested
-			pub = root.hardenedChild(48).hardenedChild(network->bip32).hardenedChild(0).hardenedChild(1).xpub();
-			sprintf(msg,"[%s/48h/%dh/0h/1h]%s", root.fingerprint().c_str(), network->bip32, pub.toString().c_str());
-			break;
-		case 6: // legacy
-			pub = root.hardenedChild(45).xpub();
-			pub.network = network;
-			sprintf(msg,"[%s/45h]%s", root.fingerprint().c_str(), pub.toString().c_str());
-			break;
-		default:
-			gui_alert_create("Error", "Wrong network. Switched back to Testnet.", "OK");
-			return;
-	}
-	gui_qr_alert_create("Master key", msg, msg, "OK");
-}
-
-void add_cosigner_confirmed(void * ptr){
-    gui_main_menu_show(NULL);
-    gui_alert_create("Sorry", "Not implemented yet", "OK");
-}
-
-void add_cosigner(const char * data){
-    gui_prompt_create("Add new cosigner key?", data, "OK", add_cosigner_confirmed, "Cancel", gui_main_menu_show);
-}
-
-void request_new_cosigner(void * ptr){
-    host_request_data(add_cosigner, cb_err);
-}
-
-void sign_etx(void * ptr){
-    etx.sign(root.hardenedChild(49).hardenedChild(network->bip32).hardenedChild(0));
-    uint8_t * raw = new uint8_t[etx.length()];
-    size_t len = etx.serialize(raw, etx.length());
-    string b43 = toBase43(raw, len);
-    gui_main_menu_show(NULL); // screen to go back to
-    gui_qr_alert_create("Signed transaction", b43.c_str(), "Scan it", "OK");
-}
-
-void sign_psbt(void * ptr){
-    psbt.sign(root);
-    uint8_t * raw = new uint8_t[psbt.length()];
-    size_t len = psbt.serialize(raw, psbt.length());
-    string b64 = toBase64(raw, len);
-    gui_main_menu_show(NULL); // screen to go back to
-    gui_qr_alert_create("Signed transaction", b64.c_str(), "Scan it", "OK");
-}
-
-void show_etx(){
-    char title[30];
-    string msg = "Sending to:\n\n";
-    string change = "";
-    float send_amount = 0;
-    HDPublicKey xpub = root.hardenedChild(49).hardenedChild(network->bip32).hardenedChild(0).xpub().child(1);
-    for(int i=0; i<etx.tx.outputsNumber; i++){
-        // electrum doesn't provide derivation information for change, we need to bruteforce
-        // TODO: store a range of change addresses to help bruteforce while we don't have PSBT plugin
-        bool is_change = false;
-        string addr = etx.tx.txOuts[i].address(network);
-        for(int j=0; j<20; j++){ // 20 addresses for now
-            PublicKey pub = xpub.child(j);
-            if(pub.nestedSegwitAddress(network) == addr){
-                is_change = true;
-                break;
-            }
-        }
-        if(!is_change){
-            send_amount += etx.tx.txOuts[i].btcAmount();
-            msg += addr;
-            char s[20];
-            sprintf(s, ": %.8f BTC\n\n", etx.tx.txOuts[i].btcAmount());
-            msg += s;
-        }else{
-            if(change.length() == 0){
-                change = "Change outputs:\n\n";
-            }
-            change += addr;
-            char s[20];
-            sprintf(s, ": %.8f BTC\n\n", etx.tx.txOuts[i].btcAmount());
-            change += s;
-        }
-    }
-    char s[100];
-    sprintf(s, "Fee: %.8f BTC (%.2f percent)", float(etx.fee())/1e8, float(etx.fee())/1e8/send_amount*100);
-    msg += change;
-    msg += s;
-    send_amount += float(etx.fee())/1e8;
-    sprintf(title, "Sending %.8f BTC\nfrom <Wallet name>", send_amount);
-    gui_prompt_create(title, msg.c_str(), "Sign", sign_etx, "Cancel", gui_main_menu_show);
-}
-
-
-void show_psbt(){
-    char title[30];
-    string msg = "Sending to:\n\n";
-    string change = "";
-    float send_amount = 0;
-    for(int i=0; i<psbt.tx.outputsNumber; i++){
-        if(!psbt.isMine(i, root)){
-            send_amount += psbt.tx.txOuts[i].btcAmount();
-            msg += psbt.tx.txOuts[i].address(network);
-            char s[20];
-            sprintf(s, ": %.8f BTC\n\n", psbt.tx.txOuts[i].btcAmount());
-            msg += s;
-        }else{
-            if(change.length() == 0){
-                change = "Change outputs:\n\n";
-            }
-            change += psbt.tx.txOuts[i].address(network);
-            char s[20];
-            sprintf(s, ": %.8f BTC\n\n", psbt.tx.txOuts[i].btcAmount());
-            change += s;
-        }
-    }
-    char s[100];
-    sprintf(s, "Fee: %.8f BTC (%.2f percent)", float(psbt.fee())/1e8, float(psbt.fee())/1e8/send_amount*100);
-    msg += change;
-    msg += s;
-    send_amount += float(psbt.fee())/1e8;
-    sprintf(title, "Sending %.8f BTC\nfrom <Wallet name>", send_amount);
-    gui_prompt_create(title, msg.c_str(), "Sign", sign_psbt, "Cancel", gui_main_menu_show);
-}
-
-void parse_etx(const char * data){
-    uint8_t * raw = new uint8_t[strlen(data)*3/4];
-    size_t len = fromBase43(data, strlen(data), raw, strlen(data)*3/4);
-    if(len > 0){
-        etx.reset();
-        len = etx.parse(raw, len);
-    }
-    delete [] raw;
-    if(len <= 0){
-        gui_alert_create("Parsing error", "Failed to parse transaction", "OK");
-        return;
-    }
-    show_etx();
-}
-
-void parse_psbt(const char * data){
-    uint8_t * raw = new uint8_t[strlen(data)*3/4];
-    size_t len = fromBase64(data, strlen(data), raw, strlen(data)*3/4);
-    if(len > 0){
-        psbt.reset();
-        len = psbt.parse(raw, len);
-    }
-    delete [] raw;
-    if(len <= 0){
-        gui_alert_create("Parsing error", "Failed to parse transaction", "OK");
-        return;
-    }
-    show_psbt();
-}
-
-void get_psbt(void * ptr){
-    host_request_data(parse_psbt, cb_err);
-}
-
-void get_etx(void * ptr){
-    host_request_data(parse_etx, cb_err);
-}
-
-int create_dir(const char * path){
-	int err = 0;
-    DIR *d = opendir(path);
-    if(!d){
-        err = mkdir(path, 0777);
-        if(err != 0){
-            return -2;
-        }
-    }else{
-	    closedir(d);
-    }
-    return 0;
-}
-
-int maybe_create_default_wallet(){
-	char path[200] = "";
-	sprintf(path, "%s/wallets", storage_path);
-    if(create_dir(path) < 0){
-        fs_err("Failed to create wallets folder");
-        return -1;
-    }
-    // open default wallet file, their name is just an index
-    sprintf(path+strlen(path), "/0");
-    FILE *f = fopen(path, "r");
-    if(!f){
-    	// cant find file => create one
-	    f = fopen(path, "w+");
-	    if(!f){
-    	    fs_err("Failed to write wallet file");
-    	    return -1;
-    	}
-    	// fwrite(points, sizeof(lv_point_t), 4, f);
-    	HDPublicKey pub = root.hardenedChild(49).hardenedChild(network->bip32).hardenedChild(0).xpub();
-    	fprintf(f, "name=Default\ntype=P2SH_P2WPKH\naddress=0\n[%s/49h/%dh/0h]%s", 
-    			root.fingerprint().c_str(), network->bip32, pub.toString().c_str()
-    		);
-    	// FIXME: add signature file (hmac / ecdsa) for integrity check
-	    fclose(f);
-    }else{
-    	fclose(f);
-    }
-	return 0;
-}
-
-bool wallet_exists(int num){
-	char path[200] = "";
-	sprintf(path, "%s/wallets/%d", storage_path, num);
-    FILE *f = fopen(path, "r");
-    if(!f){
-    	return false;
-    }
-	fclose(f);
-	return true;
-}
-
-int get_derivation(const char * path, xpub_t * xpub){
-    static const char VALID_CHARS[] = "0123456789/'h";
-    size_t len = strlen(path);
-    const char * cur = path;
-    if(path[0] == 'm'){ // remove leading "m/"
-        cur+=2;
-        len-=2;
-    }
-    if(cur[len-1] == '/'){ // remove trailing "/"
-        len--;
-    }
-    size_t derivationLen = 1;
-    // checking if all chars are valid and counting derivation length
-    for(size_t i=0; i<len; i++){
-        const char * pch = strchr(VALID_CHARS, cur[i]);
-        if(pch == NULL){ // wrong character
-            return -1;
-        }
-        if(cur[i] == '/'){
-            derivationLen++;
-        }
-    }
-    xpub->derivation_len = derivationLen;
-    xpub->derivation = new uint32_t[derivationLen];
-    size_t current = 0;
-    xpub->derivation[current] = 0;
-    for(size_t i=0; i<len; i++){
-        if(cur[i] == '/'){ // next
-            current++;
-		    xpub->derivation[current] = 0;
-            continue;
-        }
-        const char * pch = strchr(VALID_CHARS, cur[i]);
-        uint32_t val = pch-VALID_CHARS;
-        if(xpub->derivation[current] >= 0x80000000){ // can't have anything after hardened
-            delete [] xpub->derivation;
-        	xpub->derivation_len = 0;
-        	xpub->derivation = NULL;
-            return -2;
-        }
-        if(val < 10){
-            xpub->derivation[current] = xpub->derivation[current]*10 + val;
-        }else{ // h or ' -> hardened
-            xpub->derivation[current] += 0x80000000;
-        }
-    }
-    return 0;
-}
-
-int load_wallet(int num){
-	// first clear loaded wallet
-	if(wallet.xpubs_len > 0){
-		for(int i=0; i<wallet.xpubs_len; i++){
-			if(wallet.xpubs[i].derivation_len > 0){
-				delete [] wallet.xpubs[i].derivation;
-				wallet.xpubs[i].derivation = NULL;
-				wallet.xpubs[i].derivation_len = 0;
-			}
-		}
-		delete [] wallet.xpubs;
-		wallet.xpubs = NULL;
-		wallet.xpubs_len = 0;
-	}
-    wallet.address = 0;
-	memset(wallet.name, 0, sizeof(wallet.name));
-
-	// now load from file
-	char path[200] = "";
-	sprintf(path, "%s/wallets/%d", storage_path, num);
-    FILE *f = fopen(path, "r");
-    if(!f){
-    	return -1;
-    }
-    fscanf(f, "name=%s\n", wallet.name);
-    char type[10];
-    fscanf(f, "type=%s\n", type);
-    fscanf(f, "address=%u\n", &wallet.address);
-
-    if(strcmp(type, "P2PKH") == 0){
-    	wallet.type = P2PKH;
-    	wallet.sigs_required = 1;
-    	wallet.xpubs_len = 1;
-    }
-    if(strcmp(type, "P2WPKH") == 0){
-    	wallet.type = P2WPKH;
-    	wallet.sigs_required = 1;
-    	wallet.xpubs_len = 1;
-    }
-    if(strcmp(type, "P2SH_P2WPKH") == 0){
-    	wallet.type = P2SH_P2WPKH;
-    	wallet.sigs_required = 1;
-    	wallet.xpubs_len = 1;
-    }
-    if(strcmp(type, "P2SH") == 0){
-    	wallet.type = P2SH;
-    	fscanf(f, "m=%c\n", &wallet.sigs_required);
-    	fscanf(f, "n=%c\n", &wallet.xpubs_len);
-    }
-    if(strcmp(type, "P2WSH") == 0){
-    	wallet.type = P2WSH;
-    	fscanf(f, "m=%c\n", &wallet.sigs_required);
-    	fscanf(f, "n=%c\n", &wallet.xpubs_len);
-    }
-    if(strcmp(type, "P2SH_P2WSH") == 0){
-    	wallet.type = P2SH_P2WSH;
-    	fscanf(f, "m=%c\n", &wallet.sigs_required);
-    	fscanf(f, "n=%c\n", &wallet.xpubs_len);
-    }
-    
-    // wallet.xpubs = (xpub_t *)calloc(wallet.xpubs_len, sizeof(xpub_t));
-    wallet.xpubs = new xpub_t[wallet.xpubs_len];
-    for(int i=0; i<wallet.xpubs_len; i++){
-    	char fingerprint[9] = "";
-    	char der[100] = ""; // meh... TODO: refactor
-    	char xpub[120] = ""; // 111 really
-    	char line[240] = "";
-    	if(i == wallet.xpubs_len-1){ // ugly
-	    	fscanf(f, "[%s", line);
-    	}else{
-	    	fscanf(f, "[%s\n", line);
-    	}
-        memcpy(fingerprint, line, 8);
-        char * pch = strchr(line, ']');
-        size_t len = pch-line;
-        memcpy(der, line+9, len-9);
-        memcpy(xpub, pch+1, strlen(pch+1));
-
-    	wallet.xpubs[i].xpub.fromString(xpub);
-    	fromHex(fingerprint, 8, wallet.xpubs[i].fingerprint, 4);
-    	get_derivation(der, &wallet.xpubs[i]);
-    }
-    // check that my key is there
-    bool mine = false;
-    for(int i=0; i<wallet.xpubs_len; i++){
-    	uint8_t fingerprint[4];
-    	root.fingerprint(fingerprint);
-    	HDPublicKey pub;
-    	if(memcmp(fingerprint, wallet.xpubs[i].fingerprint, 4) != 0){
-    		continue;
-    	}else{
-    		pub = root.derive(wallet.xpubs[i].derivation, wallet.xpubs[i].derivation_len).xpub();
-    		uint8_t xpub_arr[100] = { 0 }; // 87 actually, whatever
-    		uint8_t xpub_arr2[100] = { 0 };
-    		size_t len = pub.serialize(xpub_arr, 100);
-    		wallet.xpubs[i].xpub.serialize(xpub_arr2, 100);
-    		if(memcmp(xpub_arr+4, xpub_arr2+4, len-4)!=0){
-    			gui_alert_create("Error", "Something is wrong with the master key", "OK");
-    			return -2;
-    		}else{
-    			mine = true;
-    			break;
-    		}
-    	}
-    }
-    if(!mine){
-    	gui_alert_create("Error", "My key is not in the wallet", "OK");
-    	return -3;
-    }
-    string address = "unsupported";
-    printf("deriving from %s\r\n", wallet.xpubs[0].xpub.toString().c_str());
-	printf("Network (%s)\r\n", wallet.xpubs[0].xpub.network->bech32);
-	printf("child: %s\r\n", wallet.xpubs[0].xpub.child(0).child(wallet.address).toString().c_str());
-	HDPublicKey child = wallet.xpubs[0].xpub.child(0).child(wallet.address);
-    switch(wallet.type){
-    	case P2PKH:
-    		address = child.legacyAddress(child.network); // meh...
-    		break;
-    	case P2SH_P2WPKH:
-    		address = child.nestedSegwitAddress(child.network);
-    		break;
-    	case P2WPKH:
-    		address = child.segwitAddress(child.network);
-    		break;
-    	default:
-    		address = "unsupported";
-    }
-    gui_qr_alert_create(wallet.name, (string("bitcoin:")+address).c_str(), address.c_str(), "OK");
-	return 0;
-}
-void check_address(const char * data){
-    char address[100];
-    char type[10];
-    char derivation[100];
-    sscanf(data, "address=%s\ntype=%s\n%s", address, type, derivation);
-
-    string fingerprint = root.fingerprint();
-    if(memcmp(fingerprint.c_str(), derivation, 8) != 0){
-        gui_alert_create("Error", "Wrong fingerprint in derivation", "OK");
-        return;
-    }
-    HDPublicKey xpub = root.derive(derivation+9).derive(address).xpub();
-    if(!xpub.isValid()){
-        gui_alert_create("Error", "Wrong derivation", "OK");
-        return;
-    }
-    PublicKey pub = xpub;
-    string addr = "unsupported";
-    if(strcmp(type, "P2PKH") == 0){
-        addr = pub.legacyAddress(network);
-    }
-    if(strcmp(type, "P2WPKH") == 0){
-        addr = pub.segwitAddress(network);
-    }
-    if(strcmp(type, "P2SH_P2WPKH") == 0){
-        addr = pub.nestedSegwitAddress(network);
-    }
-    // gui_alert_create("Your address", s.c_str(), "OK");
-    gui_qr_alert_create("Your address", (string("bitcoin:")+addr).c_str(), addr.c_str(), "OK");
-}
-
-void verify_address(void * ptr){
-    host_request_data(check_address, cb_err);
-}
-
-int get_wallets_number(){
-	int i=0;
-	while(wallet_exists(i)){
-		i++;
-	}
-	return i;
-}
-
-const char * get_wallet_name(int num){
-	char path[200] = "";
-	sprintf(path, "%s/wallets/%d", storage_path, num);
-    FILE *f = fopen(path, "r");
-    if(!f){
-    	return NULL;
-    }
-    static char buf[100]; // omg, TODO: rewrite securely
-    fscanf(f, "name=%s\n", buf);
-    static char type[10];
-    fscanf(f, "type=%s\n", type);
-    if(strcmp(type, "P2PKH") == 0){
-    	sprintf(buf + strlen(buf), " (Legacy)");
-    }
-    if(strcmp(type, "P2WPKH") == 0){
-    	sprintf(buf + strlen(buf), " (Native Segwit)");
-    }
-    if(strcmp(type, "P2SH_P2WPKH") == 0){
-    	sprintf(buf + strlen(buf), " (Nested Segwit)");
-    }
-    if(strcmp(type, "P2SH") == 0){
-    	sprintf(buf + strlen(buf), " (Multisig Legacy)");
-    }
-    if(strcmp(type, "P2WSH") == 0){
-    	sprintf(buf + strlen(buf), " (Multisig Native Segwit)");
-    }
-    if(strcmp(type, "P2SH_P2WSH") == 0){
-    	sprintf(buf + strlen(buf), " (Multisig Nested Segwit)");
-    }
-	fclose(f);
-	return buf;
-}
-
-bool cosigner_exists(int num){
-	char path[200] = "";
-	sprintf(path, "%s/cosigners/%d", storage_path, num);
-    FILE *f = fopen(path, "r");
-    if(!f){
-    	return false;
-    }
-	fclose(f);
-	return true;
-}
-
-int get_cosigners_number(){
-	char path[200] = "";
-	sprintf(path, "%s/cosigners", storage_path);
-	create_dir(path);
-	int i=0;
-	while(cosigner_exists(i)){
-		i++;
-	}
-	return i;
-}
-
-const char * get_cosigner_name(int num){
-	char path[200] = "";
-	sprintf(path, "%s/cosigners/%d", storage_path, num);
-    FILE *f = fopen(path, "r");
-    if(!f){
-    	return NULL;
-    }
-    static char buf[100]; // omg, TODO: rewrite securely
-    fscanf(f, "name=%s\n", buf);
-	fclose(f);
-	return buf;
-}
-
-int check_storage(){
-    // check if settings file is in the internal storage
-    DIR *d = opendir("/internal/");
-    if(!d){
-        fs_err("Can't open internal storage");
-        return -1;
-    }
-    closedir(d);
-    string fingerprint = root.fingerprint();
-    char path[200] = "";
-    sprintf(path, "/internal/%s", fingerprint.c_str());
-    if(create_dir(path) < 0){
-        fs_err("Failed to create internal storage folder");
-        return -2;
-    }
-    sprintf(path, "/internal/%s/testnet", fingerprint.c_str());
-    if(create_dir(path) < 0){
-        fs_err("Failed to create internal storage folder");
-        return -3;
-    }
-    sprintf(path, "/internal/%s/mainnet", fingerprint.c_str());
-    if(create_dir(path) < 0){
-        fs_err("Failed to create internal storage folder");
-        return -4;
-    }
-    sprintf(path, "/internal/%s/regtest", fingerprint.c_str());
-    if(create_dir(path) < 0){
-        fs_err("Failed to create internal storage folder");
-        return -5;
-    }
-    sprintf(storage_path, "/internal/%s/testnet", fingerprint.c_str());
-	int err = maybe_create_default_wallet();
-    return err;
-}
-
-void init_keys(const char * mnemonic, const char * password){
-	root.fromMnemonic(mnemonic, password);
-	if(!root.isValid()){
-		gui_init_menu_show(NULL); // a screen to return to
-		gui_alert_create("Wrong key", "Key derivation didn't work", "OK");
-		return;
-	}
-	id_key = root.hardenedChild(0x1D); // used to authenticate data in storage
-	int err = check_storage();
-	if(err == 0){
-		err = maybe_create_default_wallet();
-	}
-	if(err == 0){
-		gui_main_menu_show(NULL);
-	}
-}
-
-/* TODO:
- * - refactor storage
- * - get rid of unsecure functions like fscanf
- * - add hmac on wallet files to check integrity
- */
 int main(){
-	// just in case
-	wallet.xpubs = NULL;
-	wallet.xpubs_len = 0;
-	memset(wallet.name, 0, sizeof(wallet.name));
+    int err = 0;
 
-    rng_init();        // random number generator
-	storage_init();    // on-board memory & sd card
-					   // on-board memory is on external chip => untrusted
-	host_init();       // communication - functions to scan & display qr codes 
-	 				   //                 and talke to sd card storage
-    gui_init();   	   // display functions
+    rng_init();                     // random number generator
+    storage_init();                 // on-board memory & sd card
+                                    // on-board memory is on external chip => untrusted
+    host_init(HOST_DEFAULT, 5);     // communication - functions to scan qr codes 
+                                    //                 and talk to sd card storage
+    wally_init(0);                  // init wally library
+    // key storage module - signs, derives addresses etc.
+    // if mnemonic and password are NULL just allocates space for the key
+    keystore_init(NULL, NULL, &keystore); 
 
-    gui_start();	   // start the gui
+    gui_init();                     // display functions
 
-    // for testing, pre-defined mnemonic
-    // init_keys("also panda decline code guard palace spread squirrel stereo sudden fee noodle", "test");
-    // gui_set_mnemonic("also panda decline code guard palace spread squirrel stereo sudden fee noodle");
+    // available networks
+    static const char * available_networks[] = {"Mainnet", "Testnet", "Regtest", "Signet", ""};
+    gui_set_available_networks(available_networks);
+    gui_set_network(1);             // default network - testnet
+    set_default_xpubs();            // sets default xpub derivations
+
+    // for debug purposes - hardcoded mnemonic
+    // TODO: add reckless storage option
+#ifdef SPECTER_DEBUG
+    char debug_mnemonic[] = "also panda decline code guard palace spread squirrel stereo sudden fee noodle";
+    sstrcopy(debug_mnemonic, &mnemonic);
+    gui_get_password();             // go directly to "enter password" screen
+#else
+    gui_start();                    // start the gui
+#endif
 
     while(1){
     	update();
     }
+    // should never reach this, but still
+    wally_cleanup(0);
+    return err;
 }

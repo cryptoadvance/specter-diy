@@ -424,7 +424,7 @@ static void draw_rect(){
     line_points[3].x = 0;
     line_points[3].y = LV_VER_RES;
 
-    tounchpad_calibrate(line_points);
+    touchpad_calibrate(line_points);
 
     /*Copy the previous line and apply the new style*/
     line = lv_line_create(lv_scr_act(), NULL);

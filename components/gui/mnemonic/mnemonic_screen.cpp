@@ -1,3 +1,4 @@
+#if 0
 #include "mnemonic.h"
 #include "lvgl.h"
 #include <stdio.h>
@@ -320,3 +321,4 @@ void gui_password_enter_show(void * ptr){
     /*Assign the text area to the keyboard*/
     lv_kb_set_ta(kb, ta);
 }
+#endif

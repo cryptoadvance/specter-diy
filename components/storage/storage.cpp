@@ -44,7 +44,7 @@ void listRoot(){
 }
 
 int storage_init(){
-   	int err = fs.mount(&bd);
+    int err = fs.mount(&bd);
     printf("%s\r\n", (err ? "Fail :(" : "OK"));
     if (err) {
         printf("No filesystem found, formatting...\r\n");
@@ -55,13 +55,13 @@ int storage_init(){
             return err;
         }
     }
-   	return STORAGE_OK;
+    return STORAGE_OK;
 }
 
 int save(const char * fname, const char * content){
-	printf("Opening \"%s\"... ", fname);
-	char * fullname = (char *)calloc(strlen(fname)+5, sizeof(char));
-	sprintf(fullname, "/internal/%s", fname);
+    printf("Opening \"%s\"... ", fname);
+    char * fullname = (char *)calloc(strlen(fname)+5, sizeof(char));
+    sprintf(fullname, "/internal/%s", fname);
     FILE *f = fopen(fullname, "w+");
     free(fullname);
     printf("%s\r\n", (!f ? "Fail :(" : "OK"));
@@ -70,33 +70,33 @@ int save(const char * fname, const char * content){
         return errno;
     }
 
-    int err = fprintf(f, "%s", content);
-    if (err < 0) {
+    int res = fprintf(f, "%s", content);
+    if (res < 0) {
         printf("Fail :(\r\n");
         error("error: %s (%d)\r\n", strerror(errno), -errno);
         return errno;
     }
-		return 1;
+    return res;
 }
 
 bool dirExists(const char * dirname){
-	char * fullname = (char *)calloc(strlen(dirname)+5, sizeof(char));
-	sprintf(fullname, "/internal/%s", dirname);
+    char * fullname = (char *)calloc(strlen(dirname)+5, sizeof(char));
+    sprintf(fullname, "/internal/%s", dirname);
     DIR *d = opendir(fullname);
     free(fullname);
     return !!d;
 }
 
 int makeDir(const char * dirname){
-	char * fullname = (char *)calloc(strlen(dirname)+5, sizeof(char));
-	sprintf(fullname, "/internal/%s", dirname);
+    char * fullname = (char *)calloc(strlen(dirname)+5, sizeof(char));
+    sprintf(fullname, "/internal/%s", dirname);
     int err = mkdir(fullname, 0777);
     free(fullname);
     return err;
 }
 #if 0
 static int qspi_init(){
-   	int err = fs.mount(&bd);
+    int err = fs.mount(&bd);
     printf("%s\r\n", (err ? "Fail :(" : "OK"));
     if (err) {
         // Reformat if we can't mount the filesystem
@@ -108,7 +108,7 @@ static int qspi_init(){
             error("error: %s (%d)\r\n", strerror(-err), err);
         }
     }
-	printf("Opening \"/internal/numbers.txt\"... ");
+    printf("Opening \"/internal/numbers.txt\"... ");
     FILE *f = fopen("/internal/numbers.txt", "r+");
     printf("%s\r\n", (!f ? "Fail :(" : "OK"));
     if (!f) {

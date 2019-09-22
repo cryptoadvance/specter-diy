@@ -29,7 +29,7 @@
  * GLOBAL PROTOTYPES
  **********************/
 void touchpad_init(void);
-void tounchpad_calibrate(const lv_point_t * points);
+void touchpad_calibrate(const lv_point_t * points);
 
 /**********************
  *      MACROS
