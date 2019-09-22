@@ -1,7 +1,8 @@
 #ifndef RNG_H
 #define RNG_H
 
-#include "mbed.h"
+#include <stdint.h>
+#include <string.h>
 
 /** initializes TRNG */
 int rng_init();

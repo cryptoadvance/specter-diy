@@ -64,7 +64,7 @@ void touchpad_init(void)
   pcal[3].y = TFT_VER_RES;
 }
 
-void tounchpad_calibrate(const lv_point_t * points){
+void touchpad_calibrate(const lv_point_t * points){
 	memcpy(pcal, points, sizeof(pcal));
 }
 

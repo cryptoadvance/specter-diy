@@ -1,4 +1,5 @@
 #include "rng.h"
+#include "mbed.h"
 
 static RNG_HandleTypeDef rng;
 

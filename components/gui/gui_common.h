@@ -10,7 +10,8 @@
 extern lv_style_t title_style;
 
 lv_obj_t * gui_title_create(lv_obj_t * scr, 
-							 const char * title
+							 const char * title,
+							 bool no_style = false // to appear as a normal label
 			);
 
 lv_obj_t * gui_button_create(lv_obj_t * scr, 

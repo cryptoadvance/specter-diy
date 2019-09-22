@@ -2,15 +2,18 @@
 #include "qrcode.h"
 #include <stdlib.h>
 
-lv_obj_t * gui_title_create(lv_obj_t * scr, const char * title){
+lv_obj_t * gui_title_create(lv_obj_t * scr, const char * title, bool no_style){
     if(scr == NULL){
         scr = lv_scr_act();
     }
     lv_obj_t * obj = lv_label_create(scr, NULL);
-    lv_obj_set_style(obj, &title_style);
+    if(!no_style){
+        lv_obj_set_style(obj, &title_style);
+    }
     lv_label_set_text(obj, title);
     lv_label_set_long_mode(obj, LV_LABEL_LONG_BREAK);
-    lv_obj_set_width(obj, LV_HOR_RES);
+    lv_obj_set_width(obj, LV_HOR_RES-2*PADDING);
+    lv_obj_set_x(obj, PADDING);
     lv_label_set_align(obj, LV_LABEL_ALIGN_CENTER);
     lv_obj_set_y(obj, PADDING);
     return obj;
