@@ -2,9 +2,11 @@
 
 ## DISCLAIMER
 
-This firmware is **WORK IN PROGRESS and NOT READY TO USE YET**. The master branch is empty **until the first release** of the firmware with core functionality implemented. At the moment all the code is in the [0.0.0-alpha branch](https://github.com/cryptoadvance/specter-diy/tree/0.0.0-alpha).
+This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testnet. 
 
 This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). But this prototype is not ment to be secure. That's why **we don't store your private keys on the device** - you need to type your recovery phrase every time you power it on.
+
+We will add the #Reckless option later on that would allow to store recovery phrase on the device.
 
 ## What is this project for?
 
@@ -16,7 +18,9 @@ It is a Do-It-Yourself airgapped hardware wallet that uses QR codes for communic
 
 ## Current status
 
-GUI takes time... Alpha firmware should be ready for testing by September 8th.
+Works for single key transactions. Multisig is coming soon.
+
+Supported networks: Mainnet, Testnet, Regtest, Signet.
 
 ## Shopping list
 
@@ -35,7 +39,7 @@ For QR code scanner you have several options.
 
 **Option 2.** Requires some soldering / mounting and configuration:
 
-- [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to configure it to use UART for communication, solder a wire to the trigger button and connect to the D5 pin of the board.
+- [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to configure it to use UART for communication, solder a wire to the trigger button and connect to the D5 pin of the board. See more details [here](waveshare.md).
 
 Extra: battery & power charger/booster - docs will follow later.
 
@@ -44,8 +48,23 @@ We are also working on the kit that you could buy from us that will include a 3d
 ## Dev plan
 
 - [x] Single key functionality
+- [ ] Reckless storage
 - [ ] Multisig
 - [ ] SD card support
-- [ ] Reckless storage
 - [ ] Smartcard integration
 - [ ] Secure boot
+- [ ] DIY kit
+
+## Video and screenshots
+
+Check out [this Twitter thread](https://twitter.com/StepanSnigirev/status/1168923849699876881) to get an idea how it works.
+
+A few crappy screenshots
+
+### Init screens
+
+![](./docs/pictures/init.jpg)
+
+### Wallet screens
+
+![](./docs/pictures/wallet.jpg)
