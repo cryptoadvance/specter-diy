@@ -283,6 +283,50 @@ void process_action(int action){
             gui_show_init_screen();
             break;
         }
+        case GUI_SHOW_MNEMONIC:
+        {
+            gui_show_reckless_mnemonic(mnemonic);
+            break;
+        }
+        case GUI_SAVE_MNEMONIC:
+        { // TODO: set and verify pin code
+            int res = storage_save_mnemonic(mnemonic);
+            if(res < 0){
+                show_err("Failed to save mnemonic");
+            }else{
+                gui_alert_create("Success!", "Your recovery phrase is saved to memory", "Ok");
+            }
+            break;
+        }
+        case GUI_DELETE_MNEMONIC:
+        { // TODO: securely erase this file
+            int res = storage_delete_mnemonic();
+            if(res < 0){
+                show_err("Failed to delete mnemonic");
+            }else{
+                gui_alert_create("Success!", "Your recovery phrase is removed from memory", "Ok");
+            }
+            break;
+        }
+        case GUI_LOAD_MNEMONIC:
+        {
+            if(mnemonic != NULL){
+                wally_free_string(mnemonic);
+                mnemonic = NULL;
+            }
+            int res = storage_load_mnemonic(&mnemonic);
+            if(res < 0){
+                show_err("Failed to load mnemonic");
+            }else{
+                if(bip39_mnemonic_validate(NULL, mnemonic)!=WALLY_OK){
+                    show_err("mnemonic is not correct");
+                }else{
+                    logit("main", "mnemonic is saved in memory");
+                    gui_get_password();
+                }
+            }
+            break;
+        }
         default:
             show_err("unrecognized action");
     }

@@ -21,6 +21,9 @@
 #define BASE_NETWORKS_SCREEN    6
 #define BASE_XPUBS_SCREEN       7
 #define BASE_PSBT_CONFIRMATION  8
+#define BASE_RECKLESS           9
+
+#define BACK_TO_MAIN            0xFF
 
 using std::string;
 
@@ -53,6 +56,8 @@ static void gui_styles_create(){
     title_style.text.font = &lv_font_roboto_28;
 }
 static void cb(lv_obj_t * obj, lv_event_t event);
+static void back_to_main(void * ptr);
+static void back_to_init(void * ptr);
 
 int gui_get_action(){
     return action;
@@ -206,6 +211,9 @@ static void process_init_screen(int val){
         case 2:
             show_recovery_screen();
             break;
+        case 3:
+            action = GUI_LOAD_MNEMONIC;
+            break;
     }
 }
 
@@ -276,6 +284,34 @@ static void show_xpubs_screen(){
     lv_obj_set_user_data(obj, 3);
 }
 
+static void show_reckless_screen(){
+    base = BASE_RECKLESS;
+
+    lv_obj_clean(scr);
+    lv_obj_t * obj;
+
+    obj = gui_title_create(scr, "Careful with that!");
+
+    uint16_t y = 100;
+    obj = gui_button_create(scr, "Save recovery phrase", cb);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_user_data(obj, 1);
+    y+=100;
+
+    obj = gui_button_create(scr, "Delete recovery phrase", cb);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_user_data(obj, 2);
+    y+=100;
+
+    obj = gui_button_create(scr, "Show recovery phrase", cb);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_user_data(obj, 3);
+    y+=100;
+
+    obj = gui_button_create(scr, "Back to main screen", cb);
+    lv_obj_set_user_data(obj, BACK_TO_MAIN);
+}
+
 static void process_main_screen(int val){
     switch(val){
         case 2: // master keys
@@ -295,6 +331,9 @@ static void process_main_screen(int val){
         case 6: // pick network
             show_networks_screen();
             break;
+        case 7:
+            show_reckless_screen();
+            break;
     }
 }
 
@@ -308,7 +347,25 @@ static int copy_string(){
 }
 
 static void process_command(int val){
+    if(val == BACK_TO_MAIN){
+        lv_async_call(back_to_main, NULL);
+        memset(input_buffer, 0, sizeof(input_buffer));
+        return;
+    }
     switch(base){
+        case BASE_RECKLESS:
+            switch(val){
+                case 1:
+                    action = GUI_SAVE_MNEMONIC;
+                    break;
+                case 2:
+                    action = GUI_DELETE_MNEMONIC;
+                    break;
+                case 3:
+                    action = GUI_SHOW_MNEMONIC;
+                    break;
+            }
+            break;
         case BASE_INIT_SCREEN:
             process_init_screen(val);
             break;
@@ -430,18 +487,35 @@ void gui_show_init_screen(){
     lv_obj_t * obj;
     obj = gui_title_create(scr, "What do you want to do?");
 
+    uint16_t y = 100;
     obj = gui_button_create(scr, "Generate new key", cb);
-    lv_obj_set_y(obj, 200);
+    lv_obj_set_y(obj, y);
     lv_obj_set_user_data(obj, 1);
+    y+=100;
 
     obj = gui_button_create(scr, "Enter recovery phrase", cb);
-    lv_obj_set_y(obj, 300);
+    lv_obj_set_y(obj, y);
     lv_obj_set_user_data(obj, 2);
+    y+=100;
+
+    obj = gui_button_create(scr, "Load key from memory", cb);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_user_data(obj, 3);
+    y+=100;
 }
 
 /********************** mnemonic screen ********************/
 
 static lv_obj_t * tbl;
+
+void gui_show_reckless_mnemonic(const char * mnemonic){
+
+    gui_alert_create("Your recovery phrase", "", "Ok");
+
+    lv_obj_t * alert_scr = lv_disp_get_scr_act(NULL);
+
+    lv_obj_t * obj = gui_mnemonic_table_create(alert_scr, mnemonic);
+}
 
 void gui_show_mnemonic(const char * mnemonic){
     base = BASE_MNEMONIC_SCREEN;
@@ -484,10 +558,6 @@ static const char * keymap[] = {"Q","W","E","R","T","Y","U","I","O","P","\n",
                           "A","S","D","F","G","H","J","K","L","\n",
                           "Z","X","C","V","B","N","M","<","\n",
                           "Back","Next word","Done",""};
-
-static void back_to_init(void * ptr){
-    gui_show_init_screen();
-}
 
 static void cb_keyboard(lv_obj_t * obj, lv_event_t event){
     if(event == LV_EVENT_RELEASED){
@@ -652,11 +722,23 @@ void gui_show_main_screen(){
     lv_obj_set_y(obj, y);
     lv_obj_set_user_data(obj, 6);
     y+=100;
+    obj = gui_button_create(scr, "# Reckless", cb);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_user_data(obj, 7);
+    y+=100;
 
     // TODO: add GUI_SECURE_SHUTDOWN
     // TODO: add Advanced menu:
     //       - Reckless save mnemonic
     //       - SD card support
+}
+
+static void back_to_main(void * ptr){
+    gui_show_main_screen();
+}
+
+static void back_to_init(void * ptr){
+    gui_show_init_screen();
 }
 
 void gui_set_default_xpubs(const char * single, const char * multisig){
