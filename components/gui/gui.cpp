@@ -275,7 +275,7 @@ static void show_xpubs_screen(){
     msg = string("Multisig: ") + default_xpubs[1];
     obj = gui_button_create(scr, msg.c_str(), cb);
     lv_obj_set_y(obj, y);
-    lv_obj_set_user_data(obj, 1);
+    lv_obj_set_user_data(obj, 2);
     y+=100;
 
     // TODO: add "scan custom derivation" button
