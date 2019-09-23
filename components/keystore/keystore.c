@@ -213,16 +213,32 @@ int keystore_output_is_change(const keystore_t * key, const struct wally_psbt * 
 
 int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char ** output){
     size_t len;
+    struct wally_psbt * signed_psbt;
+    wally_psbt_init_alloc(
+        psbt->num_inputs,
+        psbt->num_outputs,
+        0,
+        &signed_psbt);
+    wally_psbt_set_global_tx(psbt->tx, signed_psbt);
     for(int i = 0; i < psbt->num_inputs; i++){
         if(!psbt->inputs[i].witness_utxo){
             return -1;
         }
         uint8_t hash[32];
         uint8_t script[25];
-        wally_scriptpubkey_p2pkh_from_bytes(
-            psbt->inputs[i].witness_utxo->script+2, 20,
-            0,
-            script, 25, &len);
+
+        struct ext_key * pk = NULL;
+        // TODO: fix for multiple keypaths
+        bip32_key_from_parent_path_alloc(key->root, 
+            psbt->inputs[i].keypaths->items[0].origin.path, 
+            psbt->inputs[i].keypaths->items[0].origin.path_len, 
+            BIP32_FLAG_KEY_PRIVATE, &pk);
+
+        wally_scriptpubkey_p2pkh_from_bytes(pk->pub_key, EC_PUBLIC_KEY_LEN, 
+                WALLY_SCRIPT_HASH160, 
+                script, 25, 
+                &len);
+
         wally_tx_get_btc_signature_hash(psbt->tx, i, 
                 script, len,
                 psbt->inputs[i].witness_utxo->satoshi,
@@ -230,12 +246,6 @@ int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char **
                 WALLY_TX_FLAG_USE_WITNESS,
                 hash, 32
             );
-        struct ext_key * pk = NULL;
-        // TODO: fix for multiple keypaths
-        bip32_key_from_parent_path_alloc(key->root, 
-            psbt->inputs[i].keypaths->items[0].origin.path, 
-            psbt->inputs[i].keypaths->items[0].origin.path_len, 
-            BIP32_FLAG_KEY_PRIVATE, &pk);
  
         uint8_t sig[EC_SIGNATURE_LEN];
         wally_ec_sig_from_bytes(
@@ -251,16 +261,17 @@ int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char **
                 &len
             );
         der[len] = WALLY_SIGHASH_ALL;
-        if(!psbt->inputs[i].partial_sigs){
-            partial_sigs_map_init_alloc(1, &psbt->inputs[i].partial_sigs);
+        if(!signed_psbt->inputs[i].partial_sigs){
+            partial_sigs_map_init_alloc(1, &signed_psbt->inputs[i].partial_sigs);
         }
-        add_new_partial_sig(psbt->inputs[i].partial_sigs,
+        add_new_partial_sig(signed_psbt->inputs[i].partial_sigs,
                 pk->pub_key, 
                 der, len+1
             );
         bip32_key_free(pk);
     }
  
-    wally_psbt_to_base64(psbt, output); 
+    wally_psbt_to_base64(signed_psbt, output);
+    wally_psbt_free(signed_psbt);
     return 0;
 }
