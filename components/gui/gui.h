@@ -2,6 +2,7 @@
 #define __GUI_H__
 
 #include <stdint.h>
+#include "./alert/alert.h"
 
 /** possible GUI actions (main needs to handle them) */
 #define GUI_NO_ACTION            0
@@ -15,6 +16,11 @@
 #define GUI_VERIFY_ADDRESS       8
 #define GUI_SIGN_PSBT            9
 #define GUI_PSBT_CONFIRMED      10
+// reckless
+#define GUI_SHOW_MNEMONIC 		11
+#define GUI_SAVE_MNEMONIC		12
+#define GUI_DELETE_MNEMONIC 	13
+#define GUI_LOAD_MNEMONIC		14
 
 /** structure to display output */
 typedef struct _txout_t {
@@ -44,6 +50,7 @@ void gui_show_xpub(const char * fingerprint, const char * derivation, const char
 void gui_show_addresses(const char * derivation, const char * segwit_addr, const char * base58_addr);
 void gui_show_psbt(uint64_t out_amount, uint64_t change_amount, uint64_t fee, uint8_t num_outputs, txout_t * outputs);
 void gui_show_signed_psbt(const char * output);
+void gui_show_reckless_mnemonic(const char * mnemonic);
 
 void gui_calibrate();
 

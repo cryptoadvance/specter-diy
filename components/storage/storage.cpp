@@ -16,6 +16,51 @@ int storage_erase(){
     // return fs.remove("/internal/gui/calibration");
 }
 
+int storage_init(){
+    int err = fs.mount(&bd);
+    printf("%s\r\n", (err ? "Fail :(" : "OK"));
+    if (err) {
+        printf("No filesystem found, formatting...\r\n");
+        err = fs.reformat(&bd);
+        printf("%s\r\n", (err ? "Fail :(" : "OK"));
+        if (err) {
+            printf("error: %s (%d)\r\n", strerror(-err), err);
+            return err;
+        }
+    }
+    return STORAGE_OK;
+}
+
+int storage_save_mnemonic(const char * mnemonic){
+    FILE *f = fopen("/internal/mnemonic", "w");
+    if(!f){
+        return -1;
+    }
+    fprintf(f, mnemonic);
+    fclose(f);
+    return 0;
+}
+
+int storage_load_mnemonic(char ** mnemonic){
+    FILE *f = fopen("/internal/mnemonic", "r");
+    if(!f){
+        return -1;
+    }
+    // TODO: check length
+    char content[300];
+    fscanf(f,"%[^\n]", content);
+    *mnemonic = (char *)malloc(strlen(content)+1);
+    strcpy(*mnemonic, content);
+    memset(content, 0, sizeof(content));
+    fclose(f);
+    return 0;
+}
+
+int storage_delete_mnemonic(){
+    return remove("/internal/mnemonic");
+}
+
+#if 0
 void listRoot(){
     // Display the root directory
     printf("Opening the root directory... ");
@@ -41,21 +86,6 @@ void listRoot(){
     if (err < 0) {
         error("error: %s (%d)\r\n", strerror(errno), -errno);
     }
-}
-
-int storage_init(){
-    int err = fs.mount(&bd);
-    printf("%s\r\n", (err ? "Fail :(" : "OK"));
-    if (err) {
-        printf("No filesystem found, formatting...\r\n");
-        err = fs.reformat(&bd);
-        printf("%s\r\n", (err ? "Fail :(" : "OK"));
-        if (err) {
-            printf("error: %s (%d)\r\n", strerror(-err), err);
-            return err;
-        }
-    }
-    return STORAGE_OK;
 }
 
 int save(const char * fname, const char * content){
@@ -94,7 +124,7 @@ int makeDir(const char * dirname){
     free(fullname);
     return err;
 }
-#if 0
+
 static int qspi_init(){
     int err = fs.mount(&bd);
     printf("%s\r\n", (err ? "Fail :(" : "OK"));
