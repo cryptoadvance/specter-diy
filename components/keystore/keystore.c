@@ -6,6 +6,7 @@
 #include "wally_address.h"
 #include "wally_script.h"
 #include "networks.h"
+#include "utility/ccan/ccan/endian/endian.h"
 
 static uint32_t * parse_derivation(const char * path, size_t * derlen){
     static const char VALID_CHARS[] = "0123456789/'h";
@@ -88,7 +89,44 @@ int keystore_get_xpub(const keystore_t * key, const char * path, const network_t
 	}
 	res = bip32_key_from_parent_path_alloc(key->root, derivation, len, BIP32_FLAG_KEY_PRIVATE, &child);
 	child->version = network->xprv;
-    res = bip32_key_to_base58(child, BIP32_FLAG_KEY_PUBLIC, xpub);	
+    uint8_t xpub_raw[BIP32_SERIALIZED_LEN];
+    res = bip32_key_serialize(child, BIP32_FLAG_KEY_PUBLIC, xpub_raw, sizeof(xpub_raw));
+    uint32_t ver = cpu_to_be32(network->xpub);
+    if(len > 0){
+        switch(derivation[0]){
+            case BIP32_INITIAL_HARDENED_CHILD+84:
+            {
+                ver = cpu_to_be32(network->zpub);
+                break;
+            }
+            case BIP32_INITIAL_HARDENED_CHILD+49:
+            {
+                ver = cpu_to_be32(network->ypub);
+                break;
+            }
+            case BIP32_INITIAL_HARDENED_CHILD+48:
+            {
+                if(len >= 4){
+                    switch(derivation[3]){
+                        case BIP32_INITIAL_HARDENED_CHILD+1:
+                        {
+                            ver = cpu_to_be32(network->Ypub);
+                            break;
+                        }
+                        case BIP32_INITIAL_HARDENED_CHILD+2:
+                        {
+                            ver = cpu_to_be32(network->Zpub);
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+    memcpy(xpub_raw, &ver, 4);
+    // res = bip32_key_to_base58(child, BIP32_FLAG_KEY_PUBLIC, xpub);	
+    res = wally_base58_from_bytes(xpub_raw, sizeof(xpub_raw), BASE58_FLAG_CHECKSUM, xpub);
     bip32_key_free(child);
     free(derivation);
     return 0;
