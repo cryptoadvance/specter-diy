@@ -54,18 +54,18 @@ static uint32_t * parse_derivation(const char * path, size_t * derlen){
 }
 
 int keystore_init(const char * mnemonic, const char * password, keystore_t * key){
-	if(key == NULL){
-		return -1;
-	}
-	if(mnemonic == NULL){
-		key->root = NULL;
-	}
-	if(key->root == NULL){
-		bip32_key_free(key->root);
-		key->root = NULL;
-	}
-	int res;
-	size_t len;
+    if(key == NULL){
+        return -1;
+    }
+    if(mnemonic == NULL){
+        key->root = NULL;
+    }
+    if(key->root == NULL){
+        bip32_key_free(key->root);
+        key->root = NULL;
+    }
+    int res;
+    size_t len;
     uint8_t seed[BIP39_SEED_LEN_512];
     res = bip39_mnemonic_to_seed(mnemonic, password, seed, sizeof(seed), &len);
     res = bip32_key_from_seed_alloc(seed, sizeof(seed), BIP32_VER_TEST_PRIVATE, 0, &key->root);
@@ -74,21 +74,21 @@ int keystore_init(const char * mnemonic, const char * password, keystore_t * key
     wally_hash160(key->root->pub_key, sizeof(key->root->pub_key),
                   h160, sizeof(h160));
     for(int i=0; i<4; i++){
-    	sprintf(key->fingerprint+2*i, "%02x", h160[i]);
+        sprintf(key->fingerprint+2*i, "%02x", h160[i]);
     }
-	return 0;
+    return 0;
 }
 
 int keystore_get_xpub(const keystore_t * key, const char * path, const network_t * network, char ** xpub){
-	struct ext_key * child = NULL;
-	int res;
-	size_t len = 0;
-	uint32_t * derivation = parse_derivation(path, &len);
-	if(derivation == NULL){
-		return -1;
-	}
-	res = bip32_key_from_parent_path_alloc(key->root, derivation, len, BIP32_FLAG_KEY_PRIVATE, &child);
-	child->version = network->xprv;
+    struct ext_key * child = NULL;
+    int res;
+    size_t len = 0;
+    uint32_t * derivation = parse_derivation(path, &len);
+    if(derivation == NULL){
+        return -1;
+    }
+    res = bip32_key_from_parent_path_alloc(key->root, derivation, len, BIP32_FLAG_KEY_PRIVATE, &child);
+    child->version = network->xprv;
     uint8_t xpub_raw[BIP32_SERIALIZED_LEN];
     res = bip32_key_serialize(child, BIP32_FLAG_KEY_PUBLIC, xpub_raw, sizeof(xpub_raw));
     uint32_t ver = cpu_to_be32(network->xpub);
@@ -125,7 +125,6 @@ int keystore_get_xpub(const keystore_t * key, const char * path, const network_t
         }
     }
     memcpy(xpub_raw, &ver, 4);
-    // res = bip32_key_to_base58(child, BIP32_FLAG_KEY_PUBLIC, xpub);	
     res = wally_base58_from_bytes(xpub_raw, sizeof(xpub_raw), BASE58_FLAG_CHECKSUM, xpub);
     bip32_key_free(child);
     free(derivation);
