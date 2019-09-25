@@ -23,6 +23,9 @@ extern "C" {
 #define KEYSTORE_WALLET_ERR_PARSING			2
 #define KEYSTORE_WALLET_ERR_WRONG_XPUB		3
 
+#define KEYSTORE_ERR_WRONG_NETWORK			-1
+#define KEYSTORE_ERR_NOT_MINE 				-2
+
 typedef struct {
 	struct ext_key * root;
 	char fingerprint[9];
@@ -39,6 +42,7 @@ typedef struct{
 int keystore_init(const char * mnemonic, const char * password, keystore_t * key);
 int keystore_get_xpub(const keystore_t * key, const char * derivation, const network_t * network, int use_slip132, char ** xpub);
 
+int keystore_get_addr_path(const keystore_t * key, const uint32_t * derivation, size_t len, const network_t * network, char ** addr, int flag);
 int keystore_get_addr(const keystore_t * keystore, const char * derivation, const network_t * network, char ** addr, int flag);
 
 int keystore_check_psbt(const keystore_t * key, const struct wally_psbt * psbt);
@@ -59,6 +63,7 @@ int wallet_get_addresses(const wallet_t * wallet, char ** base58_addr, char ** b
 /** adds wallet, returns wallet id, populates wallet with corresponding data */
 int keystore_check_wallet(const keystore_t * keystore, const network_t * network, const char * buf);
 int keystore_add_wallet(const keystore_t * keystore, const network_t * network, const char * buf, wallet_t * wallet);
+int keystore_verify_address(const keystore_t * keystore, const network_t * network, const char * addr, const uint32_t * path, size_t path_len, char ** wallet_name);
 // int keystore_clear(keystore_t * key);
 // int keystore_wipe()
 

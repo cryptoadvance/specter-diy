@@ -133,14 +133,9 @@ int keystore_get_xpub(const keystore_t * key, const char * path, const network_t
     return 0;
 }
 
-int keystore_get_addr(const keystore_t * key, const char * path, const network_t * network, char ** addr, int flag){
+int keystore_get_addr_path(const keystore_t * key, const uint32_t * derivation, size_t len, const network_t * network, char ** addr, int flag){
     struct ext_key * child = NULL;
     int res;
-    size_t len = 0;
-    uint32_t * derivation = parse_derivation(path, &len);
-    if(derivation == NULL){
-        return -1;
-    }
     res = bip32_key_from_parent_path_alloc(key->root, derivation, len, BIP32_FLAG_KEY_PRIVATE, &child);
     child->version = network->xprv;
 
@@ -150,10 +145,20 @@ int keystore_get_addr(const keystore_t * key, const char * path, const network_t
         res |= wally_bip32_key_to_address(child, WALLY_ADDRESS_TYPE_P2SH_P2WPKH, network->p2sh, addr);
     }
     bip32_key_free(child);
-    free(derivation);
     if(res!=WALLY_OK){
         wally_free_string(*addr);
     }
+    return res;
+}
+
+int keystore_get_addr(const keystore_t * key, const char * path, const network_t * network, char ** addr, int flag){
+    size_t len = 0;
+    uint32_t * derivation = parse_derivation(path, &len);
+    if(derivation == NULL){
+        return -1;
+    }
+    int res = keystore_get_addr_path(key, derivation, len, network, addr, flag);
+    free(derivation);
     return res;
 }
 
@@ -421,7 +426,7 @@ int wallet_get_addresses(const wallet_t * wallet, char ** base58_addr, char ** b
                 return -1;
             }
             struct ext_key * k2;
-            // from path doesn't work - requires fixing libwally
+            // from path doesn't work for some reason
             bip32_key_from_parent_alloc(k, 0, BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, &k2);
             bip32_key_from_parent(k2, wallet->address, BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, k);
             memcpy(pubs+33*i, k->pub_key, 33);
@@ -433,7 +438,7 @@ int wallet_get_addresses(const wallet_t * wallet, char ** base58_addr, char ** b
         size_t lenout = 0;
         wally_scriptpubkey_multisig_from_bytes(pubs, 33*n, m, 0, script, len, &lenout);
         free(pubs);
-        
+
         uint8_t hash[34];
         hash[0] = 0;
         hash[1] = 32;
@@ -466,7 +471,6 @@ int keystore_check_wallet(const keystore_t * keystore, const network_t * network
     int err = KEYSTORE_WALLET_ERR_NOT_INCLUDED;
     for(int i=0; i<n; i++){
         res = sscanf(line, "[%[^]]]%s", derivation, xpub);
-        printf("%s - %s\r\n", derivation, xpub);
         if(res < 2){
             line = NULL;
             free(rest);
@@ -476,7 +480,7 @@ int keystore_check_wallet(const keystore_t * keystore, const network_t * network
             char * mypub;
             char * myslippub;
             res = keystore_get_xpub(keystore, derivation+9, network, 0, &mypub);
-            res = keystore_get_xpub(keystore, derivation+9, network, 0, &myslippub);
+            res = keystore_get_xpub(keystore, derivation+9, network, 1, &myslippub);
             if(res < 0){
                 free(rest);
                 return KEYSTORE_WALLET_ERR_WRONG_XPUB;
@@ -506,4 +510,67 @@ int keystore_add_wallet(const keystore_t * keystore, const network_t * network, 
     storage_maybe_mkdir(path);
                 // folder, data, extension
     return storage_push(path, buf, ".wallet");
+}
+
+int keystore_verify_address(const keystore_t * keystore,
+        const network_t * network,
+        const char * addr,
+        const uint32_t * path,
+        size_t path_len,
+        char ** wallet_name){
+    // first we need to determine if address belongs to the network
+    uint8_t * buf = (uint8_t *)malloc(strlen(addr));
+    size_t len;
+    int res = wally_base58_to_bytes(addr, BASE58_FLAG_CHECKSUM, buf, strlen(addr), &len);
+    uint8_t prefix = buf[0];
+    free(buf);
+    int flag = KEYSTORE_BASE58_ADDRESS;
+    if(res!=WALLY_OK){ // invalid base58 - probably bech32 address
+        if(memcmp(addr, network->bech32, strlen(network->bech32)) != 0){ // wrong network
+            return KEYSTORE_ERR_WRONG_NETWORK;
+        }
+        flag = KEYSTORE_BECH32_ADDRESS;
+    }else{
+        if(prefix != network->p2sh){
+            return KEYSTORE_ERR_WRONG_NETWORK;
+        }
+    }
+    // now let's check default wallet
+    char * myaddr;
+    uint32_t * derivation = (uint32_t *)calloc(path_len+3, sizeof(uint32_t));
+    for(int i=0; i<path_len; i++){
+        derivation[3+i] = path[i];
+    }
+    derivation[0] = BIP32_INITIAL_HARDENED_CHILD+84;
+    derivation[1] = BIP32_INITIAL_HARDENED_CHILD+network->bip32;
+    derivation[2] = BIP32_INITIAL_HARDENED_CHILD;
+    res = keystore_get_addr_path(keystore, derivation, path_len+3, network, &myaddr, flag);
+    free(derivation);
+    if(strcmp(myaddr, addr) == 0){
+        *wallet_name = (char *)calloc(30, sizeof(char));
+        sprintf(*wallet_name, "Default (single key)");
+        return 0;
+    }
+    // go through all multisig wallets
+    wallet_t w;
+    int count = keystore_get_wallets_number(keystore, network);
+    for(int i=0; i<count; i++){
+        keystore_get_wallet(keystore, network, i+1, &w);
+        char * base58_addr;
+        char * bech32_addr;
+        // TODO: refactor using full path
+        w.address = path[path_len-1];
+        wallet_get_addresses(&w, &base58_addr, &bech32_addr);
+        int mine = 0;
+        if((strcmp(bech32_addr, addr) == 0) || (strcmp(base58_addr, addr) == 0)){
+            mine = 1;
+        }
+        wally_free_string(base58_addr);
+        wally_free_string(bech32_addr);
+        if(mine){
+            keystore_get_wallet_name(keystore, network, i, wallet_name);
+            return 0;
+        }
+    }
+    return KEYSTORE_ERR_NOT_MINE;
 }
