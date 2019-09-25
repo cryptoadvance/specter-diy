@@ -60,6 +60,93 @@ int storage_delete_mnemonic(){
     return remove("/internal/mnemonic");
 }
 
+int storage_maybe_mkdir(const char * path){
+    DIR *d = opendir(path);
+    if(!d){ // doesnt exist
+        int err = mkdir(path, 0777);
+        return err;
+    }
+    return 0;
+}
+
+int storage_get_file_count(const char * path, const char * extension){
+    DIR *d = opendir(path);
+    if(!d){
+        return -1;
+    }
+    int count = 0;
+    while(1){
+        struct dirent *e = readdir(d);
+        if(!e){
+            break;
+        }
+        if(strlen(e->d_name) >= strlen(extension)){
+            if(strcmp(e->d_name + strlen(e->d_name) - strlen(extension), extension) == 0){
+                count++;
+            }
+        }
+    }
+    closedir(d);
+    return count;
+}
+
+static int get_available_file_id(const char * path, const char * extension){
+    DIR *d = opendir(path);
+    if(!d){
+        return -1;
+    }
+    int num = 0;
+    while(1){
+        struct dirent *e = readdir(d);
+        if(!e){
+            break;
+        }
+        if(strlen(e->d_name) >= strlen(extension)){
+            if(strcmp(e->d_name - strlen(extension), extension) == 0){
+                char ext[20];
+                int n;
+                sscanf(e->d_name, "%d.", &n);
+                if(num < n+1){
+                    num = n+1;
+                }
+            }
+        }
+    }
+    closedir(d);
+    return num;
+}
+
+int storage_push(const char * path, const char * buf, const char * extension){
+    int num = get_available_file_id(path, extension);
+    if(num < 0){
+        return num;
+    }
+    char fname[100];
+    sprintf(fname, "%s/%d%s", path, num, extension);
+    printf("saved as %s\r\n", fname);
+    FILE *f = fopen(fname, "w");
+    fprintf(f, buf);
+    fclose(f);
+    return num;
+}
+
+int storage_read(const char * path, int num, const char * extension, char ** buf){
+    char fname[100];
+    sprintf(fname, "%s/%d%s", path, num, extension);
+    FILE *f = fopen(fname, "r");
+    if(!f){
+        return -1;
+    }
+    fseek(f, 0, SEEK_END);
+    int sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    *buf = (char *)calloc(sz+1, 1);
+    fread(*buf, 1, sz, f);
+    fclose(f);
+    return sz+1;
+}
+
+
 #if 0
 void listRoot(){
     // Display the root directory

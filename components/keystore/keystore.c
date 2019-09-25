@@ -59,14 +59,16 @@ int keystore_init(const char * mnemonic, const char * password, keystore_t * key
     }
     if(mnemonic == NULL){
         key->root = NULL;
+        return 0;
     }
-    if(key->root == NULL){
+    if(key->root != NULL){
         bip32_key_free(key->root);
         key->root = NULL;
     }
     int res;
     size_t len;
     uint8_t seed[BIP39_SEED_LEN_512];
+    // FIXME: process results - something might go wrong
     res = bip39_mnemonic_to_seed(mnemonic, password, seed, sizeof(seed), &len);
     res = bip32_key_from_seed_alloc(seed, sizeof(seed), BIP32_VER_TEST_PRIVATE, 0, &key->root);
     wally_bzero(seed, sizeof(seed));
@@ -79,7 +81,7 @@ int keystore_init(const char * mnemonic, const char * password, keystore_t * key
     return 0;
 }
 
-int keystore_get_xpub(const keystore_t * key, const char * path, const network_t * network, char ** xpub){
+int keystore_get_xpub(const keystore_t * key, const char * path, const network_t * network, int use_slip132, char ** xpub){
     struct ext_key * child = NULL;
     int res;
     size_t len = 0;
@@ -92,7 +94,7 @@ int keystore_get_xpub(const keystore_t * key, const char * path, const network_t
     uint8_t xpub_raw[BIP32_SERIALIZED_LEN];
     res = bip32_key_serialize(child, BIP32_FLAG_KEY_PUBLIC, xpub_raw, sizeof(xpub_raw));
     uint32_t ver = cpu_to_be32(network->xpub);
-    if(len > 0){
+    if((len > 0) & use_slip132){
         switch(derivation[0]){
             case BIP32_INITIAL_HARDENED_CHILD+84:
             {
@@ -311,4 +313,197 @@ int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char **
     wally_psbt_to_base64(signed_psbt, output);
     wally_psbt_free(signed_psbt);
     return 0;
+}
+
+
+// maybe expose it to public interface
+static int keystore_get_wallets_number(const keystore_t * key, const network_t * network){
+    char path[100];
+    sprintf(path, "/internal/%s", key->fingerprint);
+    storage_maybe_mkdir(path);
+    sprintf(path, "/internal/%s/%s", key->fingerprint, network->name);
+    storage_maybe_mkdir(path);
+                              // folder, extension
+    return storage_get_file_count(path, ".wallet");
+}
+
+static int keystore_get_wallet_name(const keystore_t * key, const network_t * network, int i, char ** wname){
+    char path[100];
+    sprintf(path, "/internal/%s/%s/%d.wallet", key->fingerprint, network->name, i);
+    FILE *f = fopen(path, "r");
+    if(!f){
+        return -1;
+    }
+    char w[100] = "Undefined";
+    int m; int n;
+    fscanf(f, "name=%[^\n]\ntype=%*s\nm=%d\nn=%d", w, &m, &n);
+    sprintf(w+strlen(w), " (%d of %d)", m, n);
+    *wname = (char *)malloc(strlen(w)+1);
+    strcpy(*wname, w);
+    return strlen(wname);
+}
+
+int keystore_get_wallets(const keystore_t * key, const network_t * network, char *** wallets){
+    int num_wallets = keystore_get_wallets_number(key, network);
+    if(num_wallets < 0){ // error
+        return num_wallets;
+    }
+    char ** w = (char **)calloc(num_wallets+2, sizeof(char *));
+    // first - default single key wallet
+    w[0] = (char *)calloc(30, sizeof(char));
+    sprintf(w[0], "Default (single key)");
+    // multisig wallets:
+    for(int i=1; i<num_wallets+1; i++){
+        keystore_get_wallet_name(key, network, i-1, &w[i]);
+    }
+    // last - empty string
+    w[num_wallets+1] = (char *)calloc(1, sizeof(char));
+    *wallets = w;
+    return num_wallets;
+}
+
+int keystore_free_wallets(char ** wallets){
+    int i=0;
+    if(wallets == NULL){
+        return -1;
+    }
+    while(wallets[i] != NULL && strlen(wallets[i]) > 0){ // free everything that is not empty
+        free(wallets[i]);
+        i++;
+    }
+    free(wallets[i]); // last one
+    free(wallets); // free the list
+    wallets = NULL;
+    return 0;
+}
+
+int keystore_get_wallet(const keystore_t * key, const network_t * network, int val, wallet_t * wallet){
+    wallet->val = val;
+    wallet->keystore = key;
+    wallet->network = network;
+    wallet->address = 0;
+    if(val == 0){
+        sprintf(wallet->name, "Default (single key)");
+    }else{
+        char * wname;
+        keystore_get_wallet_name(key, network, val-1, &wname);
+        strcpy(wallet->name, wname);
+        free(wname);
+    }
+    return 0;
+}
+
+int wallet_get_addresses(const wallet_t * wallet, char ** base58_addr, char ** bech32_addr){
+    if(wallet->val == 0){ // single key
+        char path[50];
+        sprintf(path, "m/84h/%dh/0h/0/%d", wallet->network->bip32, wallet->address);
+        keystore_get_addr(wallet->keystore, path, wallet->network, bech32_addr, KEYSTORE_BECH32_ADDRESS);
+        keystore_get_addr(wallet->keystore, path, wallet->network, base58_addr, KEYSTORE_BASE58_ADDRESS);
+    }else{ // TODO: incapsulate, i.e. to storage
+        char path[100];
+        sprintf(path, "/internal/%s/%s/%d.wallet", wallet->keystore->fingerprint, wallet->network->name, wallet->val-1);
+        FILE *f = fopen(path, "r");
+        if(!f){
+            printf("missing file\r\n");
+            return -1;
+        }
+        int m; int n;
+        fscanf(f, "name=%*[^\n]\ntype=%*s\nm=%d\nn=%d\n", &m, &n);
+        char xpub[150];
+        uint8_t * pubs = (uint8_t *)malloc(33*n);
+        for(int i=0; i<n; i++){
+            fscanf(f, "[%*[^]]]%s\n", xpub);
+            struct ext_key * k;
+            int res = bip32_key_from_base58_alloc(xpub, &k);
+            if(res != 0){
+                free(pubs);
+                printf("cant parse key: %s\r\n", xpub);
+                return -1;
+            }
+            struct ext_key * k2;
+            // from path doesn't work - requires fixing libwally
+            bip32_key_from_parent_alloc(k, 0, BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, &k2);
+            bip32_key_from_parent(k2, wallet->address, BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, k);
+            memcpy(pubs+33*i, k->pub_key, 33);
+            bip32_key_free(k);
+            bip32_key_free(k2);
+        }
+        size_t len = 34*n+3;
+        uint8_t * script = (uint8_t *)malloc(len);
+        size_t lenout = 0;
+        wally_scriptpubkey_multisig_from_bytes(pubs, 33*n, m, 0, script, len, &lenout);
+        free(pubs);
+        
+        uint8_t hash[34];
+        hash[0] = 0;
+        hash[1] = 32;
+        wally_sha256(script, lenout, hash+2, 32);
+        free(script);
+        wally_addr_segwit_from_bytes(hash, sizeof(hash), wallet->network->bech32, 0, bech32_addr);
+        uint8_t bytes[21];
+        bytes[0] = wallet->network->p2sh;
+        wally_hash160(hash, sizeof(hash), bytes+1, 20);
+        wally_base58_from_bytes(bytes, 21, BASE58_FLAG_CHECKSUM, base58_addr);
+    }
+    return 0;
+}
+
+int keystore_check_wallet(const keystore_t * keystore, const network_t * network, const char * buf){
+    // FIXME: hardcoded lengths are bad...
+    char name[100];
+    char type[10];
+    int m;
+    int n;
+    char * rest;
+    rest = (char *)calloc(strlen(buf)+1, 1);
+    int res = sscanf(buf, "name=%[^\n]\ntype=%[^\n]\nm=%d\nn=%d\n%[^\0]", name, type, &m, &n, rest);
+    if(res < 5){
+        return KEYSTORE_WALLET_ERR_PARSING;
+    }
+    char derivation[150];
+    char xpub[150];
+    char * line = rest;
+    int err = KEYSTORE_WALLET_ERR_NOT_INCLUDED;
+    for(int i=0; i<n; i++){
+        res = sscanf(line, "[%[^]]]%s", derivation, xpub);
+        printf("%s - %s\r\n", derivation, xpub);
+        if(res < 2){
+            line = NULL;
+            free(rest);
+            return KEYSTORE_WALLET_ERR_PARSING;
+        }
+        if(memcmp(derivation, keystore->fingerprint, 8) == 0){
+            char * mypub;
+            char * myslippub;
+            res = keystore_get_xpub(keystore, derivation+9, network, 0, &mypub);
+            res = keystore_get_xpub(keystore, derivation+9, network, 0, &myslippub);
+            if(res < 0){
+                free(rest);
+                return KEYSTORE_WALLET_ERR_WRONG_XPUB;
+            }
+            if((strcmp(mypub, xpub) == 0) || (strcmp(myslippub, xpub)==0)){
+                wally_free_string(mypub);
+                wally_free_string(myslippub);
+                err = 0;
+            }else{
+                wally_free_string(mypub);
+                wally_free_string(myslippub);
+                free(rest);
+                return KEYSTORE_WALLET_ERR_WRONG_XPUB;
+            }
+        }
+        line += strlen(derivation)+strlen(xpub)+3;
+    }
+    free(rest);
+    return err;
+}
+
+int keystore_add_wallet(const keystore_t * keystore, const network_t * network, const char * buf, wallet_t * wallet){
+    char path[100];
+    sprintf(path, "/internal/%s", keystore->fingerprint);
+    storage_maybe_mkdir(path);
+    sprintf(path, "/internal/%s/%s", keystore->fingerprint, network->name);
+    storage_maybe_mkdir(path);
+                // folder, data, extension
+    return storage_push(path, buf, ".wallet");
 }

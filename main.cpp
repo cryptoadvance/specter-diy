@@ -37,11 +37,13 @@ using std::string;
 #define NO_ACTION       0
 #define VERIFY_ADDRESS  1
 #define SIGN_PSBT       2
+#define NEW_WALLET      3
 
 static char * mnemonic = NULL;
 static char * password = NULL;
 
 static keystore_t keystore;
+static wallet_t wallet;
 static const network_t * network = &Testnet;
 
 static int in_action = NO_ACTION;
@@ -49,6 +51,8 @@ static struct wally_psbt * psbt = NULL;
 
 Serial pc(SERIAL_TX, SERIAL_RX, 115200);
 DigitalIn btn(USER_BUTTON);
+
+static char * temp_data = NULL;
 
 // generates a mnemonic from entropy
 // TODO: should it be moved to keystore?
@@ -187,8 +191,65 @@ void process_action(int action){
             char * s = gui_get_str();
             wally_bzero(s, strlen(s));
             wally_cleanup(0);
+            // TODO: reboot?
             exit(0);
             break; // no need really
+        }
+        case GUI_LIST_WALLETS:
+        {
+            logit("main", "listing multisig wallets");
+            char ** wallets = NULL;
+            keystore_get_wallets(&keystore, network, &wallets);
+            gui_show_wallets(wallets);
+            keystore_free_wallets(wallets);
+            break;
+        }
+        case GUI_SELECT_WALLET:
+        {
+            int val = gui_get_value();
+            keystore_get_wallet(&keystore, network, val, &wallet);
+            char * base58_addr;
+            char * bech32_addr;
+            int res = wallet_get_addresses(&wallet, &base58_addr, &bech32_addr);
+            if(res < 0){
+                show_err("Failed to compute wallet addresses");
+                return;
+            }
+            gui_navigate_wallet(wallet.name, wallet.address, bech32_addr, base58_addr);
+            wally_free_string(base58_addr);
+            wally_free_string(bech32_addr);
+            break;
+        }
+        case GUI_NEW_WALLET:
+        {
+            in_action = NEW_WALLET;
+            host_request_data();
+            break;
+        }
+        case GUI_CONFIRM_NEW_WALLET:
+        {
+            int id = keystore_add_wallet(&keystore, network, temp_data, &wallet);
+        }
+        case GUI_CANCEL_NEW_WALLET:
+        {
+            if(temp_data!=NULL){
+                free(temp_data);
+                temp_data = NULL;
+            }
+            process_action(GUI_LIST_WALLETS);
+            break;
+        }
+        case GUI_GET_WALLET_ADDRESS:
+        {
+            int val = gui_get_value();
+            wallet.address = val;
+            char * base58_addr;
+            char * bech32_addr;
+            wallet_get_addresses(&wallet, &base58_addr, &bech32_addr);
+            gui_navigate_wallet(wallet.name, wallet.address, bech32_addr, base58_addr);
+            wally_free_string(base58_addr);
+            wally_free_string(bech32_addr);
+            break;
         }
         case GUI_GENERATE_KEY: 
         {
@@ -246,7 +307,7 @@ void process_action(int action){
         {
             char * str = gui_get_str();
             char *xpub = NULL;
-            keystore_get_xpub(&keystore, str, network, &xpub); // keys, derivation, network, string
+            keystore_get_xpub(&keystore, str, network, USE_SLIP132, &xpub); // keys, derivation, network, string
             gui_show_xpub(keystore.fingerprint, str, xpub);    //[fingerprint/derivation]xpub
             wally_free_string(xpub);
             break;
@@ -254,15 +315,15 @@ void process_action(int action){
         case GUI_VERIFY_ADDRESS:
         {
             logit("main", "verify address triggered");
-            host_request_data();
             in_action = VERIFY_ADDRESS;
+            host_request_data();
             break;
         }
         case GUI_SIGN_PSBT:
         {
             logit("main", "PSBT triggered");
-            host_request_data();
             in_action = SIGN_PSBT;
+            host_request_data();
             break;
         }
         case GUI_PSBT_CONFIRMED:
@@ -400,11 +461,39 @@ static void verify_address(const char * buf){
     wally_free_string(base58_addr);
 }
 
+static void check_new_wallet(char * buf){
+    int err = keystore_check_wallet(&keystore, network, buf);
+    if(err != 0){
+        switch(err){
+            case KEYSTORE_WALLET_ERR_NOT_INCLUDED:
+                show_err("Key is not in the wallet");
+                break;
+            case KEYSTORE_WALLET_ERR_WRONG_XPUB:
+                show_err("Wrong xpub");
+                break;
+            default:
+                show_err("Something is wrong with the wallet format");
+        }
+    }else{
+        if(temp_data != NULL){
+            free(temp_data);
+        }
+        temp_data = (char *)calloc(strlen(buf), 1);
+        strcpy(temp_data, buf);
+        gui_confirm_new_wallet(buf);
+    }
+}
+
 // handles data from the host
 static void process_data(int action, uint8_t * buf, size_t len){
     int err;
     char * b64 = NULL;
     switch(action){
+        case NEW_WALLET:
+        {
+            check_new_wallet((char *)buf);
+            break;
+        }
         case VERIFY_ADDRESS:
         {
             verify_address((char *)buf);

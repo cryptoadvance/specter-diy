@@ -22,6 +22,13 @@
 #define GUI_DELETE_MNEMONIC 	13
 #define GUI_LOAD_MNEMONIC		14
 
+#define GUI_LIST_WALLETS 		15
+#define GUI_SELECT_WALLET		16
+#define GUI_GET_WALLET_ADDRESS 	17
+#define GUI_NEW_WALLET 			18
+#define GUI_CONFIRM_NEW_WALLET 	19
+#define GUI_CANCEL_NEW_WALLET 	20
+
 /** structure to display output */
 typedef struct _txout_t {
     char * address;
@@ -51,6 +58,9 @@ void gui_show_addresses(const char * derivation, const char * segwit_addr, const
 void gui_show_psbt(uint64_t out_amount, uint64_t change_amount, uint64_t fee, uint8_t num_outputs, txout_t * outputs);
 void gui_show_signed_psbt(const char * output);
 void gui_show_reckless_mnemonic(const char * mnemonic);
+void gui_show_wallets(char ** wallets); // TODO: should be const
+void gui_navigate_wallet(const char * name, uint32_t address, const char * bech32_addr, const char * base58_addr);
+void gui_confirm_new_wallet(const char * wallet_info);
 
 void gui_calibrate();
 

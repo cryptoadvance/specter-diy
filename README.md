@@ -18,7 +18,7 @@ It is a Do-It-Yourself airgapped hardware wallet that uses QR codes for communic
 
 ## Current status
 
-Works for single key transactions. Multisig is coming soon.
+Works for single key and multisig transactions.
 
 Supported networks: Mainnet, Testnet, Regtest, Signet.
 
@@ -48,7 +48,7 @@ We are also working on the kit that you could buy from us that will include a 3d
 ## Dev plan
 
 - [x] Single key functionality
-- [ ] Reckless storage
+- [x] Reckless storage
 - [ ] Multisig
 - [ ] SD card support
 - [ ] Smartcard integration
