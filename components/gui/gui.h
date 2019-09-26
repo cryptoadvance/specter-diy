@@ -28,6 +28,7 @@
 #define GUI_NEW_WALLET 			18
 #define GUI_CONFIRM_NEW_WALLET 	19
 #define GUI_CANCEL_NEW_WALLET 	20
+#define GUI_DELETE_WALLET 		21
 
 /** structure to display output */
 typedef struct _txout_t {

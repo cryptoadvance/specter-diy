@@ -18,6 +18,7 @@ extern "C" {
 int storage_maybe_mkdir(const char * path);
 int storage_get_file_count(const char * path, const char * extension);
 int storage_push(const char * path, const char * buf, const char * extension);
+int storage_del(const char * path, int num, const char * extension);
 
 #ifdef __cplusplus
 }

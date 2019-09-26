@@ -229,6 +229,22 @@ void process_action(int action){
         case GUI_CONFIRM_NEW_WALLET:
         {
             int id = keystore_add_wallet(&keystore, network, temp_data, &wallet);
+            if(temp_data!=NULL){
+                free(temp_data);
+                temp_data = NULL;
+            }
+            process_action(GUI_LIST_WALLETS);
+            break;
+        }
+        case GUI_DELETE_WALLET:
+        {
+            int err = keystore_del_wallet(&keystore, network, &wallet);
+            if(err){
+                show_err("Failed to delete wallet");
+            }else{
+                process_action(GUI_LIST_WALLETS);
+            }
+            break;
         }
         case GUI_CANCEL_NEW_WALLET:
         {

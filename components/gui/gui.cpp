@@ -28,6 +28,8 @@
 
 #define BACK_TO_MAIN            0xFF
 #define GET_NEW_WALLET          0xFE
+#define USER_CANCEL             0xFF00
+#define USER_CONFIRM            0xFF01
 
 using std::string;
 
@@ -62,6 +64,7 @@ static void gui_styles_create(){
 static void cb(lv_obj_t * obj, lv_event_t event);
 static void back_to_main(void * ptr);
 static void back_to_init(void * ptr);
+static void process_command(int val);
 
 int gui_get_action(){
     return action;
@@ -288,6 +291,29 @@ static void show_xpubs_screen(){
     lv_obj_set_user_data(obj, BACK_TO_MAIN);
 }
 
+static void cb_del_wallet(void * ptr){
+    process_command(USER_CONFIRM);
+}
+
+static void cb_cancel(void * ptr){
+    process_command(USER_CANCEL);
+}
+
+static void cb_del(lv_obj_t * obj, lv_event_t event){
+    if(event == LV_EVENT_RELEASED){
+        char title[100];
+        sprintf(title, "Delete \"%s\"?", str);
+        gui_prompt_create(title,
+                      "You are about to delete this wallet.\n"
+                      "You won't be able to sign multisig "
+                      "transactions with it until you re-import it.",
+                      "Yes, delete",
+                      cb_del_wallet,
+                      "No, keep it",
+                      cb_cancel);
+    }
+}
+
 void gui_navigate_wallet(const char * name, uint32_t address, const char * bech32_addr, const char * base58_addr){
     base = BASE_ADDRESSES_SCREEN;
 
@@ -305,13 +331,13 @@ void gui_navigate_wallet(const char * name, uint32_t address, const char * bech3
 
     obj = gui_title_create(scr, title);
     lv_obj_t * qr = gui_qr_create(scr, LV_HOR_RES/2, qrmsg.c_str());
-    lv_obj_set_y(qr, lv_obj_get_y(obj) + lv_obj_get_height(obj) + PADDING);
+    lv_obj_set_y(qr, lv_obj_get_y(obj) + lv_obj_get_height(obj) + PADDING/2);
 
     obj = gui_title_create(scr, msg.c_str(), true);
-    lv_obj_set_y(obj, lv_obj_get_y(qr) + lv_obj_get_height(qr) + PADDING);
+    lv_obj_set_y(obj, lv_obj_get_y(qr) + lv_obj_get_height(qr) + PADDING/2);
 
     obj = gui_button_create(scr, "Previous", cb);
-    uint16_t y = lv_obj_get_y(obj) - 100;
+    uint16_t y = lv_obj_get_y(obj) - 170;
     lv_obj_set_user_data(obj, address-1);
     lv_obj_set_y(obj, y);
     lv_obj_set_width(obj, LV_HOR_RES/2-3*PADDING/2);
@@ -325,6 +351,11 @@ void gui_navigate_wallet(const char * name, uint32_t address, const char * bech3
     lv_obj_set_y(obj, y);
     lv_obj_set_width(obj, LV_HOR_RES/2-3*PADDING/2);
     lv_obj_set_x(obj, LV_HOR_RES/2+PADDING/2);
+
+    y += 85;
+    strcpy(str, name); // to access it from the callback
+    obj = gui_button_create(scr, "Delete wallet", cb_del);
+    lv_obj_set_y(obj, y);
 
     obj = gui_button_create(scr, "Back to main menu", cb);
     lv_obj_set_user_data(obj, BACK_TO_MAIN);
@@ -478,8 +509,16 @@ static void process_command(int val){
             }
             break;
         case BASE_ADDRESSES_SCREEN:
-            value = val;
-            action = GUI_GET_WALLET_ADDRESS;
+            switch(val){
+                case USER_CONFIRM:
+                    action = GUI_DELETE_WALLET;
+                    break;
+                case USER_CANCEL:
+                    break;
+                default:
+                    value = val;
+                    action = GUI_GET_WALLET_ADDRESS;
+            }
             break;
         default:
             show_err("Undefined GUI behaviour");

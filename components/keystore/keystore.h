@@ -64,6 +64,7 @@ int keystore_get_wallets_number(const keystore_t * key, const network_t * networ
 /** adds wallet, returns wallet id, populates wallet with corresponding data */
 int keystore_check_wallet(const keystore_t * keystore, const network_t * network, const char * buf);
 int keystore_add_wallet(const keystore_t * keystore, const network_t * network, const char * buf, wallet_t * wallet);
+int keystore_del_wallet(const keystore_t * keystore, const network_t * network, wallet_t * wallet);
 int keystore_verify_address(const keystore_t * keystore, const network_t * network, const char * addr, const uint32_t * path, size_t path_len, char ** wallet_name);
 // int keystore_clear(keystore_t * key);
 // int keystore_wipe()

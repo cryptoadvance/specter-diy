@@ -664,6 +664,12 @@ int keystore_add_wallet(const keystore_t * keystore, const network_t * network, 
     return storage_push(path, buf, ".wallet");
 }
 
+int keystore_del_wallet(const keystore_t * keystore, const network_t * network, wallet_t * wallet){
+    char path[100];
+    sprintf(path, "/internal/%s/%s", keystore->fingerprint, network->name);
+    return storage_del(path, wallet->val-1, ".wallet");
+}
+
 int keystore_verify_address(const keystore_t * keystore,
         const network_t * network,
         const char * addr,
