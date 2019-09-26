@@ -8,7 +8,7 @@ This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment wi
 
 We also have a #Reckless option that allows you to store recovery phrase on the device (no pin, no encryption - for testing purposes).
 
-If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/spectersupport).
+If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/spectersupport) or [Slack](https://join.slack.com/t/spectersupport/shared_invite/enQtNzY4MTQ2MTg0NDY1LWQzMGMzMTk2MWE2YmVmNzE3ODgxODIxNWRlMzJjZTZlMDBlMjA5YzVhZjQ0NzJlNmE0N2Q4MzE0ZGJiNjM4NTY).
 
 ## What is this project for?
 
