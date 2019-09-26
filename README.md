@@ -49,7 +49,7 @@ We are also working on the kit that you could buy from us that will include a 3d
 
 - [x] Single key functionality
 - [x] Reckless storage
-- [ ] Multisig
+- [x] Multisig
 - [ ] SD card support
 - [ ] Secure element integration
 - [ ] Secure boot
