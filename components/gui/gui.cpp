@@ -548,14 +548,14 @@ void gui_show_signed_psbt(const char * output){
     gui_qr_alert_create("Transaction is signed!", output, "Scan it with your wallet", "Back to main screen");
 }
 
-void gui_show_psbt(uint64_t out_amount, uint64_t change_amount, uint64_t fee, uint8_t num_outputs, txout_t * outputs){
+void gui_show_psbt(const char * wallet_name, uint64_t out_amount, uint64_t change_amount, uint64_t fee, uint8_t num_outputs, txout_t * outputs){
     base = BASE_PSBT_CONFIRMATION;
 
     lv_obj_clean(scr);
 
     lv_obj_t * obj;
     char msg[200];
-    sprintf(msg, "Confirm transaction:\nSpending %llu satoshi", out_amount-change_amount+fee);
+    sprintf(msg, "Spending %llu satoshi\nfrom %s", out_amount-change_amount+fee, wallet_name);
     obj = gui_title_create(scr, msg);
 
     uint16_t y = 100;

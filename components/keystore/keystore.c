@@ -162,12 +162,73 @@ int keystore_get_addr(const keystore_t * key, const char * path, const network_t
     return res;
 }
 
-int keystore_check_psbt(const keystore_t * key, const struct wally_psbt * psbt){
+int wallet_get_scriptpubkey(const wallet_t * wallet, const uint32_t * derivation, size_t derlen, uint8_t * scriptpubkey, size_t scriptpubkey_len){
+    if(wallet->val == 0){ // TODO: implement for p2wpkh!
+        return -1;
+    }
+    if(scriptpubkey_len < 34){
+        return -1;
+    }
+    char path[100];
+    sprintf(path, "/internal/%s/%s/%d.wallet", wallet->keystore->fingerprint, wallet->network->name, wallet->val-1);
+    FILE *f = fopen(path, "r");
+    if(!f){
+        printf("missing file\r\n");
+        return -1;
+    }
+    int m; int n;
+    fscanf(f, "name=%*[^\n]\ntype=%*s\nm=%d\nn=%d\n", &m, &n);
+    char xpub[150];
+    uint8_t * pubs = (uint8_t *)malloc(33*n);
+    for(int i=0; i<n; i++){
+        fscanf(f, "[%*[^]]]%s\n", xpub);
+        struct ext_key * k;
+        struct ext_key * k2;
+        struct ext_key * temp;
+        int res = bip32_key_from_base58_alloc(xpub, &k);
+        if(res != 0){
+            free(pubs);
+            printf("cant parse key: %s\r\n", xpub);
+            return -1;
+        }
+        if(derlen > 0){
+            bip32_key_from_parent_alloc(k, derivation[0], BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, &k2);
+            temp = k; k = k2; k2 = temp; // swap
+        }
+        for(int j=1; j<derlen; j++){
+            bip32_key_from_parent(k, derivation[j], BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, k2);
+            temp = k; k = k2; k2 = temp; // swap
+        }
+        memcpy(pubs+33*i, k->pub_key, 33);
+        temp = NULL;
+        bip32_key_free(k);
+        if(derlen > 0){
+            bip32_key_free(k2);
+        }
+    }
+    size_t len = 34*n+3;
+    uint8_t * script = (uint8_t *)malloc(len);
+    size_t lenout = 0;
+    wally_scriptpubkey_multisig_from_bytes(pubs, 33*n, m, 0, script, len, &lenout);
+    free(pubs);
+
+    scriptpubkey[0] = 0;
+    scriptpubkey[1] = 32;
+    wally_sha256(script, lenout, scriptpubkey+2, 32);
+    free(script);
+
+    return 0;
+}
+
+int keystore_check_psbt(const keystore_t * key, const network_t * network, const struct wally_psbt * psbt, wallet_t * wallet){
     // check inputs: at least one to sign
     uint8_t err = KEYSTORE_PSBTERR_CANNOT_SIGN;
     uint8_t h160[20];
+    // binary fingerprint of the root
     wally_hash160(key->root->pub_key, sizeof(key->root->pub_key),
                   h160, sizeof(h160));
+    // all inputs have to correpond to the same wallet
+    int wallet_id = -1; // undetermined yet
     for(int i=0; i<psbt->num_inputs; i++){
         // check fingerprints in derivations
         if(psbt->inputs[i].keypaths == NULL){
@@ -187,17 +248,107 @@ int keystore_check_psbt(const keystore_t * key, const struct wally_psbt * psbt){
                 return KEYSTORE_PSBTERR_MIXED_INPUTS;
             }
         }
-        // TODO: add verification that all inputs correspond to the same policy
-        // just forcing single key for now
-        if(psbt->inputs[i].keypaths->num_items != 1){
+        if(psbt->inputs[i].witness_utxo == NULL){ // we don't support legacy
             return KEYSTORE_PSBTERR_UNSUPPORTED_POLICY;
         }
+        // now let's check which wallet it corresponds to
+        size_t script_type;
+        uint8_t * script = psbt->inputs[i].witness_utxo->script;
+        size_t script_len = psbt->inputs[i].witness_utxo->script_len;
+
+        int res = wally_scriptpubkey_get_type(
+                            script, 
+                            script_len,
+                            &script_type);
+        if(res != WALLY_OK){
+            return KEYSTORE_PSBTERR_UNSUPPORTED_POLICY;
+        }
+        if(script_type == WALLY_SCRIPT_TYPE_P2SH){
+            if(psbt->inputs[i].redeem_script == NULL){
+                return KEYSTORE_PSBTERR_WRONG_FIELDS;
+            }
+            script = psbt->inputs[i].redeem_script;
+            script_len = psbt->inputs[i].redeem_script_len;
+            res = wally_scriptpubkey_get_type(
+                            script, 
+                            script_len,
+                            &script_type);
+            if(res != WALLY_OK){
+                return KEYSTORE_PSBTERR_WRONG_FIELDS;
+            }
+        }
+        switch(script_type){
+            case WALLY_SCRIPT_TYPE_P2WPKH:
+            {
+                // check that key is indeed the right one
+                struct ext_key * pk;
+                bip32_key_from_parent_path_alloc(key->root, 
+                    psbt->inputs[i].keypaths->items[0].origin.path, 
+                    psbt->inputs[i].keypaths->items[0].origin.path_len, 
+                    BIP32_FLAG_KEY_PRIVATE, &pk);
+                uint8_t h160[20];
+                wally_hash160(pk->pub_key, 33, h160, 20);
+                bip32_key_free(pk);
+                if(memcmp(h160, script+2, 20) != 0){
+                    return KEYSTORE_PSBTERR_WRONG_FIELDS;
+                }
+                if(wallet_id > 0){ // multisig and single are mixed
+                    return KEYSTORE_PSBTERR_MIXED_INPUTS;
+                }
+                if(wallet_id < 0){
+                    wallet_id = 0;
+                }
+                break;
+            }
+            case WALLY_SCRIPT_TYPE_P2WSH: // multisig
+            {
+                // find non-hardened derivation
+                uint32_t * derivation = psbt->inputs[i].keypaths->items[0].origin.path;
+                size_t derlen = psbt->inputs[i].keypaths->items[0].origin.path_len;
+                while(derivation[0] >= BIP32_INITIAL_HARDENED_CHILD){
+                    derivation = derivation+1;
+                    derlen -= 1;
+                }
+                if(wallet_id == 0){
+                    return KEYSTORE_PSBTERR_MIXED_INPUTS;
+                }
+                wallet_t w;
+                uint8_t script2[34];
+                if(wallet_id > 0){ // if wallet is already determined
+                    keystore_get_wallet(key, network, wallet_id, &w);
+                    wallet_get_scriptpubkey(&w, derivation, derlen, script2, sizeof(script2));
+                    if(memcmp(script, script2, script_len) != 0){
+                        return KEYSTORE_PSBTERR_MIXED_INPUTS;
+                    }
+                }else{ // search for matching wallet
+                    int count = keystore_get_wallets_number(key, network);
+                    for(int i=0; i<count; i++){
+                        keystore_get_wallet(key, network, i+1, &w);
+                        wallet_get_scriptpubkey(&w, derivation, derlen, script2, sizeof(script2));
+                        if(memcmp(script, script2, script_len) == 0){
+                            wallet_id = i+1;
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+            default:
+                printf("unknown\r\n");
+                return KEYSTORE_PSBTERR_UNSUPPORTED_POLICY;
+        }
     }
-    // TODO: check all fields in the psbt
+    if(wallet_id < 0){
+        return KEYSTORE_PSBTERR_CANNOT_SIGN;
+    }
+    if((err == 0) && (wallet != NULL)){
+        keystore_get_wallet(key, network, wallet_id, wallet);
+    }
     return err;
 }
 
-int keystore_output_is_change(const keystore_t * key, const struct wally_psbt * psbt, uint8_t i, char ** warning){
+int wallet_output_is_change(const wallet_t * wallet, const struct wally_psbt * psbt, uint8_t i, char ** warning){
+    const keystore_t * key = wallet->keystore;
     // TODO: check if it is a change
     if(i >= psbt->num_outputs){
         return 0;
@@ -205,8 +356,18 @@ int keystore_output_is_change(const keystore_t * key, const struct wally_psbt * 
     if(psbt->outputs[i].keypaths == NULL){
         return 0;
     }
-    if(psbt->outputs[i].keypaths->num_items != 1){
-        printf("keystore: multisig change detection is not supported yet\r\n");
+    if(wallet->val > 0){ // multisig
+        uint32_t * derivation = psbt->outputs[i].keypaths->items[0].origin.path;
+        size_t derlen = psbt->outputs[i].keypaths->items[0].origin.path_len;
+        while(derivation[0] >= BIP32_INITIAL_HARDENED_CHILD){
+            derivation = derivation+1;
+            derlen -= 1;
+        }
+        uint8_t scriptpubkey[34];
+        wallet_get_scriptpubkey(wallet, derivation, derlen, scriptpubkey, sizeof(scriptpubkey));
+        if(memcmp(scriptpubkey, psbt->tx->outputs[i].script, psbt->tx->outputs[i].script_len) == 0){
+            return 1;
+        }
         return 0;
     }
     struct ext_key * pk = NULL;
@@ -255,7 +416,8 @@ int keystore_output_is_change(const keystore_t * key, const struct wally_psbt * 
     return res;
 }
 
-int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char ** output){
+int wallet_sign_psbt(const wallet_t * wallet, struct wally_psbt * psbt, char ** output){
+    const keystore_t * key = wallet->keystore;
     size_t len;
     struct wally_psbt * signed_psbt;
     wally_psbt_init_alloc(
@@ -272,24 +434,50 @@ int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char **
         uint8_t script[25];
 
         struct ext_key * pk = NULL;
-        // TODO: fix for multiple keypaths
+        int k = -1;
+        uint8_t h160[20];
+        wally_hash160(key->root->pub_key, sizeof(key->root->pub_key),
+                  h160, sizeof(h160));
+        for(int j = 0; j<psbt->inputs[i].keypaths->num_items; j++){
+            if(memcmp(h160,psbt->inputs[i].keypaths->items[j].origin.fingerprint, 4) == 0){
+                k = j;
+                break;
+            }
+        }
+        if(k < 0){
+            return -1;
+        }
         bip32_key_from_parent_path_alloc(key->root, 
-            psbt->inputs[i].keypaths->items[0].origin.path, 
-            psbt->inputs[i].keypaths->items[0].origin.path_len, 
+            psbt->inputs[i].keypaths->items[k].origin.path, 
+            psbt->inputs[i].keypaths->items[k].origin.path_len, 
             BIP32_FLAG_KEY_PRIVATE, &pk);
 
-        wally_scriptpubkey_p2pkh_from_bytes(pk->pub_key, EC_PUBLIC_KEY_LEN, 
-                WALLY_SCRIPT_HASH160, 
-                script, 25, 
-                &len);
+        if(wallet->val == 0){ // single key
+            wally_scriptpubkey_p2pkh_from_bytes(pk->pub_key, EC_PUBLIC_KEY_LEN, 
+                    WALLY_SCRIPT_HASH160, 
+                    script, 25, 
+                    &len);
 
-        wally_tx_get_btc_signature_hash(psbt->tx, i, 
-                script, len,
-                psbt->inputs[i].witness_utxo->satoshi,
-                WALLY_SIGHASH_ALL,
-                WALLY_TX_FLAG_USE_WITNESS,
-                hash, 32
-            );
+            wally_tx_get_btc_signature_hash(psbt->tx, i, 
+                    script, len,
+                    psbt->inputs[i].witness_utxo->satoshi,
+                    WALLY_SIGHASH_ALL,
+                    WALLY_TX_FLAG_USE_WITNESS,
+                    hash, 32
+                );
+        }else{
+            if(psbt->inputs[i].witness_script == NULL){
+                return -1;
+            }
+            wally_tx_get_btc_signature_hash(psbt->tx, i, 
+                    psbt->inputs[i].witness_script, 
+                    psbt->inputs[i].witness_script_len,
+                    psbt->inputs[i].witness_utxo->satoshi,
+                    WALLY_SIGHASH_ALL,
+                    WALLY_TX_FLAG_USE_WITNESS,
+                    hash, 32
+                );
+        }
  
         uint8_t sig[EC_SIGNATURE_LEN];
         wally_ec_sig_from_bytes(
@@ -322,7 +510,7 @@ int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char **
 
 
 // maybe expose it to public interface
-static int keystore_get_wallets_number(const keystore_t * key, const network_t * network){
+int keystore_get_wallets_number(const keystore_t * key, const network_t * network){
     char path[100];
     sprintf(path, "/internal/%s", key->fingerprint);
     storage_maybe_mkdir(path);
@@ -404,50 +592,14 @@ int wallet_get_addresses(const wallet_t * wallet, char ** base58_addr, char ** b
         sprintf(path, "m/84h/%dh/0h/0/%d", wallet->network->bip32, wallet->address);
         keystore_get_addr(wallet->keystore, path, wallet->network, bech32_addr, KEYSTORE_BECH32_ADDRESS);
         keystore_get_addr(wallet->keystore, path, wallet->network, base58_addr, KEYSTORE_BASE58_ADDRESS);
-    }else{ // TODO: incapsulate, i.e. to storage
-        char path[100];
-        sprintf(path, "/internal/%s/%s/%d.wallet", wallet->keystore->fingerprint, wallet->network->name, wallet->val-1);
-        FILE *f = fopen(path, "r");
-        if(!f){
-            printf("missing file\r\n");
-            return -1;
-        }
-        int m; int n;
-        fscanf(f, "name=%*[^\n]\ntype=%*s\nm=%d\nn=%d\n", &m, &n);
-        char xpub[150];
-        uint8_t * pubs = (uint8_t *)malloc(33*n);
-        for(int i=0; i<n; i++){
-            fscanf(f, "[%*[^]]]%s\n", xpub);
-            struct ext_key * k;
-            int res = bip32_key_from_base58_alloc(xpub, &k);
-            if(res != 0){
-                free(pubs);
-                printf("cant parse key: %s\r\n", xpub);
-                return -1;
-            }
-            struct ext_key * k2;
-            // from path doesn't work for some reason
-            bip32_key_from_parent_alloc(k, 0, BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, &k2);
-            bip32_key_from_parent(k2, wallet->address, BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH, k);
-            memcpy(pubs+33*i, k->pub_key, 33);
-            bip32_key_free(k);
-            bip32_key_free(k2);
-        }
-        size_t len = 34*n+3;
-        uint8_t * script = (uint8_t *)malloc(len);
-        size_t lenout = 0;
-        wally_scriptpubkey_multisig_from_bytes(pubs, 33*n, m, 0, script, len, &lenout);
-        free(pubs);
-
-        uint8_t hash[34];
-        hash[0] = 0;
-        hash[1] = 32;
-        wally_sha256(script, lenout, hash+2, 32);
-        free(script);
-        wally_addr_segwit_from_bytes(hash, sizeof(hash), wallet->network->bech32, 0, bech32_addr);
+    }else{
+        uint8_t scriptpubkey[34];
+        uint32_t derivation[2] = {0, wallet->address};
+        wallet_get_scriptpubkey(wallet, derivation, 2, scriptpubkey, sizeof(scriptpubkey));
+        wally_addr_segwit_from_bytes(scriptpubkey, sizeof(scriptpubkey), wallet->network->bech32, 0, bech32_addr);
         uint8_t bytes[21];
         bytes[0] = wallet->network->p2sh;
-        wally_hash160(hash, sizeof(hash), bytes+1, 20);
+        wally_hash160(scriptpubkey, sizeof(scriptpubkey), bytes+1, 20);
         wally_base58_from_bytes(bytes, 21, BASE58_FLAG_CHECKSUM, base58_addr);
     }
     return 0;

@@ -45,9 +45,8 @@ int keystore_get_xpub(const keystore_t * key, const char * derivation, const net
 int keystore_get_addr_path(const keystore_t * key, const uint32_t * derivation, size_t len, const network_t * network, char ** addr, int flag);
 int keystore_get_addr(const keystore_t * keystore, const char * derivation, const network_t * network, char ** addr, int flag);
 
-int keystore_check_psbt(const keystore_t * key, const struct wally_psbt * psbt);
-int keystore_sign_psbt(const keystore_t * key, struct wally_psbt * psbt, char ** output);
-int keystore_output_is_change(const keystore_t * key, const struct wally_psbt * psbt, uint8_t i, char ** warning);
+int keystore_check_psbt(const keystore_t * key, const network_t * network, const struct wally_psbt * psbt, wallet_t * wallet);
+int wallet_sign_psbt(const wallet_t * wallet, struct wally_psbt * psbt, char ** output);
 
 /** allocates memory for wallet names - a list of char arrays ending with empty string "" 
 	network is required to distinguish between wallets for mainnet, testnet and others
@@ -59,7 +58,9 @@ int keystore_free_wallets(char ** wallets);
 
 int keystore_get_wallet(const keystore_t * key, const network_t * network, int val, wallet_t * wallet);
 int wallet_get_addresses(const wallet_t * wallet, char ** base58_addr, char ** bech32_addr);
+int wallet_output_is_change(const wallet_t * wallet, const struct wally_psbt * psbt, uint8_t i, char ** warning);
 
+int keystore_get_wallets_number(const keystore_t * key, const network_t * network);
 /** adds wallet, returns wallet id, populates wallet with corresponding data */
 int keystore_check_wallet(const keystore_t * keystore, const network_t * network, const char * buf);
 int keystore_add_wallet(const keystore_t * keystore, const network_t * network, const char * buf, wallet_t * wallet);

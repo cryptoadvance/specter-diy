@@ -96,7 +96,7 @@ void set_default_xpubs(){
 // parses psbt, constructs all the addresses and amounts and sends to GUI
 static int show_psbt(const struct wally_psbt * psbt){
     // check if we can sign it and all fields are ok
-    int res = keystore_check_psbt(&keystore, psbt);
+    int res = keystore_check_psbt(&keystore, network, psbt, &wallet);
     if(res!=0){
         if(res & KEYSTORE_PSBTERR_CANNOT_SIGN){
             show_err("Can't sign the transaction");
@@ -115,7 +115,7 @@ static int show_psbt(const struct wally_psbt * psbt){
             return -1;
         }
         show_err("Something is wrong with transaction");
-            return -1;
+        return -1;
     }
 
     uint64_t in_amount = 0;
@@ -163,13 +163,13 @@ static int show_psbt(const struct wally_psbt * psbt){
         outputs[i].address = addr;
         outputs[i].amount = psbt->tx->outputs[i].satoshi;
         char * warning = NULL;
-        outputs[i].is_change = keystore_output_is_change(&keystore, psbt, i, &warning);
+        outputs[i].is_change = wallet_output_is_change(&wallet, psbt, i, &warning);
         outputs[i].warning = warning;
 
         out_amount += psbt->tx->outputs[i].satoshi;
     }
     fee = in_amount-out_amount;
-    gui_show_psbt(out_amount, change_amount, fee, psbt->num_outputs, outputs);
+    gui_show_psbt(wallet.name, out_amount, change_amount, fee, psbt->num_outputs, outputs);
     for(int i=0; i<psbt->num_outputs; i++){
         if(outputs[i].address != NULL){
             wally_free_string(outputs[i].address);
@@ -330,7 +330,7 @@ void process_action(int action){
         {
             logit("main", "Signing transaction...");
             char * output = NULL;
-            if(keystore_sign_psbt(&keystore, psbt, &output) == 0){
+            if(wallet_sign_psbt(&wallet, psbt, &output) == 0){
                 printf("%s\r\n", output);
                 gui_show_signed_psbt(output);
                 wally_free_string(output);
