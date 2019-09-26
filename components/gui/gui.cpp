@@ -22,8 +22,14 @@
 #define BASE_XPUBS_SCREEN       7
 #define BASE_PSBT_CONFIRMATION  8
 #define BASE_RECKLESS           9
+#define BASE_LIST_WALLETS       10
+#define BASE_ADDRESSES_SCREEN   11
+#define BASE_CONFIRM_NEW_WALLET 12
 
 #define BACK_TO_MAIN            0xFF
+#define GET_NEW_WALLET          0xFE
+#define USER_CANCEL             0xFF00
+#define USER_CONFIRM            0xFF01
 
 using std::string;
 
@@ -58,6 +64,7 @@ static void gui_styles_create(){
 static void cb(lv_obj_t * obj, lv_event_t event);
 static void back_to_main(void * ptr);
 static void back_to_init(void * ptr);
+static void process_command(int val);
 
 int gui_get_action(){
     return action;
@@ -281,8 +288,79 @@ static void show_xpubs_screen(){
     // TODO: add "scan custom derivation" button
 
     obj = gui_button_create(scr, "Back to main menu", cb);
-    lv_obj_set_user_data(obj, 3);
+    lv_obj_set_user_data(obj, BACK_TO_MAIN);
 }
+
+static void cb_del_wallet(void * ptr){
+    process_command(USER_CONFIRM);
+}
+
+static void cb_cancel(void * ptr){
+    process_command(USER_CANCEL);
+}
+
+static void cb_del(lv_obj_t * obj, lv_event_t event){
+    if(event == LV_EVENT_RELEASED){
+        char title[100];
+        sprintf(title, "Delete \"%s\"?", str);
+        gui_prompt_create(title,
+                      "You are about to delete this wallet.\n"
+                      "You won't be able to sign multisig "
+                      "transactions with it until you re-import it.",
+                      "Yes, delete",
+                      cb_del_wallet,
+                      "No, keep it",
+                      cb_cancel);
+    }
+}
+
+void gui_navigate_wallet(const char * name, uint32_t address, const char * bech32_addr, const char * base58_addr){
+    base = BASE_ADDRESSES_SCREEN;
+
+    string qrmsg = "bitcoin:";
+    qrmsg += bech32_addr;
+    string msg = bech32_addr;
+    msg += "\nor base58:\n";
+    msg += base58_addr;
+
+    char title[200];
+    sprintf(title, "Wallet \"%s\"\nAddress #%d", name, address+1);
+
+    lv_obj_clean(scr);
+    lv_obj_t * obj;
+
+    obj = gui_title_create(scr, title);
+    lv_obj_t * qr = gui_qr_create(scr, LV_HOR_RES/2, qrmsg.c_str());
+    lv_obj_set_y(qr, lv_obj_get_y(obj) + lv_obj_get_height(obj) + PADDING/2);
+
+    obj = gui_title_create(scr, msg.c_str(), true);
+    lv_obj_set_y(obj, lv_obj_get_y(qr) + lv_obj_get_height(qr) + PADDING/2);
+
+    obj = gui_button_create(scr, "Previous", cb);
+    uint16_t y = lv_obj_get_y(obj) - 170;
+    lv_obj_set_user_data(obj, address-1);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_width(obj, LV_HOR_RES/2-3*PADDING/2);
+    lv_obj_set_x(obj, PADDING);
+    if(address == 0){
+        lv_btn_set_state(obj, LV_BTN_STATE_INA);
+    }
+
+    obj = gui_button_create(scr, "Next", cb);
+    lv_obj_set_user_data(obj, address+1);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_width(obj, LV_HOR_RES/2-3*PADDING/2);
+    lv_obj_set_x(obj, LV_HOR_RES/2+PADDING/2);
+
+    y += 85;
+    strcpy(str, name); // to access it from the callback
+    obj = gui_button_create(scr, "Delete wallet", cb_del);
+    lv_obj_set_y(obj, y);
+
+    obj = gui_button_create(scr, "Back to main menu", cb);
+    lv_obj_set_user_data(obj, BACK_TO_MAIN);
+}
+
 
 static void show_reckless_screen(){
     base = BASE_RECKLESS;
@@ -314,6 +392,10 @@ static void show_reckless_screen(){
 
 static void process_main_screen(int val){
     switch(val){
+        case 1: // multisig
+            action = GUI_LIST_WALLETS;
+            logit("gui", "action set to list wallets");
+            break;
         case 2: // master keys
             show_xpubs_screen();
             break;
@@ -411,6 +493,33 @@ static void process_command(int val){
                 gui_show_main_screen();
             }
             break;
+        case BASE_LIST_WALLETS:
+            if(val == GET_NEW_WALLET){
+                action = GUI_NEW_WALLET;
+            }else{
+                value = val;
+                action = GUI_SELECT_WALLET;
+            }
+            break;
+        case BASE_CONFIRM_NEW_WALLET:
+            if(val == 1){
+                action = GUI_CONFIRM_NEW_WALLET;
+            }else{
+                action = GUI_CANCEL_NEW_WALLET;
+            }
+            break;
+        case BASE_ADDRESSES_SCREEN:
+            switch(val){
+                case USER_CONFIRM:
+                    action = GUI_DELETE_WALLET;
+                    break;
+                case USER_CANCEL:
+                    break;
+                default:
+                    value = val;
+                    action = GUI_GET_WALLET_ADDRESS;
+            }
+            break;
         default:
             show_err("Undefined GUI behaviour");
     }
@@ -423,19 +532,69 @@ static void cb(lv_obj_t * obj, lv_event_t event){
         process_command(v);
     }
 }
+
+void gui_confirm_new_wallet(const char * wallet_info){
+    base = BASE_CONFIRM_NEW_WALLET;
+    lv_obj_clean(scr);
+    lv_obj_t * obj;
+    obj = gui_title_create(scr, "Add new wallet?");
+
+    obj = gui_title_create(scr, wallet_info, 1);
+    lv_obj_set_y(obj, 100);
+
+    obj = gui_button_create(scr, "Confirm", cb);
+    lv_obj_set_user_data(obj, 1);
+    lv_obj_set_width(obj, LV_HOR_RES/2-3*PADDING/2);
+    lv_obj_set_x(obj, LV_HOR_RES/2+PADDING/2);
+
+    obj = gui_button_create(scr, "Cancel", cb);
+    lv_obj_set_user_data(obj, 0);
+    lv_obj_set_width(obj, LV_HOR_RES/2-3*PADDING/2);
+    lv_obj_set_x(obj, PADDING);
+}
+
+void gui_show_wallets(char ** wallets){
+    base = BASE_LIST_WALLETS;
+    if(wallets==NULL){
+        show_err("Weird... You don't have any wallets");
+        return;
+    }
+    lv_obj_clean(scr);
+    lv_obj_t * obj;
+
+    obj = gui_title_create(scr, "Your wallets:");
+
+    uint16_t y = 100;
+    int i=0;
+    while(wallets[i]!=NULL && strlen(wallets[i]) > 0){
+        obj = gui_button_create(scr, wallets[i], cb);
+        lv_obj_set_user_data(obj, i);
+        lv_obj_set_y(obj, y);
+        i++;
+        y += 100;
+    }
+
+    obj = gui_button_create(scr, "Add new wallet (scan)", cb);
+    lv_obj_set_user_data(obj, GET_NEW_WALLET);
+    lv_obj_set_y(obj, lv_obj_get_y(obj)-100);
+
+    obj = gui_button_create(scr, "Back to main menu", cb);
+    lv_obj_set_user_data(obj, BACK_TO_MAIN);
+}
+
 void gui_show_signed_psbt(const char * output){
     gui_show_main_screen();
     gui_qr_alert_create("Transaction is signed!", output, "Scan it with your wallet", "Back to main screen");
 }
 
-void gui_show_psbt(uint64_t out_amount, uint64_t change_amount, uint64_t fee, uint8_t num_outputs, txout_t * outputs){
+void gui_show_psbt(const char * wallet_name, uint64_t out_amount, uint64_t change_amount, uint64_t fee, uint8_t num_outputs, txout_t * outputs){
     base = BASE_PSBT_CONFIRMATION;
 
     lv_obj_clean(scr);
 
     lv_obj_t * obj;
     char msg[200];
-    sprintf(msg, "Confirm transaction:\nSpending %llu satoshi", out_amount-change_amount+fee);
+    sprintf(msg, "Spending %llu satoshi\nfrom %s", out_amount-change_amount+fee, wallet_name);
     obj = gui_title_create(scr, msg);
 
     uint16_t y = 100;
@@ -698,10 +857,11 @@ void gui_show_main_screen(){
     obj = gui_title_create(scr, "Select an option below");
 
     uint16_t y = 100;
-    // TODO: add (Multisig) wallets menu for multisig
-    // obj = gui_button_create(scr, "Wallets", cb_list_wallets);
-    // lv_obj_set_y(obj, y);
-    // y+=100;
+
+    obj = gui_button_create(scr, "Wallets", cb);
+    lv_obj_set_y(obj, y);
+    lv_obj_set_user_data(obj, 1);
+    y+=100;
     obj = gui_button_create(scr, "Master keys", cb);
     lv_obj_set_y(obj, y);
     lv_obj_set_user_data(obj, 2);
@@ -746,11 +906,11 @@ void gui_set_default_xpubs(const char * single, const char * multisig){
     default_xpubs[1] = multisig;
 }
 
-void gui_show_addresses(const char * derivation, const char * segwit_addr, const char * base58_addr){
+void gui_show_addresses(const char * derivation, const char * bech32_addr, const char * base58_addr){
     string qrmsg = "bitcoin:";
-    qrmsg += segwit_addr;
+    qrmsg += bech32_addr;
     string msg = "bech32: ";
-    msg += segwit_addr;
+    msg += bech32_addr;
     msg += "\nbase58: ";
     msg += base58_addr;
 

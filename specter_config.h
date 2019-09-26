@@ -5,5 +5,7 @@
 #define SPECTER_MNEMONIC_WORDS 	12
 // buffer size for host module
 #define SPECTER_HOST_INPUT_SIZE	3000
+// ypub, zpub
+#define USE_SLIP132 			1
 
 #endif // __SPECTER_CONFIG_H__

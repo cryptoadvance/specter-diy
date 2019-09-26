@@ -6,7 +6,7 @@ This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testne
 
 This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). But this prototype is not ment to be secure. That's why **we don't store your private keys on the device** - you need to type your recovery phrase every time you power it on.
 
-We will add the #Reckless option later on that would allow to store recovery phrase on the device.
+We also have a #Reckless option that allows you to store recovery phrase on the device (no pin, no encryption - for testing purposes).
 
 ## What is this project for?
 
@@ -18,7 +18,7 @@ It is a Do-It-Yourself airgapped hardware wallet that uses QR codes for communic
 
 ## Current status
 
-Works for single key transactions. Multisig is coming soon.
+Works for single key and multisig transactions.
 
 Supported networks: Mainnet, Testnet, Regtest, Signet.
 
@@ -48,10 +48,10 @@ We are also working on the kit that you could buy from us that will include a 3d
 ## Dev plan
 
 - [x] Single key functionality
-- [ ] Reckless storage
+- [x] Reckless storage
 - [ ] Multisig
 - [ ] SD card support
-- [ ] Smartcard integration
+- [ ] Secure element integration
 - [ ] Secure boot
 - [ ] DIY kit
 
@@ -59,7 +59,7 @@ We are also working on the kit that you could buy from us that will include a 3d
 
 Check out [this Twitter thread](https://twitter.com/StepanSnigirev/status/1168923849699876881) to get an idea how it works.
 
-A few crappy screenshots
+A few crappy pictures:
 
 ### Init screens
 

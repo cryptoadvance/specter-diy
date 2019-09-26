@@ -37,11 +37,13 @@ using std::string;
 #define NO_ACTION       0
 #define VERIFY_ADDRESS  1
 #define SIGN_PSBT       2
+#define NEW_WALLET      3
 
 static char * mnemonic = NULL;
 static char * password = NULL;
 
 static keystore_t keystore;
+static wallet_t wallet;
 static const network_t * network = &Testnet;
 
 static int in_action = NO_ACTION;
@@ -49,6 +51,8 @@ static struct wally_psbt * psbt = NULL;
 
 Serial pc(SERIAL_TX, SERIAL_RX, 115200);
 DigitalIn btn(USER_BUTTON);
+
+static char * temp_data = NULL;
 
 // generates a mnemonic from entropy
 // TODO: should it be moved to keystore?
@@ -92,7 +96,7 @@ void set_default_xpubs(){
 // parses psbt, constructs all the addresses and amounts and sends to GUI
 static int show_psbt(const struct wally_psbt * psbt){
     // check if we can sign it and all fields are ok
-    int res = keystore_check_psbt(&keystore, psbt);
+    int res = keystore_check_psbt(&keystore, network, psbt, &wallet);
     if(res!=0){
         if(res & KEYSTORE_PSBTERR_CANNOT_SIGN){
             show_err("Can't sign the transaction");
@@ -111,7 +115,7 @@ static int show_psbt(const struct wally_psbt * psbt){
             return -1;
         }
         show_err("Something is wrong with transaction");
-            return -1;
+        return -1;
     }
 
     uint64_t in_amount = 0;
@@ -159,13 +163,13 @@ static int show_psbt(const struct wally_psbt * psbt){
         outputs[i].address = addr;
         outputs[i].amount = psbt->tx->outputs[i].satoshi;
         char * warning = NULL;
-        outputs[i].is_change = keystore_output_is_change(&keystore, psbt, i, &warning);
+        outputs[i].is_change = wallet_output_is_change(&wallet, psbt, i, &warning);
         outputs[i].warning = warning;
 
         out_amount += psbt->tx->outputs[i].satoshi;
     }
     fee = in_amount-out_amount;
-    gui_show_psbt(out_amount, change_amount, fee, psbt->num_outputs, outputs);
+    gui_show_psbt(wallet.name, out_amount, change_amount, fee, psbt->num_outputs, outputs);
     for(int i=0; i<psbt->num_outputs; i++){
         if(outputs[i].address != NULL){
             wally_free_string(outputs[i].address);
@@ -187,8 +191,81 @@ void process_action(int action){
             char * s = gui_get_str();
             wally_bzero(s, strlen(s));
             wally_cleanup(0);
+            // TODO: reboot?
             exit(0);
             break; // no need really
+        }
+        case GUI_LIST_WALLETS:
+        {
+            logit("main", "listing multisig wallets");
+            char ** wallets = NULL;
+            keystore_get_wallets(&keystore, network, &wallets);
+            gui_show_wallets(wallets);
+            keystore_free_wallets(wallets);
+            break;
+        }
+        case GUI_SELECT_WALLET:
+        {
+            int val = gui_get_value();
+            keystore_get_wallet(&keystore, network, val, &wallet);
+            char * base58_addr;
+            char * bech32_addr;
+            int res = wallet_get_addresses(&wallet, &base58_addr, &bech32_addr);
+            if(res < 0){
+                show_err("Failed to compute wallet addresses");
+                return;
+            }
+            gui_navigate_wallet(wallet.name, wallet.address, bech32_addr, base58_addr);
+            wally_free_string(base58_addr);
+            wally_free_string(bech32_addr);
+            break;
+        }
+        case GUI_NEW_WALLET:
+        {
+            in_action = NEW_WALLET;
+            host_request_data();
+            break;
+        }
+        case GUI_CONFIRM_NEW_WALLET:
+        {
+            int id = keystore_add_wallet(&keystore, network, temp_data, &wallet);
+            if(temp_data!=NULL){
+                free(temp_data);
+                temp_data = NULL;
+            }
+            process_action(GUI_LIST_WALLETS);
+            break;
+        }
+        case GUI_DELETE_WALLET:
+        {
+            int err = keystore_del_wallet(&keystore, network, &wallet);
+            if(err){
+                show_err("Failed to delete wallet");
+            }else{
+                process_action(GUI_LIST_WALLETS);
+            }
+            break;
+        }
+        case GUI_CANCEL_NEW_WALLET:
+        {
+            if(temp_data!=NULL){
+                free(temp_data);
+                temp_data = NULL;
+            }
+            process_action(GUI_LIST_WALLETS);
+            break;
+        }
+        case GUI_GET_WALLET_ADDRESS:
+        {
+            int val = gui_get_value();
+            wallet.address = val;
+            char * base58_addr;
+            char * bech32_addr;
+            wallet_get_addresses(&wallet, &base58_addr, &bech32_addr);
+            gui_navigate_wallet(wallet.name, wallet.address, bech32_addr, base58_addr);
+            wally_free_string(base58_addr);
+            wally_free_string(bech32_addr);
+            break;
         }
         case GUI_GENERATE_KEY: 
         {
@@ -246,7 +323,7 @@ void process_action(int action){
         {
             char * str = gui_get_str();
             char *xpub = NULL;
-            keystore_get_xpub(&keystore, str, network, &xpub); // keys, derivation, network, string
+            keystore_get_xpub(&keystore, str, network, USE_SLIP132, &xpub); // keys, derivation, network, string
             gui_show_xpub(keystore.fingerprint, str, xpub);    //[fingerprint/derivation]xpub
             wally_free_string(xpub);
             break;
@@ -254,22 +331,22 @@ void process_action(int action){
         case GUI_VERIFY_ADDRESS:
         {
             logit("main", "verify address triggered");
-            host_request_data();
             in_action = VERIFY_ADDRESS;
+            host_request_data();
             break;
         }
         case GUI_SIGN_PSBT:
         {
             logit("main", "PSBT triggered");
-            host_request_data();
             in_action = SIGN_PSBT;
+            host_request_data();
             break;
         }
         case GUI_PSBT_CONFIRMED:
         {
             logit("main", "Signing transaction...");
             char * output = NULL;
-            if(keystore_sign_psbt(&keystore, psbt, &output) == 0){
+            if(wallet_sign_psbt(&wallet, psbt, &output) == 0){
                 printf("%s\r\n", output);
                 gui_show_signed_psbt(output);
                 wally_free_string(output);
@@ -332,72 +409,52 @@ void process_action(int action){
     }
 }
 
-static string get_derivation(const char * buf){
-    // TODO: refactor to support multisig and bitcoin:addr?index=X codes
-    // if bitcoin:<address>?index=<index> is used
-    char address[100];
-    char der[100];
+static void verify_address(const char * buf){
+    if(memcmp(buf, "bitcoin:", 8)==0){
+        buf = buf+8;
+    }
+    char addr[80];
     int index;
-    int res = sscanf(buf, "bitcoin:%[^?]?index=%d", address, &index);
-    if(res > 0){
-        sprintf(der, "m/84h/%dh/0h/0/%d", network->bip32, index);
-        return der;
+    int res = sscanf(buf, "%80[^?]?index=%d", addr, &index);
+    if(res != 2){
+        show_err("Failed to parse address index. Is it in the QR code?");
+        return;
     }
-    // if "address=<addr>\ntype=<type>\n<der>" format is used
-    char type[10];
-    res = sscanf(buf, "address=%s\ntype=%s\n%s", address, type, der);
-    if(res > 0){ 
-        if(memcmp(der, keystore.fingerprint, 8) != 0){
-            show_err("Wrong fingerprint");
-            return "";
-        }
-        return string(der+9)+string(address+1);
-    }
-    // if <fingerprint>/derivation is used
-    if(memcmp(buf, "m/", 2)!=0){
-        // check that fingerprint is ok
-        if(memcmp(buf, keystore.fingerprint, 8) != 0){
-            show_err("Wrong fingerprint");
-            return "";
-        }
-        return string(buf + 9);
+    uint32_t path[2] = {0, index};
+    char * wallet_name;
+    res = keystore_verify_address(&keystore, network, addr, path, 2, &wallet_name);
+    if(res >= 0){
+        string title = "Wallet \"";
+        title += wallet_name;
+        title += "\"";
+        string qrmsg = string("bitcoin:")+addr;
+        gui_qr_alert_create(title.c_str(), qrmsg.c_str(), addr, "Ok");
     }else{
-        return string(buf);
+        show_err("Failed to verify address. Are you sure it belongs to this network and wallet?");
     }
-
 }
 
-static void verify_address(const char * buf){
-    string derivation = get_derivation(buf);
-    if(derivation.length() == 0){
-        show_err("Failed to verify address");
-        return;
+static void check_new_wallet(char * buf){
+    int err = keystore_check_wallet(&keystore, network, buf);
+    if(err != 0){
+        switch(err){
+            case KEYSTORE_WALLET_ERR_NOT_INCLUDED:
+                show_err("Key is not in the wallet");
+                break;
+            case KEYSTORE_WALLET_ERR_WRONG_XPUB:
+                show_err("Wrong xpub");
+                break;
+            default:
+                show_err("Something is wrong with the wallet format");
+        }
+    }else{
+        if(temp_data != NULL){
+            free(temp_data);
+        }
+        temp_data = (char *)calloc(strlen(buf), 1);
+        strcpy(temp_data, buf);
+        gui_confirm_new_wallet(buf);
     }
-    // TODO: refactor to support multisig
-    char * bech32_addr;
-    int err = keystore_get_addr(&keystore, derivation.c_str(), network, &bech32_addr, KEYSTORE_BECH32_ADDRESS);
-    if(err){
-        show_err("failed to derive address");
-        return;
-    }
-    char * base58_addr;
-    err = keystore_get_addr(&keystore, derivation.c_str(), network, &base58_addr, KEYSTORE_BASE58_ADDRESS);
-    if(err){
-        show_err("failed to derive address");
-        return;
-    }
-    char address[100];
-    int index;
-    int res = sscanf(buf, "bitcoin:%[^?]?index=%d", address, &index);
-    if((res > 0) && strcmp(base58_addr, address)!=0 && strcmp(bech32_addr, address)!=0){
-        show_err("Address mismatch. Wrong network or wallet?");
-        wally_free_string(bech32_addr);
-        wally_free_string(base58_addr);
-        return;
-    }
-    gui_show_addresses(derivation.c_str(), bech32_addr, base58_addr);
-    wally_free_string(bech32_addr);
-    wally_free_string(base58_addr);
 }
 
 // handles data from the host
@@ -405,6 +462,11 @@ static void process_data(int action, uint8_t * buf, size_t len){
     int err;
     char * b64 = NULL;
     switch(action){
+        case NEW_WALLET:
+        {
+            check_new_wallet((char *)buf);
+            break;
+        }
         case VERIFY_ADDRESS:
         {
             verify_address((char *)buf);

@@ -8,13 +8,19 @@ static void (*cancel_cb)(void * ptr);
 
 static void cb_ok(lv_obj_t * btn, lv_event_t event){
     if(event == LV_EVENT_CLICKED){
-        lv_async_call(ok_cb, NULL);
+        lv_disp_load_scr(prev_scr);
+        if(ok_cb != NULL){
+            lv_async_call(ok_cb, NULL);
+        }
     }
 }
 
 static void cb_cancel(lv_obj_t * btn, lv_event_t event){
     if(event == LV_EVENT_CLICKED){
-        lv_async_call(cancel_cb, NULL);
+        lv_disp_load_scr(prev_scr);
+        if(cancel_cb != NULL){
+            lv_async_call(cancel_cb, NULL);
+        }
     }
 }
 
