@@ -8,6 +8,8 @@ This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment wi
 
 We also have a #Reckless option that allows you to store recovery phrase on the device (no pin, no encryption - for testing purposes).
 
+If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/spectersupport).
+
 ## What is this project for?
 
 It is a Do-It-Yourself airgapped hardware wallet that uses QR codes for communication with the computer (i.e. [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) on top of Bitcoin Core). It can be used as an additional item in your multisignature setup that has a completely different security model:
