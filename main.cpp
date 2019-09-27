@@ -171,7 +171,7 @@ static int show_psbt(const struct wally_psbt * psbt){
             out_amount += psbt->tx->outputs[i].satoshi;
         }
     }
-    fee = in_amount-out_amount;
+    fee = in_amount-out_amount-change_amount;
     gui_show_psbt(wallet.name, out_amount, change_amount, fee, psbt->num_outputs, outputs);
     for(int i=0; i<psbt->num_outputs; i++){
         if(outputs[i].address != NULL){

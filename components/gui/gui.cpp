@@ -594,7 +594,7 @@ void gui_show_psbt(const char * wallet_name, uint64_t out_amount, uint64_t chang
 
     lv_obj_t * obj;
     char msg[200];
-    sprintf(msg, "Spending %llu satoshi\nfrom %s", out_amount-change_amount+fee, wallet_name);
+    sprintf(msg, "Spending %llu satoshi\nfrom %s", out_amount+fee, wallet_name);
     obj = gui_title_create(scr, msg);
 
     uint16_t y = 100;
