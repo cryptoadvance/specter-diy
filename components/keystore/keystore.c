@@ -240,6 +240,12 @@ int keystore_check_psbt(const keystore_t * key, const network_t * network, const
                 can_sign = 1;
                 break;
             }
+            // if watch wallet doesn't know the fingerprint - try to sign (i.e. blue wallet)
+            uint8_t zero[4] = { 0 };
+            if(memcmp(psbt->inputs[i].keypaths->items[j].origin.fingerprint, zero, 4)==0){
+                can_sign = 1;
+                break;
+            }
         }
         if(can_sign){
             err = 0;
@@ -349,7 +355,6 @@ int keystore_check_psbt(const keystore_t * key, const network_t * network, const
 
 int wallet_output_is_change(const wallet_t * wallet, const struct wally_psbt * psbt, uint8_t i, char ** warning){
     const keystore_t * key = wallet->keystore;
-    // TODO: check if it is a change
     if(i >= psbt->num_outputs){
         return 0;
     }
@@ -440,6 +445,12 @@ int wallet_sign_psbt(const wallet_t * wallet, struct wally_psbt * psbt, char ** 
                   h160, sizeof(h160));
         for(int j = 0; j<psbt->inputs[i].keypaths->num_items; j++){
             if(memcmp(h160,psbt->inputs[i].keypaths->items[j].origin.fingerprint, 4) == 0){
+                k = j;
+                break;
+            }
+            // if fingerprint is 00000000 force-use this derivation
+            uint8_t zero[4] = { 0 };
+            if(memcmp(psbt->inputs[i].keypaths->items[j].origin.fingerprint, zero, 4)==0){
                 k = j;
                 break;
             }

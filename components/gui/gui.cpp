@@ -131,7 +131,6 @@ int gui_calibration_load(){
     // check if we need to calibrate the screen
     FILE *f = fopen("/internal/gui/calibration", "r");
     if(!f){
-        fs_err("Calibration file is missing...");
         return -3;
     }
     lv_point_t points[4];
