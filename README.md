@@ -41,7 +41,7 @@ For QR code scanner you have several options.
 
 **Option 2.** Requires some soldering / mounting and configuration:
 
-- [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to configure it to use UART for communication, solder a wire to the trigger button and connect to the D5 pin of the board. See more details [here](waveshare.md).
+- [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to configure it to use UART for communication, solder a wire to the trigger button and connect to the D5 pin of the board. See more details [here](docs/waveshare.md).
 
 Extra: battery & power charger/booster - docs will follow later.
 
