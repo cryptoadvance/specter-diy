@@ -47,6 +47,16 @@ Extra: battery & power charger/booster - docs will follow later.
 
 We are also working on the kit that you could buy from us that will include a 3d printed case, QR code scanner, battery and charging circuit, but without the main part - dev board. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
 
+## Installing the compiled code
+* Connect the DISCO board to your computer via the mini USB cable on the top of the board.
+    * The board should appear as a removable disk named DIS_F469NI.
+* Go the Releases section of this github repo.
+* Download the `specter-diy.bin` file from the latest release.
+* Copy the bin file into the root of the DISCO filesystem.
+* When the board is done loading the bin the board will reset itself and begin running the Specter UI.
+* The on-screen UI should prompt you to calibrate the screen and then will take you to the Specter UI's "What do you want to do?" startup screen.
+
+
 ## Dev plan
 
 - [x] Single key functionality
@@ -70,3 +80,44 @@ A few crappy pictures:
 ### Wallet screens
 
 ![](./docs/pictures/wallet.jpg)
+
+
+## Compiling the code yourself
+_(This is an optional step for developers. Typical users can just run off the pre-compiled `specter-diy.bin` file referenced above)_
+
+Create a virtualenv and once it's active install Mbed CLI via pip:
+```
+pip install mbed-cli
+```
+
+Make sure you're in the `specter-diy` root and initialize the project dir:
+```
+mbed config root .
+```
+
+Download `gcc-arm-none-eabi` from: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
+
+And then decompress it:
+```
+tar xjf gcc-arm-none-eabi-8-2019-q3-update-mac.tar.bz2
+```
+
+Configure Mbed to use gcc-arm:
+```
+mbed config GCC_ARM_PATH /path/to/gcc-arm/bin
+```
+
+Fetch the libraries mbed will need:
+```
+mbed deploy
+```
+
+Set the default Mbed toolchain:
+```
+mbed toolchain GCC_ARM
+```
+
+Finally:
+```
+mbed compile
+```
