@@ -162,6 +162,10 @@ int keystore_get_addr(const keystore_t * key, const char * path, const network_t
     return res;
 }
 
+static int pubkeys_compare(const void * pub1, const void * pub2) {
+    return memcmp(pub1, pub2, 33);
+}
+
 int wallet_get_scriptpubkey(const wallet_t * wallet, const uint32_t * derivation, size_t derlen, uint8_t * scriptpubkey, size_t scriptpubkey_len){
     if(wallet->val == 0){ // TODO: implement for p2wpkh!
         return -1;
@@ -206,6 +210,7 @@ int wallet_get_scriptpubkey(const wallet_t * wallet, const uint32_t * derivation
             bip32_key_free(k2);
         }
     }
+    qsort(pubs, n, 33, pubkeys_compare);
     size_t len = 34*n+3;
     uint8_t * script = (uint8_t *)malloc(len);
     size_t lenout = 0;
