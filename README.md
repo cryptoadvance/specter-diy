@@ -59,9 +59,9 @@ We are also working on the kit that you could buy from us that will include a 3d
 
 ## Dev plan
 
-- [x] Single key functionality
+- [ ] Single key functionality
 - [x] Reckless storage
-- [x] Multisig
+- [ ] Multisig
 - [ ] SD card support
 - [ ] Secure element integration
 - [ ] Secure boot
@@ -85,39 +85,6 @@ A few crappy pictures:
 ## Compiling the code yourself
 _(This is an optional step for developers. Typical users can just run off the pre-compiled `specter-diy.bin` file referenced above)_
 
-Create a virtualenv and once it's active install Mbed CLI via pip:
-```
-pip install mbed-cli
-```
+TBD. 
 
-Make sure you're in the `specter-diy` root and initialize the project dir:
-```
-mbed config root .
-```
-
-Download `gcc-arm-none-eabi` from: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
-
-And then decompress it:
-```
-tar xjf gcc-arm-none-eabi-8-2019-q3-update-mac.tar.bz2
-```
-
-Configure Mbed to use gcc-arm:
-```
-mbed config GCC_ARM_PATH /path/to/gcc-arm/bin
-```
-
-Fetch the libraries mbed will need:
-```
-mbed deploy
-```
-
-Set the default Mbed toolchain:
-```
-mbed toolchain GCC_ARM
-```
-
-Finally:
-```
-mbed compile
-```
+Micropython now. Ref: https://github.com/diybitcoinhardware/f469-disco
