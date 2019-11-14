@@ -44,7 +44,7 @@ def ask_pin(name, callback):
     btnm.set_event_cb(cb);
 
 @queued
-def create_menu(buttons=[], title="What do you want to do?", y0=100):
+def create_menu(buttons=[], title="What do you want to do?", y0=100, cb_back=None):
     scr = lv.scr_act()
     scr.clean()
     add_label(title)
@@ -52,6 +52,8 @@ def create_menu(buttons=[], title="What do you want to do?", y0=100):
     for text, callback in buttons:
         add_button(text, on_release(callback), y=y)
         y+=100
+    if cb_back is not None:
+        add_button(lv.SYMBOL.LEFT+" Back", on_release(cb_back))
 
 @queued
 def show_progress(title, text, callback=None):

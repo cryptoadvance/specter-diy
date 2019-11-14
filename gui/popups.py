@@ -48,15 +48,43 @@ def qr_alert(title, message, message_text=None, callback=None):
     scr = lv.obj()
     lv.scr_load(scr)
     add_label(title, style="title")
-    obj = add_qrcode(message, scr=scr, y=PADDING+100)
+    qrobj = add_qrcode(message, scr=scr, y=PADDING+100)
+    msgobj = None
     if message_text is not None:
-        y = obj.get_y()+obj.get_height()+20
-        add_label(message_text, y=y)
+        y = qrobj.get_y()+qrobj.get_height()+20
+        msg_obj = add_label(message_text, y=y)
     def cb(obj, event):
         if event == lv.EVENT.RELEASED:
             lv.scr_load(old_scr)
-            obj.delete()
-            print(gc.collect())
+            qrobj.delete()
+            gc.collect()
             if callback is not None:
                 callback()
     add_button("OK", cb)
+    # objects to manupulate if necessary
+    return (qrobj, msg_obj)
+
+def show_xpub(name, xpub, fingerprint=None, derivation=None, callback=None):
+    prefix = ""
+    if derivation is not None and fingerprint is not None:
+        derivation = "%s%s" % (fingerprint, derivation[1:])
+    if derivation is not None:
+        prefix = "[%s]" % derivation
+    msg = prefix+xpub
+    qrobj, msgobj = qr_alert("Master "+name, msg, msg, callback)
+    scr = lv.scr_act()
+    # add checkbox
+    if len(prefix) > 0:
+        def cb():
+            txt = msgobj.get_text()
+            if prefix in txt:
+                txt = xpub
+            else:
+                txt = prefix+xpub
+            msgobj.set_text(txt)
+            qr_update(qrobj, txt)
+        btn = add_button("Toggle derivation", on_release(cb), y=600)
+
+def show_mnemonic(mnemonic):
+    alert("Your recovery phrase:", "")
+    add_mnemonic_table(mnemonic, y=100)

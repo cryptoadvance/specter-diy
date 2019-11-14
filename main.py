@@ -1,12 +1,14 @@
 import gui
-from gui import screens
+from gui import screens, popups
 from gui.decorators import queued
+import gui.common
 
 import urandom, os
 import ujson as json
 from ubinascii import hexlify, unhexlify
 
 from bitcoin import ec, hashes, bip39, bip32
+from bitcoin.networks import NETWORKS
 from keystore import KeyStore
 
 from qrscanner import QRScanner
@@ -15,6 +17,8 @@ qr_scanner = QRScanner()
 
 # entropy that will be converted to mnemonic
 entropy = None
+# network we are using
+network = None
 # our key storage
 keystore = KeyStore()
 
@@ -25,10 +29,13 @@ try:
 except:
     simulator = True
 
+# path to store #reckless entropy
 if simulator:
     reckless_fname = "reckless.json"
 else:
     reckless_fname = "/flash/reckless.json"
+
+DEFAULT_XPUBS = []
 
 def cancel_scan():
     print("Cancel scan!")
@@ -38,8 +45,21 @@ def cancel_scan():
 def wallets_menu():
     pass
 
+def show_xpub(name, derivation):
+    xpub = keystore.get_xpub(derivation).to_base58()
+    fingerprint = hexlify(keystore.fingerprint).decode('utf-8')
+    popups.show_xpub(name, xpub, fingerprint=fingerprint, derivation=derivation)
+
 def xpubs_menu():
-    pass
+    def selector(name, derivation):
+        def cb():
+            show_xpub(name, derivation)
+        return cb
+    buttons = []
+    for name, derivation in DEFAULT_XPUBS:
+        buttons.append((name, selector(name, derivation)))
+    # buttons.append(("Back to Main menu", show_main))
+    gui.create_menu(buttons=buttons, cb_back=show_main)
 
 def scan_transaction():
     pass
@@ -47,11 +67,44 @@ def scan_transaction():
 def scan_address():
     pass
 
+def set_default_xpubs(net):
+    while len(DEFAULT_XPUBS) > 0:
+        DEFAULT_XPUBS.pop()
+    DEFAULT_XPUBS.append(("Single key", "m/84h/%dh/0h" % network["bip32"]))
+    DEFAULT_XPUBS.append(("Miltisig", "m/48h/%dh/0h/2h" % network["bip32"]))
+
+def select_network(name):
+    global network
+    if name in NETWORKS:
+        network = NETWORKS[name]
+        set_default_xpubs(network)
+    else:
+        raise RuntimeError("Unknown network")
+
 def network_menu():
-    pass
+    def selector(name):
+        def cb():
+            try:
+                select_network(name)
+                show_main()
+            except Exception as e:
+                print(e)
+                gui.error("%r" % e)
+        return cb
+    # could be done with iterator
+    # but order is unknown then
+    gui.create_menu(buttons=[
+        ("Mainnet", selector("main")),
+        ("Testnet", selector("test")),
+        ("Regtest", selector("regtest")),
+        ("Signet", selector("signet"))
+    ])
+
 
 def show_mnemonic():
-    print(bip39.mnemonic_from_bytes(entropy))
+    # print(bip39.mnemonic_from_bytes(entropy))
+    popups.show_mnemonic(bip39.mnemonic_from_bytes(entropy))
+
 
 def save_entropy():
     with open(reckless_fname, "w") as f:
@@ -74,9 +127,8 @@ def reckless_menu():
     gui.create_menu(buttons=[
         ("Show recovery phrase", show_mnemonic),
         ("Save key to memory", save_entropy),
-        ("Delete key from memory", delete_entropy),
-        ("Back to main", show_main)
-        ])
+        ("Delete key from memory", delete_entropy)
+        ], cb_back=show_main)
 
 
 def show_main():
@@ -86,7 +138,7 @@ def show_main():
         ("Sign transaction", scan_transaction),
         ("Verify address", scan_address),
         ("Use another password", ask_for_password),
-        ("Switch network", network_menu),
+        ("Switch network (%s)" % network["name"], network_menu),
         ("# Reckless", reckless_menu)
         ])
 
@@ -147,6 +199,8 @@ def init_keys(password):
 
 def main(blocking=True):
     gui.init()
+    # choose testnet by default
+    select_network("test")
     show_init()
     if blocking:
         while True:

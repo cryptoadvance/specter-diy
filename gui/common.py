@@ -66,24 +66,14 @@ def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     btn.set_x(HOR_RES//2+PADDING//2)
     return btn
 
-def add_qrcode(text, y=QR_PADDING, scr=None, style=None):
-    """Helper functions that creates a title-styled label"""
-    if scr is None:
-        scr = lv.scr_act()
-
+def qr_update(lbl, text):
     qr = qrcode.encode_to_string(text)
     size = int(math.sqrt(len(qr)))
-
-    scr = lv.scr_act()
-    # canvas = lv.canvas(scr)
-
     width = HOR_RES
     scale = width//(size+4)
     sizes = [1,2,3,5,7,10]
     fontsize = [s for s in sizes if s < scale][-1]
     font = getattr(lv, "square%d" % fontsize)
-
-    lbl = add_label("Text", y=y, scr=scr)
     style = lv.style_t()
     lv.style_copy(style, lv.style_plain)
     style.body.main_color = lv.color_make(0xFF,0xFF,0xFF)
@@ -97,6 +87,16 @@ def add_qrcode(text, y=QR_PADDING, scr=None, style=None):
     lbl.set_text(qr)
     del qr
     gc.collect()
+
+def add_qrcode(text, y=QR_PADDING, scr=None, style=None):
+    """Helper functions that creates a title-styled label"""
+    if scr is None:
+        scr = lv.scr_act()
+
+    scr = lv.scr_act()
+
+    lbl = add_label("Text", y=y, scr=scr)
+    qr_update(lbl, text)
     return lbl
 
 def table_set_mnemonic(table, mnemonic):
