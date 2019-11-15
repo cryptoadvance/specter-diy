@@ -48,7 +48,8 @@ def wallets_menu():
 def show_xpub(name, derivation):
     xpub = keystore.get_xpub(derivation).to_base58()
     fingerprint = hexlify(keystore.fingerprint).decode('utf-8')
-    popups.show_xpub(name, xpub, fingerprint=fingerprint, derivation=derivation)
+    prefix = "[%s%s]" % (fingerprint, derivation[1:])
+    popups.show_xpub(name, xpub, prefix=prefix)
 
 def xpubs_menu():
     def selector(name, derivation):
@@ -77,7 +78,22 @@ def select_network(name):
     global network
     if name in NETWORKS:
         network = NETWORKS[name]
-        set_default_xpubs(network)
+        if keystore.is_initialized:
+            set_default_xpubs(network)
+            # load existing wallets for this network
+            keystore.load_wallets(name)
+            # create a default wallet if it doesn't exist
+            if len(keystore.wallets) == 0:
+                # create a wallet descriptor
+                # this is not exactly compatible with Bitcoin Core though.
+                # '_' means 0/* or 1/* - standard receive and change 
+                #                        derivation patterns
+                derivation = DEFAULT_XPUBS[0][1]
+                xpub = keystore.get_xpub(derivation).to_base58()
+                fingerprint = hexlify(keystore.fingerprint).decode('utf-8')
+                prefix = "[%s%s]" % (fingerprint, derivation[1:])
+                descriptor = "wpkh(%s%s/_)" % (prefix, xpub)
+                keystore.create_wallet("Default", descriptor)
     else:
         raise RuntimeError("Unknown network")
 
@@ -195,12 +211,12 @@ def init_keys(password):
     mnemonic = bip39.mnemonic_from_bytes(entropy)
     seed = bip39.mnemonic_to_seed(mnemonic, password)
     keystore.load_seed(seed)
+    # choose testnet by default
+    select_network("test")
     show_main()
 
 def main(blocking=True):
     gui.init()
-    # choose testnet by default
-    select_network("test")
     show_init()
     if blocking:
         while True:

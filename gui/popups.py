@@ -64,17 +64,12 @@ def qr_alert(title, message, message_text=None, callback=None):
     # objects to manupulate if necessary
     return (qrobj, msg_obj)
 
-def show_xpub(name, xpub, fingerprint=None, derivation=None, callback=None):
-    prefix = ""
-    if derivation is not None and fingerprint is not None:
-        derivation = "%s%s" % (fingerprint, derivation[1:])
-    if derivation is not None:
-        prefix = "[%s]" % derivation
+def show_xpub(name, xpub, prefix=None, callback=None):
     msg = prefix+xpub
     qrobj, msgobj = qr_alert("Master "+name, msg, msg, callback)
     scr = lv.scr_act()
     # add checkbox
-    if len(prefix) > 0:
+    if prefix is not None:
         def cb():
             txt = msgobj.get_text()
             if prefix in txt:
