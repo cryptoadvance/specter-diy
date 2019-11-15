@@ -42,8 +42,18 @@ def cancel_scan():
     qr_scanner.stop()
     show_main()
 
+def select_wallet(w):
+    popups.show_wallet(w)
+
 def wallets_menu():
-    pass
+    buttons = []
+    def wrapper(w):
+        def cb():
+            select_wallet(w)
+        return cb
+    for wallet in keystore.wallets:
+        buttons.append((wallet.name, wrapper(wallet)))
+    gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the wallet")
 
 def show_xpub(name, derivation):
     xpub = keystore.get_xpub(derivation).to_base58()
@@ -60,7 +70,7 @@ def xpubs_menu():
     for name, derivation in DEFAULT_XPUBS:
         buttons.append((name, selector(name, derivation)))
     # buttons.append(("Back to Main menu", show_main))
-    gui.create_menu(buttons=buttons, cb_back=show_main)
+    gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the master key")
 
 def scan_transaction():
     pass
@@ -114,7 +124,7 @@ def network_menu():
         ("Testnet", selector("test")),
         ("Regtest", selector("regtest")),
         ("Signet", selector("signet"))
-    ])
+    ], title="Select the network")
 
 
 def show_mnemonic():
@@ -144,7 +154,7 @@ def reckless_menu():
         ("Show recovery phrase", show_mnemonic),
         ("Save key to memory", save_entropy),
         ("Delete key from memory", delete_entropy)
-        ], cb_back=show_main)
+        ], cb_back=show_main,title="Careful. Think twice.")
 
 
 def show_main():

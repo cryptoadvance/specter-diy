@@ -61,16 +61,15 @@ class KeyStore:
         files = [f[0] for f in os.ilistdir(self.storage_path) if f[0].endswith("_wallet.json")]
         self._wallets = []
         for fname in files:
-            with open(self.storage_path+fname) as f:
+            fname = self.storage_path+fname
+            with open(fname) as f:
                 content = f.read()
-            with open(self.storage_path+fname.replace(".json",".sig"),"rb") as f:
+            with open(fname.replace(".json",".sig"),"rb") as f:
                 sig = ec.Signature.parse(f.read())
             if self.idkey.verify(sig, hashes.sha256(content)):
-                self._wallets.append(Wallet.parse(content, self.network))
+                self._wallets.append(Wallet.parse(content, self.network, fname=fname))
             else:
                 raise RuntimeError("Invalid signature for wallet")
-        for w in self._wallets:
-            print(w.name, w.descriptor)
 
     def get_wallet_fname(self):
         files = [int(f[0].split("_")[0]) for f in os.ilistdir(self.storage_path) if f[0].endswith("_wallet.json")]
@@ -82,14 +81,28 @@ class KeyStore:
         return fname
 
     def create_wallet(self, name, descriptor):
-        w = Wallet(name, descriptor, self.network)
+        for w in self._wallets:
+            if w.name == name:
+                raise ValueError("Wallet '%s' already exists", name)
         fname = self.get_wallet_fname()
+        w = Wallet(name, descriptor, self.network, fname=fname)
         data = w.save(fname)
         h = hashes.sha256(data)
         sig = self.idkey.sign(h)
         with open(fname.replace(".json",".sig"),"wb") as f:
             f.write(sig.serialize())
         self._wallets.append(w)
+
+    def delete_wallet(self, w):
+        if w in self._wallets:
+            self._wallets.pop(w)
+            os.remove(w.fname)
+            os.remove(w.fname.replace(".json",".sig"))
+
+    def get_wallet_by_name(self, name):
+        for w in self.wallets:
+            if w == name:
+                return w
 
     @property
     def wallets(self):
@@ -159,7 +172,8 @@ def parse_descriptor(desc):
     return wrappers, args
 
 class Wallet:
-    def __init__(self, name, descriptor, network):
+    def __init__(self, name, descriptor, network, fname=None):
+        self.fname = fname
         self.name = name
         self.descriptor = descriptor
         self.network = network
@@ -179,7 +193,6 @@ class Wallet:
         sc = self.wrappers[0](*args)
         for wrapper in self.wrappers[1:]:
             sc = wrapper(sc)
-        print(sc)
         return sc.address(network=self.network)
 
     def save(self, fname):
@@ -193,9 +206,9 @@ class Wallet:
     def load(cls, fname, network):
         with open(fname, "r") as f:
             content = f.read()
-        return cls.parse(content, network)
+        return cls.parse(content, network, fname)
 
     @classmethod
-    def parse(cls, s, network):
+    def parse(cls, s, network, fname=None):
         content = json.loads(s)
-        return cls(content["name"], content["descriptor"], network)
+        return cls(content["name"], content["descriptor"], network, fname)

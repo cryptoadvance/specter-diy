@@ -59,12 +59,12 @@ def add_mnemonic(mnemonic, scr=None, y=200):
 def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     """Helper function that creates a button with a text label"""
     w = (HOR_RES-3*PADDING)//2
-    btn = add_button(text1, callback1, scr=scr, y=y)
-    btn.set_width(w)
-    btn = add_button(text2, callback2, scr=scr, y=y)
-    btn.set_width(w)
-    btn.set_x(HOR_RES//2+PADDING//2)
-    return btn
+    btn1 = add_button(text1, callback1, scr=scr, y=y)
+    btn1.set_width(w)
+    btn2 = add_button(text2, callback2, scr=scr, y=y)
+    btn2.set_width(w)
+    btn2.set_x(HOR_RES//2+PADDING//2)
+    return btn1, btn2
 
 def qr_update(lbl, text):
     qr = qrcode.encode_to_string(text)

@@ -43,7 +43,7 @@ def prompt(title, message, ok=None, cancel=None, **kwargs):
 def error(message):
     alert("Error!", message)
 
-def qr_alert(title, message, message_text=None, callback=None):
+def qr_alert(title, message, message_text=None, callback=None, ok_text="OK"):
     old_scr = lv.scr_act()
     scr = lv.obj()
     lv.scr_load(scr)
@@ -60,7 +60,7 @@ def qr_alert(title, message, message_text=None, callback=None):
             gc.collect()
             if callback is not None:
                 callback()
-    add_button("OK", cb)
+    add_button(ok_text, cb)
     # objects to manupulate if necessary
     return (qrobj, msg_obj)
 
@@ -83,3 +83,27 @@ def show_xpub(name, xpub, prefix=None, callback=None):
 def show_mnemonic(mnemonic):
     alert("Your recovery phrase:", "")
     add_mnemonic_table(mnemonic, y=100)
+
+def show_wallet(wallet):
+    idx = 0
+    addr = wallet.address(idx)
+    qrobj, msgobj = qr_alert("Wallet \"%s\"" % wallet.name, "bitcoin:"+addr, addr, ok_text="Close")
+    lbl = add_label("Receiving address #%d" % idx, y=80)
+    def cb_update(delta):
+        idx = int(lbl.get_text().split("#")[1])
+        if idx+delta >= 0:
+            idx += delta
+        addr = wallet.address(idx)
+        msgobj.set_text(addr)
+        qr_update(qrobj, "bitcoin:"+addr)
+        lbl.set_text("Receiving address #%d" % idx)
+        if idx > 0:
+            prv.set_state(lv.btn.STATE.REL)
+        else:
+            prv.set_state(lv.btn.STATE.INA)
+    def cb_next():
+        cb_update(1)
+    def cb_prev():
+        cb_update(-1)
+    prv, nxt = add_button_pair("Previous", on_release(cb_prev), "Next", on_release(cb_next), y=600)
+    prv.set_state(lv.btn.STATE.INA)
