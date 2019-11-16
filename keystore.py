@@ -3,7 +3,7 @@ from bitcoin.networks import NETWORKS
 import os
 import ujson as json
 import ure as re
-from ubinascii import unhexlify
+from ubinascii import unhexlify, hexlify
 
 is_simulator = False
 try:
@@ -50,10 +50,17 @@ class KeyStore:
 
     def load_wallets(self, network_name):
         self.network = NETWORKS[network_name]
+        fingerprint = hexlify(self.fingerprint).decode('utf-8')
         if is_simulator:
-            self.storage_path = "%s/" % network_name
+            self.storage_path = "%s/%s" % (network_name, fingerprint)
         else:
-            self.storage_path = "/flash/%s/" % network_name
+            self.storage_path = "/flash/%s/%s" % (network_name, fingerprint)
+        # FIXME: refactor with for loop
+        try: # network folder
+            d = "/".join(self.storage_path.split("/")[:-1])
+            os.mkdir(d)
+        except:
+            pass
         try:
             os.mkdir(self.storage_path)
         except:
@@ -61,7 +68,7 @@ class KeyStore:
         files = [f[0] for f in os.ilistdir(self.storage_path) if f[0].endswith("_wallet.json")]
         self._wallets = []
         for fname in files:
-            fname = self.storage_path+fname
+            fname = self.storage_path+"/"+fname
             with open(fname) as f:
                 content = f.read()
             with open(fname.replace(".json",".sig"),"rb") as f:
@@ -77,7 +84,7 @@ class KeyStore:
             idx = max(files)+1
         else:
             idx = 0
-        fname = self.storage_path+("%d_wallet.json" % idx)
+        fname = self.storage_path+"/"+("%d_wallet.json" % idx)
         return fname
 
     def create_wallet(self, name, descriptor):

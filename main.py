@@ -3,6 +3,7 @@ from gui import screens, popups
 from gui.decorators import queued
 import gui.common
 
+import utime as time
 import urandom, os
 import ujson as json
 from ubinascii import hexlify, unhexlify
@@ -69,14 +70,45 @@ def xpubs_menu():
     buttons = []
     for name, derivation in DEFAULT_XPUBS:
         buttons.append((name, selector(name, derivation)))
-    # buttons.append(("Back to Main menu", show_main))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the master key")
 
 def scan_transaction():
+    # show_main()
+    # gui.update(100)
     pass
 
+def verify_address(s):
+    # we will go here afterwards
+    show_main()
+    # we need to update gui because screens are queued
+    gui.update(100)
+    # verifies address in the form [bitcoin:]addr?index=i
+    s = s.replace("bitcoin:", "")
+    arr = s.split("?")
+    index = None
+    addr = None
+    # check that ?index= is there
+    if len(arr) > 1:
+        addr = arr[0]
+        meta_arr = arr[1].split("&")
+        # search for `index=`
+        for meta in meta_arr:
+            if meta.startswith("index="):
+                index = int(meta.split("=")[1])
+    if index is None or addr is None:
+        # where we will go next
+        gui.error("No derivation index in the address metadata - can't verify.")
+        return
+    for w in keystore.wallets:
+        if w.address(index) == addr:
+            popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index+1, w.name), addr, message_text=addr)
+            return
+    gui.error("Address doesn't belong to any wallet. Wrong device or network?")
+
 def scan_address():
-    pass
+    screens.show_progress("Scan address to verify", "Scanning.. Click \"Cancel\" to stop.", callback=cancel_scan)
+    gui.update(30)
+    qr_scanner.start_scan(verify_address)
 
 def set_default_xpubs(net):
     while len(DEFAULT_XPUBS) > 0:
@@ -230,7 +262,8 @@ def main(blocking=True):
     show_init()
     if blocking:
         while True:
-            gui.update()
+            time.sleep_ms(30)
+            gui.update(30)
             qr_scanner.update()
 
 if __name__ == '__main__':

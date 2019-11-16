@@ -23,10 +23,10 @@ def init():
     lv.scr_load(scr)
 
 def update(dt:int=30):
-    time.sleep_ms(dt)
     display.update(dt)
     handle_queue()
 
 def ioloop(dt:int=30):
     while True:
+        time.sleep_ms(dt)
         update(dt)
