@@ -4,7 +4,7 @@ from gui.decorators import queued
 import gui.common
 
 import utime as time
-import urandom, os
+import os
 import ujson as json
 from ubinascii import hexlify, unhexlify
 # base64 encoding
@@ -16,7 +16,7 @@ from bitcoin import psbt
 from keystore import KeyStore
 
 from qrscanner import QRScanner
-
+from rng import get_random_bytes
 
 qr_scanner = QRScanner()
 
@@ -258,7 +258,7 @@ def show_main():
 def get_new_mnemonic(words=12):
     entropy_len = words*4//3
     global entropy
-    entropy = bytes([urandom.getrandbits(8) for i in range(entropy_len)])
+    entropy = get_random_bytes(entropy_len)
     return bip39.mnemonic_from_bytes(entropy)
 
 def gen_new_key(words=12):
