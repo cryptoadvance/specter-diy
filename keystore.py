@@ -119,6 +119,42 @@ class KeyStore:
     def is_initialized(self):
         return (self.root is not None)
 
+    def check_psbt(self, tx):
+        obj = {}
+        # print how much we are spending and where
+        total_in = 0
+        wallet = None
+        # detect wallet tx inputs belong to
+        for w in self.wallets:
+            if w.owns(tx.inputs[0]):
+                wallet = w
+                break
+        if wallet is None:
+            raise ValueError("Can't find the wallet owning input")
+        # calculate the amount we are spending
+        for inp in tx.inputs:
+            total_in += inp.witness_utxo.value
+            if not wallet.owns(psbt_in=inp):
+                raise ValueError("Mixed inputs from different wallets!")
+        obj["total_in"] = total_in
+        change_out = 0 # value that goes back to us
+        send_outputs = []
+        for i, out in enumerate(tx.outputs):
+            # check if it is a change or not:
+            if wallet.owns(psbt_out=out, tx_out=tx.tx.vout[i]):
+                change_out += tx.tx.vout[i].value
+            else:
+                send_outputs.append(tx.tx.vout[i])
+        obj["wallet"] = wallet
+        obj["spending"] = total_in-change_out
+        obj["send_outputs"] = [{"value": out.value, "address": out.script_pubkey.address(self.network)} for out in send_outputs]
+        obj["fee"] = total_in-change_out-sum([out.value for out in send_outputs])
+        return obj
+
+    def sign(self, tx):
+        tx.sign_with(self.root)
+        return tx
+
 class DerivedKey:
     def __init__(self, key, fingerprint=None, parent_derivation=None, address_derivation="_"):
         self.key = key
@@ -184,10 +220,9 @@ class Wallet:
         self.name = name
         self.descriptor = descriptor
         self.network = network
-        # FIXME: parse descriptor here
         self.wrappers, self.args = parse_descriptor(descriptor)
 
-    def address(self, idx, change=False):
+    def script(self, idx, change=False):
         args = []
         # derive args if possible
         for arg in self.args:
@@ -200,7 +235,50 @@ class Wallet:
         sc = self.wrappers[0](*args)
         for wrapper in self.wrappers[1:]:
             sc = wrapper(sc)
+        return sc
+
+    def address(self, idx, change=False):
+        sc = self.script(idx, change)
         return sc.address(network=self.network)
+
+    def owns(self, psbt_in=None, psbt_out=None, tx_out=None):
+        """Pass psbt_in or psbt_out + tx_out to check if it is owned by the wallet"""
+        # FIXME: implement check
+        bip32_derivations = None
+        output = None
+        if psbt_in is not None:
+            bip32_derivations = psbt_in.bip32_derivations
+            output = psbt_in.witness_utxo
+        if psbt_out is not None:
+            bip32_derivations = psbt_out.bip32_derivations
+            output = tx_out
+        args = []
+        for arg in self.args:
+            # check if it is DerivedKey
+            try:
+                fingerprint = arg.fingerprint
+            except:
+                args.append(arg)
+                continue
+            derived = False
+            parent_len = len(arg.parent_derivation)
+            for pub in bip32_derivations:
+                if ((bip32_derivations[pub].fingerprint == arg.fingerprint) and
+                    (len(bip32_derivations[pub].derivation) == (parent_len+2)) and
+                    (bip32_derivations[pub].derivation[:parent_len] == arg.parent_derivation)):
+                    mypub = arg.key.derive(bip32_derivations[pub].derivation[parent_len:]).key
+                    if mypub != pub:
+                        return False
+                    else:
+                        args.append(mypub)
+                        derived = True
+                        break
+            if not derived:
+                return False
+        sc = self.wrappers[0](*args)
+        for wrapper in self.wrappers[1:]:
+            sc = wrapper(sc)
+        return (sc == output.script_pubkey)
 
     def save(self, fname):
         obj = {"name": self.name, "descriptor": self.descriptor}

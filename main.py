@@ -7,12 +7,16 @@ import utime as time
 import urandom, os
 import ujson as json
 from ubinascii import hexlify, unhexlify
+# base64 encoding
+from ubinascii import a2b_base64, b2a_base64
 
 from bitcoin import ec, hashes, bip39, bip32
 from bitcoin.networks import NETWORKS
+from bitcoin import psbt
 from keystore import KeyStore
 
 from qrscanner import QRScanner
+
 
 qr_scanner = QRScanner()
 
@@ -72,13 +76,60 @@ def xpubs_menu():
         buttons.append((name, selector(name, derivation)))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the master key")
 
+def sign_psbt(wallet=None, tx=None):
+    keystore.sign(tx)
+    # remove everything but partial sigs
+    # to reduce QR code size
+    tx.unknown = {}
+    tx.xpubs = {}
+    for i in range(len(tx.inputs)):
+        tx.inputs[i].unknown = {}
+        tx.inputs[i].non_witness_utxo = None
+        tx.inputs[i].witness_utxo = None
+        tx.inputs[i].sighash_type = None
+        tx.inputs[i].bip32_derivations = {}
+        tx.inputs[i].witness_script = None
+        tx.inputs[i].redeem_script = None
+    for i in range(len(tx.outputs)):
+        tx.outputs[i].unknown = {}
+        tx.outputs[i].bip32_derivations = {}
+        tx.outputs[i].witness_script = None
+        tx.outputs[i].redeem_script = None
+    b64_tx = b2a_base64(tx.serialize()).decode('utf-8')
+    if b64_tx[-1:] == "\n":
+        b64_tx = b64_tx[:-1]
+    popups.qr_alert("Signed transaction:", b64_tx, "Scan it with your software wallet")
+
+def parse_transaction(b64_tx):
+    # we will go to main afterwards
+    show_main()
+    # we need to update gui because screens are queued
+    gui.update(100)
+    try:
+        raw = a2b_base64(b64_tx)
+        tx = psbt.PSBT.parse(raw)
+    except:
+        gui.error("Failed at transaction parsing")
+        return
+    try:
+        data = keystore.check_psbt(tx)
+    except Exception as e:
+        gui.error("Problem with the transaction: %r" % e)
+        return
+    title = "Spending %u\nfrom %s" % (data["spending"], data["wallet"].name)
+    message = ""
+    for out in data["send_outputs"]:
+        message += "%u sat to %s\n" % (out["value"], out["address"])
+    message += "\nFee: %u satoshi" % data["fee"]
+    popups.prompt(title, message, ok=sign_psbt, wallet=data["wallet"], tx=tx)
+
 def scan_transaction():
-    # show_main()
-    # gui.update(100)
-    pass
+    screens.show_progress("Scan transaction to sign", "Scanning.. Click \"Cancel\" to stop.", callback=cancel_scan)
+    gui.update(30)
+    qr_scanner.start_scan(parse_transaction)
 
 def verify_address(s):
-    # we will go here afterwards
+    # we will go to main afterwards
     show_main()
     # we need to update gui because screens are queued
     gui.update(100)
@@ -94,7 +145,11 @@ def verify_address(s):
         # search for `index=`
         for meta in meta_arr:
             if meta.startswith("index="):
-                index = int(meta.split("=")[1])
+                try:
+                    index = int(meta.split("=")[1])
+                except:
+                    gui.error("Index is not an integer...")
+                    return
     if index is None or addr is None:
         # where we will go next
         gui.error("No derivation index in the address metadata - can't verify.")

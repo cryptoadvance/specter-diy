@@ -49,7 +49,7 @@ def qr_alert(title, message, message_text=None, callback=None, ok_text="OK"):
     lv.scr_load(scr)
     add_label(title, style="title")
     qrobj = add_qrcode(message, scr=scr, y=PADDING+100)
-    msgobj = None
+    msg_obj = None
     if message_text is not None:
         y = qrobj.get_y()+qrobj.get_height()+20
         msg_obj = add_label(message_text, y=y)

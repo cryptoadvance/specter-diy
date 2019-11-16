@@ -67,6 +67,7 @@ def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     return btn1, btn2
 
 def qr_update(lbl, text):
+    print("QRcode on the screen:", text)
     qr = qrcode.encode_to_string(text)
     size = int(math.sqrt(len(qr)))
     width = HOR_RES
