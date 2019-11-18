@@ -34,6 +34,7 @@ class KeyStore:
         self.storage_path = None
         self.load_seed(seed)
         self.idkey = None
+        self.fingerprint = None
 
     def load_seed(self, seed):
         if seed is not None:
@@ -99,6 +100,28 @@ class KeyStore:
         with open(fname.replace(".json",".sig"),"wb") as f:
             f.write(sig.serialize())
         self._wallets.append(w)
+
+    def check_new_wallet(self, name, descriptor):
+        for w in self._wallets:
+            if w.name == name:
+                raise ValueError("Wallet \"%s\" already exists" % name)
+        try:
+            w = Wallet(name, descriptor, self.network)
+        except:
+            raise ValueError("Descriptor is invalid")
+        includes_myself = False
+        for arg in w.args:
+            try:
+                fingerprint = arg.fingerprint
+            except:
+                continue
+            if fingerprint == self.fingerprint:
+                key = self.root.derive(arg.parent_derivation).to_public()
+                if arg.key == key:
+                    includes_myself = True
+        if not includes_myself:
+            raise ValueError("Wallet is not controlled by my key")
+
 
     def delete_wallet(self, w):
         if w in self._wallets:

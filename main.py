@@ -2,6 +2,7 @@ import gui
 from gui import screens, popups
 from gui.decorators import queued
 import gui.common
+import lvgl as lv
 
 import utime as time
 import os
@@ -50,6 +51,33 @@ def cancel_scan():
 def select_wallet(w):
     popups.show_wallet(w)
 
+def new_wallet_confirm(name, descriptor):
+    # print("creating wallet %s:" % name,descriptor)
+    keystore.create_wallet(name, descriptor)
+
+def confirm_new_wallet(s):
+    show_main()
+    gui.update(30)
+    # wallet format:
+    # name&descriptor
+    arr = s.split("&")
+    if len(arr) != 2:
+        gui.error("Invalid wallet format")
+        return
+    try:
+        keystore.check_new_wallet(*arr)
+    except Exception as e:
+        gui.error("%r" % e)
+        return
+    popups.prompt("Add wallet \"%s\"?" % arr[0], arr[1], ok=new_wallet_confirm, name=arr[0], descriptor=arr[1])
+
+def add_new_wallet():
+    screens.show_progress("Scan wallet to add",
+                          "Scanning.. Click \"Cancel\" to stop.",
+                          callback=cancel_scan)
+    gui.update(30)
+    qr_scanner.start_scan(confirm_new_wallet)
+
 def wallets_menu():
     buttons = []
     def wrapper(w):
@@ -58,6 +86,7 @@ def wallets_menu():
         return cb
     for wallet in keystore.wallets:
         buttons.append((wallet.name, wrapper(wallet)))
+    buttons.append((lv.SYMBOL.PLUS+" Add new wallet (scan)", add_new_wallet))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the wallet")
 
 def show_xpub(name, derivation):
