@@ -266,7 +266,13 @@ class Wallet:
                 if ((bip32_derivations[pub].fingerprint == arg.fingerprint) and
                     (len(bip32_derivations[pub].derivation) == (parent_len+2)) and
                     (bip32_derivations[pub].derivation[:parent_len] == arg.parent_derivation)):
-                    mypub = arg.key.derive(bip32_derivations[pub].derivation[parent_len:]).key
+                    der = bip32_derivations[pub].derivation[parent_len:]
+                    if der[0] > 1:
+                        raise ValueError("Change index cant be more than one")
+                    if der[1] > 0x80000000:
+                        raise ValueError("Address index cant be hardened")
+                    # FIXME: add check if index is too large
+                    mypub = arg.key.derive(der).key
                     if mypub != pub:
                         return False
                     else:

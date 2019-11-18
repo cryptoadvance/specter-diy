@@ -87,7 +87,9 @@ def show_mnemonic(mnemonic):
 def show_wallet(wallet):
     idx = 0
     addr = wallet.address(idx)
-    qrobj, msgobj = qr_alert("Wallet \"%s\"" % wallet.name, "bitcoin:"+addr, addr, ok_text="Close")
+    qrobj, msgobj = qr_alert("Wallet \"%s\"" % wallet.name,
+                             "bitcoin:"+addr, addr,
+                             ok_text="Close")
     lbl = add_label("Receiving address #%d" % idx, y=80)
     def cb_update(delta):
         idx = int(lbl.get_text().split("#")[1])
@@ -105,5 +107,7 @@ def show_wallet(wallet):
         cb_update(1)
     def cb_prev():
         cb_update(-1)
-    prv, nxt = add_button_pair("Previous", on_release(cb_prev), "Next", on_release(cb_next), y=600)
+    prv, nxt = add_button_pair("Previous", on_release(cb_prev),
+                               "Next", on_release(cb_next),
+                               y=600)
     prv.set_state(lv.btn.STATE.INA)

@@ -124,7 +124,9 @@ def parse_transaction(b64_tx):
     popups.prompt(title, message, ok=sign_psbt, wallet=data["wallet"], tx=tx)
 
 def scan_transaction():
-    screens.show_progress("Scan transaction to sign", "Scanning.. Click \"Cancel\" to stop.", callback=cancel_scan)
+    screens.show_progress("Scan transaction to sign",
+                          "Scanning.. Click \"Cancel\" to stop.",
+                          callback=cancel_scan)
     gui.update(30)
     qr_scanner.start_scan(parse_transaction)
 
@@ -156,12 +158,15 @@ def verify_address(s):
         return
     for w in keystore.wallets:
         if w.address(index) == addr:
-            popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index+1, w.name), addr, message_text=addr)
+            popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index+1, w.name),
+                            addr, message_text=addr)
             return
     gui.error("Address doesn't belong to any wallet. Wrong device or network?")
 
 def scan_address():
-    screens.show_progress("Scan address to verify", "Scanning.. Click \"Cancel\" to stop.", callback=cancel_scan)
+    screens.show_progress("Scan address to verify",
+                          "Scanning.. Click \"Cancel\" to stop.",
+                          callback=cancel_scan)
     gui.update(30)
     qr_scanner.start_scan(verify_address)
 
@@ -263,10 +268,16 @@ def get_new_mnemonic(words=12):
 
 def gen_new_key(words=12):
     mnemonic = get_new_mnemonic(words)
-    screens.new_mnemonic(mnemonic, cb_continue=ask_for_password, cb_back=show_init, cb_update=get_new_mnemonic)
+    screens.new_mnemonic(mnemonic,
+                         cb_continue=ask_for_password,
+                         cb_back=show_init,
+                         cb_update=get_new_mnemonic)
 
 def recover_key():
-    screens.ask_for_mnemonic(cb_continue=mnemonic_entered, cb_back=show_init, check_mnemonic=bip39.mnemonic_is_valid, words_lookup=bip39.find_candidates)
+    screens.ask_for_mnemonic(cb_continue=mnemonic_entered,
+                             cb_back=show_init,
+                             check_mnemonic=bip39.mnemonic_is_valid,
+                             words_lookup=bip39.find_candidates)
 
 def mnemonic_entered(mnemonic):
     global entropy
@@ -294,7 +305,7 @@ def show_init():
         with open(reckless_fname,"r") as f:
             c = f.read()
             if len(c) == 0:
-                raise RuntimeError("File is empty")
+                raise RuntimeError("%s file is empty" % reckless_fname)
         # if ok - add an extra button
         buttons.append(("Load key from memory", load_key))
     except:

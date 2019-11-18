@@ -56,13 +56,12 @@ We are also working on the kit that you could buy from us that will include a 3d
 * When the board is done loading the bin the board will reset itself and begin running the Specter UI.
 * The on-screen UI should prompt you to calibrate the screen and then will take you to the Specter UI's "What do you want to do?" startup screen.
 
-
 ## Dev plan
 
-- [ ] Single key functionality
+- [x] Single key functionality
 - [x] Reckless storage
 - [ ] Multisig
-- [ ] SD card support
+- [ ] Dynamic SD card support
 - [ ] Secure element integration
 - [ ] Secure boot
 - [ ] DIY kit
