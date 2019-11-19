@@ -18,8 +18,10 @@ def init_styles():
     lv.style_copy(styles["title"], lv.style_plain)
     styles["title"].text.font = lv.font_roboto_28
 
-def add_label(text, y=PADDING, scr=None, style=None):
+def add_label(text, y=PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""
+    if width is None:
+        width = HOR_RES-2*PADDING
     if scr is None:
         scr = lv.scr_act()
     lbl = lv.label(scr)
@@ -27,8 +29,8 @@ def add_label(text, y=PADDING, scr=None, style=None):
     if style in styles:
         lbl.set_style(0, styles[style])
     lbl.set_long_mode(lv.label.LONG.BREAK)
-    lbl.set_width(HOR_RES-2*PADDING)
-    lbl.set_x(PADDING)
+    lbl.set_width(width)
+    lbl.set_x((HOR_RES-width)//2)
     lbl.set_align(lv.label.ALIGN.CENTER)
     lbl.set_y(y)
     return lbl
@@ -70,7 +72,7 @@ def qr_update(lbl, text):
     print("QRcode on the screen:", text)
     qr = qrcode.encode_to_string(text)
     size = int(math.sqrt(len(qr)))
-    width = HOR_RES
+    width = lbl.get_width()
     scale = width//(size+4)
     sizes = [1,2,3,5,7,10]
     fontsize = [s for s in sizes if s < scale][-1]
@@ -89,14 +91,14 @@ def qr_update(lbl, text):
     del qr
     gc.collect()
 
-def add_qrcode(text, y=QR_PADDING, scr=None, style=None):
+def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""
     if scr is None:
         scr = lv.scr_act()
 
     scr = lv.scr_act()
 
-    lbl = add_label("Text", y=y, scr=scr)
+    lbl = add_label("Text", y=y, scr=scr, width=width)
     qr_update(lbl, text)
     return lbl
 

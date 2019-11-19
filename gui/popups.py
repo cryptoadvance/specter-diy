@@ -43,12 +43,12 @@ def prompt(title, message, ok=None, cancel=None, **kwargs):
 def error(message):
     alert("Error!", message)
 
-def qr_alert(title, message, message_text=None, callback=None, ok_text="OK"):
+def qr_alert(title, message, message_text=None, callback=None, ok_text="OK", width=None):
     old_scr = lv.scr_act()
     scr = lv.obj()
     lv.scr_load(scr)
     add_label(title, style="title")
-    qrobj = add_qrcode(message, scr=scr, y=PADDING+100)
+    qrobj = add_qrcode(message, scr=scr, y=PADDING+100, width=width)
     msg_obj = None
     if message_text is not None:
         y = qrobj.get_y()+qrobj.get_height()+20
@@ -84,12 +84,13 @@ def show_mnemonic(mnemonic):
     alert("Your recovery phrase:", "")
     add_mnemonic_table(mnemonic, y=100)
 
-def show_wallet(wallet):
+def show_wallet(wallet, delete_cb=None):
+    old_scr = lv.scr_act()
     idx = 0
     addr = wallet.address(idx)
     qrobj, msgobj = qr_alert("Wallet \"%s\"" % wallet.name,
                              "bitcoin:"+addr, addr,
-                             ok_text="Close")
+                             ok_text="Close", width=300)
     lbl = add_label("Receiving address #%d" % idx, y=80)
     def cb_update(delta):
         idx = int(lbl.get_text().split("#")[1])
@@ -107,7 +108,13 @@ def show_wallet(wallet):
         cb_update(1)
     def cb_prev():
         cb_update(-1)
+    def cb_del():
+        delete_cb(wallet)
+        lv.scr_load(old_scr)
+        qrobj.delete()
+        gc.collect()
+    delbtn = add_button("Delete wallet", on_release(cb_del), y=600)
     prv, nxt = add_button_pair("Previous", on_release(cb_prev),
                                "Next", on_release(cb_next),
-                               y=600)
+                               y=500)
     prv.set_state(lv.btn.STATE.INA)

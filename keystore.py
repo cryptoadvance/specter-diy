@@ -105,10 +105,10 @@ class KeyStore:
         for w in self._wallets:
             if w.name == name:
                 raise ValueError("Wallet \"%s\" already exists" % name)
-        try:
-            w = Wallet(name, descriptor, self.network)
-        except:
-            raise ValueError("Descriptor is invalid")
+        # try:
+        w = Wallet(name, descriptor, self.network)
+        # except:
+            # raise ValueError("Descriptor is invalid")
         includes_myself = False
         for arg in w.args:
             try:
@@ -122,10 +122,10 @@ class KeyStore:
         if not includes_myself:
             raise ValueError("Wallet is not controlled by my key")
 
-
     def delete_wallet(self, w):
         if w in self._wallets:
-            self._wallets.pop(w)
+            idx = self._wallets.index(w)
+            self._wallets.pop(idx)
             os.remove(w.fname)
             os.remove(w.fname.replace(".json",".sig"))
 
@@ -224,13 +224,11 @@ def parse_descriptor(desc):
     desc = desc.split("#")[0]
     # for now only pkh, sh, wpkh, wsh, multi, sortedmulti
     is_multisig = False
-    wrappers = []
     d = desc
-    m = re.match('(\w+)\((.*)\)$', d)
-    while m:
-        wrappers.append(m.group(1))
-        d = m.group(2)
-        m = re.match('(\w+)\((.*)\)$', d)
+    # re.match doesnt work for some reason
+    arr = d.split("(")
+    wrappers = arr[:-1]
+    d = arr[-1].split(")")[0]
     wrappers = list(reversed([DESCRIPTOR_SCRIPTS[w] for w in wrappers]))
     args = []
     for e in d.split(","):

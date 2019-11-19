@@ -5,7 +5,7 @@ import gui.common
 import lvgl as lv
 
 import utime as time
-import os
+import os, gc
 import ujson as json
 from ubinascii import hexlify, unhexlify
 # base64 encoding
@@ -48,8 +48,12 @@ def cancel_scan():
     qr_scanner.stop()
     show_main()
 
+def del_wallet(w):
+    keystore.delete_wallet(w)
+    show_main()
+
 def select_wallet(w):
-    popups.show_wallet(w)
+    popups.show_wallet(w, delete_cb=del_wallet)
 
 def new_wallet_confirm(name, descriptor):
     # print("creating wallet %s:" % name,descriptor)
@@ -350,6 +354,7 @@ def init_keys(password):
     keystore.load_seed(seed)
     # choose testnet by default
     select_network("test")
+    gc.collect()
     show_main()
 
 def main(blocking=True):
