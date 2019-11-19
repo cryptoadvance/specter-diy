@@ -60,7 +60,7 @@ We are also working on the kit that you could buy from us that will include a 3d
 
 - [x] Single key functionality
 - [x] Reckless storage
-- [ ] Multisig
+- [x] Multisig
 - [ ] Dynamic SD card support
 - [ ] Secure element integration
 - [ ] Secure boot
@@ -84,6 +84,16 @@ A few crappy pictures:
 ## Compiling the code yourself
 _(This is an optional step for developers. Typical users can just run off the pre-compiled `specter-diy.bin` file referenced above)_
 
-TBD. 
-
 Micropython now. Ref: https://github.com/diybitcoinhardware/f469-disco
+
+To compile the firmware you will need `arm-none-eabi-gcc` compiler.
+
+On MacOS install it using brew: `brew install arm-none-eabi-gcc`
+
+On Linux: `sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
+
+Run `./build.sh` script, it may work. Or not. If not - please open an issue and we will try to figure out.
+
+At the end you should get a `specter-diy.bin` file in the root that you can copy to the device.
+
+Simulator: TBD.
