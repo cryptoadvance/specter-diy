@@ -56,13 +56,12 @@ We are also working on the kit that you could buy from us that will include a 3d
 * When the board is done loading the bin the board will reset itself and begin running the Specter UI.
 * The on-screen UI should prompt you to calibrate the screen and then will take you to the Specter UI's "What do you want to do?" startup screen.
 
-
 ## Dev plan
 
 - [x] Single key functionality
 - [x] Reckless storage
 - [x] Multisig
-- [ ] SD card support
+- [ ] Dynamic SD card support
 - [ ] Secure element integration
 - [ ] Secure boot
 - [ ] DIY kit
@@ -85,39 +84,16 @@ A few crappy pictures:
 ## Compiling the code yourself
 _(This is an optional step for developers. Typical users can just run off the pre-compiled `specter-diy.bin` file referenced above)_
 
-Create a virtualenv and once it's active install Mbed CLI via pip:
-```
-pip install mbed-cli
-```
+Micropython now. Ref: https://github.com/diybitcoinhardware/f469-disco
 
-Make sure you're in the `specter-diy` root and initialize the project dir:
-```
-mbed config root .
-```
+To compile the firmware you will need `arm-none-eabi-gcc` compiler.
 
-Download `gcc-arm-none-eabi` from: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
+On MacOS install it using brew: `brew install arm-none-eabi-gcc`
 
-And then decompress it:
-```
-tar xjf gcc-arm-none-eabi-8-2019-q3-update-mac.tar.bz2
-```
+On Linux: `sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
 
-Configure Mbed to use gcc-arm:
-```
-mbed config GCC_ARM_PATH /path/to/gcc-arm/bin
-```
+Run `./build.sh` script, it may work. Or not. If not - please open an issue and we will try to figure out.
 
-Fetch the libraries mbed will need:
-```
-mbed deploy
-```
+At the end you should get a `specter-diy.bin` file in the root that you can copy to the device.
 
-Set the default Mbed toolchain:
-```
-mbed toolchain GCC_ARM
-```
-
-Finally:
-```
-mbed compile
-```
+Simulator: TBD.

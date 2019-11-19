@@ -1,0 +1,3 @@
+[submodule "f469-disco"]
+	path = f469-disco
+	url = https://github.com/diybitcoinhardware/f469-disco
