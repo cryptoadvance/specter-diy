@@ -27,10 +27,11 @@ DESCRIPTOR_SCRIPTS = {
 }
 
 class KeyStore:
-    def __init__(self, seed=None):
+    def __init__(self, seed=None, storage_root="/flash"):
         self.root = None
         self._wallets = []
         self.network = None
+        self.storage_root = storage_root
         self.storage_path = None
         self.load_seed(seed)
         self.idkey = None
@@ -52,12 +53,9 @@ class KeyStore:
     def load_wallets(self, network_name):
         self.network = NETWORKS[network_name]
         fingerprint = hexlify(self.fingerprint).decode('utf-8')
-        if is_simulator:
-            self.storage_path = "%s/%s" % (network_name, fingerprint)
-        else:
-            self.storage_path = "/flash/%s/%s" % (network_name, fingerprint)
+        self.storage_path = "%s/%s/%s" % (self.storage_root, network_name, fingerprint)
         # FIXME: refactor with for loop
-        try: # network folder
+        try: # create network folder
             d = "/".join(self.storage_path.split("/")[:-1])
             os.mkdir(d)
         except:
@@ -65,7 +63,7 @@ class KeyStore:
         try:
             os.mkdir(self.storage_path)
         except:
-            pass # probably exists
+            pass
         files = [f[0] for f in os.ilistdir(self.storage_path) if f[0].endswith("_wallet.json")]
         self._wallets = []
         for fname in files:

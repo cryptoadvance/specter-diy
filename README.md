@@ -4,9 +4,9 @@
 
 This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testnet. 
 
-This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). But this prototype is not ment to be secure. That's why **we don't store your private keys on the device** - you need to type your recovery phrase every time you power it on.
+This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). But this prototype is not ment to be secure. That's why **we don't store your private keys on the device** by default - you need to type your recovery phrase every time you power it on.
 
-We also have a #Reckless option that allows you to store recovery phrase on the device (no pin, no encryption - for testing purposes).
+We also have a #Reckless option that allows you to store recovery phrase on the device (no pin, no encryption - for testing and development purposes).
 
 If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/spectersupport) or [Slack](https://join.slack.com/t/spectersupport/shared_invite/enQtNzY4MTQ2MTg0NDY1LWQzMGMzMTk2MWE2YmVmNzE3ODgxODIxNWRlMzJjZTZlMDBlMjA5YzVhZjQ0NzJlNmE0N2Q4MzE0ZGJiNjM4NTY).
 
@@ -16,7 +16,7 @@ It is a Do-It-Yourself airgapped hardware wallet that uses QR codes for communic
 
 - It can be built from off-the-shelf hardware - this reduces chance of the supply chain attack
 - It is airgapped with a very limited uni-directional communication protocol (QR codes) - you control communication with the host
-- It can be tuned and extended according to your security model
+- It can be tuned and extended according to your security model. Most of it is written in python which makes the code easy to audit and change.
 
 ## Current status
 
@@ -70,7 +70,7 @@ We are also working on the kit that you could buy from us that will include a 3d
 
 Check out [this Twitter thread](https://twitter.com/StepanSnigirev/status/1168923849699876881) to get an idea how it works.
 
-A few crappy pictures:
+A few pictures:
 
 ### Init screens
 
@@ -82,6 +82,7 @@ A few crappy pictures:
 
 
 ## Compiling the code yourself
+
 _(This is an optional step for developers. Typical users can just run off the pre-compiled `specter-diy.bin` file referenced above)_
 
 Micropython now. Ref: https://github.com/diybitcoinhardware/f469-disco
@@ -90,10 +91,42 @@ To compile the firmware you will need `arm-none-eabi-gcc` compiler.
 
 On MacOS install it using brew: `brew install arm-none-eabi-gcc`
 
-On Linux: `sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
+On Linux: `sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
 
 Run `./build.sh` script, it may work. Or not. If not - please open an issue and we will try to figure out.
 
 At the end you should get a `specter-diy.bin` file in the root that you can copy to the device.
 
-Simulator: TBD.
+### Micropython without frozen firmware
+
+By default when firmware is compiled all python files are optimized and frozen in the firmware.
+
+In order to develop and test firmware without recompiling it every time 
+one can use an empty micropython build and copy python files to the board.
+
+1. Go to `f469-disco` folder and run `build_f469_empty.sh`
+2. Copy `upy-f469disco-empty.bin` to the board (miniUSB, volume `DIS_F469NI`)
+3. Connect over microUSB - you will see `PYBFLASH` volume mounted
+4. Copy content of the `f469-disco/libs` folder to the `PYBFLASH`
+6. Copy content of `src` folder to `PYBFLASH`
+7. Restart the board - it should work
+
+### Simulator
+
+Simulator requires `SDL` library to be installed (`sudo apt install libsdl2-dev` on Linux and `brew install sdl2` on Mac):
+
+To compile the unixport simulator go to `f469-disco` folder and run `./build_unixport.sh`.
+
+If everything goes well you will get a `micropython_unix` binary in this folder.
+
+Create a symbolic link of the `f469-disco/libs/bitcoin` folder in the `src` folder and
+copy the `micropython_unix` binary to the root (not to src, otherwise you may have problems building firmware later). Now you can run it with `main.py` as an argument:
+
+```
+cd ../src
+ln -s ../f469-disco/libs/bitcoin ./bitcoin
+cp ../f469-disco/micropython_unix ../
+../micropython_unix main.py
+```
+
+You should see the screen with the wallet interface. As in unixport we don't have QR code scanner when scan is required the micropython console will ask you to enter the string that should have been scanned by the QR scanner. The simulator is also printing content of the QR codes displayed on the screen to the console.
