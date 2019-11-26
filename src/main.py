@@ -19,15 +19,6 @@ from keystore import KeyStore
 from qrscanner import QRScanner
 from rng import get_random_bytes
 
-qr_scanner = QRScanner()
-
-# entropy that will be converted to mnemonic
-entropy = None
-# network we are using
-network = None
-# our key storage
-keystore = KeyStore()
-
 # detect if it's a hardware device or linuxport
 try:
     import pyb
@@ -37,9 +28,20 @@ except:
 
 # path to store #reckless entropy
 if simulator:
-    reckless_fname = "reckless.json"
+    storage_root = "../userdata"
 else:
-    reckless_fname = "/flash/reckless.json"
+    storage_root = "/flash/userdata"
+
+reckless_fname = "%s/%s" % (storage_root, "reckless.json")
+
+qr_scanner = QRScanner()
+
+# entropy that will be converted to mnemonic
+entropy = None
+# network we are using
+network = None
+# our key storage
+keystore = KeyStore(storage_root=storage_root)
 
 DEFAULT_XPUBS = []
 
@@ -144,6 +146,12 @@ def parse_transaction(b64_tx):
     except:
         gui.error("Failed at transaction parsing")
         return
+    # blue wallet trick - if the fingerprint is 0 we use our fingerprint
+    for scope in [tx.inputs, tx.outputs]:
+        for el in scope:
+            for der in el.bip32_derivations:
+                if el.bip32_derivations[der].fingerprint == b'\x00\x00\x00\x00':
+                    el.bip32_derivations[der].fingerprint = keystore.fingerprint
     try:
         data = keystore.check_psbt(tx)
     except Exception as e:
@@ -314,7 +322,7 @@ def recover_key():
 
 def mnemonic_entered(mnemonic):
     global entropy
-    entropy = bip39.mnemonic_to_bytes(mnemonic)
+    entropy = bip39.mnemonic_to_bytes(mnemonic.strip())
     ask_for_password()
 
 def load_key():
@@ -358,6 +366,13 @@ def init_keys(password):
     show_main()
 
 def main(blocking=True):
+    # FIXME: check for all ports (unix, js, stm)
+    # what is available in os module
+    # maybe we can check it without try-except
+    try:
+        os.mkdir(storage_root)
+    except:
+        pass
     gui.init()
     show_init()
     if blocking:
