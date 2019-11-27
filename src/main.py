@@ -7,13 +7,11 @@ import lvgl as lv
 import utime as time
 import os, gc
 import ujson as json
-from ubinascii import hexlify, unhexlify
-# base64 encoding
-from ubinascii import a2b_base64, b2a_base64
+# hex and base64 encoding
+from ubinascii import hexlify, unhexlify, a2b_base64, b2a_base64
 
-from bitcoin import ec, hashes, bip39, bip32
+from bitcoin import bip39, bip32, psbt
 from bitcoin.networks import NETWORKS
-from bitcoin import psbt
 from keystore import KeyStore
 
 from qrscanner import QRScanner

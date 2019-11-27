@@ -115,8 +115,13 @@ def table_set_mnemonic(table, mnemonic):
 def add_mnemonic_table(mnemonic, y=PADDING, scr=None):
     if scr is None:
         scr = lv.scr_act()
+
+    cell_style = lv.style_t()
+    lv.style_copy(cell_style, lv.style_transp)
+    cell_style.text.font = lv.font_roboto_22
+
     num_style = lv.style_t()
-    lv.style_copy(num_style, lv.style_transp)
+    lv.style_copy(num_style, cell_style)
     num_style.text.opa = lv.OPA._40
 
     table = lv.table(scr)
@@ -127,8 +132,8 @@ def add_mnemonic_table(mnemonic, y=PADDING, scr=None):
     table.set_col_width(1, 150)
     table.set_col_width(3, 150)
 
-    table.set_style(lv.page.STYLE.BG, lv.style_transp)
-    table.set_style(lv.table.STYLE.CELL1, lv.style_transp)
+    table.set_style(lv.page.STYLE.BG, cell_style)
+    table.set_style(lv.table.STYLE.CELL1, cell_style)
     table.set_style(lv.table.STYLE.CELL2, num_style)
 
     for i in range(12):

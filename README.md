@@ -119,14 +119,11 @@ To compile the unixport simulator go to `f469-disco` folder and run `./build_uni
 
 If everything goes well you will get a `micropython_unix` binary in this folder.
 
-Create a symbolic link of the `f469-disco/libs/bitcoin` folder in the `src` folder and
-copy the `micropython_unix` binary to the root (not to src, otherwise you may have problems building firmware later). Now you can run it with `main.py` as an argument:
+Now you can run `micropython_unix` binary and ask it to run `main` function of `main.py` file:
 
 ```
 cd ../src
-ln -s ../f469-disco/libs/bitcoin ./bitcoin
-cp ../f469-disco/micropython_unix ../
-../micropython_unix main.py
+../f469-disco/micropython_unix -c "import main; main.main()"
 ```
 
 You should see the screen with the wallet interface. As in unixport we don't have QR code scanner when scan is required the micropython console will ask you to enter the string that should have been scanned by the QR scanner. The simulator is also printing content of the QR codes displayed on the screen to the console.

@@ -2,9 +2,11 @@ import lvgl as lv
 import utime as time
 
 try:
-    import display
+    # hardware - use udisplay
+    import udisplay as display
 except:
-    from . import display_unixport as display
+    # otherwise - display_unixport frozen in unix simulator
+    import display
 
 from .common import init_styles
 from .decorators import handle_queue
