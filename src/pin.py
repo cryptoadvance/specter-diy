@@ -10,6 +10,7 @@ secret_fname = "%s/%s" % (storage_root, "secret.json")
 
 class Key:
     key = None
+    iv  = None
 
     @staticmethod
     def generate_key(user_pin):
