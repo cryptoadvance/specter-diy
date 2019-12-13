@@ -17,18 +17,7 @@ from keystore import KeyStore
 from qrscanner import QRScanner
 from rng import get_random_bytes
 
-# detect if it's a hardware device or linuxport
-try:
-    import pyb
-    simulator = False
-except:
-    simulator = True
-
-# path to store #reckless entropy
-if simulator:
-    storage_root = "../userdata"
-else:
-    storage_root = "/flash/userdata"
+from platform import storage_root
 
 reckless_fname = "%s/%s" % (storage_root, "reckless.json")
 
