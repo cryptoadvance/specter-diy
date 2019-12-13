@@ -247,11 +247,9 @@ def network_menu():
         ("Signet", selector("signet"))
     ], title="Select the network")
 
-
 def show_mnemonic():
     # print(bip39.mnemonic_from_bytes(entropy))
     popups.show_mnemonic(bip39.mnemonic_from_bytes(entropy))
-
 
 def save_entropy():
     with open(reckless_fname, "w") as f:

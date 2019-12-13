@@ -50,3 +50,10 @@ class Pin:
         if hmac_calc != Secret.hmac:
             return False
         return True
+
+def antiphishing_word(pin_digit):
+    _hmac = hmac_sha512(Secret.secret, pin_digit)
+    hmac_num = unpack('<H', bytearray(_hmac[0:8]))[0]
+    idx = hmac_num % len(bip39.WORDLIST)
+    word = (bip39.WORDLIST[idx])
+    return word

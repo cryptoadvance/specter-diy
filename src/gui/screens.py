@@ -1,7 +1,19 @@
 import lvgl as lv
 from .common import *
 from .decorators import *
-from pin import Secret, Key, Pin
+from pin import Secret, Key, Pin, antiphishing_word
+
+def get_pin_instruction(first_time_usage):
+    if first_time_usage == True:
+        instruction = "For every pin digit an anti-phishing" \
+	                  " word will be generated. Write them all down. This will" \
+	                  " help determine if your device has been tampered with" \
+	                  " next time you login in."
+    else:
+        instruction = "For every pin digit an anti-phishing" \
+	                  " word will be generated. If you don't recognize" \
+	                  " them, your device has been tampered with!"
+    return instruction
 
 # queued screens
 @queued
@@ -28,19 +40,23 @@ def ask_pin(name, first_time_usage, callback):
     pin_lbl.set_width(HOR_RES-2*PADDING)
     pin_lbl.set_x(PADDING)
     pin_lbl.set_text_align(lv.label.ALIGN.CENTER)
-    pin_lbl.set_y(PADDING+150)
+    pin_lbl.set_y(PADDING+100)
     pin_lbl.set_cursor_type(lv.CURSOR.HIDDEN)
     pin_lbl.set_one_line(True)
     pin_lbl.set_pwd_show_time(0)
 
-    instruct_label = add_label("", 190)
-    
+    instruction = get_pin_instruction(first_time_usage)
+    instruct_label = add_label(instruction, 190)
+    antiphish_label = add_label("", 250)
+
     def cb(obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
             instruct_label.set_text("")
             if c == lv.SYMBOL.CLOSE:
                 pin_lbl.set_text("")
+                antiphish_label.set_text("")
+                instruct_label.set_text(instruction)
             elif c == lv.SYMBOL.OK:
                 # FIXME: check PIN len
                 Key.generate_key(pin_lbl.get_text());
@@ -54,8 +70,13 @@ def ask_pin(name, first_time_usage, callback):
                         # FIXME: delete secret and entropy after 3 attempts
                         instruct_label.set_text("Wrong pin!")
                 pin_lbl.set_text("")
+                antiphish_label.set_text("")
             else:
                 pin_lbl.add_text(c)
+                instruct_label.set_text("")
+                word = antiphishing_word(pin_lbl.get_text())
+                antiphish_label.set_text(word)
+
     btnm.set_event_cb(cb);
 
 @queued
