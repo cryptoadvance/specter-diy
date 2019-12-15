@@ -17,6 +17,7 @@ from keystore import KeyStore
 from qrscanner import QRScanner
 from rng import get_random_bytes
 
+from pin import Secret
 from platform import storage_root
 
 reckless_fname = "%s/%s" % (storage_root, "reckless.json")
@@ -361,7 +362,10 @@ def main(blocking=True):
     except:
         pass
     gui.init()
-    show_init()
+    ret = Secret.load_secret()
+    if ret == False:
+        Secret.generate_secret()
+    screens.ask_pin("there", not ret, show_init)
     if blocking:
         while True:
             time.sleep_ms(30)

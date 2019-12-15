@@ -1,10 +1,11 @@
 import lvgl as lv
 from .common import *
 from .decorators import *
+from pin import Secret, Key, Pin
 
 # queued screens
 @queued
-def ask_pin(name, callback):
+def ask_pin(name, first_time_usage, callback):
     scr = lv.scr_act()
     scr.clean()
     add_label("Hello, %s!" % name)
@@ -31,13 +32,27 @@ def ask_pin(name, callback):
     pin_lbl.set_cursor_type(lv.CURSOR.HIDDEN)
     pin_lbl.set_one_line(True)
     pin_lbl.set_pwd_show_time(0)
+
+    instruct_label = add_label("", 190)
+    
     def cb(obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
+            instruct_label.set_text("")
             if c == lv.SYMBOL.CLOSE:
                 pin_lbl.set_text("")
             elif c == lv.SYMBOL.OK:
-                callback(pin_lbl.get_text())
+                # FIXME: check PIN len
+                Key.generate_key(pin_lbl.get_text());
+                if first_time_usage:
+                    Secret.save_secret();
+                    callback()
+                else:
+                    if Pin.is_pin_valid():
+                        callback()
+                    else:
+                        # FIXME: delete secret and entropy after 3 attempts
+                        instruct_label.set_text("Wrong pin!")
                 pin_lbl.set_text("")
             else:
                 pin_lbl.add_text(c)
