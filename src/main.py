@@ -17,18 +17,10 @@ from keystore import KeyStore
 from qrscanner import QRScanner
 from rng import get_random_bytes
 
-# detect if it's a hardware device or linuxport
-try:
-    import pyb
-    simulator = False
-except:
-    simulator = True
-
-# path to store #reckless entropy
-if simulator:
-    storage_root = "../userdata"
-else:
-    storage_root = "/flash/userdata"
+from pin import Secret, Key
+from platform import storage_root
+from ucryptolib import aes
+from hashlib import hmac_sha512
 
 reckless_fname = "%s/%s" % (storage_root, "reckless.json")
 
@@ -257,15 +249,46 @@ def network_menu():
         ("Signet", selector("signet"))
     ], title="Select the network")
 
-
 def show_mnemonic():
     # print(bip39.mnemonic_from_bytes(entropy))
     popups.show_mnemonic(bip39.mnemonic_from_bytes(entropy))
 
-
 def save_entropy():
+    gui.prompt("Security", "Do you want to encrypt your key?", save_entropy_encrypted, save_entropy_plain)
+
+def entropy_decrypt(entropy_encrypted):
+    # 2 - MODE_CBC
+    crypto = aes(Key.key, 2, Key.iv)
+    return crypto.decrypt(entropy_encrypted);
+
+def entropy_encrypt(entropy_plain):
+    # 2 - MODE_CBC
+    crypto = aes(Key.key, 2, Key.iv)
+    return crypto.encrypt(entropy_plain);
+
+def save_entropy_encrypted():
+    Key.iv = get_random_bytes(16)
+    entropy_encrypted = entropy_encrypt(entropy)
+    hmac_entropy_encrypted = hmac_sha512(Key.key, entropy_encrypted)
+    obj = {
+        "entropy": hexlify(entropy_encrypted).decode('utf-8'),
+        "iv": hexlify(Key.iv).decode('utf-8'),
+        "hmac": hexlify(hmac_entropy_encrypted).decode('utf-8')
+    }
     with open(reckless_fname, "w") as f:
-        f.write('{"entropy":"%s"}' % hexlify(entropy).decode('utf-8'))
+        f.write(json.dumps(obj))
+    with open(reckless_fname, "r") as f:
+        d = json.loads(f.read())
+    if "entropy" in d and d["entropy"] == hexlify(entropy_encrypted).decode('utf-8') and \
+            unhexlify(d["hmac"]) == hmac_entropy_encrypted and entropy == entropy_decrypt(entropy_encrypted):
+        gui.alert("Success!", "Your encrypted key is saved in the memory now")
+    else:
+        gui.error("Something went wrong")
+
+def save_entropy_plain():
+    obj = {"entropy": hexlify(entropy).decode('utf-8')}
+    with open(reckless_fname, "w") as f:
+        f.write(json.dumps(obj))
     with open(reckless_fname, "r") as f:
         d = json.loads(f.read())
     if "entropy" in d  and d["entropy"] == hexlify(entropy).decode('utf-8'):
@@ -328,7 +351,13 @@ def load_key():
     try:
         with open(reckless_fname, "r") as f:
             d = json.loads(f.read())
-        entropy = unhexlify(d["entropy"])
+            entropy = unhexlify(d["entropy"])
+        if "hmac" in d:
+            hmac_calc = hmac_sha512(Key.key, entropy)
+            if unhexlify(d["hmac"]) != hmac_calc:
+                raise ValueError('Hmac does not match!')
+            Key.iv = unhexlify(d["iv"])
+            entropy = entropy_decrypt(entropy)
         ask_for_password()
     except:
         gui.error("Something went wrong, sorry")
@@ -372,7 +401,10 @@ def main(blocking=True):
     except:
         pass
     gui.init()
-    show_init()
+    ret = Secret.load_secret()
+    if ret == False:
+        Secret.generate_secret()
+    screens.ask_pin("there", not ret, show_init)
     if blocking:
         while True:
             time.sleep_ms(30)
