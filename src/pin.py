@@ -4,9 +4,14 @@ from bitcoin import bip39
 from platform import storage_root
 from rng import get_random_bytes
 from ubinascii import hexlify, unhexlify
+from micropython import const
+from gui.popups import alert
 import ujson as json
+import os
+import sys
 
 secret_fname = "%s/%s" % (storage_root, "secret.json")
+login_fname = "%s/%s" % (storage_root, "login.json")
 
 class Key:
     key = None
@@ -44,6 +49,9 @@ class Secret:
                      hexlify(Secret.hmac).decode('utf-8')))
 
 class Pin:
+    ATTEMPTS_MAX = const(10)
+    counter = ATTEMPTS_MAX
+
     @staticmethod
     def is_pin_valid():
         assert(Secret.hmac != None)
@@ -51,6 +59,77 @@ class Pin:
         if hmac_calc != Secret.hmac:
             return False
         return True
+
+    @staticmethod
+    def read_counter():
+        try:
+            with open(login_fname, "r") as f:
+                d = json.loads(f.read())
+                Pin.counter = d["pin_counter"]
+        except:
+            Pin.counter = ATTEMPTS_MAX
+
+    @staticmethod
+    def save_counter():
+        obj = {"pin_counter": Pin.counter}
+        try:
+            with open(login_fname, "w") as f:
+                f.write(json.dumps(obj))
+        except:
+            # If we cannot save counter, we must not allow pin evaluation - reset.
+            alert("Error", "Could not save %s" % login_fname, lambda: sys.exit())
+
+    @staticmethod
+    def reset_counter():
+        Pin.counter = ATTEMPTS_MAX
+        try:
+            os.remove(login_fname)
+        except:
+            alert("Error", "Could not delete %s" % login_fname, lambda: sys.exit())
+            
+class Factory_settings:
+    """
+    Recursively delete storage_root directory. Files and folders are excluded
+    from deletion if blacklisted.
+    """
+    blacklist = ['.', '..']
+
+    @staticmethod
+    def restore():
+
+        def delete_files_recursively(path, blacklist):
+            # unlike listdir, ilistdir is supported by unix and stm32 platform
+            files = os.ilistdir(path)
+
+            for _file in files:
+                if _file[0] in blacklist:
+                    continue
+                f = "%s/%s" % (path, _file[0])
+                # regular file
+                if _file[1] == 0x8000:
+                    try:
+                        os.remove(f)
+                    except:
+                        alert("Error", "Could not delete %s" % f)
+                # directory
+                elif _file[1] == 0x4000:
+                    isEmpty = delete_files_recursively(f, blacklist)
+                    if isEmpty:
+                        try:
+                            os.rmdir(f)
+                        except:
+                            alert("Error", "Could not delete %s" % f)
+
+            files = os.ilistdir(path)
+            if sum(1 for _ in files) == 2:
+                """
+                Directory is empty - it contains exactly 2 directories:
+                current directory and parent directory
+                """
+                return True
+            return False
+
+        delete_files_recursively(storage_root, Factory_settings.blacklist)
 
 def antiphishing_word(pin_digit):
     _hmac = hmac_sha512(Secret.secret, pin_digit)

@@ -1,7 +1,8 @@
 import lvgl as lv
 from .common import *
 from .decorators import *
-from pin import Secret, Key, Pin, antiphishing_word
+from .popups import alert
+from pin import Secret, Key, Pin, antiphishing_word, Factory_settings
 
 def get_pin_instruction(first_time_usage):
     if first_time_usage == True:
@@ -48,8 +49,10 @@ def ask_pin(name, first_time_usage, callback):
     instruction = get_pin_instruction(first_time_usage)
     instruct_label = add_label(instruction, 190)
     antiphish_label = add_label("", 250)
+    Pin.read_counter()
 
     def cb(obj, event):
+        nonlocal instruction, first_time_usage
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
             instruct_label.set_text("")
@@ -64,11 +67,20 @@ def ask_pin(name, first_time_usage, callback):
                     Secret.save_secret();
                     callback()
                 else:
+                    Pin.counter -= 1
+                    Pin.save_counter()
                     if Pin.is_pin_valid():
+                        Pin.reset_counter()
                         callback()
                     else:
-                        # FIXME: delete secret and entropy after 3 attempts
-                        instruct_label.set_text("Wrong pin!")
+                        instruct_label.set_text("Wrong pin: %d/%d" % (Pin.counter, Pin.ATTEMPTS_MAX))
+                        if Pin.counter <= 0:
+                            Factory_settings.restore()
+                            Secret.generate_secret()
+                            alert("Security","Device has been factory reset!")
+                            first_time_usage = True
+                            instruction = get_pin_instruction(first_time_usage)
+                            instruct_label.set_text(instruction)
                 pin_lbl.set_text("")
                 antiphish_label.set_text("")
             else:
