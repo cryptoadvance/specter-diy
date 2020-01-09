@@ -64,18 +64,18 @@ def ask_pin(name, first_time_usage, callback):
                 # FIXME: check PIN len
                 Key.generate_key(pin_lbl.get_text());
                 if first_time_usage:
-                    Secret.save_secret();
+                    Secret.save_secret(alert);
                     callback()
                 else:
                     Pin.counter -= 1
-                    Pin.save_counter()
+                    Pin.save_counter(alert)
                     if Pin.is_pin_valid():
-                        Pin.reset_counter()
+                        Pin.reset_counter(alert)
                         callback()
                     else:
                         instruct_label.set_text("Wrong pin: %d/%d" % (Pin.counter, Pin.ATTEMPTS_MAX))
                         if Pin.counter <= 0:
-                            Factory_settings.restore()
+                            Factory_settings.restore(alert)
                             Secret.generate_secret()
                             alert("Security","Device has been factory reset!")
                             first_time_usage = True
