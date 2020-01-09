@@ -1,11 +1,10 @@
 from hashlib import hmac_sha512
 from struct import unpack
 from bitcoin import bip39
-from platform import storage_root
+from platform import storage_root, simulator
 from rng import get_random_bytes
 from ubinascii import hexlify, unhexlify
 from micropython import const
-from gui.popups import alert
 import ujson as json
 import os
 import sys
@@ -121,10 +120,12 @@ class Factory_settings:
                             alert("Error", "Could not delete %s" % f)
 
             files = os.ilistdir(path)
-            if sum(1 for _ in files) == 2:
+            num_of_files = sum(1 for _ in files)
+            if (num_of_files == 2 and simulator) or num_of_files == 0:
                 """
-                Directory is empty - it contains exactly 2 directories:
-                current directory and parent directory
+                Directory is empty - it contains exactly 2 directories -
+                current directory and parent directory (unix) or
+                0 directories (stm32)
                 """
                 return True
             return False
