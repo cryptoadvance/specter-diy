@@ -1,11 +1,10 @@
 from hashlib import hmac_sha512
 from struct import unpack
 from bitcoin import bip39
-from platform import storage_root
+from platform import storage_root, simulator
 from rng import get_random_bytes
 from ubinascii import hexlify, unhexlify
 from micropython import const
-from gui.popups import alert
 import ujson as json
 import os
 import sys
@@ -41,12 +40,15 @@ class Secret:
         Secret.secret = get_random_bytes(32)
 
     @staticmethod
-    def save_secret():
+    def save_secret(cb_on_error):
         Secret.hmac = hmac_sha512(Key.key, Secret.secret)
-        with open(secret_fname, "w") as f:
-            f.write('{"secret":"%s", "hmac":"%s"}' % \
-                    (hexlify(Secret.secret).decode('utf-8'), \
-                     hexlify(Secret.hmac).decode('utf-8')))
+        try:
+            with open(secret_fname, "w") as f:
+                f.write('{"secret":"%s", "hmac":"%s"}' % \
+                        (hexlify(Secret.secret).decode('utf-8'), \
+                         hexlify(Secret.hmac).decode('utf-8')))
+        except:
+            cb_on_error("Error", "Secret could not be saved!", sys.exit)
 
 class Pin:
     ATTEMPTS_MAX = const(10)
@@ -70,22 +72,22 @@ class Pin:
             Pin.counter = ATTEMPTS_MAX
 
     @staticmethod
-    def save_counter():
+    def save_counter(cb_on_error):
         obj = {"pin_counter": Pin.counter}
         try:
             with open(login_fname, "w") as f:
                 f.write(json.dumps(obj))
         except:
             # If we cannot save counter, we must not allow pin evaluation - reset.
-            alert("Error", "Could not save %s" % login_fname, lambda: sys.exit())
+            cb_on_error("Error", "Could not save %s" % login_fname, sys.exit)
 
     @staticmethod
-    def reset_counter():
+    def reset_counter(cb_on_error):
         Pin.counter = ATTEMPTS_MAX
         try:
             os.remove(login_fname)
         except:
-            alert("Error", "Could not delete %s" % login_fname, lambda: sys.exit())
+            cb_on_error("Error", "Could not delete %s" % login_fname, sys.exit)
             
 class Factory_settings:
     """
@@ -95,7 +97,7 @@ class Factory_settings:
     blacklist = ['.', '..']
 
     @staticmethod
-    def restore():
+    def restore(cb_on_error=None):
 
         def delete_files_recursively(path, blacklist):
             # unlike listdir, ilistdir is supported by unix and stm32 platform
@@ -110,7 +112,8 @@ class Factory_settings:
                     try:
                         os.remove(f)
                     except:
-                        alert("Error", "Could not delete %s" % f)
+                        if cb_on_error is not None:
+                            cb_on_error("Error", "Could not delete %s" % f)
                 # directory
                 elif _file[1] == 0x4000:
                     isEmpty = delete_files_recursively(f, blacklist)
@@ -118,13 +121,16 @@ class Factory_settings:
                         try:
                             os.rmdir(f)
                         except:
-                            alert("Error", "Could not delete %s" % f)
+                            if cb_on_error is not None:
+                                cb_on_error("Error", "Could not delete %s" % f)
 
             files = os.ilistdir(path)
-            if sum(1 for _ in files) == 2:
+            num_of_files = sum(1 for _ in files)
+            if (num_of_files == 2 and simulator) or num_of_files == 0:
                 """
-                Directory is empty - it contains exactly 2 directories:
-                current directory and parent directory
+                Directory is empty - it contains exactly 2 directories -
+                current directory and parent directory (unix) or
+                0 directories (stm32)
                 """
                 return True
             return False
