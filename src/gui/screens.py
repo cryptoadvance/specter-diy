@@ -9,7 +9,11 @@ from pin import Secret, Key, Pin, antiphishing_word, Factory_settings
 def ask_pin(first_time_usage, callback):
     scr = lv.scr_act()
     scr.clean()
-    add_label("Enter your PIN code", y=PADDING, style="title")
+    first_time_title = "Choose a PIN code"
+    title = "Enter your PIN code"
+    if first_time_usage:
+        title = first_time_title
+    title_lbl = add_label(title, y=PADDING, style="title")
     btnm = lv.btnm(scr)
     btnm.set_map([
         "1","2","3","\n",
@@ -38,7 +42,8 @@ def ask_pin(first_time_usage, callback):
     pin_lbl.set_text_align(lv.label.ALIGN.CENTER)
     pin_lbl.set_pwd_show_time(0)
 
-    instruct_label = add_label("Device tamper check.\nThese words should remain #ffffff the same every time#:", 180, style="hint")
+    instruct_txt = "Device tamper check.\nThese words should remain #ffffff the same every time#:"
+    instruct_label = add_label(instruct_txt, 180, style="hint")
     instruct_label.set_recolor(True)
     antiphish_label = add_label(antiphishing_word(""), 250)
     Pin.read_counter()
@@ -63,15 +68,19 @@ def ask_pin(first_time_usage, callback):
                         Pin.reset_counter(alert)
                         callback()
                     else:
-                        instruct_label.set_text("Wrong pin: %d/%d" % (Pin.counter, Pin.ATTEMPTS_MAX))
+                        instruct_label.set_text("#f07070 Wrong pin: %d/%d #" % (Pin.counter, Pin.ATTEMPTS_MAX))
                         if Pin.counter <= 0:
                             Factory_settings.restore(alert)
                             Secret.generate_secret()
                             alert("Security","Device has been factory reset!")
                             first_time_usage = True
+                            title_lbl.set_text(first_time_title)
+                            instruct_label.set_text(instruct_txt)
+                            return
                 pin_lbl.set_text("")
-                antiphish_label.set_text("")
+                antiphish_label.set_text(antiphishing_word(""))
             else:
+                instruct_label.set_text(instruct_txt)
                 pin_lbl.add_text(c)
                 word = antiphishing_word(pin_lbl.get_text())
                 antiphish_label.set_text(antiphish_label.get_text() + " " + word)
