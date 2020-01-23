@@ -3,6 +3,7 @@ import qrcode
 import math
 from micropython import const
 import gc
+from .components import QRCode
 
 PADDING    = const(30)
 BTN_HEIGHT = const(80)
@@ -13,10 +14,70 @@ QR_PADDING = const(40)
 styles = {}
 
 def init_styles():
+    # Set theme
+    th = lv.theme_night_init(210, lv.font_roboto_22)
+    # adjusting theme
+    # background color
+    cbg = lv.color_hex(0x192432)
+    th.style.scr.body.main_color = cbg
+    th.style.scr.body.grad_color = cbg
+    # text color
+    ctxt = lv.color_hex(0x7f8fa4)
+    th.style.scr.text.color = ctxt
+    # buttons
+    cbtnrel = lv.color_hex(0x506072)
+    cbtnpr = lv.color_hex(0x405062)
+    # btn released
+    th.style.btn.rel.body.main_color = cbtnrel
+    th.style.btn.rel.body.grad_color = cbtnrel
+    th.style.btn.rel.body.shadow.width = 0
+    th.style.btn.rel.body.border.width = 0
+    th.style.btn.rel.body.radius = 10
+    # btn pressed
+    lv.style_copy(th.style.btn.pr, th.style.btn.rel)
+    th.style.btn.pr.body.main_color = cbtnpr
+    th.style.btn.pr.body.grad_color = cbtnpr
+    # button map released
+    th.style.btnm.btn.rel.body.main_color = cbg
+    th.style.btnm.btn.rel.body.grad_color = cbg
+    th.style.btnm.btn.rel.body.radius = 0
+    th.style.btnm.btn.rel.body.border.width = 0
+    th.style.btnm.btn.rel.body.shadow.width = 0
+    # button map pressed
+    chl = lv.color_hex(0x313E50)
+    lv.style_copy(th.style.btnm.btn.pr, th.style.btnm.btn.rel)
+    th.style.btnm.btn.pr.body.main_color = chl
+    th.style.btnm.btn.pr.body.grad_color = chl
+    # button map inactive
+    lv.style_copy(th.style.btnm.btn.ina, th.style.btnm.btn.rel)
+    th.style.btnm.btn.ina.text.opa = 80
+    # button map background
+    th.style.btnm.bg.body.opa = 0
+    th.style.btnm.bg.body.border.width = 0
+    th.style.btnm.bg.body.shadow.width = 0
+    # textarea
+    th.style.ta.oneline.body.opa = 0
+    th.style.ta.oneline.body.border.width = 0
+    th.style.ta.oneline.text.font = lv.font_roboto_28
+    # slider
+    th.style.slider.knob.body.main_color = cbtnrel
+    th.style.slider.knob.body.grad_color = cbtnrel
+    th.style.slider.knob.body.radius = 5
+    th.style.slider.knob.body.border.width = 0
+    styles["theme"] = th
+
+    lv.theme_set_current(th)
+
     # Title style - just a default style with larger font
     styles["title"] = lv.style_t()
-    lv.style_copy(styles["title"], lv.style_plain)
+    lv.style_copy(styles["title"], th.style.label.prim)
     styles["title"].text.font = lv.font_roboto_28
+    styles["title"].text.color = lv.color_hex(0xffffff)
+
+    styles["hint"] = lv.style_t()
+    lv.style_copy(styles["hint"], th.style.label.sec)
+    styles["hint"].text.font = lv.font_roboto_16
+    # styles["hint"].text.color = lv.color_hex(0xffffff)
 
 def add_label(text, y=PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""
@@ -68,39 +129,21 @@ def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     btn2.set_x(HOR_RES//2+PADDING//2)
     return btn1, btn2
 
-def qr_update(lbl, text):
-    print("QRcode on the screen:", text)
-    qr = qrcode.encode_to_string(text)
-    size = int(math.sqrt(len(qr)))
-    width = lbl.get_width()
-    scale = width//(size+4)
-    sizes = [1,2,3,5,7,10]
-    fontsize = [s for s in sizes if s < scale][-1]
-    font = getattr(lv, "square%d" % fontsize)
-    style = lv.style_t()
-    lv.style_copy(style, lv.style_plain)
-    style.body.main_color = lv.color_make(0xFF,0xFF,0xFF)
-    style.body.grad_color = lv.color_make(0xFF,0xFF,0xFF)
-    style.body.opa = 255
-    style.text.font = font
-    style.text.line_space = 0;
-    style.text.letter_space = 0;
-    lbl.set_style(0, style)
-    # lbl.set_body_draw(True)
-    lbl.set_text(qr)
-    del qr
-    gc.collect()
-
 def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""
     if scr is None:
         scr = lv.scr_act()
-
     scr = lv.scr_act()
 
-    lbl = add_label("Text", y=y, scr=scr, width=width)
-    qr_update(lbl, text)
-    return lbl
+    if width is None:
+        width = 350
+
+    qr = QRCode(scr)
+    qr.set_text(text)
+    qr.set_size(width)
+    qr.set_text(text)
+    qr.align(scr, lv.ALIGN.IN_TOP_MID, 0, y)
+    return qr
 
 def table_set_mnemonic(table, mnemonic):
     words = mnemonic.split()
@@ -117,7 +160,8 @@ def add_mnemonic_table(mnemonic, y=PADDING, scr=None):
         scr = lv.scr_act()
 
     cell_style = lv.style_t()
-    lv.style_copy(cell_style, lv.style_transp)
+    lv.style_copy(cell_style, styles["theme"].style.label.prim)
+    cell_style.body.opa = 0
     cell_style.text.font = lv.font_roboto_22
 
     num_style = lv.style_t()

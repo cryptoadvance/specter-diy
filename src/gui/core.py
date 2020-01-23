@@ -13,10 +13,6 @@ from .decorators import handle_queue
 
 def init():
     display.init()
-
-    # Set theme
-    th = lv.theme_material_init(210, lv.font_roboto_22)
-    lv.theme_set_current(th)
     
     # Initialize the styles
     init_styles()

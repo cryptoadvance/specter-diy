@@ -48,10 +48,10 @@ def qr_alert(title, message, message_text=None, callback=None, ok_text="OK", wid
     scr = lv.obj()
     lv.scr_load(scr)
     add_label(title, style="title")
-    qrobj = add_qrcode(message, scr=scr, y=PADDING+100, width=width)
+    qrobj = add_qrcode(message, scr=scr, y=PADDING+120, width=width)
     msg_obj = None
     if message_text is not None:
-        y = qrobj.get_y()+qrobj.get_height()+20
+        y = qrobj.get_y()+qrobj.get_height()+30
         msg_obj = add_label(message_text, y=y)
     def cb(obj, event):
         if event == lv.EVENT.RELEASED:
@@ -77,7 +77,7 @@ def show_xpub(name, xpub, prefix=None, callback=None):
             else:
                 txt = prefix+xpub
             msgobj.set_text(txt)
-            qr_update(qrobj, txt)
+            qrobj.set_text(txt)
         btn = add_button("Toggle derivation", on_release(cb), y=600)
 
 def show_mnemonic(mnemonic):
@@ -90,7 +90,7 @@ def show_wallet(wallet, delete_cb=None):
     addr = wallet.address(idx)
     qrobj, msgobj = qr_alert("Wallet \"%s\"" % wallet.name,
                              "bitcoin:"+addr, addr,
-                             ok_text="Close", width=300)
+                             ok_text="Close", width=350)
     lbl = add_label("Receiving address #%d" % idx, y=80)
     def cb_update(delta):
         idx = int(lbl.get_text().split("#")[1])
@@ -98,7 +98,7 @@ def show_wallet(wallet, delete_cb=None):
             idx += delta
         addr = wallet.address(idx)
         msgobj.set_text(addr)
-        qr_update(qrobj, "bitcoin:"+addr)
+        qrobj.set_text("bitcoin:"+addr)
         lbl.set_text("Receiving address #%d" % idx)
         if idx > 0:
             prv.set_state(lv.btn.STATE.REL)
