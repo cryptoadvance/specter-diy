@@ -76,7 +76,6 @@ def ask_pin(first_time_usage, callback):
                             first_time_usage = True
                             title_lbl.set_text(first_time_title)
                             instruct_label.set_text(instruct_txt)
-                            return
                 pin_lbl.set_text("")
                 antiphish_label.set_text(antiphishing_word(""))
             else:
