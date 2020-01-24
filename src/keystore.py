@@ -33,9 +33,9 @@ class KeyStore:
         self.network = None
         self.storage_root = storage_root
         self.storage_path = None
-        self.load_seed(seed)
         self.idkey = None
         self.fingerprint = None
+        self.load_seed(seed)
 
     def load_seed(self, seed):
         if seed is not None:
