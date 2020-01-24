@@ -4,25 +4,16 @@ from .decorators import *
 from .popups import alert
 from pin import Secret, Key, Pin, antiphishing_word, Factory_settings
 
-def get_pin_instruction(first_time_usage):
-    if first_time_usage == True:
-        instruction = "For every pin digit an anti-phishing" \
-	                  " word will be generated. Write them all down. This will" \
-	                  " help determine if your device has been tampered with" \
-	                  " next time you login in."
-    else:
-        instruction = "For every pin digit an anti-phishing" \
-	                  " word will be generated. If you don't recognize" \
-	                  " them, your device has been tampered with!"
-    return instruction
-
 # queued screens
 @queued
-def ask_pin(name, first_time_usage, callback):
+def ask_pin(first_time_usage, callback):
     scr = lv.scr_act()
     scr.clean()
-    add_label("Hello, %s!" % name)
-    add_label("Enter your PIN code", y=PADDING+30, style="title")
+    first_time_title = "Choose a PIN code"
+    title = "Enter your PIN code"
+    if first_time_usage:
+        title = first_time_title
+    title_lbl = add_label(title, y=PADDING, style="title")
     btnm = lv.btnm(scr)
     btnm.set_map([
         "1","2","3","\n",
@@ -37,29 +28,33 @@ def ask_pin(name, first_time_usage, callback):
     pin_lbl = lv.ta(scr)
     pin_lbl.set_text("")
     pin_lbl.set_pwd_mode(True)
-    # pin_lbl.set_style(0, styles["title"])
+    style = lv.style_t()
+    lv.style_copy(style, styles["theme"].style.ta.oneline)
+    style.text.font = lv.font_roboto_28
+    style.text.color = lv.color_hex(0xffffff)
+    style.text.letter_space = 15
+    pin_lbl.set_style(lv.label.STYLE.MAIN, style)
     pin_lbl.set_width(HOR_RES-2*PADDING)
     pin_lbl.set_x(PADDING)
-    pin_lbl.set_text_align(lv.label.ALIGN.CENTER)
-    pin_lbl.set_y(PADDING+100)
+    pin_lbl.set_y(PADDING+50)
     pin_lbl.set_cursor_type(lv.CURSOR.HIDDEN)
     pin_lbl.set_one_line(True)
+    pin_lbl.set_text_align(lv.label.ALIGN.CENTER)
     pin_lbl.set_pwd_show_time(0)
 
-    instruction = get_pin_instruction(first_time_usage)
-    instruct_label = add_label(instruction, 190)
-    antiphish_label = add_label("", 250)
+    instruct_txt = "Device tamper check.\nThese words should remain #ffffff the same every time#:"
+    instruct_label = add_label(instruct_txt, 180, style="hint")
+    instruct_label.set_recolor(True)
+    antiphish_label = add_label(antiphishing_word(""), 250)
     Pin.read_counter()
 
     def cb(obj, event):
-        nonlocal instruction, first_time_usage
+        nonlocal first_time_usage
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
-            instruct_label.set_text("")
             if c == lv.SYMBOL.CLOSE:
                 pin_lbl.set_text("")
-                antiphish_label.set_text("")
-                instruct_label.set_text(instruction)
+                antiphish_label.set_text(antiphishing_word(""))
             elif c == lv.SYMBOL.OK:
                 # FIXME: check PIN len
                 Key.generate_key(pin_lbl.get_text());
@@ -73,21 +68,21 @@ def ask_pin(name, first_time_usage, callback):
                         Pin.reset_counter(alert)
                         callback()
                     else:
-                        instruct_label.set_text("Wrong pin: %d/%d" % (Pin.counter, Pin.ATTEMPTS_MAX))
+                        instruct_label.set_text("#f07070 Wrong pin: %d/%d #" % (Pin.counter, Pin.ATTEMPTS_MAX))
                         if Pin.counter <= 0:
                             Factory_settings.restore(alert)
                             Secret.generate_secret()
                             alert("Security","Device has been factory reset!")
                             first_time_usage = True
-                            instruction = get_pin_instruction(first_time_usage)
-                            instruct_label.set_text(instruction)
+                            title_lbl.set_text(first_time_title)
+                            instruct_label.set_text(instruct_txt)
                 pin_lbl.set_text("")
-                antiphish_label.set_text("")
+                antiphish_label.set_text(antiphishing_word(""))
             else:
+                instruct_label.set_text(instruct_txt)
                 pin_lbl.add_text(c)
-                instruct_label.set_text("")
                 word = antiphishing_word(pin_lbl.get_text())
-                antiphish_label.set_text(word)
+                antiphish_label.set_text(antiphish_label.get_text() + " " + word)
 
     btnm.set_event_cb(cb);
 
@@ -95,7 +90,7 @@ def ask_pin(name, first_time_usage, callback):
 def create_menu(buttons=[], title="What do you want to do?", y0=100, cb_back=None):
     scr = lv.scr_act()
     scr.clean()
-    add_label(title)
+    add_label(title, style="title")
     y = y0
     for text, callback in buttons:
         add_button(text, on_release(callback), y=y)
@@ -107,7 +102,7 @@ def create_menu(buttons=[], title="What do you want to do?", y0=100, cb_back=Non
 def show_progress(title, text, callback=None):
     scr = lv.scr_act()
     scr.clean()
-    add_label(title)
+    add_label(title, style="title")
     add_label(text, y=200)
     if callback is not None:
         add_button("Cancel", on_release(callback))
@@ -119,7 +114,7 @@ def new_mnemonic(mnemonic,
     """Makes the new mnemonic screen with a slider to change number of words"""
     scr = lv.scr_act()
     scr.clean()
-    add_label(title)
+    add_label(title, style="title")
     table = add_mnemonic_table(mnemonic, y=100)
 
     if cb_update is not None:
@@ -162,7 +157,7 @@ CHARSET_EXTRA = [
 def ask_for_password(cb_continue, title="Enter your password (optional)"):
     scr = lv.scr_act()
     scr.clean()
-    add_label(title)
+    add_label(title, style="title")
 
     btnm = lv.btnm(scr)
     btnm.set_map(CHARSET)
@@ -219,23 +214,16 @@ def ask_for_mnemonic(cb_continue, cb_back,
                      title="Enter your recovery phrase"):
     scr = lv.scr_act()
     scr.clean()
-    add_label(title)
+    add_label(title, style="title")
     table = add_mnemonic_table("", y=70)
 
     btnm = lv.btnm(scr)
     btnm.set_map([
-        "q","w","e","r","t","y","u","i","o","p","\n",
-        "a","s","d","f","g","h","j","k","l","\n",
-        "z","x","c","v","b","n","m",lv.SYMBOL.LEFT,"\n",
+        "Q","W","E","R","T","Y","U","I","O","P","\n",
+        "A","S","D","F","G","H","J","K","L","\n",
+        "Z","X","C","V","B","N","M",lv.SYMBOL.LEFT,"\n",
         lv.SYMBOL.LEFT+" Back","Next word",lv.SYMBOL.OK+" Done",""
     ])
-    kb_dis_style = lv.style_t()
-    lv.style_copy(kb_dis_style, lv.style_btn_ina);
-    kb_dis_style.body.main_color = lv.color_make(0xe0,0xe0,0xe0)
-    kb_dis_style.body.grad_color = lv.color_make(0xe0,0xe0,0xe0)
-    kb_dis_style.body.radius = 0
-    kb_dis_style.body.border.opa = 30
-    btnm.set_style(lv.btnm.STYLE.BTN_INA, kb_dis_style)
 
     if words_lookup is not None:
         # Next word button inactive
@@ -251,6 +239,10 @@ def ask_for_mnemonic(cb_continue, cb_back,
         global words
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
+            num = obj.get_active_btn()
+            # if inactive button is clicked - return
+            if obj.get_btn_ctrl(num,lv.btnm.CTRL.INACTIVE):
+                return
             if c == lv.SYMBOL.LEFT+" Back":
                 cb_back()
             elif c == lv.SYMBOL.LEFT:
@@ -271,7 +263,7 @@ def ask_for_mnemonic(cb_continue, cb_back,
             else:
                 if len(words) == 0:
                     words.append("")
-                words[-1] = words[-1]+c
+                words[-1] = words[-1]+c.lower()
                 table_set_mnemonic(table, " ".join(words))
 
             mnemonic = None

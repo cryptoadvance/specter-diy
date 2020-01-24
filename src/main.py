@@ -123,7 +123,7 @@ def sign_psbt(wallet=None, tx=None):
     b64_tx = b2a_base64(tx.serialize()).decode('utf-8')
     if b64_tx[-1:] == "\n":
         b64_tx = b64_tx[:-1]
-    popups.qr_alert("Signed transaction:", b64_tx, "Scan it with your software wallet")
+    popups.qr_alert("Signed transaction:", b64_tx, "Scan it with your software wallet", width=520)
 
 def parse_transaction(b64_tx):
     # we will go to main afterwards
@@ -404,7 +404,7 @@ def main(blocking=True):
     ret = Secret.load_secret()
     if ret == False:
         Secret.generate_secret()
-    screens.ask_pin("there", not ret, show_init)
+    screens.ask_pin(not ret, show_init)
     if blocking:
         while True:
             time.sleep_ms(30)
