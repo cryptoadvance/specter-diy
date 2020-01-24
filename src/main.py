@@ -204,8 +204,8 @@ def scan_address():
 def set_default_xpubs(net):
     while len(DEFAULT_XPUBS) > 0:
         DEFAULT_XPUBS.pop()
-    DEFAULT_XPUBS.append(("Single key", "m/84h/%dh/0h" % network["bip32"]))
-    DEFAULT_XPUBS.append(("Multisig", "m/48h/%dh/0h/2h" % network["bip32"]))
+    DEFAULT_XPUBS.append(("Single key", "m/84h/%dh/0h" % net["bip32"]))
+    DEFAULT_XPUBS.append(("Multisig", "m/48h/%dh/0h/2h" % net["bip32"]))
 
 def select_network(name):
     global network
