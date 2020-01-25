@@ -104,7 +104,7 @@ def qr_alert(title, message, message_text=None, callback=None, ok_text="OK", wid
 
 def show_xpub(name, xpub, prefix=None, callback=None):
     msg = prefix+xpub
-    scr = qr_alert("Master "+name, msg, msg, callback)
+    scr = qr_alert(name, msg, msg, callback)
     # add checkbox
     if prefix is not None:
         def cb():

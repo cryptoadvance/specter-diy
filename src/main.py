@@ -87,8 +87,9 @@ def wallets_menu():
     buttons.append((lv.SYMBOL.PLUS+" Add new wallet (scan)", add_new_wallet))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the wallet")
 
-def show_xpub(name, derivation):
-    xpub = keystore.get_xpub(derivation).to_base58()
+def show_xpub(name, derivation, xpub=None):
+    if xpub is None:
+        xpub = keystore.get_xpub(derivation).to_base58()
     fingerprint = hexlify(keystore.fingerprint).decode('utf-8')
     prefix = "[%s%s]" % (fingerprint, derivation[1:])
     popups.show_xpub(name, xpub, prefix=prefix)
@@ -96,7 +97,7 @@ def show_xpub(name, derivation):
 def xpubs_menu():
     def selector(name, derivation):
         def cb():
-            show_xpub(name, derivation)
+            show_xpub("Master "+name, derivation)
         return cb
     buttons = []
     for name, derivation in DEFAULT_XPUBS:
@@ -396,8 +397,31 @@ def init_keys(password):
     usb_host.callback = host_callback
 
 def host_callback(data):
-    print("data from host: '%s'" % data)
-    popups.close_all_popups()
+    if data=="fingerprint":
+        usb_host.respond(hexlify(keystore.fingerprint).decode('ascii'))
+        return
+    if data.startswith("xpub "):
+        path = data[5:].strip(" /\r\n")
+        try:
+            if path == "m":
+                hd = keystore.root.to_public()
+            else:
+                hd = keystore.get_xpub(path)
+            xpub = hd.to_base58(network["xpub"])
+            usb_host.respond(xpub)
+
+            popups.close_all_popups()
+            show_xpub("Master key requested from host:", path, xpub)
+        except Exception as e:
+            print(e)
+            usb_host.respond("error: bad derivation path '%s'" % path)
+        return
+    # TODO: 
+    # - address verification
+    # - sign <psbt>
+    # - signmessage <message>
+    # - showaddr <format:pkh/wpkh/sh-wpkh> <derivation>
+
 
 def main(blocking=True):
     # FIXME: check for all ports (unix, js, stm)

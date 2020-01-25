@@ -62,5 +62,11 @@ class TCPHost:
             self.buf = self.buf[nbytes:]
         return buf
 
+    def write(self, data):
+        if self.isconnected():
+            return self.client.write(data)
+        else:
+            return 0
+
 if __name__ == '__main__':
     tcphost = TCPHost()
