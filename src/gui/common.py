@@ -96,7 +96,7 @@ def add_label(text, y=PADDING, scr=None, style=None, width=None):
     lbl.set_y(y)
     return lbl
 
-def add_button(text, callback=None, scr=None, y=700):
+def add_button(text=None, callback=None, scr=None, y=700):
     """Helper function that creates a button with a text label"""
     if scr is None:
         scr = lv.scr_act()
@@ -104,9 +104,10 @@ def add_button(text, callback=None, scr=None, y=700):
     btn.set_width(HOR_RES-2*PADDING);
     btn.set_height(BTN_HEIGHT);
     
-    lbl = lv.label(btn)
-    lbl.set_text(text)
-    lbl.set_align(lv.label.ALIGN.CENTER)
+    if text is not None:
+        lbl = lv.label(btn)
+        lbl.set_text(text)
+        lbl.set_align(lv.label.ALIGN.CENTER)
 
     btn.align(scr, lv.ALIGN.IN_TOP_MID, 0, 0)
     btn.set_y(y)
