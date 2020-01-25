@@ -15,6 +15,7 @@ from bitcoin.networks import NETWORKS
 from keystore import KeyStore
 
 from qrscanner import QRScanner
+from usbhost import USBHost
 from rng import get_random_bytes
 
 from pin import Secret, Key
@@ -25,6 +26,7 @@ from hashlib import hmac_sha512
 reckless_fname = "%s/%s" % (storage_root, "reckless.json")
 
 qr_scanner = QRScanner()
+usb_host = USBHost()
 
 # entropy that will be converted to mnemonic
 entropy = None
@@ -391,6 +393,11 @@ def init_keys(password):
     select_network("test")
     gc.collect()
     show_main()
+    usb_host.callback = host_callback
+
+def host_callback(data):
+    print("data from host: '%s'" % data)
+    popups.close_all_popups()
 
 def main(blocking=True):
     # FIXME: check for all ports (unix, js, stm)
@@ -410,6 +417,7 @@ def main(blocking=True):
             time.sleep_ms(30)
             gui.update(30)
             qr_scanner.update()
+            usb_host.update()
 
 if __name__ == '__main__':
     main()
