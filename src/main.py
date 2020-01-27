@@ -154,7 +154,7 @@ def parse_transaction(b64_tx, success_callback=None, error_callback=None):
     except Exception as e:
         gui.error("Problem with the transaction: %r" % e)
         if error_callback is not None:
-            error_cb("invalid argument")
+            error_callback("invalid argument")
         return
     title = "Spending %u\nfrom %s" % (data["spending"], data["wallet"].name)
     message = ""
