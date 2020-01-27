@@ -5,6 +5,7 @@
 try:
     from os import urandom as get_random_bytes
 except:
+    # read /dev/urandom instead?
     import urandom
     def get_random_bytes(nbytes):
         return bytes([urandom.getrandbits(8) for i in range(nbytes)])

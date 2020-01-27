@@ -5,12 +5,6 @@ import ujson as json
 import ure as re
 from ubinascii import unhexlify, hexlify
 
-is_simulator = False
-try:
-    import pyb
-except:
-    is_simulator = True
-
 def multi(*args):
     return script.multisig(args[0], args[1:])
 
