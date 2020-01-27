@@ -1,6 +1,6 @@
 import gui
 from gui import screens, popups
-from gui.decorators import queued
+from gui.decorators import queued, cb_with_args
 import gui.common
 import lvgl as lv
 
@@ -10,7 +10,7 @@ import ujson as json
 # hex and base64 encoding
 from ubinascii import hexlify, unhexlify, a2b_base64, b2a_base64
 
-from bitcoin import bip39, bip32, psbt
+from bitcoin import bip39, bip32, psbt, script
 from bitcoin.networks import NETWORKS
 from keystore import KeyStore
 
@@ -67,7 +67,7 @@ def confirm_new_wallet(s):
     except Exception as e:
         gui.error("%r" % e)
         return
-    popups.prompt("Add wallet \"%s\"?" % arr[0], arr[1], ok=new_wallet_confirm, name=arr[0], descriptor=arr[1])
+    popups.prompt("Add wallet \"%s\"?" % arr[0], arr[1], ok=cb_with_args(new_wallet_confirm, name=arr[0], descriptor=arr[1]))
 
 def add_new_wallet():
     screens.show_progress("Scan wallet to add",
@@ -104,7 +104,7 @@ def xpubs_menu():
         buttons.append((name, selector(name, derivation)))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the master key")
 
-def sign_psbt(wallet=None, tx=None):
+def sign_psbt(wallet=None, tx=None, success_callback=None):
     keystore.sign(tx)
     # remove everything but partial sigs
     # to reduce QR code size
@@ -127,8 +127,10 @@ def sign_psbt(wallet=None, tx=None):
     if b64_tx[-1:] == "\n":
         b64_tx = b64_tx[:-1]
     popups.qr_alert("Signed transaction:", b64_tx, "Scan it with your software wallet", width=520)
+    if success_callback is not None:
+        success_callback(b64_tx)
 
-def parse_transaction(b64_tx):
+def parse_transaction(b64_tx, success_callback=None, error_callback=None):
     # we will go to main afterwards
     show_main()
     # we need to update gui because screens are queued
@@ -138,6 +140,8 @@ def parse_transaction(b64_tx):
         tx = psbt.PSBT.parse(raw)
     except:
         gui.error("Failed at transaction parsing")
+        if error_callback is not None:
+            error_callback("invalid argument")
         return
     # blue wallet trick - if the fingerprint is 0 we use our fingerprint
     for scope in [tx.inputs, tx.outputs]:
@@ -149,13 +153,15 @@ def parse_transaction(b64_tx):
         data = keystore.check_psbt(tx)
     except Exception as e:
         gui.error("Problem with the transaction: %r" % e)
+        if error_callback is not None:
+            error_cb("invalid argument")
         return
     title = "Spending %u\nfrom %s" % (data["spending"], data["wallet"].name)
     message = ""
     for out in data["send_outputs"]:
         message += "%u sat to %s\n" % (out["value"], out["address"])
     message += "\nFee: %u satoshi" % data["fee"]
-    popups.prompt(title, message, ok=sign_psbt, wallet=data["wallet"], tx=tx)
+    popups.prompt(title, message, ok=cb_with_args(sign_psbt, wallet=data["wallet"], tx=tx, success_callback=success_callback), cancel=cb_with_args(error_callback, "user cancel"))
 
 def scan_transaction():
     screens.show_progress("Scan transaction to sign",
@@ -193,7 +199,7 @@ def verify_address(s):
     for w in keystore.wallets:
         if w.address(index) == addr:
             popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index+1, w.name),
-                            addr, message_text=addr)
+                            "bitcoin:%s"%addr, message_text=addr)
             return
     gui.error("Address doesn't belong to any wallet. Wrong device or network?")
 
@@ -394,12 +400,18 @@ def init_keys(password):
     select_network("test")
     gc.collect()
     show_main()
-    usb_host.callback = host_callback
+    if usb_host.callback is None:
+        usb_host.callback = host_callback
 
+# process all usb commands
 def host_callback(data):
+    # close all existing popups
+    popups.close_all_popups()
+
     if data=="fingerprint":
         usb_host.respond(hexlify(keystore.fingerprint).decode('ascii'))
         return
+
     if data.startswith("xpub "):
         path = data[5:].strip(" /\r\n")
         try:
@@ -410,17 +422,53 @@ def host_callback(data):
             xpub = hd.to_base58(network["xpub"])
             usb_host.respond(xpub)
 
-            popups.close_all_popups()
             show_xpub("Master key requested from host:", path, xpub)
         except Exception as e:
             print(e)
             usb_host.respond("error: bad derivation path '%s'" % path)
         return
+
+    if data.startswith("sign "):
+        def success_cb(signed_tx):
+            usb_host.respond(signed_tx)
+        def error_cb(error):
+            usb_host.respond("error: %s" % error)
+        parse_transaction(data[5:], success_callback=success_cb, error_callback=error_cb)
+        return
+
+    if data.startswith("showaddr "):
+        arr = data.split(" ")
+        path = arr[-1].strip()
+        addrtype = "wpkh"
+        if len(arr) > 2:
+            addrtype = arr[-2].strip()
+        # TODO: detect wallet this address belongs to
+        try:
+            key = keystore.get_xpub(path)
+            if addrtype == "wpkh":
+                sc = script.p2wpkh(key)
+            elif addrtype == "pkh":
+                sc = script.p2pkh(key)
+            elif addrtype == "sh-wpkh":
+                sc = script.p2sh(script.p2wpkh(key))
+            else:
+                raise RuntimeError()
+            addr=sc.address(network)
+            usb_host.respond(addr)
+            popups.qr_alert("Address with path %s\n(requested by host)" % (path),
+                            "bitcoin:"+addr, message_text=addr)
+
+        except Exception as e:
+            print(e)
+            usb_host.respond("error: invalid argument")
+        return
+
+    if data.startswith("importwallet "):
+        confirm_new_wallet(data[13:])
+
     # TODO: 
-    # - address verification
-    # - sign <psbt>
     # - signmessage <message>
-    # - showaddr <format:pkh/wpkh/sh-wpkh> <derivation>
+    # - showdescraddr <descriptor>
 
 
 def main(blocking=True):

@@ -86,13 +86,8 @@ def close_all_popups():
 def alert(title, message, callback=None):
     return Alert(title, message, close_callback=callback)
 
-def cb_with_args(callback, *args, **kwargs):
-    def cb():
-        callback(*args, **kwargs)
-    return cb
-
-def prompt(title, message, ok=None, cancel=None, **kwargs):
-    return Prompt(title, message, confirm_callback=cb_with_args(ok,**kwargs), close_callback=cb_with_args(cancel,**kwargs))
+def prompt(title, message, ok=None, cancel=None):
+    return Prompt(title, message, confirm_callback=ok, close_callback=cancel)
 
 def error(message):
     alert("Error!", message)
@@ -128,7 +123,7 @@ def show_wallet(wallet, delete_cb=None):
     #             to skip realigning of the qr code
     scr = qr_alert("Wallet \"%s\"\n" % wallet.name,
                              "bitcoin:"+addr, addr,
-                             ok_text="Close", width=350)
+                             ok_text="Close", width=300)
     lbl = add_label("Receiving address #%d" % (idx+1), y=80)
     def cb_update(delta):
         idx = int(lbl.get_text().split("#")[1])

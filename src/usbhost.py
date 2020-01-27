@@ -21,9 +21,9 @@ class USBHost:
         arr = self.data.split("\r")
         self.data = ""
         for e in arr:
+            if e.endswith("\n"):
+                e = e[:-1]
             if len(e) > 0:
-                if e[-1:]=="\n":
-                    e = e[:-1]
                 self.callback(e)
 
     def respond(self, data):
@@ -33,6 +33,11 @@ class USBHost:
     def update(self):
         res = self.usb.read()
         if res is not None and len(res) > 0:
-            self.data += res.decode('utf-8')
+            # if non-unicode character is found - fail right away
+            # and clear buffer
+            try:
+                self.data += res.decode('utf-8')
+            except:
+                self.data = ""
         if "\r" in self.data:
             self.process_data()

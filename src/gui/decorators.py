@@ -21,3 +21,9 @@ def handle_queue():
     while len(queue) > 0:
         cb, args, kwargs = queue.pop()
         cb(*args, **kwargs)
+
+def cb_with_args(callback, *args, **kwargs):
+    def cb():
+        if callback is not None:
+            callback(*args, **kwargs)
+    return cb
