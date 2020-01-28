@@ -13,6 +13,13 @@ QR_PADDING = const(40)
 
 styles = {}
 
+def switch_to_new_screen():
+    scr = lv.obj()
+    old_scr = lv.scr_act()
+    lv.scr_load(scr)
+    old_scr.del_async()
+    return scr
+
 def init_styles():
     # Set theme
     th = lv.theme_night_init(210, lv.font_roboto_22)

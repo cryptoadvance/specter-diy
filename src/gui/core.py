@@ -4,7 +4,6 @@ import utime as time
 import display
 
 from .common import init_styles
-from .decorators import handle_queue
 
 def init(blocking=True):
     display.init(not blocking)
@@ -18,7 +17,6 @@ def init(blocking=True):
 
 def update(dt:int=30):
     display.update(dt)
-    handle_queue()
 
 def ioloop(dt:int=30):
     while True:

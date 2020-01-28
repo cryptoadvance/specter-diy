@@ -1,6 +1,6 @@
 import gui
 from gui import screens, popups
-from gui.decorators import queued, cb_with_args
+from gui.decorators import cb_with_args
 import gui.common
 import lvgl as lv
 
@@ -133,8 +133,6 @@ def sign_psbt(wallet=None, tx=None, success_callback=None):
 def parse_transaction(b64_tx, success_callback=None, error_callback=None):
     # we will go to main afterwards
     show_main()
-    # we need to update gui because screens are queued
-    gui.update(100)
     try:
         raw = a2b_base64(b64_tx)
         tx = psbt.PSBT.parse(raw)
@@ -173,8 +171,6 @@ def scan_transaction():
 def verify_address(s):
     # we will go to main afterwards
     show_main()
-    # we need to update gui because screens are queued
-    gui.update(100)
     # verifies address in the form [bitcoin:]addr?index=i
     s = s.replace("bitcoin:", "")
     arr = s.split("?")
