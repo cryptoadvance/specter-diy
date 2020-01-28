@@ -284,8 +284,13 @@ def ask_for_mnemonic(cb_continue, cb_back,
                             mnemonic += " "+candidates[0]
                         else:
                             mnemonic += " "+words[-1]
+                else:
+                    mnemonic = " ".join(words)
             else:
                 mnemonic = " ".join(words)
+            if mnemonic is None:
+                return
+            mnemonic = mnemonic.strip()
             if check_mnemonic is not None and mnemonic is not None:
                 if check_mnemonic(mnemonic):
                     btnm.clear_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
