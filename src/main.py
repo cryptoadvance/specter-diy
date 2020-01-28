@@ -470,6 +470,15 @@ def host_callback(data):
     # - signmessage <message>
     # - showdescraddr <descriptor>
 
+def update(dt=30):
+    gui.update(dt)
+    qr_scanner.update()
+    usb_host.update()
+
+def ioloop():
+    while True:
+        time.sleep_ms(30)
+        update(30)
 
 def main(blocking=True):
     # FIXME: check for all ports (unix, js, stm)
@@ -479,17 +488,16 @@ def main(blocking=True):
         os.mkdir(storage_root)
     except:
         pass
-    gui.init()
+    # schedules display autoupdates if blocking=False
+    # it may cause GUI crashing when out of memory
+    # but perfect to debug
+    gui.init(blocking)
     ret = Secret.load_secret()
     if ret == False:
         Secret.generate_secret()
     screens.ask_pin(not ret, show_init)
     if blocking:
-        while True:
-            time.sleep_ms(30)
-            gui.update(30)
-            qr_scanner.update()
-            usb_host.update()
+        ioloop()
 
 if __name__ == '__main__':
     main()
