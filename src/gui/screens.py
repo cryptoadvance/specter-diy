@@ -3,6 +3,7 @@ from .common import *
 from .decorators import *
 from .popups import alert
 from pin import Secret, Key, Pin, antiphishing_word, Factory_settings
+import rng
 
 # queued screens
 @queued
@@ -15,15 +16,22 @@ def ask_pin(first_time_usage, callback):
         title = first_time_title
     title_lbl = add_label(title, y=PADDING, style="title")
     btnm = lv.btnm(scr)
-    btnm.set_map([
-        "1","2","3","\n",
-        "4","5","6","\n",
-        "7","8","9","\n",
-        lv.SYMBOL.CLOSE,"0",lv.SYMBOL.OK,""
-    ])
+    # shuffle numbers to make sure 
+    # no constant fingerprints left on screen
+    buttons = ["%d" % i for i in range(0,10)]
+    btnmap = []
+    for j in range(3):
+        for i in range(3):
+            v = rng.get_random_bytes(1)[0] % len(buttons)
+            btnmap.append(buttons.pop(v))
+        btnmap.append("\n")
+    btnmap = btnmap+[lv.SYMBOL.CLOSE, buttons.pop(), lv.SYMBOL.OK, ""]
+    btnm.set_map(btnmap)
     btnm.set_width(HOR_RES)
     btnm.set_height(HOR_RES)
     btnm.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+    # remove feedback on press to avoid sidechannels
+    btnm.set_style(lv.btnm.STYLE.BTN_PR,btnm.get_style(lv.btnm.STYLE.BTN_REL))
 
     pin_lbl = lv.ta(scr)
     pin_lbl.set_text("")
