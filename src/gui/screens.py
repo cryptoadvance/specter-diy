@@ -180,6 +180,8 @@ def ask_for_password(cb_continue, title="Enter your password (optional)"):
     def cb(obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
+            if c is None:
+                return
             if c[0] == lv.SYMBOL.LEFT:
                 ta.del_char()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
@@ -241,6 +243,8 @@ def ask_for_mnemonic(cb_continue, cb_back,
         global words
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
+            if c is None:
+                return
             num = obj.get_active_btn()
             # if inactive button is clicked - return
             if obj.get_btn_ctrl(num,lv.btnm.CTRL.INACTIVE):
