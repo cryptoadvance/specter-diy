@@ -1,0 +1,3 @@
+Layer Pairs Export File for PCB: C:\ProgramData\Altium\CircuitMaker {8B7EC335-09F7-4C06-BE02-0DA28D6608ED}\Projects\D0458375-9538-47B1-9145-FF061B1E4159\df23c73e-d452-4377-8dea-c4358ea655c1\specter-shield_v1.CMPcbDoc
+LayersSetName=Top_Bot_Thru_Holes|DrillFile=specter-shield_v1-roundholes.txt|LayerPairs=gtl,gbl
+LayersSetName=Top_Bot_Slot_Holes|DrillFile=specter-shield_v1-slotholes.txt|LayerPairs=gtl,gbl
