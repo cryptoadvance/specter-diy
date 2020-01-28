@@ -52,6 +52,8 @@ def ask_pin(first_time_usage, callback):
         nonlocal first_time_usage
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
+            if c is None:
+                return
             if c == lv.SYMBOL.CLOSE:
                 pin_lbl.set_text("")
                 antiphish_label.set_text(antiphishing_word(""))

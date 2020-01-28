@@ -40,7 +40,7 @@ class TCPHost:
                 else:
                     self.buf += b
             except OSError as e:
-                if "EAGAIN" not in str(e):
+                if "EAGAIN" not in str(e) and "ECONNRESET" not in str(e):
                     raise
         else:
             # check if got connected
