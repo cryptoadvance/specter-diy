@@ -5,7 +5,7 @@ import gui.common
 import lvgl as lv
 
 import utime as time
-import os, gc
+import os, gc, sys
 import ujson as json
 # hex and base64 encoding
 from ubinascii import hexlify, unhexlify, a2b_base64, b2a_base64
@@ -19,7 +19,7 @@ from usbhost import USBHost
 from rng import get_random_bytes
 
 from pin import Secret, Key
-from platform import storage_root
+from platform import simulator, storage_root, USB_ENABLED, DEV_ENABLED
 from ucryptolib import aes
 from hashlib import hmac_sha512
 
@@ -308,13 +308,39 @@ def delete_entropy():
     except:
         gui.error("Failed to delete the key")
 
-def reckless_menu():
+def save_settings(config):
+    try:
+        if USB_ENABLED and not config["usb"]:
+            os.remove("%s/%s" % (storage_root, "USB_ENABLED"))
+        if not USB_ENABLED and config["usb"]:
+            with open("%s/%s" % (storage_root, "USB_ENABLED"), "w") as f:
+                f.write("dummy") # should be hmac instead
+        if DEV_ENABLED and not config["developer"]:
+            os.remove("%s/%s" % (storage_root, "DEV_ENABLED"))
+        if not DEV_ENABLED and config["developer"]:
+            with open("%s/%s" % (storage_root, "DEV_ENABLED"), "w") as f:
+                f.write("dummy") # should be hmac instead
+        time.sleep_ms(100)
+        if simulator:
+            # meh... kinda doesn't work on unixport
+            sys.exit()
+        else:
+            import pyb
+            pyb.hard_reset()
+    except Exception as e:
+        gui.error("Failed to update settings!\n%r" % e)
+    print(config)
+
+def settings_menu():
     gui.create_menu(buttons=[
         ("Show recovery phrase", show_mnemonic),
         ("Save key to memory", save_entropy),
-        ("Delete key from memory", delete_entropy)
+        ("Delete key from memory", delete_entropy),
+        ("Security settings", 
+            cb_with_args(popups.show_settings, 
+                         {"usb": USB_ENABLED, "developer": DEV_ENABLED}, 
+                         save_settings)),
         ], cb_back=show_main,title="Careful. Think twice.")
-
 
 def show_main():
     gui.create_menu(buttons=[
@@ -324,7 +350,7 @@ def show_main():
         ("Verify address", scan_address),
         ("Use another password", ask_for_password),
         ("Switch network (%s)" % network["name"], network_menu),
-        ("# Reckless", reckless_menu)
+        ("Settings", settings_menu)
         ])
 
 def get_new_mnemonic(words=12):
