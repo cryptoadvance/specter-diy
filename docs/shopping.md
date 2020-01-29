@@ -9,6 +9,8 @@ Main part of the device is the developer board:
 
 For the rest of the components we are currently working on [a devkit](../devkit) that includes a smartcard slot, QR code scanner, battery and a 3d printed case, but it doesn't include the main part — discovery board that you need to order separately. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
 
+You can start using Specter even without any extra components, but you will be able to communicate with it only over USB. In this case it's not airgapped so you lose an important security property.
+
 ## QR scanner
 
 For QR code scanner you have several options.
@@ -20,6 +22,16 @@ For QR code scanner you have several options.
 **Option 2.** Extremely nice scanner from Mikroe but pretty expensive (150$):
 
 - [Barcode Click](https://www.mikroe.com/barcode-click) + [Adapter](https://www.mikroe.com/arduino-uno-click-shield)
+
+**Option 3.** Any other QR scanner
+
+You can find some cheap scanners in China. Their quality is often not that great, but you can take a chance. Maybe even ESPcamera would do the job. You only need to connect power, UART (pins D0 and D1), and trigger to D5. 
+
+**Option 4.** No scanner. 
+
+Then you can only use Specter with USB.
+
+Unless you build your own communication module that uses something else instead of QR codes - audiomodem, bluetooth or whatever else. As soon as it can be triggered and send the data over serial you can do whatever you want.
 
 ## Optional components
 
