@@ -11,29 +11,26 @@ pwr.on()
 pwrcb = lambda e: pwr.off()
 pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 
-# pyb.usb_mode('CDC')
-# check if blue button is pressed
-# userbtn = pyb.Switch()
+from platform import USB_ENABLED, DEV_ENABLED
 
-# leds = [pyb.LED(i) for i in range(1,5)]
-# for led in leds:
-#     led.on()
-# for led in leds[::-1]:
-#     time.sleep(0.25)
-#     led.off()
+# set up usb mode
+if USB_ENABLED and DEV_ENABLED:
+    pyb.usb_mode('CDC+MSC')
+elif USB_ENABLED:
+    pyb.usb_mode('CDC')
+elif DEV_ENABLED:
+    pyb.usb_mode('MSC')
+else:
+    pyb.usb_mode(None)
 
-# if not userbtn.value():
-#     # don't use USB
-#     pyb.usb_mode('CDC')
-# else:
-#     # use USB as mass storage for development
-#     pyb.usb_mode('CDC+MSC')
+if DEV_ENABLED:
+    repl = pyb.UART('YB',115200)
+    # redirect REPL to STLINK UART
+    os.dupterm(repl,0)
+if USB_ENABLED:
+    # unconnect REPL from USB
+    os.dupterm(None, 1)
 
-repl = pyb.UART('YB',115200)
-# redirect REPL to STLINK UART
-os.dupterm(repl,0)
-# unconnect REPL from USB
-os.dupterm(None, 1)
 # pyb.main('main.py') # main script to run after this one
 # pyb.usb_mode('CDC+MSC') # act as a serial and a storage device
 # pyb.usb_mode('CDC+HID') # act as a serial device and a mouse

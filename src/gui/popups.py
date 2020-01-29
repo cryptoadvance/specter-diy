@@ -149,3 +149,30 @@ def show_wallet(wallet, delete_cb=None):
                                "Next", on_release(cb_next),
                                y=500)
     prv.set_state(lv.btn.STATE.INA)
+
+def show_settings(config, save_callback):
+    def cb():
+        new_config = {"usb": usb_switch.get_state(), "developer": dev_switch.get_state()}
+        save_callback(new_config)
+
+    scr = Prompt("Device settings", "", confirm_callback=cb)
+    scr.confirm_label.set_text("Save & Reboot")
+    usb_label = add_label("USB communication", 120, scr=scr)
+    usb_hint = add_label("If USB is enabled the device will be able to talk to your computer. This increases attack surface but sometimes makes it more convenient to use.", 160, scr=scr, style="hint")
+    usb_switch = lv.sw(scr)
+    usb_switch.align(usb_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+    lbl = add_label(" OFF                              ON  ")
+    lbl.align(usb_switch, lv.ALIGN.CENTER, 0, 0)
+    if config["usb"]:
+        usb_switch.on(lv.ANIM.OFF)
+
+    dev_label = add_label("Developer mode", 320, scr=scr)
+    dev_hint = add_label("In developer mode internal flash will be mounted to your computer so you could edit files, but your secrets will be visible as well. Also enables interactive shell through miniUSB port.", 360, scr=scr, style="hint")
+    dev_switch = lv.sw(scr)
+    dev_switch.align(dev_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+    lbl = add_label(" OFF                              ON  ")
+    lbl.align(dev_switch, lv.ALIGN.CENTER, 0, 0)
+    if config["developer"]:
+        dev_switch.on(lv.ANIM.OFF)
+
+
