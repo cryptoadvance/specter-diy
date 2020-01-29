@@ -4,11 +4,9 @@ from .decorators import *
 from .popups import alert
 from pin import Secret, Key, Pin, antiphishing_word, Factory_settings
 
-# queued screens
-@queued
+# "main" screens
 def ask_pin(first_time_usage, callback):
-    scr = lv.scr_act()
-    scr.clean()
+    scr = switch_to_new_screen()
     first_time_title = "Choose a PIN code"
     title = "Enter your PIN code"
     if first_time_usage:
@@ -88,10 +86,8 @@ def ask_pin(first_time_usage, callback):
 
     btnm.set_event_cb(cb);
 
-@queued
 def create_menu(buttons=[], title="What do you want to do?", y0=100, cb_back=None):
-    scr = lv.scr_act()
-    scr.clean()
+    scr = switch_to_new_screen()
     add_label(title, style="title")
     y = y0
     for text, callback in buttons:
@@ -100,22 +96,18 @@ def create_menu(buttons=[], title="What do you want to do?", y0=100, cb_back=Non
     if cb_back is not None:
         add_button(lv.SYMBOL.LEFT+" Back", on_release(cb_back))
 
-@queued
 def show_progress(title, text, callback=None):
-    scr = lv.scr_act()
-    scr.clean()
+    scr = switch_to_new_screen()
     add_label(title, style="title")
     add_label(text, y=200)
     if callback is not None:
         add_button("Cancel", on_release(callback))
 
-@queued
 def new_mnemonic(mnemonic, 
                  cb_continue, cb_back, cb_update=None, 
                  title="Your new recovery phrase:"):
     """Makes the new mnemonic screen with a slider to change number of words"""
-    scr = lv.scr_act()
-    scr.clean()
+    scr = switch_to_new_screen()
     add_label(title, style="title")
     table = add_mnemonic_table(mnemonic, y=100)
 
@@ -155,10 +147,8 @@ CHARSET_EXTRA = [
     lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
 ]
 
-@queued
 def ask_for_password(cb_continue, title="Enter your password (optional)"):
-    scr = lv.scr_act()
-    scr.clean()
+    scr = switch_to_new_screen()
     add_label(title, style="title")
 
     btnm = lv.btnm(scr)
@@ -212,12 +202,10 @@ def ask_for_password(cb_continue, title="Enter your password (optional)"):
 # global
 words = []
 
-@queued
 def ask_for_mnemonic(cb_continue, cb_back, 
                      check_mnemonic=None, words_lookup=None,
                      title="Enter your recovery phrase"):
-    scr = lv.scr_act()
-    scr.clean()
+    scr = switch_to_new_screen()
     add_label(title, style="title")
     table = add_mnemonic_table("", y=70)
 
