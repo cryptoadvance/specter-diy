@@ -1,0 +1,142 @@
+Designator Footprint               Mid X         Mid Y         Ref X         Ref Y         Pad X         Pad Y TB      Rotation Comment        
+
+U4         TPS63060              410.6mm       211.4mm       410.6mm       211.4mm     409.025mm       212.4mm  T        270.00 Texas Instruments TPS63060DSCR
+J6         PCB-icmh3e5dg0zwnj7dnv4l-1       396.6mm       221.5mm       396.6mm       221.5mm     399.475mm       223.5mm  T         90.00 JST S3B-PH-SM4-TB(LF)(SN)
+U5         PCB-cot7ps8saw6rws0ryicd-1    407.2934mm     207.825mm    407.2934mm     207.825mm    406.6434mm      206.95mm  T         90.00 MAX803SQ293D2T1G
+U3         PCB-2tv7dotjw6i7jk8dmo5t-1       375.4mm       213.4mm       375.4mm       213.4mm      373.05mm     214.375mm  T        360.00 STC3100IST     
+U2         PCB-yhvz6iwei78a9n514jnh-1    420.5714mm    294.4524mm    420.5714mm    294.4524mm    421.0714mm    294.8374mm  T        180.00 Texas Instruments TPS3422EGDRYR
+U1         DQC10-2400X840TP     398.125mm     210.956mm     398.125mm     210.956mm     397.125mm     210.006mm  T         90.00 BQ25060DQCR    
+SW2        PCB-jzft20c5ocof3hhi9mdb-1       422.1mm       316.5mm       422.1mm       316.5mm       422.1mm     314.468mm  T         90.00 C&K Components OS102011MA1QN1
+SW1        PCB-y9eaa5ubtxtmw5joheuc-1      417.15mm    306.7918mm       418.4mm    306.7918mm       418.4mm    304.5418mm  T         90.00 1825968-2      
+R51        RESC1005X40X25NL05T10      398.06mm       294.6mm      398.06mm       294.6mm     398.485mm       294.6mm  B        180.00 200R           
+R50        CAPC1005X55X25NL05T10       397.4mm    302.3785mm       397.4mm    302.3785mm      396.96mm    302.3785mm  T        360.00 10k            
+R49        CAPC1005X55X25NL05T10      399.96mm       294.6mm      399.96mm       294.6mm      399.52mm       294.6mm  B        360.00 10k            
+R48        CAPC1005X55X25NL05T10       403.2mm       294.6mm       403.2mm       294.6mm      402.76mm       294.6mm  B        360.00 10k            
+R47        CAPC1005X55X25NL05T10       381.6mm      309.46mm       381.6mm      309.46mm       381.6mm      309.02mm  T         90.00 10k            
+R46        CAPC1005X55X25NL05T10       383.9mm      313.34mm       383.9mm      313.34mm       383.9mm      313.78mm  T        270.00 10k            
+R45        RESC1005X40X25NL05T10     379.437mm     300.525mm     379.437mm     300.525mm     379.437mm       300.1mm  B         90.00 11.3k          
+R44        RESC1005X40X25NL05T10     419.325mm       250.8mm     419.325mm       250.8mm      419.75mm       250.8mm  T        180.00 22R            
+R43        CAPC1005X55X25NL05T10    378.4285mm      300.51mm    378.4285mm      300.51mm    378.4285mm      300.07mm  B         90.00 10k            
+R42        RESC1005X40X25NL05T10      378.62mm     305.772mm      378.62mm     305.772mm     378.195mm     305.772mm  B        360.00 200R           
+R41        RESC1005X40X25NL05T10      378.62mm     304.877mm      378.62mm     304.877mm     378.195mm     304.877mm  B        360.00 200R           
+R40        RESC1005X40X25NL05T10      378.62mm     303.977mm      378.62mm     303.977mm     378.195mm     303.977mm  B        360.00 200R           
+R39        CAPC1005X55X25NL05T10    422.1966mm      230.87mm    422.1966mm      230.87mm    422.1966mm      230.43mm  T          0.00 10k            
+R38        RESC1005X40X25NL05T10    405.5657mm     296.305mm    405.5657mm     296.305mm    405.5657mm      296.73mm  B        270.00 1k             
+R37        RESC1005X40X25NL05T10    405.1476mm       297.8mm    405.1476mm       297.8mm    405.5726mm       297.8mm  B        180.00 1k             
+R36        RESC1005X40X25NL05T10      378.62mm     303.077mm      378.62mm     303.077mm     378.195mm     303.077mm  B        360.00 200R           
+R35        CAPC1005X55X25NL05T10    389.2515mm      304.84mm    389.2515mm      304.84mm    389.2515mm       304.4mm  T         90.00 10k            
+R34        CAPC1005X55X25NL05T10       390.8mm      304.84mm       390.8mm      304.84mm       390.8mm       304.4mm  T         90.00 10k            
+R33        CAPC1005X55X25NL05T10       392.3mm      304.84mm       392.3mm      304.84mm       392.3mm       304.4mm  T         90.00 10k            
+R32        CAPC1005X55X25NL05T10     381.993mm      313.94mm     381.993mm      313.94mm     381.993mm       313.5mm  T         90.00 10k            
+R31        RESC1005X40X25NL05T10      378.62mm     302.122mm      378.62mm     302.122mm     379.045mm     302.122mm  B        180.00 24k            
+R30        CAPC1005X55X25NL05T10       413.8mm     208.575mm       413.8mm     208.575mm      413.36mm     208.575mm  T        360.00 10k            
+R29        RESC1005X40X25NL05T10     414.025mm     206.575mm     414.025mm     206.575mm       413.6mm     206.575mm  T        360.00 120k           
+R28        RESC1005X40X25NL05T10    405.1407mm       208.7mm    405.1407mm       208.7mm    405.5657mm       208.7mm  T        180.00 22R            
+R27        RESC1005X40X25NL05T10    415.6295mm     208.575mm    415.6295mm     208.575mm    415.2045mm     208.575mm  T        360.00 120k           
+R26        PCB-94jzisumn6aoatytwha0-1     375.475mm         211mm     375.475mm         211mm       375.9mm         211mm  T        180.00 200k 0.1%      
+R25        RESC1005X40X25NL05T10       371.2mm    214.5368mm       371.2mm    214.5368mm       371.2mm    214.1118mm  T         90.00 120k           
+R24        RESC1005X40X25NL05T10       371.2mm     212.675mm       371.2mm     212.675mm       371.2mm       213.1mm  T        270.00 120k           
+R23        RESC1005X40X25NL05T10       369.1mm     214.525mm       369.1mm     214.525mm       369.1mm       214.1mm  T         90.00 22R            
+R22        PCB-oasp05finfvytnojag3k-1     382.896mm     214.462mm     382.896mm     214.462mm     382.896mm     213.762mm  T         90.00 30m            
+R21        RESC1005X40X25NL05T10       368.7mm     213.075mm       368.7mm     213.075mm     369.125mm     213.075mm  T        180.00 22R            
+R20        PCB-crtsywht9wncomyl09db-1       379.5mm       215.4mm       379.5mm       215.4mm       379.5mm     214.975mm  T         90.00 2k             
+R19        RESC1005X40X25NL05T10     415.775mm       297.1mm     415.775mm       297.1mm      415.35mm       297.1mm  B        360.00 200R           
+R18        CAPC1005X55X25NL05T10         414mm      299.14mm         414mm      299.14mm         414mm      299.58mm  B        270.00 10k            
+R17        RESC1005X40X25NL05T10       408.9mm      205.35mm       408.9mm      205.35mm       408.9mm     204.925mm  T         90.00 120k           
+R16        CAPC1005X55X25NL05T10       420.2mm      298.76mm       420.2mm      298.76mm       420.2mm      298.32mm  B         90.00 10k            
+R15        CAPC1005X55X25NL05T10         411mm      304.16mm         411mm      304.16mm         411mm      303.72mm  B         90.00 10k            
+R14        RESC1005X40X25NL05T10         418mm     299.625mm         418mm     299.625mm         418mm       299.2mm  B         90.00 1k             
+R13        RESC1005X40X25NL05T10       417.6mm       318.1mm       417.6mm       318.1mm       417.6mm     317.675mm  B         90.00 120k           
+R12        RESC1005X40X25NL05T10       409.8mm      205.35mm       409.8mm      205.35mm       409.8mm     205.775mm  T        270.00 24k            
+R11        RESC1005X40X25NL05T10       375.9mm     205.972mm       375.9mm     205.972mm     375.475mm     205.972mm  T        360.00 120k           
+R10        PCB-rttfk851ndb9mrpedury-1       370.3mm       231.2mm       370.3mm       231.2mm      371.05mm       231.2mm  T        180.00 NCP15XH103F03RC
+R9         RESC1005X40X25NL05T10         400mm     207.175mm         400mm     207.175mm         400mm      206.75mm  T         90.00 11.3k          
+R8         PCB-0002-01779        397.6mm       208.6mm       397.6mm       208.6mm     398.025mm       208.6mm  T        180.00 2k             
+R7         RESC1005X40X25NL05T10     399.425mm       208.6mm     399.425mm       208.6mm      399.85mm       208.6mm  T        180.00 24k            
+R6         RESC1005X40X25NL05T10     402.475mm       204.5mm     402.475mm       204.5mm       402.9mm       204.5mm  T        180.00 120k           
+R5         RESC1005X40X25NL05T10       399.1mm     213.725mm       399.1mm     213.725mm       399.1mm      214.15mm  T        270.00 22R            
+R4         RESC1005X40X25NL05T10     400.675mm       204.5mm     400.675mm       204.5mm       401.1mm       204.5mm  T        180.00 120k           
+R3         RESC1005X40X25NL05T10     367.009mm       283.3mm     367.009mm       283.3mm     367.009mm     282.875mm  T         90.00 200R           
+R2         RESC1005X40X25NL05T10     367.009mm     281.475mm     367.009mm     281.475mm     367.009mm       281.9mm  T        270.00 24k            
+R1         RESC1005X40X25NL05T10         396mm       205.4mm         396mm       205.4mm     396.425mm       205.4mm  T        180.00 1k             
+Q6         PCB-829213-1         419.24mm     230.875mm      419.24mm     230.875mm      419.74mm      231.55mm  T        270.00 DMG1012T-7     
+Q5         PCB-829213-1        416.025mm       298.7mm     416.025mm       298.7mm       416.7mm       299.2mm  B        180.00 DMG1012T-7     
+Q4         ONSC-SOT-23-3-318-08_V       375.9mm      208.26mm       375.9mm      208.26mm      374.95mm      207.26mm  T         90.00 NTR4101PT1G    
+Q3         PCB-829213-1          420.5mm     297.925mm       420.5mm     297.925mm         421mm       298.6mm  T        270.00 DMG1012T-7     
+Q2         PCB-829213-1          402.5mm       206.4mm       402.5mm       206.4mm         402mm     205.725mm  T         90.00 DMG1012T-7     
+Q1         ONSC-SOT-23-3-318-08_V    405.3907mm         226mm    405.3907mm         226mm    404.4407mm         225mm  T         90.00 NTR4101PT1G    
+L2         VLS5045EX-1R5N        410.7mm      217.15mm       410.7mm      217.15mm       408.9mm      217.15mm  T        360.00 VLS5045EX-1R5N 
+L1         PCB-59e4j6y0bn8hbujw2jpq-1    390.9345mm    211.2741mm    390.9345mm    211.2741mm    391.5095mm    212.7741mm  T        270.00 ACP3225-102-2P-T000
+J7         PCB-16u5lfhv285szk9mzlb4-1       413.6mm       204.8mm       413.6mm       204.8mm       413.6mm       204.8mm  T          0.00 PWRGOOD        
+J5         PCB-zaz9lv92tniud42eyscu-1       377.7mm       224.5mm       377.7mm       224.5mm       377.7mm       224.5mm  T        270.00 BAT_M          
+J4         PCB-zaz9lv92tniud42eyscu-1    381.2677mm       224.5mm    381.2677mm       224.5mm    381.2677mm       224.5mm  T        270.00 BAT_TS         
+J3         PCB-zaz9lv92tniud42eyscu-1    384.8355mm       224.5mm    384.8355mm       224.5mm    384.8355mm       224.5mm  T        270.00 BAT_P          
+J2         JSTPH2              391.325mm       221.5mm     391.325mm       221.5mm       394.2mm       222.5mm  T         90.00 JST S2B-PH-SM4-TB(LF)(SN)
+J1         MICRO-USB5+6P-SMD-0.65-B    386.5018mm    205.7875mm       386.5mm      204.45mm       385.2mm     207.125mm  T          0.00 FCI-10118193-0001LF
+FB2        PCB-lzgidm1lbgbngdte6jvy-1    423.1166mm     280.201mm    423.1166mm     280.201mm    423.1166mm     279.551mm  T         90.00 MPZ1608S102ATA00
+FB1        PCB-lzgidm1lbgbngdte6jvy-1      380.45mm     206.885mm      380.45mm     206.885mm       381.1mm     206.885mm  T        180.00 MPZ1608S102ATA00
+D7         ONSC-SOD-523-2-502-01_V     419.896mm         229mm     419.896mm         229mm     419.236mm         229mm  T          0.00 RB520S30T1G    
+D6         ONSC-SOD-523-2-502-01_V      421.04mm      230.85mm      421.04mm      230.85mm      421.04mm      231.51mm  T        180.00 RB520S30T1G    
+D5         ONSC-SOD-523-2-502-01_V     419.903mm       227.8mm     419.903mm       227.8mm     420.563mm       227.8mm  T        180.00 RB520S30T1G    
+D4         ONSC-SOD-523-2-502-01_V       421.7mm       300.2mm       421.7mm       300.2mm      422.36mm       300.2mm  T        180.00 RB520S30T1G    
+D3         ONSC-SOD-523-2-502-01_V       421.7mm       301.3mm       421.7mm       301.3mm      422.36mm       301.3mm  T        180.00 RB520S30T1G    
+D2         PCB_-_LS_A67K         396.6mm       203.8mm       396.6mm       203.8mm       395.6mm       203.8mm  T          0.00 LTST-S270KRKT  
+D1         PCB-svuptgvsz8fymjeirekr-1      386.55mm       209.5mm      386.55mm       209.5mm      387.75mm       209.5mm  T          0.00 CDSOD323-T05S  
+C42        CAPC2013X145X45NL20T25    390.1469mm     296.955mm    390.1469mm     296.955mm    390.1469mm      297.78mm  B        270.00 22u            
+C41        CAPC1608X90X35NL10T15    395.1745mm    294.4705mm    395.1745mm    294.4705mm    395.8495mm    294.4705mm  B        180.00 1u             
+C40        CAPC2013X145X45NL20T25       423.1mm     270.825mm       423.1mm     270.825mm       423.1mm      271.65mm  T        270.00 22u            
+C39        CAPC1005X55X25NL05T10     380.437mm      300.51mm     380.437mm      300.51mm     380.437mm      300.07mm  B         90.00 1n             
+C38        CAPC1005X55X25NL05T10       406.7mm      296.29mm       406.7mm      296.29mm       406.7mm      295.85mm  B         90.00 u1             
+C37        CAPC1608X90X35NL10T15     422.475mm       227.8mm     422.475mm       227.8mm      423.15mm       227.8mm  T        180.00 1u             
+C36        CAPC2013X145X45NL20T25         383mm    302.9635mm         383mm    302.9635mm     383.825mm    302.9635mm  T        180.00 22u            
+C35        CAPC2013X145X45NL20T25         383mm       306.9mm         383mm       306.9mm     383.825mm       306.9mm  T        180.00 22u            
+C34        CAPC1005X55X25NL05T10     382.675mm    300.2135mm     382.675mm    300.2135mm     382.675mm    299.7735mm  B         90.00 u1             
+C33        CAPC1005X55X25NL05T10    381.4935mm     308.605mm    381.4935mm     308.605mm    381.4935mm     309.045mm  B        270.00 u1             
+C32        CAPC1005X55X25NL05T10     381.575mm     300.205mm     381.575mm     300.205mm     381.575mm     299.765mm  B         90.00 u1             
+C31        CAPC1005X55X25NL05T10     383.255mm      295.93mm     383.255mm      295.93mm     382.815mm      295.93mm  B        360.00 u1             
+C30        CAPC1005X55X25NL05T10     383.255mm      296.93mm     383.255mm      296.93mm     382.815mm      296.93mm  B        360.00 u1             
+C29        CAPC1005X55X25NL05T10     384.135mm     299.705mm     384.135mm     299.705mm     384.575mm     299.705mm  B        180.00 u1             
+C28        CAPC1005X55X25NL05T10     384.135mm    300.6535mm     384.135mm    300.6535mm     384.575mm    300.6535mm  B        180.00 u1             
+C27        CAPC1005X55X25NL05T10    405.5657mm      207.26mm    405.5657mm      207.26mm    405.5657mm      206.82mm  T         90.00 u1             
+C26        CAPC1005X55X25NL05T10       413.8mm       209.6mm       413.8mm       209.6mm      413.36mm       209.6mm  T        360.00 10p            
+C25        CAPC1005X55X25NL05T10       412.2mm      208.36mm       412.2mm      208.36mm       412.2mm      207.92mm  T         90.00 u1             
+C24        CAPC2013X145X45NL20T25    404.0657mm         213mm    404.0657mm         213mm    404.0657mm     213.825mm  T        270.00 22u            
+C23        CAPC2013X145X45NL20T25    406.0657mm         213mm    406.0657mm         213mm    406.0657mm     213.825mm  T        270.00 22u            
+C22        CAPC2013X145X45NL20T25    414.8657mm     212.581mm    414.8657mm     212.581mm    414.8657mm     213.406mm  T        270.00 22u            
+C21        CAPC2013X145X45NL20T25    416.8657mm     212.581mm    416.8657mm     212.581mm    416.8657mm     213.406mm  T        270.00 22u            
+C20        CAPC2013X145X45NL20T25    418.8657mm     212.581mm    418.8657mm     212.581mm    418.8657mm     213.406mm  T        270.00 22u            
+C19        CAPC2013X145X45NL20T25       420.9mm    212.5811mm       420.9mm    212.5811mm       420.9mm     213.406mm  T        270.00 22u            
+C18        CAPC1608X90X35NL10T15       379.6mm     213.111mm       379.6mm     213.111mm       379.6mm     212.436mm  T         90.00 1u             
+C17        CAPC1005X55X25NL05T10       370.1mm    214.5518mm       370.1mm    214.5518mm       370.1mm    214.9918mm  T        270.00 1n             
+C16        CAPC1005X55X25NL05T10       370.1mm     212.635mm       370.1mm     212.635mm       370.1mm     212.195mm  T         90.00 1n             
+C15        CAPC1005X55X25NL05T10      377.31mm       215.6mm      377.31mm       215.6mm      376.87mm       215.6mm  T        360.00 u1             
+C14        CAPC1005X55X25NL05T10       419.1mm      298.76mm       419.1mm      298.76mm       419.1mm      298.32mm  B         90.00 u1             
+C13        CAPC1005X55X25NL05T10    407.9434mm     205.335mm    407.9434mm     205.335mm    407.9434mm     204.895mm  T         90.00 1n             
+C12        CAPC1005X55X25NL05T10    420.2714mm    292.3374mm    420.2714mm    292.3374mm    420.7114mm    292.3374mm  T        180.00 u1             
+C11        CAPC1005X55X25NL05T10         399mm      207.16mm         399mm      207.16mm         399mm      206.72mm  T         90.00 u1             
+C10        CAPC1005X55X25NL05T10    407.7907mm      226.56mm    407.7907mm      226.56mm    407.7907mm      226.12mm  T         90.00 u1             
+C9         CAPC1005X55X25NL05T10      400.95mm      207.16mm      400.95mm      207.16mm      400.95mm      206.72mm  T         90.00 u1             
+C8         CAPC2013X145X45NL20T25     394.475mm       214.8mm     394.475mm       214.8mm      393.65mm       214.8mm  T        360.00 22u            
+C7         CAPC1608X90X35NL10T15     394.825mm         213mm     394.825mm         213mm      394.15mm         213mm  T          0.00 1u             
+C6         CAPC1005X55X25NL05T10       394.8mm     210.446mm       394.8mm     210.446mm       394.8mm     210.886mm  T        270.00 u1             
+C5         CAPC1608X90X35NL10T15     395.075mm     208.456mm     395.075mm     208.456mm       394.4mm     208.456mm  T        360.00 1u             
+C4         CAPC1005X55X25NL05T10       393.8mm     210.446mm       393.8mm     210.446mm       393.8mm     210.886mm  T        270.00 u1             
+C3         CAPC1005X55X25NL05T10      387.26mm         212mm      387.26mm         212mm       387.7mm         212mm  T        180.00 u1             
+C2         CAPC1005X55X25NL05T10      387.26mm         211mm      387.26mm         211mm       387.7mm         211mm  T        180.00 1n             
+C1         CAPC1005X55X25NL05T10       395.8mm     210.446mm       395.8mm     210.446mm       395.8mm     210.886mm  T        270.00 1n             
+J8         PCBComponent_1_-_duplicate     393.825mm      275.14mm     393.825mm      275.14mm      402.08mm      287.34mm  B        180.00 FCI 7312P0225A13LF
+J9         PCB-a1fsc6jjl71gcgtqmpw9-1     418.902mm     279.581mm     418.902mm     279.581mm     420.552mm     288.471mm  T        270.00 Harwin M20-8770842
+J11        PCB-oi3786kvfyfvus515mhx-1     370.642mm     286.185mm     370.642mm     286.185mm     368.992mm     274.755mm  T         90.00 Harwin M20-8771042
+J12        PCB-a1fsc6jjl71gcgtqmpw9-1     370.642mm     261.801mm     370.642mm     261.801mm     368.992mm     252.911mm  T         90.00 Harwin M20-8770842
+J13        PCB-tcxrerk3sfa09abtw5ob-1     418.902mm     259.261mm     418.902mm     259.261mm     420.552mm     265.611mm  T        270.00 Harwin M20-8770642
+LS1        PCB-s69sc097nywe4t4ay05e-1       418.8mm       221.1mm       418.8mm       221.1mm       418.8mm      225.25mm  T        270.00 SMT-1127-S-R   
+U6         PCBComponent_1      382.945mm     304.822mm     382.945mm     304.822mm     381.695mm     306.822mm  B        270.00 ST8034HNQR     
+J10        PCB-k5pgcgjronex5cu153ln-1       397.4mm      297.08mm       397.4mm       298.4mm      394.65mm     296.505mm  B          0.00 Amphenol SFV12R-2STE1HLF
+C43        PCB-gsg8hng0al36bfobhul9-1    420.5081mm    237.2171mm    420.5081mm    237.2171mm    420.5081mm    234.7921mm  T         90.00 100uF 10V      
+C44        PCB-gsg8hng0al36bfobhul9-1     420.528mm     245.825mm     420.528mm     245.825mm     420.528mm      248.25mm  T        270.00 100uF 10V      
+C45        CAPC1005X55X25NL05T10       413.4mm    212.5057mm       413.4mm    212.5057mm       413.4mm    212.9457mm  T        270.00 u1             
+C46        PCB-gsg8hng0al36bfobhul9-1       405.3mm       219.5mm       405.3mm       219.5mm       405.3mm     221.925mm  T        270.00 100uF 10V      
+C47        PCB-gsg8hng0al36bfobhul9-1    411.7523mm         224mm    411.7523mm         224mm    411.7523mm     221.575mm  T         90.00 100uF 10V      
+C48        CAPC1005X55X25NL05T10       407.7mm      212.34mm       407.7mm      212.34mm       407.7mm      212.78mm  T        270.00 u1             
+R52        CAPC1005X55X25NL05T10     378.605mm    306.7343mm     378.605mm    306.7343mm     378.165mm    306.7343mm  B        360.00 10k            
+
