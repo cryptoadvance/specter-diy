@@ -3,7 +3,6 @@
 Security critical features:
 
 - GUI alert on exception
-- device configuration that defines what features to disable/enable (i.e. USB, developer mode etc.)
 - optional secure bootloader checking signatures on the firmware
 - make sure that code and secrets are stored on **internal** flash, not QSPI (see [dual_flash_storage branch](https://github.com/diybitcoinhardware/micropython/tree/dual_flash_storage))
 - secure poweroff that erases all the secrets from RAM

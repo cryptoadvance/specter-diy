@@ -14,6 +14,8 @@ Run `./build.sh` script, it may work. Or not. If not - please open an issue and 
 
 At the end you should get a `specter-diy.bin` file in the root that you can copy to the device.
 
+The easiest way to start developing is to use a [simulator](./simulator.md), and when you are done - try it on a real hardware.
+
 ### Micropython with editable Specter firmware
 
 By default when firmware is compiled all python files are optimized and frozen in the firmware.
