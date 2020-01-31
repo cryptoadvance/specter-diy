@@ -17,7 +17,8 @@ DESCRIPTOR_SCRIPTS = {
     "sh": script.p2sh,
     "wsh": script.p2wsh,
     "multi": multi,
-    "sortedmulti": sortedmulti
+    "sortedmulti": sortedmulti,
+    "taproot": script.p2taproot,
 }
 
 class KeyStore:

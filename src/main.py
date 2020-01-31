@@ -40,11 +40,9 @@ DEFAULT_XPUBS = []
 def cancel_scan():
     print("Cancel scan!")
     qr_scanner.stop()
-    show_main()
 
 def del_wallet(w):
     keystore.delete_wallet(w)
-    show_main()
 
 def select_wallet(w):
     popups.show_wallet(w, delete_cb=del_wallet)

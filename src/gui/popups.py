@@ -126,13 +126,13 @@ def show_wallet(wallet, delete_cb=None):
                              ok_text="Close", width=300)
     lbl = add_label("Receiving address #%d" % (idx+1), y=80)
     def cb_update(delta):
-        idx = int(lbl.get_text().split("#")[1])
+        idx = int(lbl.get_text().split("#")[1])-1
         if idx+delta >= 0:
             idx += delta
         addr = wallet.address(idx)
         scr.message.set_text(addr)
         scr.qr.set_text("bitcoin:"+addr)
-        lbl.set_text("Receiving address #%d" % idx)
+        lbl.set_text("Receiving address #%d" % (idx+1))
         if idx > 0:
             prv.set_state(lv.btn.STATE.REL)
         else:
