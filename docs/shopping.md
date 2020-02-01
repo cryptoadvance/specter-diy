@@ -17,7 +17,7 @@ For QR code scanner you have several options.
 
 **Option 1.** Resonably good scanner from Waveshare (40$)
 
-- [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to find a way how to mount it nicely, maybe use some kind of Arduino Prototype shield and some ducktape. For wiring see [here](docs/waveshare.md).
+- [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to find a way how to mount it nicely, maybe use some kind of Arduino Prototype shield and some ducktape. For wiring see [here](./waveshare.md).
 
 **Option 2.** Extremely nice scanner from Mikroe but pretty expensive (150$):
 
