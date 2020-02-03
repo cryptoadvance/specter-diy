@@ -40,6 +40,7 @@ DEFAULT_XPUBS = []
 def cancel_scan():
     print("Cancel scan!")
     qr_scanner.stop()
+    show_main()
 
 def del_wallet(w):
     keystore.delete_wallet(w)
