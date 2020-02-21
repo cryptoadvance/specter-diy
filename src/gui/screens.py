@@ -175,8 +175,29 @@ def ask_for_password(cb_continue, title="Enter your password (optional)"):
     ta.set_cursor_type(lv.CURSOR.HIDDEN)
     ta.set_one_line(True)
     # ta.set_pwd_show_time(0)
+
+    key_hint = lv.btn(scr)
+    key_hint.set_size(50,60)
+    key_lbl = add_label(" ", style="title", scr=key_hint)
+    key_hint.set_hidden(True)
+
     def cb(obj, event):
-        if event == lv.EVENT.RELEASED:
+        if event == lv.EVENT.PRESSING:
+            c = obj.get_active_btn_text()
+            if c is None:
+                return
+            if len(c)>2:
+                key_hint.set_hidden(True)
+                return
+            key_hint.set_hidden(False)
+            key_lbl.set_text(c)
+            point = lv.point_t()
+            indev = lv.indev_get_act()
+            lv.indev_get_point(indev, point)
+            key_hint.set_pos(point.x-25, point.y-130)
+
+        elif event == lv.EVENT.RELEASED:
+            key_hint.set_hidden(True)
             c = obj.get_active_btn_text()
             if c is None:
                 return
@@ -235,9 +256,28 @@ def ask_for_mnemonic(cb_continue, cb_back,
     btnm.set_height(VER_RES//3)
     btnm.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
+    key_hint = lv.btn(scr)
+    key_hint.set_size(50,60)
+    key_lbl = add_label(" ", style="title", scr=key_hint)
+    key_hint.set_hidden(True)
+
     def cb(obj, event):
         global words
-        if event == lv.EVENT.RELEASED:
+        if event == lv.EVENT.PRESSING:
+            c = obj.get_active_btn_text()
+            if c is None:
+                return
+            if len(c)>1:
+                key_hint.set_hidden(True)
+                return
+            key_hint.set_hidden(False)
+            key_lbl.set_text(c)
+            point = lv.point_t()
+            indev = lv.indev_get_act()
+            lv.indev_get_point(indev, point)
+            key_hint.set_pos(point.x-25, point.y-130)
+        elif event == lv.EVENT.RELEASED:
+            key_hint.set_hidden(True)
             c = obj.get_active_btn_text()
             if c is None:
                 return
