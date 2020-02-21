@@ -5,11 +5,11 @@
 The idea of the project is to build a hardware wallet from off-the-shelf components.
 Even though we have [a devkit](./devkit) that puts everything in a nice form-factor and helps you to avoid any soldering, we will continue supporting and maintaining compatibility with standard components.
 
-We also want to keep the project flexible such that it can work on any other set of components with minimal changes. Maybe you want to make a hardware wallet on a different architecture (RISC-V?), with an audio modem as a communication channel - we believe that you should be able to do it. We will try to make it easy to adapt Specter to different functionality and abstract logical modules as much as we can.
+We also want to keep the project flexible such that it can work on any other set of components with minimal changes. Maybe you want to make a hardware wallet on a different architecture (RISC-V?), with an audio modem as a communication channel - you should be able to do it. It should be easy to add or change functionality of Specter and we try to abstract logical modules as much as we can.
 
-By default we assume QR codes for communication, reasonably large screen for GUI. We think that QR codes are the most convenient way to take control over comunication - they have very limited data capacity and purely unidirectional. And it's airgapped - you don't need to connect the wallet to your computer at any time.
+QR codes are a default way for Specter to communicate with the host. QR codes are pretty convenient and allow the user to be in control of the data transmission - every QR code has a very limited capacity and communication happens unidirectionally. And it's airgapped - you don't need to connect the wallet to the computer at any time.
 
-For secret storage we support agnostic mode (forgets all secrets when turned off), reckless mode (store secrets in flash of the application microcontroller) and currently working on a secure element integration in the form factor of a smartcard.
+For secret storage we support agnostic mode (wallet forgets all secrets when turned off), reckless mode (stores secrets in flash of the application microcontroller) and secure element integration is coming soon.
 
 Our main focus is multisignature setup with other hardware wallets, but wallet can also work as a single signer. We try to make it compatible with Bitcoin Core where we can - PSBT for unsigned transactions, wallet descriptors for importing/exporting multisig wallets. To communcate with Bitcoin Core easier we are also working on [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) - a small python flask server talking to your Bitcoin Core node.
 
