@@ -36,17 +36,17 @@ class QRScanner:
         self.uart = pyb.UART(uart, baudrate, read_buf_len=1024)
         self.uart.read(self.uart.any())
 
-        if trigger is None and not simulator:
-            self.trigger = None
-            # if failed to configure - probably a different scanner
-            # in this case fallback to PIN trigger mode
-            if not self.configure():
-                trigger = QRSCANNER_TRIGGER
-                self.trigger = pyb.Pin(trigger, pyb.Pin.OUT)
-                self.trigger.on()
-        else:
+        self.trigger = None
+        self.is_configured = False
+        # we autoconfigure scanner before the first scan, 
+        # as we don't know if scanner already got power or not
+        # during the constructor
+        # and if we have scanner at all
+        if trigger is not None or simulator:
             self.trigger = pyb.Pin(trigger, pyb.Pin.OUT)
             self.trigger.on()
+            self.is_configured = True
+
         self.scanning = False
         self.t0 = None
         self.callback = None
@@ -114,7 +114,17 @@ class QRScanner:
             return val
         return True
 
+    def init(self):
+        # if failed to configure - probably a different scanner
+        # in this case fallback to PIN trigger mode
+        if not self.configure():
+            trigger = QRSCANNER_TRIGGER
+            self.trigger = pyb.Pin(trigger, pyb.Pin.OUT)
+            self.trigger.on()
+
     def trigger_on(self):
+        if not self.is_configured:
+            self.init()
         if self.trigger is not None:
             self.trigger.off()
         else:

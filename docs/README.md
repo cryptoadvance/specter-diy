@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [`shopping.md`](./shopping.md) explains what to buy
+- [`assembly.md`](./assembly.md) shows how to put everything together.
 - [`quickstart.md`](./quickstart.md) guides you through the initial steps how to get firmware on the board
 - [`security.md`](./security.md) explains possible attack vectors and security model of the project
 - [`development.md`](./development.md) explains how to start developing on Specter
