@@ -37,21 +37,38 @@ keystore = KeyStore(storage_root=storage_root)
 
 DEFAULT_XPUBS = []
 
+
+def catchit(fn):
+    """ Catches an error in the function and 
+        displays error screen with exception """
+    # Maybe there is a better way... 
+    def cb(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            gui.error("Something bad happened...\n\n%r" % e)
+    return cb
+
+@catchit
 def cancel_scan():
     print("Cancel scan!")
     qr_scanner.stop()
     show_main()
 
+@catchit
 def del_wallet(w):
     keystore.delete_wallet(w)
 
+@catchit
 def select_wallet(w):
     popups.show_wallet(w, delete_cb=del_wallet)
 
+@catchit
 def new_wallet_confirm(name, descriptor):
     # print("creating wallet %s:" % name,descriptor)
     keystore.create_wallet(name, descriptor)
 
+@catchit
 def confirm_new_wallet(s):
     show_main()
     gui.update(30)
@@ -68,6 +85,7 @@ def confirm_new_wallet(s):
         return
     popups.prompt("Add wallet \"%s\"?" % arr[0], arr[1], ok=cb_with_args(new_wallet_confirm, name=arr[0], descriptor=arr[1]))
 
+@catchit
 def add_new_wallet():
     screens.show_progress("Scan wallet to add",
                           "Scanning.. Click \"Cancel\" to stop.",
@@ -75,6 +93,7 @@ def add_new_wallet():
     gui.update(30)
     qr_scanner.start_scan(confirm_new_wallet)
 
+@catchit
 def wallets_menu():
     buttons = []
     def wrapper(w):
@@ -86,6 +105,7 @@ def wallets_menu():
     buttons.append((lv.SYMBOL.PLUS+" Add new wallet (scan)", add_new_wallet))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the wallet")
 
+@catchit
 def show_xpub(name, derivation, xpub=None):
     if xpub is None:
         xpub = keystore.get_xpub(derivation).to_base58()
@@ -93,6 +113,7 @@ def show_xpub(name, derivation, xpub=None):
     prefix = "[%s%s]" % (fingerprint, derivation[1:])
     popups.show_xpub(name, xpub, prefix=prefix)
 
+@catchit
 def xpubs_menu():
     def selector(name, derivation):
         def cb():
@@ -103,6 +124,7 @@ def xpubs_menu():
         buttons.append((name, selector(name, derivation)))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the master key")
 
+@catchit
 def sign_psbt(wallet=None, tx=None, success_callback=None):
     keystore.sign(tx)
     # remove everything but partial sigs
@@ -129,6 +151,7 @@ def sign_psbt(wallet=None, tx=None, success_callback=None):
     if success_callback is not None:
         success_callback(b64_tx)
 
+@catchit
 def parse_transaction(b64_tx, success_callback=None, error_callback=None):
     # we will go to main afterwards
     show_main()
@@ -160,6 +183,7 @@ def parse_transaction(b64_tx, success_callback=None, error_callback=None):
     message += "\nFee: %u satoshi" % data["fee"]
     popups.prompt(title, message, ok=cb_with_args(sign_psbt, wallet=data["wallet"], tx=tx, success_callback=success_callback), cancel=cb_with_args(error_callback, "user cancel"))
 
+@catchit
 def scan_transaction():
     screens.show_progress("Scan transaction to sign",
                           "Scanning.. Click \"Cancel\" to stop.",
@@ -167,6 +191,7 @@ def scan_transaction():
     gui.update(30)
     qr_scanner.start_scan(parse_transaction)
 
+@catchit
 def verify_address(s):
     # we will go to main afterwards
     show_main()
@@ -198,6 +223,7 @@ def verify_address(s):
             return
     gui.error("Address doesn't belong to any wallet. Wrong device or network?")
 
+@catchit
 def scan_address():
     screens.show_progress("Scan address to verify",
                           "Scanning.. Click \"Cancel\" to stop.",
@@ -205,12 +231,14 @@ def scan_address():
     gui.update(30)
     qr_scanner.start_scan(verify_address)
 
+@catchit
 def set_default_xpubs(net):
     while len(DEFAULT_XPUBS) > 0:
         DEFAULT_XPUBS.pop()
     DEFAULT_XPUBS.append(("Single key", "m/84h/%dh/0h" % net["bip32"]))
     DEFAULT_XPUBS.append(("Multisig", "m/48h/%dh/0h/2h" % net["bip32"]))
 
+@catchit
 def select_network(name):
     global network
     if name in NETWORKS:
@@ -234,6 +262,7 @@ def select_network(name):
     else:
         raise RuntimeError("Unknown network")
 
+@catchit
 def network_menu():
     def selector(name):
         def cb():
@@ -241,7 +270,6 @@ def network_menu():
                 select_network(name)
                 show_main()
             except Exception as e:
-                print(e)
                 gui.error("%r" % e)
         return cb
     # could be done with iterator
@@ -253,13 +281,16 @@ def network_menu():
         ("Signet", selector("signet"))
     ], title="Select the network")
 
+@catchit
 def show_mnemonic():
     # print(bip39.mnemonic_from_bytes(entropy))
     popups.show_mnemonic(bip39.mnemonic_from_bytes(entropy))
 
+@catchit
 def save_entropy():
     gui.prompt("Security", "Do you want to encrypt your key?", save_entropy_encrypted, save_entropy_plain)
 
+@catchit
 def entropy_decrypt(entropy_encrypted):
     # 2 - MODE_CBC
     crypto = aes(Key.key, 2, Key.iv)
@@ -269,6 +300,7 @@ def entropy_decrypt(entropy_encrypted):
         raise RuntimeError("Failed to decrypt entropy - data is corrupted")
     return data[1:l+1]
 
+@catchit
 def entropy_encrypt(entropy_plain):
     # 2 - MODE_CBC
     crypto = aes(Key.key, 2, Key.iv)
@@ -277,6 +309,7 @@ def entropy_encrypt(entropy_plain):
     data = bytes([len(entropy_plain)])+entropy_plain+bytes(pad_len)
     return crypto.encrypt(data);
 
+@catchit
 def save_entropy_encrypted():
     try:
         Key.iv = get_random_bytes(16)
@@ -299,6 +332,7 @@ def save_entropy_encrypted():
     except Exception as e:
         gui.error("Fail: %r" % e)
 
+@catchit
 def save_entropy_plain():
     obj = {"entropy": hexlify(entropy).decode('utf-8')}
     with open(reckless_fname, "w") as f:
@@ -310,6 +344,7 @@ def save_entropy_plain():
     else:
         gui.error("Something went wrong")
 
+@catchit
 def delete_entropy():
     try:
         os.remove(reckless_fname)
@@ -317,6 +352,7 @@ def delete_entropy():
     except:
         gui.error("Failed to delete the key")
 
+@catchit
 def save_settings(config):
     try:
         if USB_ENABLED and not config["usb"]:
@@ -340,6 +376,7 @@ def save_settings(config):
         gui.error("Failed to update settings!\n%r" % e)
     print(config)
 
+@catchit
 def settings_menu():
     gui.create_menu(buttons=[
         ("Show recovery phrase", show_mnemonic),
@@ -351,6 +388,7 @@ def settings_menu():
                          save_settings)),
         ], cb_back=show_main,title="Careful. Think twice.")
 
+@catchit
 def show_main():
     gui.create_menu(buttons=[
         ("Wallets", wallets_menu),
@@ -362,12 +400,14 @@ def show_main():
         ("Settings", settings_menu)
         ])
 
+@catchit
 def get_new_mnemonic(words=12):
     entropy_len = words*4//3
     global entropy
     entropy = get_random_bytes(entropy_len)
     return bip39.mnemonic_from_bytes(entropy)
 
+@catchit
 def gen_new_key(words=12):
     mnemonic = get_new_mnemonic(words)
     screens.new_mnemonic(mnemonic,
@@ -375,33 +415,37 @@ def gen_new_key(words=12):
                          cb_back=show_init,
                          cb_update=get_new_mnemonic)
 
+@catchit
 def recover_key():
     screens.ask_for_mnemonic(cb_continue=mnemonic_entered,
                              cb_back=show_init,
                              check_mnemonic=bip39.mnemonic_is_valid,
                              words_lookup=bip39.find_candidates)
 
+@catchit
 def mnemonic_entered(mnemonic):
     global entropy
     entropy = bip39.mnemonic_to_bytes(mnemonic.strip())
     ask_for_password()
 
+@catchit
 def load_key():
     global entropy
-    try:
-        with open(reckless_fname, "r") as f:
-            d = json.loads(f.read())
-            entropy = unhexlify(d["entropy"])
-        if "hmac" in d:
-            hmac_calc = hmac_sha512(Key.key, entropy)
-            if unhexlify(d["hmac"]) != hmac_calc:
-                raise ValueError('Hmac does not match!')
-            Key.iv = unhexlify(d["iv"])
-            entropy = entropy_decrypt(entropy)
+    with open(reckless_fname, "r") as f:
+        d = json.loads(f.read())
+        entropy = unhexlify(d["entropy"])
+    if "hmac" in d:
+        hmac_calc = hmac_sha512(Key.key, entropy)
+        if unhexlify(d["hmac"]) != hmac_calc:
+            raise ValueError('Hmac does not match!')
+        Key.iv = unhexlify(d["iv"])
+        entropy = entropy_decrypt(entropy)
+    if entropy is not None:
         ask_for_password()
-    except:
-        gui.error("Something went wrong, sorry")
+    else:
+        gui.error("Failed to load your recovery phrase.")
 
+@catchit
 def show_init():
     buttons = [
         ("Generate new key", gen_new_key),
@@ -420,9 +464,11 @@ def show_init():
         pass
     screens.create_menu(buttons=buttons)
 
+@catchit
 def ask_for_password():
     screens.ask_for_password(init_keys)
 
+@catchit
 def init_keys(password):
     mnemonic = bip39.mnemonic_from_bytes(entropy)
     seed = bip39.mnemonic_to_seed(mnemonic, password)
@@ -435,6 +481,7 @@ def init_keys(password):
         usb_host.callback = host_callback
 
 # process all usb commands
+@catchit
 def host_callback(data):
     # close all existing popups
     popups.close_all_popups()
