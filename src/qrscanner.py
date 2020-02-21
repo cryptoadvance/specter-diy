@@ -6,8 +6,14 @@ if not simulator:
 else:
     from unixport import pyb
 
+QRSCANNER_TRIGGER = "D5"
+try:
+    from config import QRSCANNER_TRIGGER
+except:
+    pass
+
 class QRScanner:
-    def __init__(self, trigger="D5", uart="YA", baudrate=9600):
+    def __init__(self, trigger=QRSCANNER_TRIGGER, uart="YA", baudrate=9600):
         if simulator:
             self.EOL = "\r\n"
         else:
