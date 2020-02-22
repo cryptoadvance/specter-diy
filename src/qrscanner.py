@@ -125,6 +125,8 @@ class QRScanner:
     def trigger_on(self):
         if not self.is_configured:
             self.init()
+            self.is_configured = True
+
         if self.trigger is not None:
             self.trigger.off()
         else:
