@@ -54,6 +54,7 @@ def ask_pin(first_time_usage, callback):
     antiphish_label = add_label(antiphishing_word(""), 250)
     Pin.read_counter()
 
+    @feed_rng
     def cb(obj, event):
         nonlocal first_time_usage
         if event == lv.EVENT.RELEASED:
@@ -127,6 +128,7 @@ def new_mnemonic(mnemonic,
         slider.set_pos(PADDING, 600)
         slider.set_value((wordcount-12)//3, lv.ANIM.OFF)
         lbl = add_label("Number of words: %d" % wordcount, y=550)
+        @feed_rng
         def cb_upd(obj, event):
             if event == lv.EVENT.VALUE_CHANGED:
                 wordcount = slider.get_value()*3+12
@@ -134,9 +136,11 @@ def new_mnemonic(mnemonic,
                 mnemonic = cb_update(wordcount)
                 table_set_mnemonic(table, mnemonic)
         slider.set_event_cb(cb_upd)
+    @feed_rng
     def cb_prev(obj, event):
         if event == lv.EVENT.RELEASED:
             cb_back()
+    @feed_rng
     def cb_next(obj, event):
         if event == lv.EVENT.RELEASED:
             cb_continue()
@@ -181,6 +185,7 @@ def ask_for_password(cb_continue, title="Enter your password (optional)"):
     key_lbl = add_label(" ", style="title", scr=key_hint)
     key_hint.set_hidden(True)
 
+    @feed_rng
     def cb(obj, event):
         if event == lv.EVENT.PRESSING:
             c = obj.get_active_btn_text()
@@ -261,6 +266,7 @@ def ask_for_mnemonic(cb_continue, cb_back,
     key_lbl = add_label(" ", style="title", scr=key_hint)
     key_hint.set_hidden(True)
 
+    @feed_rng
     def cb(obj, event):
         global words
         if event == lv.EVENT.PRESSING:
