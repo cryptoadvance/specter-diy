@@ -1,9 +1,11 @@
 from bitcoin import bip32, ec, script, hashes
 from bitcoin.networks import NETWORKS
+import secp256k1
 import os
 import ujson as json
 import ure as re
 from ubinascii import unhexlify, hexlify
+from rng import get_random_bytes
 
 def multi(*args):
     return script.multisig(args[0], args[1:])
@@ -167,6 +169,9 @@ class KeyStore:
         return obj
 
     def sign(self, tx):
+        # good practice to randomize context 
+        # it reduces chances of side-channel attacks
+        secp256k1.context_randomize(get_random_bytes(32))
         tx.sign_with(self.root)
         return tx
 
