@@ -78,7 +78,7 @@ def new_wallet_confirm(name, descriptor):
     keystore.create_wallet(name, descriptor)
 
 @catchit
-def confirm_new_wallet(s):
+def parse_new_wallet(s):
     show_main()
     gui.update(30)
 
@@ -111,7 +111,7 @@ def add_new_wallet():
                           "Scanning.. Click \"Cancel\" to stop.",
                           callback=cancel_scan)
     gui.update(30)
-    qr_scanner.start_scan(confirm_new_wallet)
+    qr_scanner.start_scan(parse_new_wallet)
 
 @catchit
 def wallets_menu():
@@ -562,7 +562,7 @@ def host_callback(data):
         return
 
     if data.startswith("importwallet "):
-        confirm_new_wallet(data[13:])
+        parse_new_wallet(data[13:])
 
     # TODO: 
     # - signmessage <message>

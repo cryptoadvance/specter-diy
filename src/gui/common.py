@@ -74,9 +74,18 @@ def init_styles():
     th.style.slider.knob.body.border.width = 0
     # page
     th.style.page.bg.body.opa = 0
-    # th.style.page.sb.body.opa = 0
     th.style.page.scrl.body.opa = 0
+    th.style.page.bg.body.border.width = 0
+    th.style.page.bg.body.padding.left = 0
+    th.style.page.bg.body.padding.right = 0
+    th.style.page.bg.body.padding.top = 0
+    th.style.page.bg.body.padding.bottom = 0
     th.style.page.scrl.body.border.width = 0
+    th.style.page.scrl.body.padding.left = 0
+    th.style.page.scrl.body.padding.right = 0
+    th.style.page.scrl.body.padding.top = 0
+    th.style.page.scrl.body.padding.bottom = 0
+
     styles["theme"] = th
 
     lv.theme_set_current(th)
