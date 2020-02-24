@@ -8,10 +8,9 @@ try:
     from os import urandom as get_trng_bytes
 except:
     # read /dev/urandom instead?
-    import urandom, time
-    urandom.seed(int(time.time()))
     def get_trng_bytes(nbytes):
-        return bytes([urandom.getrandbits(8) for i in range(nbytes)])
+        with open("/dev/urandom","rb") as f:
+            return f.read(nbytes)
 
 # assuming that entropy_pool has some real entropy
 # we can generate bytes using it as well
