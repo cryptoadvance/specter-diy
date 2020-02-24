@@ -41,10 +41,10 @@ class KeyStore:
             self.idkey = self.root.child(0x1D, hardened=True)
 
     def get_xpub(self, derivation):
-        xpub = self.root.derive(derivation)
-        ver = bip32.detect_version(derivation)
-        xpub.version = ver
-        return xpub.to_public()
+        xprv = self.root.derive(derivation)
+        ver = bip32.detect_version(derivation, network=self.network)
+        xprv.version = ver
+        return xprv.to_public()
 
     def load_wallets(self, network_name):
         self.network = NETWORKS[network_name]

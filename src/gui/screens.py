@@ -233,6 +233,58 @@ def ask_for_password(cb_continue, title="Enter your password (optional)"):
                 ta.add_text(c)
     btnm.set_event_cb(cb)
 
+PATH_CHARSET = [
+    "1","2","3",lv.SYMBOL.LEFT,"\n",
+    "4","5","6","h","\n",
+    "7","8","9","/","\n",
+    "Back", "0", lv.SYMBOL.CLOSE, lv.SYMBOL.OK,""
+]
+
+def ask_for_derivation(cb_continue, cb_back, title="Enter desired derivation path"):
+    scr = switch_to_new_screen()
+    add_label(title, style="title")
+
+    btnm = lv.btnm(scr)
+    btnm.set_map(PATH_CHARSET)
+    btnm.set_width(HOR_RES)
+    btnm.set_height(VER_RES//2)
+    btnm.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+
+    lbl = add_label("m/", style="title")
+    lbl.set_y(PADDING+150)
+    lbl.set_width(40)
+    lbl.set_x(PADDING)
+
+    ta = lv.ta(scr)
+    ta.set_text("")
+    ta.set_width(HOR_RES-2*PADDING-40)
+    ta.set_x(PADDING+40)
+    ta.set_y(PADDING+150)
+    ta.set_cursor_type(lv.CURSOR.HIDDEN)
+    ta.set_one_line(True)
+
+    @feed_rng
+    def cb(obj, event):
+        if event == lv.EVENT.RELEASED:
+            c = obj.get_active_btn_text()
+            if c is None:
+                return
+            if c == "Back":
+                cb_back()
+                ta.set_text("")
+            if c[0] == lv.SYMBOL.LEFT:
+                ta.del_char()
+            elif c[0] == lv.SYMBOL.CLOSE:
+                ta.set_text("")
+            elif c[0] == lv.SYMBOL.OK:
+                cb_continue("m/"+ta.get_text())
+                ta.set_text("")
+            elif c[0] == "h":
+                ta.add_text("h/")
+            else:
+                ta.add_text(c)
+    btnm.set_event_cb(cb)
+
 # global
 words = []
 

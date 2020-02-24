@@ -99,20 +99,43 @@ def qr_alert(title, message, message_text=None, callback=None, ok_text="OK", wid
     scr.close_label.set_text(ok_text)
     return scr
 
-def show_xpub(name, xpub, prefix=None, callback=None):
-    msg = prefix+xpub
-    scr = qr_alert(name, msg, msg, callback)
-    # add checkbox
+def show_xpub(name, xpub, slip132=None, prefix=None, callback=None):
+    if slip132 is not None:
+        msg = slip132
+    else:
+        msg = xpub
     if prefix is not None:
-        def cb():
-            txt = scr.message.get_text()
-            if prefix in txt:
-                txt = xpub
-            else:
-                txt = prefix+xpub
-            scr.message.set_text(txt)
-            scr.qr.set_text(txt)
-        btn = add_button("Toggle derivation", on_release(cb), y=600)
+        msg = prefix+msg
+    scr = qr_alert(name, msg, msg, callback)
+    if prefix is not None:
+        lbl = lv.label(scr)
+        lbl.set_text("Show derivation path")
+        lbl.set_pos(2*PADDING, 550)
+        prefix_switch = lv.sw(scr)
+        prefix_switch.on(lv.ANIM.OFF)
+        prefix_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
+
+    if slip132 is not None:
+        lbl = lv.label(scr)
+        lbl.set_text("Use SLIP-132")
+        lbl.set_pos(2*PADDING, 600)
+        slip_switch = lv.sw(scr)
+        slip_switch.on(lv.ANIM.OFF)
+        slip_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
+
+    def cb():
+        msg = xpub
+        if slip132 is not None and slip_switch.get_state():
+            msg = slip132
+        if prefix is not None and prefix_switch.get_state():
+            msg = prefix+msg
+        scr.message.set_text(msg)
+        scr.qr.set_text(msg)
+
+    if prefix is not None:
+        prefix_switch.set_event_cb(on_release(cb))
+    if slip132 is not None:
+        slip_switch.set_event_cb(on_release(cb))
 
 def show_mnemonic(mnemonic):
     alert("Your recovery phrase:", "")

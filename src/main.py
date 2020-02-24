@@ -38,6 +38,8 @@ network = None
 keystore = KeyStore(storage_root=storage_root)
 
 DEFAULT_XPUBS = []
+ALL_XPUBS = []
+
 SUPPORTED_SCRIPTS = {
     "p2wpkh": "Native Segwit",
     "p2sh-p2wpkh": "Nested Segwit",
@@ -127,11 +129,37 @@ def wallets_menu():
 
 @catchit
 def show_xpub(name, derivation, xpub=None):
+    xpubs_menu()
+    gui.update(30)
+    # try:
     if xpub is None:
-        xpub = keystore.get_xpub(derivation).to_base58()
-    fingerprint = hexlify(keystore.fingerprint).decode('utf-8')
-    prefix = "[%s%s]" % (fingerprint, derivation[1:])
-    popups.show_xpub(name, xpub, prefix=prefix)
+        xpub = keystore.get_xpub(derivation)
+    prefix = "[%s]" % bip32.path_to_str(bip32.parse_path(derivation), fingerprint=keystore.fingerprint)
+    xpub_str = xpub.to_base58(network["xpub"])
+    slip132 = xpub.to_base58()
+    if slip132 == xpub_str:
+        slip132 = None
+    popups.show_xpub(name, xpub_str, slip132=slip132, prefix=prefix)
+    # except:
+    #     gui.error("Derivation path \"%s\" doesn't look right..." % derivation)
+
+@catchit
+def get_custom_xpub_path():
+    def cb(derivation):
+        show_xpub("Custom path key", derivation)
+    screens.ask_for_derivation(cb, xpubs_menu)
+
+@catchit
+def more_xpubs_menu():
+    def selector(name, derivation):
+        def cb():
+            show_xpub("Master "+name, derivation)
+        return cb
+    buttons = []
+    for name, derivation in ALL_XPUBS:
+        buttons.append((name, selector(name, derivation)))
+    buttons.append(("Enter custom derivation", get_custom_xpub_path))
+    gui.create_menu(buttons=buttons, cb_back=xpubs_menu, title="Select the master key")
 
 @catchit
 def xpubs_menu():
@@ -142,6 +170,8 @@ def xpubs_menu():
     buttons = []
     for name, derivation in DEFAULT_XPUBS:
         buttons.append((name, selector(name, derivation)))
+    buttons.append(("Show more keys", more_xpubs_menu))
+    buttons.append(("Enter custom derivation", get_custom_xpub_path))
     gui.create_menu(buttons=buttons, cb_back=show_main, title="Select the master key")
 
 @catchit
@@ -252,11 +282,18 @@ def scan_address():
     qr_scanner.start_scan(verify_address)
 
 @catchit
-def set_default_xpubs(net):
+def set_network_xpubs(net):
     while len(DEFAULT_XPUBS) > 0:
         DEFAULT_XPUBS.pop()
     DEFAULT_XPUBS.append(("Single key", "m/84h/%dh/0h" % net["bip32"]))
     DEFAULT_XPUBS.append(("Multisig", "m/48h/%dh/0h/2h" % net["bip32"]))
+
+    while len(ALL_XPUBS) > 0:
+        ALL_XPUBS.pop()
+    ALL_XPUBS.append(("Single Native Segwit\nm/84h/%dh/0h" % net["bip32"], "m/84h/%dh/0h" % net["bip32"]))
+    ALL_XPUBS.append(("Single Nested Segwit\nm/49h/%dh/0h" % net["bip32"], "m/49h/%dh/0h" % net["bip32"]))
+    ALL_XPUBS.append(("Multisig Native Segwit\nm/48h/%dh/0h/2h" % net["bip32"], "m/48h/%dh/0h/2h" % net["bip32"]))
+    ALL_XPUBS.append(("Multisig Nested Segwit\nm/48h/%dh/0h/1h" % net["bip32"], "m/48h/%dh/0h/1h" % net["bip32"]))
 
 @catchit
 def select_network(name):
@@ -264,7 +301,7 @@ def select_network(name):
     if name in NETWORKS:
         network = NETWORKS[name]
         if keystore.is_initialized:
-            set_default_xpubs(network)
+            set_network_xpubs(network)
             # load existing wallets for this network
             keystore.load_wallets(name)
             # create a default wallet if it doesn't exist
@@ -412,7 +449,7 @@ def settings_menu():
 def show_main():
     gui.create_menu(buttons=[
         ("Wallets", wallets_menu),
-        ("Master keys", xpubs_menu),
+        ("Master public keys", xpubs_menu),
         ("Sign transaction", scan_transaction),
         ("Verify address", scan_address),
         ("Use another password", ask_for_password),
