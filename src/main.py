@@ -131,17 +131,18 @@ def wallets_menu():
 def show_xpub(name, derivation, xpub=None):
     xpubs_menu()
     gui.update(30)
-    # try:
-    if xpub is None:
-        xpub = keystore.get_xpub(derivation)
-    prefix = "[%s]" % bip32.path_to_str(bip32.parse_path(derivation), fingerprint=keystore.fingerprint)
+    try:
+        if xpub is None:
+            xpub = keystore.get_xpub(derivation)
+        prefix = "[%s]" % bip32.path_to_str(bip32.parse_path(derivation), fingerprint=keystore.fingerprint)
+    except:
+        gui.error("Derivation path \"%s\" doesn't look right..." % derivation)
+        return
     xpub_str = xpub.to_base58(network["xpub"])
     slip132 = xpub.to_base58()
     if slip132 == xpub_str:
         slip132 = None
     popups.show_xpub(name, xpub_str, slip132=slip132, prefix=prefix)
-    # except:
-    #     gui.error("Derivation path \"%s\" doesn't look right..." % derivation)
 
 @catchit
 def get_custom_xpub_path():
