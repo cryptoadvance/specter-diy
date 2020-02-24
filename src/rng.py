@@ -1,13 +1,12 @@
 # random number generator
-# if os.urandom is available - entropy goes from TRNG
-# in simulator just use whatever we have
+# if os.urandom is available - entropy goes from hardware TRNG
+# in simulator just use /dev/urandom
 import hashlib
 entropy_pool = b'7'*64
 
 try:
     from os import urandom as get_trng_bytes
 except:
-    # read /dev/urandom instead?
     def get_trng_bytes(nbytes):
         with open("/dev/urandom","rb") as f:
             return f.read(nbytes)
