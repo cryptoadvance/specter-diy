@@ -110,7 +110,7 @@ def show_xpub(name, xpub, slip132=None, prefix=None, callback=None):
     if prefix is not None:
         lbl = lv.label(scr)
         lbl.set_text("Show derivation path")
-        lbl.set_pos(2*PADDING, 550)
+        lbl.set_pos(2*PADDING, 570)
         prefix_switch = lv.sw(scr)
         prefix_switch.on(lv.ANIM.OFF)
         prefix_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
@@ -118,7 +118,7 @@ def show_xpub(name, xpub, slip132=None, prefix=None, callback=None):
     if slip132 is not None:
         lbl = lv.label(scr)
         lbl.set_text("Use SLIP-132")
-        lbl.set_pos(2*PADDING, 600)
+        lbl.set_pos(2*PADDING, 620)
         slip_switch = lv.sw(scr)
         slip_switch.on(lv.ANIM.OFF)
         slip_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
