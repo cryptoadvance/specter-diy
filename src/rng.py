@@ -1,6 +1,6 @@
 # random number generator
 # if os.urandom is available - entropy goes from TRNG
-# otherwise - use whatever we have
+# in simulator just use whatever we have
 import hashlib
 entropy_pool = b'7'*64
 

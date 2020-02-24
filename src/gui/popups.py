@@ -42,8 +42,10 @@ class Alert(Popup):
 
         super().__init__(close_callback)
         self.title = add_label(title, scr=self, style="title")
-        self.message = add_label(message, scr=self)
-        self.message.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        self.page = lv.page(lv.scr_act())
+        self.page.set_size(480, 550)
+        self.message = add_label(message, scr=self.page)
+        self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
 class Prompt(Alert):
     def __init__(self, title="Are you sure?", message="Make a choice", 

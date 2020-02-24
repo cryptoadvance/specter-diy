@@ -29,7 +29,8 @@ def init_styles():
     th.style.scr.body.main_color = cbg
     th.style.scr.body.grad_color = cbg
     # text color
-    ctxt = lv.color_hex(0x7f8fa4)
+    # ctxt = lv.color_hex(0x7f8fa4)
+    ctxt = lv.color_hex(0xffffff)
     th.style.scr.text.color = ctxt
     # buttons
     cbtnrel = lv.color_hex(0x506072)
@@ -71,6 +72,11 @@ def init_styles():
     th.style.slider.knob.body.grad_color = cbtnrel
     th.style.slider.knob.body.radius = 5
     th.style.slider.knob.body.border.width = 0
+    # page
+    th.style.page.bg.body.opa = 0
+    # th.style.page.sb.body.opa = 0
+    th.style.page.scrl.body.opa = 0
+    th.style.page.scrl.body.border.width = 0
     styles["theme"] = th
 
     lv.theme_set_current(th)

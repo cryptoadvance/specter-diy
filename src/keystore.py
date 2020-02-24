@@ -48,7 +48,7 @@ class KeyStore:
 
     def load_wallets(self, network_name):
         self.network = NETWORKS[network_name]
-        fingerprint = hexlify(self.fingerprint).decode('utf-8')
+        fingerprint = hexlify(self.fingerprint).decode()
         self.storage_path = "%s/%s/%s" % (self.storage_root, network_name, fingerprint)
         # FIXME: refactor with for loop
         try: # create network folder
@@ -99,22 +99,24 @@ class KeyStore:
         for w in self._wallets:
             if w.name == name:
                 raise ValueError("Wallet \"%s\" already exists" % name)
-        # try:
         w = Wallet(name, descriptor, self.network)
-        # except:
-            # raise ValueError("Descriptor is invalid")
         includes_myself = False
         for arg in w.args:
             try:
-                fingerprint = arg.fingerprint
+                if self.owns_key(arg):
+                    includes_myself = True
             except:
                 continue
-            if fingerprint == self.fingerprint:
-                key = self.root.derive(arg.parent_derivation).to_public()
-                if arg.key == key:
-                    includes_myself = True
         if not includes_myself:
             raise ValueError("Wallet is not controlled by my key")
+        return w
+
+    def owns_key(self, key):
+        if key.fingerprint == self.fingerprint:
+            mykey = self.root.derive(key.parent_derivation).to_public()
+            if key.key == mykey:
+                return True
+        return False
 
     def delete_wallet(self, w):
         if w in self._wallets:
@@ -205,6 +207,13 @@ class DerivedKey:
         key = bip32.HDKey.from_base58(s)
         return cls(key, fingerprint, parent_derivation, address_derivation)
 
+    def __repr__(self):
+        s = ""
+        if self.parent_derivation is not None:
+            s = "[%s]" % bip32.path_to_str(self.parent_derivation, self.fingerprint)
+        s += self.key.to_base58()
+        return s
+
 def parse_argument(e):
     # for now int, HDKey or pubkey
     # int
@@ -239,6 +248,27 @@ class Wallet:
         self.descriptor = descriptor
         self.network = network
         self.wrappers, self.args = parse_descriptor(descriptor)
+
+    @property
+    def is_multisig(self):
+        return ((multi in self.wrappers) or (sortedmulti in self.wrappers))
+
+    @property
+    def policy(self):
+        # TODO: improve policy parsing
+        p = "Single key"
+        if self.is_multisig:
+            p = "%d of %d multisig" % (self.args[0], len(self.args)-1)
+        return p
+
+    @property
+    def script_type(self):
+        # TODO: check that script type is one of good ones
+        return "-".join([w.__name__ for w in reversed(self.wrappers)])
+
+    @property
+    def keys(self):
+        return [key for key in self.args[1:]] if self.is_multisig else self.args
 
     def script(self, idx, change=False):
         args = []

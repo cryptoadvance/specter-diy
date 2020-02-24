@@ -23,6 +23,8 @@ from platform import simulator, storage_root, USB_ENABLED, DEV_ENABLED
 from ucryptolib import aes
 from hashlib import hmac_sha512
 
+from io import BytesIO
+
 reckless_fname = "%s/%s" % (storage_root, "reckless.json")
 
 qr_scanner = QRScanner()
@@ -36,7 +38,12 @@ network = None
 keystore = KeyStore(storage_root=storage_root)
 
 DEFAULT_XPUBS = []
-
+SUPPORTED_SCRIPTS = {
+    "p2wpkh": "Native Segwit",
+    "p2sh-p2wpkh": "Nested Segwit",
+    "p2wsh-sortedmulti": "Native Segwit Multisig",
+    "p2sh-p2wsh-sortedmulti": "Nested Segwit Multisig",
+}
 
 def catchit(fn):
     """ Catches an error in the function and 
@@ -46,7 +53,9 @@ def catchit(fn):
         try:
             return fn(*args, **kwargs)
         except Exception as e:
-            gui.error("Something bad happened...\n\n%r" % e)
+            b = BytesIO()
+            sys.print_exception(e, b)
+            gui.error("Something bad happened...\n\n%s" % b.getvalue().decode())
     return cb
 
 @catchit
@@ -72,18 +81,29 @@ def new_wallet_confirm(name, descriptor):
 def confirm_new_wallet(s):
     show_main()
     gui.update(30)
+
     # wallet format:
     # name&descriptor
     arr = s.split("&")
     if len(arr) != 2:
         gui.error("Invalid wallet format")
         return
-    try:
-        keystore.check_new_wallet(*arr)
-    except Exception as e:
-        gui.error("%r" % e)
-        return
-    popups.prompt("Add wallet \"%s\"?" % arr[0], arr[1], ok=cb_with_args(new_wallet_confirm, name=arr[0], descriptor=arr[1]))
+    w = keystore.check_new_wallet(*arr)
+    keys_str = []
+    for key in w.keys:
+        k = ("%r" % key).replace("]", "]\n")
+        if keystore.owns_key(key):
+            keys_str.append("#7ED321 My key: # %s" % k)
+        else:
+            keys_str.append("#F5A623 External key: # %s" % k)
+    keys = "\n\n".join(keys_str)
+    if w.script_type not in SUPPORTED_SCRIPTS.keys():
+        raise ValueError("Script type \"%s\" is not supported" % w.script_type)
+    sc = w.script_type
+    msg = "Policy: %s\nScript: %s\n%s\n\n%s" % (w.policy, SUPPORTED_SCRIPTS[w.script_type], sc, keys)
+
+    scr = popups.prompt("Add wallet \"%s\"?" % arr[0], msg, ok=cb_with_args(new_wallet_confirm, name=arr[0], descriptor=arr[1]))
+    scr.message.set_recolor(True)
 
 @catchit
 def add_new_wallet():
