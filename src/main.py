@@ -228,11 +228,10 @@ def parse_transaction(b64_tx, success_callback=None, error_callback=None):
             error_callback("invalid argument")
         return
     title = "Spending %u\nfrom %s" % (data["spending"], data["wallet"].name)
-    message = ""
-    for out in data["send_outputs"]:
-        message += "%u sat to %s\n" % (out["value"], out["address"])
-    message += "\nFee: %u satoshi" % data["fee"]
-    popups.prompt(title, message, ok=cb_with_args(sign_psbt, wallet=data["wallet"], tx=tx, success_callback=success_callback), cancel=cb_with_args(error_callback, "user cancel"))
+    popups.prompt_tx(title, data,
+        ok=cb_with_args(sign_psbt, wallet=data["wallet"], tx=tx, success_callback=success_callback), 
+        cancel=cb_with_args(error_callback, "user cancel")
+    )
 
 @catchit
 def scan_transaction():

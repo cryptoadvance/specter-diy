@@ -91,6 +91,40 @@ def alert(title, message, callback=None):
 def prompt(title, message, ok=None, cancel=None):
     return Prompt(title, message, confirm_callback=ok, close_callback=cancel)
 
+def format_addr(addr, letters=6, separator=" "):
+    extra = ""
+    if len(addr) % letters > 0:
+        extra = " "*(letters-(len(addr) % letters))
+    return separator.join([addr[i:i+letters] for i in range(0, len(addr), letters)])+extra
+
+def prompt_tx(title, data, ok=None, cancel=None):
+    message = ""
+    scr = prompt(title, message, ok=ok, cancel=cancel)
+    obj = scr.message
+    obj.set_y(0)
+    style = lv.style_t()
+    lv.style_copy(style, scr.message.get_style(0))
+    style.text.font = lv.font_roboto_mono_28
+
+    for out in data["send_outputs"]:
+        addr = format_addr(
+                    format_addr(
+                        out["address"], letters=6, separator=" "
+                    ), 
+                    letters=21, separator="\n"
+                )
+        lbl = add_label("%u sat ( %g BTC ) to" % (out["value"], out["value"]/1e8), scr=scr)
+        lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+        addrlbl = add_label(addr, scr=scr)
+        addrlbl.set_style(0, style)
+        addrlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+        obj = addrlbl
+
+    lbl = lv.label(scr)
+    lbl.set_text("Fee: %u satoshi - %.1f" % (data["fee"], 100*data["fee"]/data["spending"]) + "%")
+    lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+    return scr
+
 def error(message):
     alert("Error!", message)
 
@@ -107,10 +141,15 @@ def show_xpub(name, xpub, slip132=None, prefix=None, callback=None):
     if prefix is not None:
         msg = prefix+msg
     scr = qr_alert(name, msg, msg, callback)
+    style = lv.style_t()
+    lv.style_copy(style, scr.message.get_style(0))
+    style.text.font = lv.font_roboto_mono_22
+    scr.message.set_style(0, style)
+
     if prefix is not None:
         lbl = lv.label(scr)
         lbl.set_text("Show derivation path")
-        lbl.set_pos(2*PADDING, 570)
+        lbl.set_pos(2*PADDING, 590)
         prefix_switch = lv.sw(scr)
         prefix_switch.on(lv.ANIM.OFF)
         prefix_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
@@ -118,7 +157,7 @@ def show_xpub(name, xpub, slip132=None, prefix=None, callback=None):
     if slip132 is not None:
         lbl = lv.label(scr)
         lbl.set_text("Use SLIP-132")
-        lbl.set_pos(2*PADDING, 620)
+        lbl.set_pos(2*PADDING, 640)
         slip_switch = lv.sw(scr)
         slip_switch.on(lv.ANIM.OFF)
         slip_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
@@ -147,15 +186,20 @@ def show_wallet(wallet, delete_cb=None):
     # dirty hack: add \n at the end to increase title size 
     #             to skip realigning of the qr code
     scr = qr_alert("Wallet \"%s\"\n" % wallet.name,
-                             "bitcoin:"+addr, addr,
+                             "bitcoin:"+addr, format_addr(addr),
                              ok_text="Close", width=300)
+    style = lv.style_t()
+    lv.style_copy(style, scr.message.get_style(0))
+    style.text.font = lv.font_roboto_mono_22
+    scr.message.set_style(0, style)
+
     lbl = add_label("Receiving address #%d" % (idx+1), y=80)
     def cb_update(delta):
         idx = int(lbl.get_text().split("#")[1])-1
         if idx+delta >= 0:
             idx += delta
         addr = wallet.address(idx)
-        scr.message.set_text(addr)
+        scr.message.set_text(format_addr(addr))
         scr.qr.set_text("bitcoin:"+addr)
         lbl.set_text("Receiving address #%d" % (idx+1))
         if idx > 0:
@@ -169,10 +213,10 @@ def show_wallet(wallet, delete_cb=None):
     def cb_del():
         delete_cb(wallet)
         scr.close()
-    delbtn = add_button("Delete wallet", on_release(cb_del), y=600)
+    delbtn = add_button("Delete wallet", on_release(cb_del), y=610)
     prv, nxt = add_button_pair("Previous", on_release(cb_prev),
                                "Next", on_release(cb_next),
-                               y=500)
+                               y=520)
     prv.set_state(lv.btn.STATE.INA)
 
 def show_settings(config, save_callback):
