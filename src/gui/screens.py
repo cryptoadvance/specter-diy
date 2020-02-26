@@ -346,6 +346,8 @@ def ask_for_mnemonic(cb_continue, cb_back,
             if c == lv.SYMBOL.LEFT+" Back":
                 cb_back()
             elif c == lv.SYMBOL.LEFT:
+                if len(words) == 0:
+                    return
                 if len(words[-1]) > 0:
                     words[-1] = words[-1][:-1]
                 elif len(words) > 0:
