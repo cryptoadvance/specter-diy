@@ -33,7 +33,7 @@ class QRScanner:
         else:
             self.EOL = "\r"
         
-        self.uart = pyb.UART(uart, baudrate, read_buf_len=1024)
+        self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
         self.uart.read(self.uart.any())
 
         self.trigger = None
