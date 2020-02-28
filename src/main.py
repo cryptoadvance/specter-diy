@@ -69,6 +69,7 @@ def cancel_scan():
 @catchit
 def del_wallet(w):
     keystore.delete_wallet(w)
+    wallets_menu()
 
 @catchit
 def select_wallet(w):
@@ -177,6 +178,7 @@ def xpubs_menu():
 
 @catchit
 def sign_psbt(wallet=None, tx=None, success_callback=None):
+    wallet.fill_psbt(tx)
     keystore.sign(tx)
     # remove everything but partial sigs
     # to reduce QR code size
@@ -311,7 +313,7 @@ def select_network(name):
                 # '_' means 0/* or 1/* - standard receive and change 
                 #                        derivation patterns
                 derivation = DEFAULT_XPUBS[0][1]
-                xpub = keystore.get_xpub(derivation).to_base58()
+                xpub = keystore.get_xpub(derivation).to_base58(network["xpub"])
                 fingerprint = hexlify(keystore.fingerprint).decode('utf-8')
                 prefix = "[%s%s]" % (fingerprint, derivation[1:])
                 descriptor = "wpkh(%s%s/_)" % (prefix, xpub)

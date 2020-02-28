@@ -211,8 +211,8 @@ def show_wallet(wallet, delete_cb=None):
     def cb_prev():
         cb_update(-1)
     def cb_del():
-        delete_cb(wallet)
         scr.close()
+        delete_cb(wallet)
     delbtn = add_button("Delete wallet", on_release(cb_del), y=610)
     prv, nxt = add_button_pair("Previous", on_release(cb_prev),
                                "Next", on_release(cb_next),

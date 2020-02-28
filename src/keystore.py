@@ -1,5 +1,6 @@
 from bitcoin import bip32, ec, script, hashes
 from bitcoin.networks import NETWORKS
+from bitcoin.psbt import DerivationPath
 import secp256k1
 import os
 import ujson as json
@@ -270,36 +271,110 @@ class Wallet:
     def keys(self):
         return [key for key in self.args[1:]] if self.is_multisig else self.args
 
-    def script(self, idx, change=False):
-        args = []
-        # derive args if possible
-        for arg in self.args:
-            # if DerivedKey we should get public key with right index
-            try:
-                pub = arg.key.child(int(change)).child(idx).key
-                args.append(pub)
-            except:
-                args.append(arg)
+    def script_pubkey(self, idx=None, change=False, args=None):
+        if args is None:
+            args = self.get_derived_args(idx, change)
         sc = self.wrappers[0](*args)
         for wrapper in self.wrappers[1:]:
             sc = wrapper(sc)
         return sc
 
+    def redeem_script(self, idx=None, change=False, args=None):
+        if args is None:
+            args = self.get_derived_args(idx, change)
+        sc = self.script_pubkey(args=args)
+        if sc.script_type()!="p2sh":
+            return None
+        sc = self.wrappers[0](*args)
+        # last one should be p2sh so apply all but it
+        for wrapper in self.wrappers[1:-1]:
+            sc = wrapper(sc)
+        return sc
+
+    def witness_script(self, idx=None, change=False, args=None):
+        if args is None:
+            args = self.get_derived_args(idx, change)
+        sc = self.script_pubkey(args=args)
+        wrappers = self.wrappers[:-1]
+        if sc.script_type()=="p2sh":
+            wrappers = wrappers[:-1]
+        sc = self.wrappers[0](*args)
+        # last one should be p2wsh so apply all but it
+        for wrapper in wrappers[1:-1]:
+            sc = wrapper(sc)
+        return sc
+
+    def get_derived_args(self, idx, change=False):
+        args = []
+        # derive args if possible
+        for arg in self.args:
+            # if DerivedKey we should get public key with right index
+            try:
+                pub = arg.key.derive([int(change), idx]).key
+                args.append(pub)
+            except:
+                args.append(arg)
+        return args
+
     def address(self, idx, change=False):
-        sc = self.script(idx, change)
+        sc = self.script_pubkey(idx, change)
         return sc.address(network=self.network)
+
+    @property    
+    def fingerprint(self):
+        return hashes.hash160(self.descriptor.replace("/_",""))[:4]
+
+    def fill_psbt(self, tx):
+        for scope in tx.inputs + tx.outputs:
+            # fill derivation paths
+            wallet_key = b"\xfc\xca\x01"+self.fingerprint
+            if wallet_key not in scope.unknown:
+                continue
+            der = scope.unknown[wallet_key]
+            wallet_derivation = []
+            for i in range(len(der)//4):
+                idx = int.from_bytes(der[4*i:4*i+4], 'little')
+                wallet_derivation.append(idx)
+            for arg in self.args:
+                # check if it is DerivedKey
+                try:
+                    fingerprint = arg.fingerprint
+                except:
+                    continue
+                pub = arg.key.derive(wallet_derivation).key
+                scope.bip32_derivations[pub] = DerivationPath(fingerprint, arg.parent_derivation + wallet_derivation)
+            # fill script
+            if len(wallet_derivation) != 2:
+                raise ValueError("Only 2-index derivation is allowed: change/index")
+            if wallet_derivation[0] > 1:
+                raise ValueError("Change index can be only 0 or 1")
+            args = self.get_derived_args(wallet_derivation[1], wallet_derivation[0])
+            scope.witness_script = self.witness_script(args=args)
+            scope.redeem_script = self.redeem_script(args=args)
 
     def owns(self, psbt_in=None, psbt_out=None, tx_out=None):
         """Pass psbt_in or psbt_out + tx_out to check if it is owned by the wallet"""
         # FIXME: implement check
         bip32_derivations = None
         output = None
+        unknown = {}
         if psbt_in is not None:
             bip32_derivations = psbt_in.bip32_derivations
             output = psbt_in.witness_utxo
+            unknown = psbt_in.unknown
         if psbt_out is not None:
             bip32_derivations = psbt_out.bip32_derivations
             output = tx_out
+            unknown = psbt_out.unknown
+        # check if wallet derivation is there
+        wallet_derivation = None
+        wallet_key = b"\xfc\xca\x01"+self.fingerprint
+        if wallet_key in unknown:
+            der = unknown[wallet_key]
+            wallet_derivation = []
+            for i in range(len(der)//4):
+                idx = int.from_bytes(der[4*i:4*i+4], 'little')
+                wallet_derivation.append(idx)
         args = []
         for arg in self.args:
             # check if it is DerivedKey
@@ -308,6 +383,12 @@ class Wallet:
             except:
                 args.append(arg)
                 continue
+            # if wallet derivation is available
+            if wallet_derivation is not None:
+                pub = arg.key.derive(wallet_derivation).key
+                args.append(pub)
+                continue
+            # if standard PSBT derivation is used
             derived = False
             parent_len = len(arg.parent_derivation)
             for pub in bip32_derivations:
