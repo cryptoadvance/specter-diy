@@ -1,5 +1,7 @@
 import utime as time
+import sys
 from platform import simulator
+from io import BytesIO
 
 if not simulator:
     import pyb
@@ -50,6 +52,7 @@ class QRScanner:
         self.scanning = False
         self.t0 = None
         self.callback = None
+        self.callback_animated_qr = None
 
     def query(self, data):
         self.uart.write(data)
@@ -138,12 +141,14 @@ class QRScanner:
         else:
             self.set_setting(SCAN_ADDR, 0)
 
-    def start_scan(self, callback=None, timeout=None):
+    def start_scan(self, callback=None, callback_animated_qr=None, callback_animated_next=None, timeout=None):
         self.trigger_on()
         self.t0 = time.time()
         self.data = ""
         self.scanning = True
         self.callback = callback
+        self.callback_animated_qr = callback_animated_qr
+        self.callback_animated_next = callback_animated_next
 
     def scan(self, timeout=None):
         self.trigger_on()
@@ -162,15 +167,40 @@ class QRScanner:
             return r[:-len(self.EOL)]
         return r
 
-    def update(self):
-        if self.scanning:
-            res = self.uart.read(self.uart.any())
-            if len(res) > 0:
-                self.data += res.decode('utf-8')
-            if self.is_done() and self.callback is not None:
-                data = self.data[:-len(self.EOL)]
-                self.reset()
-                self.callback(data)
+    def update(self, cb_error=None):
+        def process():
+            assert cb_error != None, "callback missing"
+            data = self.data[:-len(self.EOL)]
+            self.reset()
+            qr_anim = QRAnimated.process(data)
+            # is this animated QR code
+            if qr_anim is not None and self.callback_animated_qr is not None:
+                data = qr_anim
+                assert QRAnimated.indx[0] <= QRAnimated.indx[1], "QRAnim: encoding"
+                if QRAnimated.prev_indx == []:
+                    assert QRAnimated.indx[0] == 1, "QRAnim: wrong first code"
+                else:
+                    assert QRAnimated.indx[0] > QRAnimated.prev_indx[0], "QRAnim: wrong order"
+                    assert QRAnimated.indx[1] == QRAnimated.prev_indx[1], "QRAnim: wrong code"
+                self.callback_animated_qr(QRAnimated.indx, self.callback_animated_next)
+                QRAnimated.prev_indx = QRAnimated.indx
+                if QRAnimated.indx[0] is not QRAnimated.indx[1]:
+                    return
+            self.callback(data)
+            QRAnimated.clean()
+        try:
+            if self.scanning:
+                res = self.uart.read(self.uart.any())
+                if len(res) > 0:
+                    self.data += res.decode('utf-8')
+                if self.is_done() and self.callback is not None:
+                    process()
+        except Exception as e:
+            QRAnimated.clean()
+            self.reset()
+            b = BytesIO()
+            sys.print_exception(e, b)
+            cb_error("Something bad happened...\n\n%s" % b.getvalue().decode())
 
     def is_done(self):
         return self.data.endswith(self.EOL)
@@ -184,3 +214,34 @@ class QRScanner:
     def stop(self):
         self.reset()
         return self.data
+
+class QRAnimated:
+    """
+    Example of animated QR: "p1of3 payload"
+    """
+    # holds the current indices, e.g. for p1of3:  [1, 3]
+    indx = []
+    # holds the previous indices
+    prev_indx = []
+    # list of payloads of animated qr codes
+    payload = []
+
+    @staticmethod
+    def process(data):
+        if data.startswith('p'):
+            datal = data.split(" ", 1)
+            if len(datal) != 2:
+                return None
+            if "of" not in datal[0]:
+                return None
+            m = datal[0][1:].split("of")
+            QRAnimated.indx = [int(m[0]), int(m[1])]
+            QRAnimated.payload.append(datal[1])
+            return "".join(QRAnimated.payload)
+        return None
+
+    @staticmethod
+    def clean():
+        QRAnimated.indx = []
+        QRAnimated.prev_indx = []
+        QRAnimated.payload = []
