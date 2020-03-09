@@ -23,11 +23,11 @@ if platform.USB_ENABLED and platform.DEV_ENABLED:
 elif platform.USB_ENABLED:
     pyb.usb_mode('CDC')
 elif platform.DEV_ENABLED:
-    pyb.usb_mode('MSC')
+    pyb.usb_mode('CDC+MSC')
 else:
     pyb.usb_mode(None)
 
-if platform.DEV_ENABLED:
+if platform.DEV_ENABLED and platform.USB_ENABLED:
     repl = pyb.UART('YB',115200)
     # redirect REPL to STLINK UART
     os.dupterm(repl,0)
