@@ -190,7 +190,9 @@ class QRScanner:
             QRAnimated.clean()
         try:
             if self.scanning:
-                res = self.uart.read(self.uart.any())
+                res = self.uart.read()
+                if not simulator and res is None:
+                    res = b""
                 if len(res) > 0:
                     self.data += res.decode('utf-8')
                 if self.is_done() and self.callback is not None:
