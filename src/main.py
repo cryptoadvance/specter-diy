@@ -114,7 +114,7 @@ def add_new_wallet():
                           "Scanning.. Click \"Cancel\" to stop.",
                           callback=cancel_scan)
     gui.update(30)
-    qr_scanner.start_scan(parse_new_wallet)
+    qr_scanner.start_scan(parse_new_wallet, qr_animated, add_new_wallet)
 
 @catchit
 def wallets_menu():
@@ -235,13 +235,16 @@ def parse_transaction(b64_tx, success_callback=None, error_callback=None):
         cancel=cb_with_args(error_callback, "user cancel")
     )
 
+def qr_animated(indx, callback):
+    gui.alert("Animated QR: %s/%s" % (indx[0], indx[1]), "Proceed to scanning code No. %s" % str(indx[0]+1), callback)
+
 @catchit
 def scan_transaction():
     screens.show_progress("Scan transaction to sign",
                           "Scanning.. Click \"Cancel\" to stop.",
                           callback=cancel_scan)
     gui.update(30)
-    qr_scanner.start_scan(parse_transaction)
+    qr_scanner.start_scan(parse_transaction, qr_animated, scan_transaction)
 
 @catchit
 def verify_address(s):
@@ -607,9 +610,13 @@ def host_callback(data):
     # - signmessage <message>
     # - showdescraddr <descriptor>
 
+def qr_scanner_error(msg):
+    cancel_scan()
+    gui.error(msg)
+
 def update(dt=30):
     gui.update(dt)
-    qr_scanner.update()
+    qr_scanner.update(qr_scanner_error)
     usb_host.update()
 
 def ioloop():
