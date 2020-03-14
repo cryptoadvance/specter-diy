@@ -12,6 +12,24 @@ qr_style.text.color = lv.color_hex(0)
 qr_style.text.line_space = 0
 qr_style.text.letter_space = 0
 
+QR_PADDING = const(40)
+
+def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
+    """Helper functions that creates a title-styled label"""
+    if scr is None:
+        scr = lv.scr_act()
+    scr = lv.scr_act()
+
+    if width is None:
+        width = 350
+
+    qr = QRCode(scr)
+    qr.set_text(text)
+    qr.set_size(width)
+    qr.set_text(text)
+    qr.align(scr, lv.ALIGN.IN_TOP_MID, 0, y)
+    return qr
+
 class QRCode(lv.label):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

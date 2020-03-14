@@ -1,6 +1,7 @@
 import lvgl as lv
 from .common import *
 from .decorators import *
+from .components import add_qrcode
 
 # global popups array
 # we use it in close_all_popups()
@@ -243,5 +244,3 @@ def show_settings(config, save_callback):
     lbl.align(dev_switch, lv.ALIGN.CENTER, 0, 0)
     if config["developer"]:
         dev_switch.on(lv.ANIM.OFF)
-
-
