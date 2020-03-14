@@ -77,8 +77,8 @@ class QRAlert(Alert):
                  close_callback=None, qr_width=None):
         super().__init__(title, message, close_callback)
         self.qr = add_qrcode(qr_message, scr=self, width=qr_width)
-        self.qr.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
-        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        self.qr.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 25)
+        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
 
 # one-liners
 
@@ -188,7 +188,7 @@ def show_wallet(wallet, delete_cb=None):
     #             to skip realigning of the qr code
     scr = qr_alert("Wallet \"%s\"\n" % wallet.name,
                              "bitcoin:"+addr, format_addr(addr),
-                             ok_text="Close", width=300)
+                             ok_text="Close", width=250)
     style = lv.style_t()
     lv.style_copy(style, scr.message.get_style(0))
     style.text.font = lv.font_roboto_mono_22

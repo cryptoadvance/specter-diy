@@ -1,6 +1,7 @@
 import gui
-from gui import screens, popups
+from gui import screens, popups, components
 from gui.decorators import cb_with_args
+from gui.components import QrA
 import gui.common
 import lvgl as lv
 
@@ -200,7 +201,7 @@ def sign_psbt(wallet=None, tx=None, success_callback=None):
     b64_tx = b2a_base64(tx.serialize()).decode('utf-8')
     if b64_tx[-1:] == "\n":
         b64_tx = b64_tx[:-1]
-    popups.qr_alert("Signed transaction:", b64_tx, "Scan it with your software wallet", width=520)
+    popups.qr_alert("Signed transaction:", b64_tx, "Scan it with your software wallet", width=480)
     if success_callback is not None:
         success_callback(b64_tx)
 
@@ -615,6 +616,8 @@ def update(dt=30):
     gui.update(dt)
     qr_scanner.update(qr_scanner_error)
     usb_host.update()
+    QrA.handle()
+
 
 def ioloop():
     while True:
