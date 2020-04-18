@@ -58,12 +58,14 @@ class QRScanner:
         else:
             self.EOL = "\r"
             self.UART_EMPTY = None
-        
         QRScanner.uart_bus = uart
         self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
-
         self.trigger = None
         self.is_configured = False
+        if trigger is not None or simulator:
+            self.trigger = pyb.Pin(trigger, pyb.Pin.OUT)
+            self.trigger.on()
+            self.is_configured = True
         self.init()
         self.scanning = False
         self.callback = None
@@ -143,11 +145,10 @@ class QRScanner:
             if not val:
                 return False
 
-        # This query is special - it has a payload of 2 bytes
+        # Set 115200 bps: this query is special - it has a payload of 2 bytes
         ret = self.query(b"\x7E\x00\x08\x02"+BAUD_RATE_ADDR+BAUD_RATE+b"\xAB\xCD")
         if ret != SUCCESS:
             return False
-
         self.uart = pyb.UART(QRScanner.uart_bus, 115200, read_buf_len=2048)
         return True
 
@@ -158,30 +159,36 @@ class QRScanner:
             self.clean_uart()
             self.is_configured = self.configure()
             if self.is_configured:
-                print("9600: QR scanner is configured")
+                print("Scanner: automatic mode")
                 return
-            else:
-                print("9600: Failed to configure scanner")
 
             # Try one more time with different baudrate
             self.uart = pyb.UART(QRScanner.uart_bus, 115200, read_buf_len=2048)
+            self.clean_uart()
             self.is_configured = self.configure()
             if self.is_configured:
-                print("115200: QR scanner is configured")
-            else:
-                print("115200: Failed to configure scanner")
+                print("Scanner: automatic mode")
+                return
+
+            # PIN trigger mode
+            self.uart = pyb.UART(QRScanner.uart_bus, 9600, read_buf_len=2048)
+            self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
+            self.trigger.on()
+            self.is_configured = True
+            print("Scanner: Pin trigger mode")
 
     def stop_scanning(self):
         self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
 
     def clean_uart(self):
-        while self.uart.read() != self.UART_EMPTY:
-            pass
+        self.uart.read()
 
-    def start_scan(self, callback=None, timeout=None):
-        self.init()
-        self.clean_uart()
-        self.set_setting(SETTINGS_ADDR, SETTINGS_CONT_MODE)
+    def start_scan(self, callback=None):
+        if self.trigger is not None:
+            self.trigger.off()
+        else:
+            self.clean_uart()
+            self.set_setting(SETTINGS_ADDR, SETTINGS_CONT_MODE)
         QRAnimated.clean()
         self.data = ""
         self.scanning = True
@@ -197,12 +204,12 @@ class QRScanner:
                 We split and handle them all """
                 data = data.split(self.EOL)
                 for w in data:
-                    qr_anim = QRAnimated.process(w)
+                    qr_anim = QRAnimated.process(w, self.trigger)
                     if qr_anim != "skip" and qr_anim != None:
                         # animated qr assembled
                         break
             else:
-                qr_anim = QRAnimated.process(data)
+                qr_anim = QRAnimated.process(data, self.trigger)
             if qr_anim == "skip":
                 return
             # is this animated QR code
@@ -233,7 +240,10 @@ class QRScanner:
         QRAnimated.clean()
         self.scanning = False
         self.data = ""
-        self.stop_scanning()
+        if self.trigger is not None:
+            self.trigger.on()
+        else:
+            self.stop_scanning()
 
 class QRAnimated:
     """
@@ -245,7 +255,7 @@ class QRAnimated:
     payload = []
 
     @staticmethod
-    def process(data):
+    def process(data, trigger_mode):
         if data.startswith('p'):
             # This is probably an animated qr
             datal = data.split(" ", 1)
@@ -254,6 +264,10 @@ class QRAnimated:
             if "of" not in datal[0]:
                 return None
             # This is definitely an animated qr
+            # PIN trigger mode does not support animated qrs except with Simulator
+            if not simulator:
+                assert trigger_mode == None, \
+                       "Your scanner does not support animated QRs!"
             m = datal[0][1:].split("of")
             ind = [int(m[0]), int(m[1])]
             if QRAnimated.indx == []:
