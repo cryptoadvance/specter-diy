@@ -182,10 +182,13 @@ class QRCode(lv.cont):
 	        print("QR on screen:", QrA.header() + self._text)
         self.text_prev = text
 
-        self.lbl.set_size(self.size, self.size)
         if QrA.isQRplaying:
             if self.max_size:
                 self.lbl.set_size(self.max_size, self.max_size)
+            else:
+                self.lbl.set_size(self.size, self.size)
+        else:
+            self.lbl.set_size(self.size, self.size)
 
         qr = qrcode.encode_to_string(QrA.header() + self._text)
         size = int(math.sqrt(len(qr))) # + 4 clear space on every side
