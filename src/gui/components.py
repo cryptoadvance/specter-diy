@@ -6,6 +6,7 @@ import micropython
 from .common import styles
 from math import ceil
 from platform import simulator
+from time import ticks_ms, ticks_diff
 if not simulator:
     import pyb
 
@@ -34,7 +35,6 @@ class QrA:
     """
     Example of animated qr: p1of3 payload
     """
-    timeout = False
     animate_ptr = None
     isQRplaying = False
     isQRtoobig = False
@@ -65,10 +65,7 @@ class QrA:
 
     @staticmethod
     def run():
-        def QrAtimeout(tim):
-            QrA.timeout = True
-        QrA.timer = pyb.Timer(1, freq=3)
-        QrA.timer.callback(QrAtimeout)
+        QrA.timer = ticks_ms()
 
     @staticmethod
     def qr_cb(obj, event):
@@ -82,13 +79,11 @@ class QrA:
     def handle():
         # call in main loop
         if QrA.abort:
-            if QrA.timer:
-                QrA.timer.deinit()
-                QrA.timeout = False
+            QrA.timer = None
             QrA.isQRplaying = False
             QrA.abort = False
-        elif QrA.timeout == True:
-            QrA.timeout = False
+        elif QrA.timer != None and ticks_diff(ticks_ms(), QrA.timer) >= 300:
+            QrA.timer = ticks_ms()
             QrA.animate_ptr()
 
     @staticmethod
