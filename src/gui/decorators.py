@@ -1,6 +1,7 @@
 import lvgl as lv
 import time
 import rng
+from .components import QrA
 
 def feed_touch():
     point = lv.point_t()
@@ -24,6 +25,8 @@ def on_release(func):
         if e == lv.EVENT.PRESSING:
             feed_touch()
         elif e == lv.EVENT.RELEASED:
+            if QrA.isQRplaying:
+                QrA.stop()
             func()
     return wrapper
 
