@@ -560,7 +560,7 @@ def host_callback(data):
             xpub = hd.to_base58(network["xpub"])
             usb_host.respond(xpub)
 
-            show_xpub("Master key requested from host:", path, xpub)
+            show_xpub("Master key requested from host:", path, hd)
         except Exception as e:
             print(e)
             usb_host.respond("error: bad derivation path '%s'" % path)
