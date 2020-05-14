@@ -243,12 +243,15 @@ def parse_descriptor(desc):
     return wrappers, args
 
 class Wallet:
-    def __init__(self, name, descriptor, network, fname=None):
+    def __init__(self, name, descriptor, network, fname=None, last_rcv_idx=-1, last_chg_idx=-1):
         self.fname = fname
         self.name = name
         self.descriptor = descriptor
         self.network = network
         self.wrappers, self.args = parse_descriptor(descriptor)
+        self.last_rcv_idx = last_rcv_idx
+        self.last_chg_idx = last_chg_idx
+        self.gap_limit = 20
 
     @property
     def is_multisig(self):
@@ -416,7 +419,9 @@ class Wallet:
         return (sc == output.script_pubkey)
 
     def save(self, fname):
-        obj = {"name": self.name, "descriptor": self.descriptor}
+        obj = {"name": self.name, "descriptor": self.descriptor, \
+               "last_rcv_idx": self.last_rcv_idx, \
+               "last_chg_idx": self.last_chg_idx}
         data = json.dumps(obj)
         with open(fname,"w") as f:
             f.write(data)
@@ -431,4 +436,8 @@ class Wallet:
     @classmethod
     def parse(cls, s, network, fname=None):
         content = json.loads(s)
-        return cls(content["name"], content["descriptor"], network, fname)
+        if "last_rcv_idx" in content:
+            return cls(content["name"], content["descriptor"], network, fname, \
+                       content["last_rcv_idx"], content["last_chg_idx"])
+        else:
+            return cls(content["name"], content["descriptor"], network, fname)
