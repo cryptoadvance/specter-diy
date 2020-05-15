@@ -3,11 +3,7 @@ import sys
 from platform import simulator
 from io import BytesIO
 from ubinascii import hexlify
-
-if not simulator:
-    import pyb
-else:
-    from unixport import pyb
+import pyb
 
 QRSCANNER_TRIGGER = "D5"
 

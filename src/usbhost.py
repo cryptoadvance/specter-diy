@@ -1,10 +1,6 @@
 import utime as time
 from platform import simulator, USB_ENABLED
-
-if not simulator:
-    import pyb
-else:
-    from unixport import pyb
+import pyb
 
 class USBHost:
     def __init__(self, callback=None):
