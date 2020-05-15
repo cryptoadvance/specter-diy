@@ -46,6 +46,7 @@ class Alert(Popup):
         self.page = lv.page(lv.scr_act())
         self.page.set_size(480, 550)
         self.message = add_label(message, scr=self.page)
+        self.message.set_recolor(True)
         self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
 class Prompt(Alert):

@@ -296,8 +296,12 @@ def verify_address(s):
         return
     for w in keystore.wallets:
         if w.address(index) == addr:
+            warning = ""
+            if index > w.last_rcv_idx + w.gap_limit:
+                warning = ("\n\n #ff0000 Possible gap limit. Using this address# "
+                           "#ff0000 may lead to locking of your funds!#")
             popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index+1, w.name),
-                            "bitcoin:%s"%addr, message_text=addr)
+                            "bitcoin:%s"%addr, message_text=addr + warning)
             return
     gui.error("Address doesn't belong to any wallet. Wrong device or network?")
 
