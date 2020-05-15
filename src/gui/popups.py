@@ -124,6 +124,14 @@ def prompt_tx(title, data, ok=None, cancel=None):
     lbl = lv.label(scr)
     lbl.set_text("Fee: %u satoshi - %.1f" % (data["fee"], 100*data["fee"]/data["spending"]) + "%")
     lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+
+    if "warning" in data:
+        lbl_w = lv.label(scr)
+        lbl_w.set_recolor(True)
+        lbl_w.set_text(data["warning"])
+        lbl_w.set_align(lv.label.ALIGN.CENTER)
+        lbl_w.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 70)
+
     return scr
 
 def error(message):
