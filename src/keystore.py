@@ -119,6 +119,43 @@ class KeyStore:
                 return True
         return False
 
+    def update_wallet_indexes(self, w, tx):
+        """ Update receive and change indexes if bigger """
+        assert w.owns(tx.inputs[0])
+        fname = w.fname
+        max_rcv_idx = w.last_rcv_idx
+        max_chg_idx = w.last_chg_idx
+        for inp in tx.inputs:
+            for pub in inp.bip32_derivations:
+                if inp.bip32_derivations[pub].derivation[-2]:
+                    chg_idx = inp.bip32_derivations[pub].derivation[-1]
+                    max_chg_idx = max(max_chg_idx, chg_idx)
+                else:
+                    rcv_idx = inp.bip32_derivations[pub].derivation[-1]
+                    max_rcv_idx = max(max_rcv_idx, rcv_idx)
+        for out in tx.outputs:
+            for pub in out.bip32_derivations:
+                 if out.bip32_derivations[pub].derivation[-2]:
+                     chg_idx = out.bip32_derivations[pub].derivation[-1]
+                     max_chg_idx = max(max_chg_idx, chg_idx)
+                 else:
+                     rcv_idx = out.bip32_derivations[pub].derivation[-1]
+                     max_rcv_idx = max(max_rcv_idx, rcv_idx)
+        if w.last_rcv_idx == max_rcv_idx and w.last_chg_idx == max_chg_idx:
+            return
+        w.last_rcv_idx = max_rcv_idx
+        w.last_chg_idx = max_chg_idx
+        data = w.save(fname)
+        h = hashes.sha256(data)
+        sig = self.idkey.sign(h)
+        with open(fname.replace(".json",".sig"),"wb") as f:
+            f.write(sig.serialize())
+        # update keystore
+        for i, w_tmp in enumerate(self.wallets):
+            if w_tmp.name == w.name:
+                self._wallets[i] = w
+                break
+
     def delete_wallet(self, w):
         if w in self._wallets:
             idx = self._wallets.index(w)

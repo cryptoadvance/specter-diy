@@ -181,6 +181,7 @@ def xpubs_menu():
 def sign_psbt(wallet=None, tx=None, success_callback=None):
     wallet.fill_psbt(tx)
     keystore.sign(tx)
+    keystore.update_wallet_indexes(wallet, tx)
     # remove everything but partial sigs
     # to reduce QR code size
     tx.unknown = {}
