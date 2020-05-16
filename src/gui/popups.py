@@ -191,7 +191,7 @@ def show_mnemonic(mnemonic):
     add_mnemonic_table(mnemonic, y=100)
 
 def show_wallet(wallet, delete_cb=None):
-    idx = 0
+    idx = wallet.last_rcv_idx + 1
     addr = wallet.address(idx)
     # dirty hack: add \n at the end to increase title size 
     #             to skip realigning of the qr code
@@ -224,10 +224,13 @@ def show_wallet(wallet, delete_cb=None):
         scr.close()
         delete_cb(wallet)
     delbtn = add_button("Delete wallet", on_release(cb_del), y=610)
-    prv, nxt = add_button_pair("Previous", on_release(cb_prev),
-                               "Next", on_release(cb_next),
-                               y=520)
+    prv = add_button(lv.SYMBOL.LEFT, on_release(cb_prev))
+    nxt = add_button(lv.SYMBOL.RIGHT, on_release(cb_next))
     prv.set_state(lv.btn.STATE.INA)
+    prv.set_width(70)
+    prv.align(scr.qr, lv.ALIGN.OUT_LEFT_MID, -10, 0)
+    nxt.set_width(70)
+    nxt.align(scr.qr, lv.ALIGN.OUT_RIGHT_MID, 10, 0)
 
 def show_settings(config, save_callback):
     def cb():
