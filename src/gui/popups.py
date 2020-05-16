@@ -203,6 +203,11 @@ def show_wallet(wallet, delete_cb=None):
     style.text.font = lv.font_roboto_mono_22
     scr.message.set_style(0, style)
 
+    # warning label for address gap limit
+    lbl_w = add_label("Warning")
+    lbl_w.align(scr.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+    lbl_w.set_recolor(True)
+
     lbl = add_label("Receiving address #%d" % (idx+1), y=80)
     def cb_update(delta):
         idx = int(lbl.get_text().split("#")[1])-1
@@ -216,6 +221,13 @@ def show_wallet(wallet, delete_cb=None):
             prv.set_state(lv.btn.STATE.REL)
         else:
             prv.set_state(lv.btn.STATE.INA)
+        if idx > wallet.last_rcv_idx + wallet.gap_limit:
+            lbl_w.set_text("#ff0000 This address exceeds the gap limit.# "
+                            "#ff0000 Using this address may lead to locking of# "
+                            "#ff0000 your funds! #")
+        else:
+            lbl_w.set_text("")
+
     def cb_next():
         cb_update(1)
     def cb_prev():
