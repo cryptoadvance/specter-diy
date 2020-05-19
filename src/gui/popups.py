@@ -204,7 +204,7 @@ def show_wallet(wallet, delete_cb=None):
     scr.message.set_style(0, style)
 
     # warning label for address gap limit
-    lbl_w = add_label("Warning")
+    lbl_w = add_label("")
     lbl_w.align(scr.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
     lbl_w.set_recolor(True)
 
@@ -225,6 +225,9 @@ def show_wallet(wallet, delete_cb=None):
             lbl_w.set_text("#ff0000 This address exceeds the gap limit.# "
                             "#ff0000 Using this address may lead to locking of# "
                             "#ff0000 your funds! #")
+        elif idx <= wallet.last_rcv_idx:
+            lbl_w.set_text("#ff0000 This address may have been used before.#\n"
+                           "#ff0000 Reusing it would diminish your privacy!#")
         else:
             lbl_w.set_text("")
 
@@ -238,7 +241,8 @@ def show_wallet(wallet, delete_cb=None):
     delbtn = add_button("Delete wallet", on_release(cb_del), y=610)
     prv = add_button(lv.SYMBOL.LEFT, on_release(cb_prev))
     nxt = add_button(lv.SYMBOL.RIGHT, on_release(cb_next))
-    prv.set_state(lv.btn.STATE.INA)
+    if idx <= 0:
+        prv.set_state(lv.btn.STATE.INA)
     prv.set_width(70)
     prv.align(scr.qr, lv.ALIGN.OUT_LEFT_MID, -10, 0)
     nxt.set_width(70)
