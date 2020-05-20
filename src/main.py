@@ -303,7 +303,7 @@ def verify_address(s):
             elif index <= w.last_rcv_idx:
                 warning = ("\n\n #ff0000 This address may have been used before.#\n"
                            "#ff0000 Reusing it would diminish your privacy!#")
-            popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index+1, w.name),
+            popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index, w.name),
                             "bitcoin:%s"%addr, message_text=addr + warning)
             return
     gui.error("Address doesn't belong to any wallet. Wrong device or network?")
