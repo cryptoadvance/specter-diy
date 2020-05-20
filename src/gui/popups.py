@@ -46,6 +46,7 @@ class Alert(Popup):
         self.page = lv.page(lv.scr_act())
         self.page.set_size(480, 550)
         self.message = add_label(message, scr=self.page)
+        self.message.set_recolor(True)
         self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
 class Prompt(Alert):
@@ -124,6 +125,14 @@ def prompt_tx(title, data, ok=None, cancel=None):
     lbl = lv.label(scr)
     lbl.set_text("Fee: %u satoshi - %.1f" % (data["fee"], 100*data["fee"]/data["spending"]) + "%")
     lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+
+    if "warning" in data:
+        lbl_w = lv.label(scr)
+        lbl_w.set_recolor(True)
+        lbl_w.set_text(data["warning"])
+        lbl_w.set_align(lv.label.ALIGN.CENTER)
+        lbl_w.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 70)
+
     return scr
 
 def error(message):
@@ -182,7 +191,7 @@ def show_mnemonic(mnemonic):
     add_mnemonic_table(mnemonic, y=100)
 
 def show_wallet(wallet, delete_cb=None):
-    idx = 0
+    idx = wallet.last_rcv_idx + 1
     addr = wallet.address(idx)
     # dirty hack: add \n at the end to increase title size 
     #             to skip realigning of the qr code
@@ -193,6 +202,11 @@ def show_wallet(wallet, delete_cb=None):
     lv.style_copy(style, scr.message.get_style(0))
     style.text.font = lv.font_roboto_mono_22
     scr.message.set_style(0, style)
+
+    # warning label for address gap limit
+    lbl_w = add_label("")
+    lbl_w.align(scr.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+    lbl_w.set_recolor(True)
 
     lbl = add_label("Receiving address #%d" % (idx+1), y=80)
     def cb_update(delta):
@@ -207,6 +221,16 @@ def show_wallet(wallet, delete_cb=None):
             prv.set_state(lv.btn.STATE.REL)
         else:
             prv.set_state(lv.btn.STATE.INA)
+        if idx > wallet.last_rcv_idx + wallet.gap_limit:
+            lbl_w.set_text("#ff0000 This address exceeds the gap limit.# "
+                            "#ff0000 Using this address may lead to locking of# "
+                            "#ff0000 your funds! #")
+        elif idx <= wallet.last_rcv_idx:
+            lbl_w.set_text("#ff0000 This address may have been used before.#\n"
+                           "#ff0000 Reusing it would diminish your privacy!#")
+        else:
+            lbl_w.set_text("")
+
     def cb_next():
         cb_update(1)
     def cb_prev():
@@ -215,10 +239,14 @@ def show_wallet(wallet, delete_cb=None):
         scr.close()
         delete_cb(wallet)
     delbtn = add_button("Delete wallet", on_release(cb_del), y=610)
-    prv, nxt = add_button_pair("Previous", on_release(cb_prev),
-                               "Next", on_release(cb_next),
-                               y=520)
-    prv.set_state(lv.btn.STATE.INA)
+    prv = add_button(lv.SYMBOL.LEFT, on_release(cb_prev))
+    nxt = add_button(lv.SYMBOL.RIGHT, on_release(cb_next))
+    if idx <= 0:
+        prv.set_state(lv.btn.STATE.INA)
+    prv.set_width(70)
+    prv.align(scr.qr, lv.ALIGN.OUT_LEFT_MID, -10, 0)
+    nxt.set_width(70)
+    nxt.align(scr.qr, lv.ALIGN.OUT_RIGHT_MID, 10, 0)
 
 def show_settings(config, save_callback):
     def cb():

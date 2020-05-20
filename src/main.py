@@ -181,6 +181,7 @@ def xpubs_menu():
 def sign_psbt(wallet=None, tx=None, success_callback=None):
     wallet.fill_psbt(tx)
     keystore.sign(tx)
+    keystore.update_wallet_indexes(wallet, tx)
     # remove everything but partial sigs
     # to reduce QR code size
     tx.unknown = {}
@@ -230,9 +231,33 @@ def parse_transaction(b64_tx, success_callback=None, error_callback=None):
         if error_callback is not None:
             error_callback("invalid argument")
         return
+
+    # check for address gap limit
+    gap_limit = False
+    w = data["wallet"]
+    wallet_key = b"\xfc\xca\x01" + data["wallet"].fingerprint
+    for el in tx.inputs + tx.outputs:
+        if el.bip32_derivations:
+            # full PSBT
+            for der in el.bip32_derivations:
+                drv = el.bip32_derivations[der].derivation
+                if drv[-1] > w.gap_limit + (w.last_chg_idx if drv[-2] else w.last_rcv_idx):
+                    gap_limit = True
+        elif wallet_key in el.unknown:
+            # compressed PSBT
+            idxs = el.unknown[wallet_key]
+            chg = int.from_bytes(idxs[0:4], 'little')
+            idx = int.from_bytes(idxs[4:8], 'little')
+            if idx > w.gap_limit + (w.last_chg_idx if chg else w.last_rcv_idx):
+                gap_limit = True
+    if gap_limit:
+        data["warning"] = ("#ff0000 Possible gap limit exceeded with some#\n"
+                           "#ff0000 addresses. Your funds may get locked. #\n "
+                           "#ff0000 Proceed at your own risk!#")
+
     title = "Spending %u\nfrom %s" % (data["spending"], data["wallet"].name)
     popups.prompt_tx(title, data,
-        ok=cb_with_args(sign_psbt, wallet=data["wallet"], tx=tx, success_callback=success_callback), 
+        ok=cb_with_args(sign_psbt, wallet=data["wallet"], tx=tx, success_callback=success_callback),
         cancel=cb_with_args(error_callback, "user cancel")
     )
 
@@ -271,8 +296,15 @@ def verify_address(s):
         return
     for w in keystore.wallets:
         if w.address(index) == addr:
+            warning = ""
+            if index > w.last_rcv_idx + w.gap_limit:
+                warning = ("\n\n #ff0000 Possible gap limit. Using this address# "
+                           "#ff0000 may lead to locking of your funds!#")
+            elif index <= w.last_rcv_idx:
+                warning = ("\n\n #ff0000 This address may have been used before.#\n"
+                           "#ff0000 Reusing it would diminish your privacy!#")
             popups.qr_alert("Address #%d from wallet\n\"%s\"" % (index+1, w.name),
-                            "bitcoin:%s"%addr, message_text=addr)
+                            "bitcoin:%s"%addr, message_text=addr + warning)
             return
     gui.error("Address doesn't belong to any wallet. Wrong device or network?")
 

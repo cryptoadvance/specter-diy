@@ -119,6 +119,43 @@ class KeyStore:
                 return True
         return False
 
+    def update_wallet_indexes(self, w, tx):
+        """ Update receive and change indexes if bigger """
+        assert w.owns(tx.inputs[0])
+        fname = w.fname
+        max_rcv_idx = w.last_rcv_idx
+        max_chg_idx = w.last_chg_idx
+        for inp in tx.inputs:
+            for pub in inp.bip32_derivations:
+                if inp.bip32_derivations[pub].derivation[-2]:
+                    chg_idx = inp.bip32_derivations[pub].derivation[-1]
+                    max_chg_idx = max(max_chg_idx, chg_idx)
+                else:
+                    rcv_idx = inp.bip32_derivations[pub].derivation[-1]
+                    max_rcv_idx = max(max_rcv_idx, rcv_idx)
+        for out in tx.outputs:
+            for pub in out.bip32_derivations:
+                 if out.bip32_derivations[pub].derivation[-2]:
+                     chg_idx = out.bip32_derivations[pub].derivation[-1]
+                     max_chg_idx = max(max_chg_idx, chg_idx)
+                 else:
+                     rcv_idx = out.bip32_derivations[pub].derivation[-1]
+                     max_rcv_idx = max(max_rcv_idx, rcv_idx)
+        if w.last_rcv_idx == max_rcv_idx and w.last_chg_idx == max_chg_idx:
+            return
+        w.last_rcv_idx = max_rcv_idx
+        w.last_chg_idx = max_chg_idx
+        data = w.save(fname)
+        h = hashes.sha256(data)
+        sig = self.idkey.sign(h)
+        with open(fname.replace(".json",".sig"),"wb") as f:
+            f.write(sig.serialize())
+        # update keystore
+        for i, w_tmp in enumerate(self.wallets):
+            if w_tmp.name == w.name:
+                self._wallets[i] = w
+                break
+
     def delete_wallet(self, w):
         if w in self._wallets:
             idx = self._wallets.index(w)
@@ -243,12 +280,15 @@ def parse_descriptor(desc):
     return wrappers, args
 
 class Wallet:
-    def __init__(self, name, descriptor, network, fname=None):
+    def __init__(self, name, descriptor, network, fname=None, last_rcv_idx=-1, last_chg_idx=-1):
         self.fname = fname
         self.name = name
         self.descriptor = descriptor
         self.network = network
         self.wrappers, self.args = parse_descriptor(descriptor)
+        self.last_rcv_idx = last_rcv_idx
+        self.last_chg_idx = last_chg_idx
+        self.gap_limit = 20
 
     @property
     def is_multisig(self):
@@ -416,7 +456,9 @@ class Wallet:
         return (sc == output.script_pubkey)
 
     def save(self, fname):
-        obj = {"name": self.name, "descriptor": self.descriptor}
+        obj = {"name": self.name, "descriptor": self.descriptor, \
+               "last_rcv_idx": self.last_rcv_idx, \
+               "last_chg_idx": self.last_chg_idx}
         data = json.dumps(obj)
         with open(fname,"w") as f:
             f.write(data)
@@ -431,4 +473,8 @@ class Wallet:
     @classmethod
     def parse(cls, s, network, fname=None):
         content = json.loads(s)
-        return cls(content["name"], content["descriptor"], network, fname)
+        if "last_rcv_idx" in content:
+            return cls(content["name"], content["descriptor"], network, fname, \
+                       content["last_rcv_idx"], content["last_chg_idx"])
+        else:
+            return cls(content["name"], content["descriptor"], network, fname)
