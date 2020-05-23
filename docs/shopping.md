@@ -40,4 +40,4 @@ Unless you build your own communication module that uses something else instead 
 
 ## Optional components
 
-If you add a tiny powerbank, or a battery & power charger/booster. Then your wallet becomes completely self-contained ;)
+If you add a tiny powerbank or a battery & power charger/booster, your wallet becomes completely self-contained ;)
