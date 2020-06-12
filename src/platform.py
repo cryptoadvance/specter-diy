@@ -2,23 +2,72 @@
 import sys, os
 simulator = (sys.platform != 'pyboard')
 
+class CriticalErrorWipeImmediately(Exception):
+    """
+    This exception should be raised when device needs to be wiped
+    because something terrible happened
+    """
+    pass
+
+def maybe_mkdir(path):
+    try:
+        os.mkdir(path)
+    except:
+        pass
+
 # path to store #reckless entropy
 if simulator:
-    storage_root = "../userdata"
+    storage_root = "../fs"
+    # create folders for simulator
+    maybe_mkdir(storage_root)
+    maybe_mkdir("%s/flash"%storage_root)
+    maybe_mkdir("%s/qspi"%storage_root)
+    maybe_mkdir("%s/sd"%storage_root)
 else:
-    storage_root = "/flash/userdata"
+    storage_root = ""
 
+def fpath(fname):
+    """A small function to avoid % storage_root everywhere"""
+    return "%s%s" % (storage_root, fname)
+
+def delete_recursively(path):
+    files = os.ilistdir(path)
+    for _file in files:
+        if _file[0] in [".",".."]:
+            continue
+        f = "%s/%s" % (path, _file[0])
+        # regular file
+        if _file[1] == 0x8000:
+            os.remove(f)
+        # directory
+        elif _file[1] == 0x4000:
+            self.wipe(f)
+            os.rmdir(f)
+
+    files = os.ilistdir(path)
+    num_of_files = sum(1 for _ in files)
+    if (num_of_files == 2 and simulator) or num_of_files == 0:
+        """
+        Directory is empty - it contains exactly 2 directories -
+        current directory and parent directory (unix) or
+        0 directories (stm32)
+        """
+        return True
+    raise RuntimeError("Failed to delete folder %s" % path)
+
+# defaults
 USB_ENABLED = False
 DEV_ENABLED = False
 
+# check if these files are in flash, enable corresponding mode
 try:
-    s = os.stat("%s/%s" % (storage_root, "USB_ENABLED"))
+    os.stat(fpath("/flash/USB_ENABLED"))
     USB_ENABLED = True
 except:
     pass
 
 try:
-    s = os.stat("%s/%s" % (storage_root, "DEV_ENABLED"))
+    os.stat(fpath("/flash/DEV_ENABLED"))
     DEV_ENABLED = True
 except:
     pass

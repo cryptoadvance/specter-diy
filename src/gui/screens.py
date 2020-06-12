@@ -1,399 +1,187 @@
 import lvgl as lv
 from .common import *
 from .decorators import *
-from .popups import alert
-from pin import Secret, Key, Pin, antiphishing_word, Factory_settings
 import rng
+import asyncio
 
-# "main" screens
-def ask_pin(first_time_usage, callback):
-    scr = switch_to_new_screen()
-    first_time_title = "Choose a PIN code"
-    title = "Enter your PIN code"
-    if first_time_usage:
-        title = first_time_title
-    title_lbl = add_label(title, y=PADDING, style="title")
-    btnm = lv.btnm(scr)
-    # shuffle numbers to make sure 
-    # no constant fingerprints left on screen
-    buttons = ["%d" % i for i in range(0,10)]
-    btnmap = []
-    for j in range(3):
-        for i in range(3):
-            v = rng.get_random_bytes(1)[0] % len(buttons)
-            btnmap.append(buttons.pop(v))
-        btnmap.append("\n")
-    btnmap = btnmap+[lv.SYMBOL.CLOSE, buttons.pop(), lv.SYMBOL.OK, ""]
-    btnm.set_map(btnmap)
-    btnm.set_width(HOR_RES)
-    btnm.set_height(HOR_RES)
-    btnm.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
-    # remove feedback on press to avoid sidechannels
-    btnm.set_style(lv.btnm.STYLE.BTN_PR,btnm.get_style(lv.btnm.STYLE.BTN_REL))
+class Screen(lv.obj):
+    def __init__(self):
+        super().__init__()
+        self.waiting = True
+        self._value = None
 
-    pin_lbl = lv.ta(scr)
-    pin_lbl.set_text("")
-    pin_lbl.set_pwd_mode(True)
-    style = lv.style_t()
-    lv.style_copy(style, styles["theme"].style.ta.oneline)
-    style.text.font = lv.font_roboto_28
-    style.text.color = lv.color_hex(0xffffff)
-    style.text.letter_space = 15
-    pin_lbl.set_style(lv.label.STYLE.MAIN, style)
-    pin_lbl.set_width(HOR_RES-2*PADDING)
-    pin_lbl.set_x(PADDING)
-    pin_lbl.set_y(PADDING+50)
-    pin_lbl.set_cursor_type(lv.CURSOR.HIDDEN)
-    pin_lbl.set_one_line(True)
-    pin_lbl.set_text_align(lv.label.ALIGN.CENTER)
-    pin_lbl.set_pwd_show_time(0)
+    def release(self):
+        self.waiting = False
 
-    instruct_txt = "Device tamper check.\nThese words should remain #ffffff the same every time#:"
-    instruct_label = add_label(instruct_txt, 180, style="hint")
-    instruct_label.set_recolor(True)
-    antiphish_label = add_label(antiphishing_word(""), 250)
-    Pin.read_counter()
+    def get_value(self):
+        """
+        Redefine this function to get value entered by the user
+        """
+        return self._value
+
+    def set_value(self, value):
+        self._value = value
+        self.release()
+
+    async def result(self):
+        self.waiting = True
+        while self.waiting:
+            await asyncio.sleep_ms(1)
+        return self.get_value()
+
+class PinScreen(Screen):
+    def __init__(self, title="Enter your PIN code", note=None, get_word=None):
+        super().__init__()
+        self.title = add_label(title, scr=self, y=PADDING, style="title")
+        if note is not None:
+            lbl = add_label(note, scr=self, style="hint")
+            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 180)
+        self.get_word = get_word
+        if get_word is not None:
+            self.words = add_label(get_word(b""), scr=self)
+            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 210)
+        btnm = lv.btnm(self)
+        # shuffle numbers to make sure 
+        # no constant fingerprints left on screen
+        buttons = ["%d" % i for i in range(0,10)]
+        btnmap = []
+        for j in range(3):
+            for i in range(3):
+                v = rng.get_random_bytes(1)[0] % len(buttons)
+                btnmap.append(buttons.pop(v))
+            btnmap.append("\n")
+        btnmap = btnmap+[lv.SYMBOL.CLOSE, buttons.pop(), lv.SYMBOL.OK, ""]
+        btnm.set_map(btnmap)
+        btnm.set_width(HOR_RES)
+        btnm.set_height(HOR_RES)
+        btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        # remove feedback on press to avoid sidechannels
+        btnm.set_style(lv.btnm.STYLE.BTN_PR,btnm.get_style(lv.btnm.STYLE.BTN_REL))
+
+        self.pin = lv.ta(self)
+        self.pin.set_text("")
+        self.pin.set_pwd_mode(True)
+        style = lv.style_t()
+        lv.style_copy(style, styles["theme"].style.ta.oneline)
+        style.text.font = lv.font_roboto_28
+        style.text.color = lv.color_hex(0xffffff)
+        style.text.letter_space = 15
+        self.pin.set_style(lv.label.STYLE.MAIN, style)
+        self.pin.set_width(HOR_RES-2*PADDING)
+        self.pin.set_x(PADDING)
+        self.pin.set_y(PADDING+50)
+        self.pin.set_cursor_type(lv.CURSOR.HIDDEN)
+        self.pin.set_one_line(True)
+        self.pin.set_text_align(lv.label.ALIGN.CENTER)
+        self.pin.set_pwd_show_time(0)
+        self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, -150)
+
+        btnm.set_event_cb(self.cb);
+
+    def reset(self):
+        self.pin.set_text("")
+        if self.get_word is not None:
+            self.words.set_text(self.get_word(b""))
 
     @feed_rng
-    def cb(obj, event):
-        nonlocal first_time_usage
+    def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
             if c is None:
                 return
             if c == lv.SYMBOL.CLOSE:
-                pin_lbl.set_text("")
-                antiphish_label.set_text(antiphishing_word(""))
+                self.reset()
             elif c == lv.SYMBOL.OK:
-                # FIXME: check PIN len
-                Key.generate_key(pin_lbl.get_text());
-                if first_time_usage:
-                    Secret.save_secret(alert);
-                    callback()
+                self.release()
+            else:
+                self.pin.add_text(c)
+                # add new anti-phishing word
+                if self.get_word is not None:
+                    cur_words = self.words.get_text()
+                    cur_words += " "+self.get_word(self.pin.get_text())
+                    self.words.set_text(cur_words)
+
+
+    def get_value(self):
+        return self.pin.get_text()
+
+class MenuScreen(Screen):
+    def __init__(self, buttons=[], 
+                 title="What do you want to do?", note=None,
+                 y0=100, last=None
+                 ):
+        super().__init__()
+        y = y0
+        self.title = add_label(title, style="title", scr=self)
+        if note is not None:
+            self.note = add_label(note, style="hint", scr=self)
+            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            y += self.note.get_height()
+        for value, text in buttons:
+            if text is not None:
+                if value is not None:
+                    add_button(text, 
+                        on_release(
+                            cb_with_args(self.set_value, value)
+                        ), y=y, scr=self)
+                    y+=85
                 else:
-                    Pin.counter -= 1
-                    Pin.save_counter(alert)
-                    if Pin.is_pin_valid():
-                        Pin.reset_counter(alert)
-                        callback()
-                    else:
-                        instruct_label.set_text("#f07070 Wrong pin: %d/%d #" % (Pin.counter, Pin.ATTEMPTS_MAX))
-                        if Pin.counter <= 0:
-                            Factory_settings.restore(alert)
-                            Secret.generate_secret()
-                            alert("Security","Device has been factory reset!")
-                            first_time_usage = True
-                            title_lbl.set_text(first_time_title)
-                            instruct_label.set_text(instruct_txt)
-                pin_lbl.set_text("")
-                antiphish_label.set_text(antiphishing_word(""))
+                    add_label(text.upper(), y=y+10, style="hint", scr=self)
+                    y+=50
             else:
-                instruct_label.set_text(instruct_txt)
-                pin_lbl.add_text(c)
-                word = antiphishing_word(pin_lbl.get_text())
-                antiphish_label.set_text(antiphish_label.get_text() + " " + word)
+                y+=40
+        if last is not None:
+            self.add_back_button(*last)
 
-    btnm.set_event_cb(cb);
+    def add_back_button(self, value, text=None):
+        if text is None:
+            text = lv.SYMBOL.LEFT+" Back"
+        add_button(text, 
+                on_release(
+                        cb_with_args(self.set_value, value)
+                ), scr=self)
 
-def create_menu(buttons=[], title="What do you want to do?", y0=100, cb_back=None):
-    scr = switch_to_new_screen()
-    add_label(title, style="title")
-    y = y0
-    for text, callback in buttons:
-        add_button(text, on_release(callback), y=y)
-        y+=100
-    if cb_back is not None:
-        add_button(lv.SYMBOL.LEFT+" Back", on_release(cb_back))
 
-def show_progress(title, text, callback=None):
-    scr = switch_to_new_screen()
-    add_label(title, style="title")
-    add_label(text, y=200)
-    if callback is not None:
-        add_button("Cancel", on_release(callback))
+class Alert(Screen):
+    def __init__(self, title, message, button_text=(lv.SYMBOL.LEFT+" Back")):
+        super().__init__()
+        self.title = add_label(title, scr=self, style="title")
+        self.page = lv.page(self)
+        self.page.set_size(480, 600)
+        self.message = add_label(message, scr=self.page)
+        self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
 
-def new_mnemonic(mnemonic, 
-                 cb_continue, cb_back, cb_update=None, 
-                 title="Your new recovery phrase:"):
-    """Makes the new mnemonic screen with a slider to change number of words"""
-    scr = switch_to_new_screen()
-    add_label(title, style="title")
-    table = add_mnemonic_table(mnemonic, y=100)
+        self.close_button = add_button(scr=self, 
+                                callback=on_release(self.release))
 
-    if cb_update is not None:
-        wordcount = len(mnemonic.split())
-        slider = lv.slider(scr)
-        slider.set_width(HOR_RES-2*PADDING)
-        slider.set_range(0, 4)
-        slider.set_pos(PADDING, 600)
-        slider.set_value((wordcount-12)//3, lv.ANIM.OFF)
-        lbl = add_label("Number of words: %d" % wordcount, y=550)
-        @feed_rng
-        def cb_upd(obj, event):
-            if event == lv.EVENT.VALUE_CHANGED:
-                wordcount = slider.get_value()*3+12
-                lbl.set_text("Number of words: %d" % wordcount)
-                mnemonic = cb_update(wordcount)
-                table_set_mnemonic(table, mnemonic)
-        slider.set_event_cb(cb_upd)
-    @feed_rng
-    def cb_prev(obj, event):
-        if event == lv.EVENT.RELEASED:
-            cb_back()
-    @feed_rng
-    def cb_next(obj, event):
-        if event == lv.EVENT.RELEASED:
-            cb_continue()
-    add_button_pair("Back", cb_prev, "Continue", cb_next)
+        self.close_label = lv.label(self.close_button)
+        self.close_label.set_text(button_text)
 
-CHARSET = [
-    "q","w","e","r","t","y","u","i","o","p","\n",
-    "#@","a","s","d","f","g","h","j","k","l","\n",
-    lv.SYMBOL.UP,"z","x","c","v","b","n","m",lv.SYMBOL.LEFT,"\n",
-    lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
-]
-CHARSET_EXTRA = [
-    "1","2","3","4","5","6","7","8","9","0","\n",
-    "aA","@","#","$","_","&","-","+","(",")","/","\n",
-    "[","]","*","\"","'",":",";","!","?","\\",lv.SYMBOL.LEFT,"\n",
-    lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
-]
+class Prompt(Screen):
+    def __init__(self, title="Are you sure?", message="Make a choice"):
+        super().__init__()
+        self.title = add_label(title, scr=self, style="title")
+        self.page = lv.page(self)
+        self.page.set_size(480, 600)
+        self.message = add_label(message, scr=self.page)
+        self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
 
-def ask_for_password(cb_continue, title="Enter your password (optional)"):
-    scr = switch_to_new_screen()
-    add_label(title, style="title")
+        (self.cancel_button, 
+         self.confirm_button) = add_button_pair(
+                    "Cancel", on_release(cb_with_args(self.set_value,False)), 
+                    "Confirm", on_release(cb_with_args(self.set_value,True)), 
+                    scr=self)
 
-    btnm = lv.btnm(scr)
-    btnm.set_map(CHARSET)
-    btnm.set_width(HOR_RES)
-    btnm.set_height(VER_RES//3)
-    btnm.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
-
-    ta = lv.ta(scr)
-    ta.set_text("")
-    # ta.set_pwd_mode(True)
-    ta.set_width(HOR_RES-2*PADDING)
-    ta.set_x(PADDING)
-    ta.set_text_align(lv.label.ALIGN.CENTER)
-    ta.set_y(PADDING+150)
-    ta.set_cursor_type(lv.CURSOR.HIDDEN)
-    ta.set_one_line(True)
-    # ta.set_pwd_show_time(0)
-
-    key_hint = lv.btn(scr)
-    key_hint.set_size(50,60)
-    key_lbl = add_label(" ", style="title", scr=key_hint)
-    key_hint.set_hidden(True)
-
-    @feed_rng
-    def cb(obj, event):
-        if event == lv.EVENT.PRESSING:
-            c = obj.get_active_btn_text()
-            if c is None:
-                return
-            if len(c)>2:
-                key_hint.set_hidden(True)
-                return
-            key_hint.set_hidden(False)
-            key_lbl.set_text(c)
-            point = lv.point_t()
-            indev = lv.indev_get_act()
-            lv.indev_get_point(indev, point)
-            key_hint.set_pos(point.x-25, point.y-130)
-
-        elif event == lv.EVENT.RELEASED:
-            key_hint.set_hidden(True)
-            c = obj.get_active_btn_text()
-            if c is None:
-                return
-            if c[0] == lv.SYMBOL.LEFT:
-                ta.del_char()
-            elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
-                for i,ch in enumerate(CHARSET):
-                    if ch.isalpha():
-                        if c == lv.SYMBOL.UP:
-                            CHARSET[i] = CHARSET[i].upper()
-                        else:
-                            CHARSET[i] = CHARSET[i].lower()
-                    elif ch == lv.SYMBOL.UP:
-                        CHARSET[i] = lv.SYMBOL.DOWN
-                    elif ch == lv.SYMBOL.DOWN:
-                        CHARSET[i] = lv.SYMBOL.UP
-                btnm.set_map(CHARSET)
-            elif c == "#@":
-                btnm.set_map(CHARSET_EXTRA)
-            elif c == "aA":
-                btnm.set_map(CHARSET)
-            elif c[0] == lv.SYMBOL.CLOSE:
-                ta.set_text("")
-            elif c[0] == lv.SYMBOL.OK:
-                cb_continue(ta.get_text())
-                ta.set_text("")
-            else:
-                ta.add_text(c)
-    btnm.set_event_cb(cb)
-
-PATH_CHARSET = [
-    "1","2","3",lv.SYMBOL.LEFT,"\n",
-    "4","5","6","h","\n",
-    "7","8","9","/","\n",
-    "Back", "0", lv.SYMBOL.CLOSE, lv.SYMBOL.OK,""
-]
-
-def ask_for_derivation(cb_continue, cb_back, title="Enter desired derivation path"):
-    scr = switch_to_new_screen()
-    add_label(title, style="title")
-
-    btnm = lv.btnm(scr)
-    btnm.set_map(PATH_CHARSET)
-    btnm.set_width(HOR_RES)
-    btnm.set_height(VER_RES//2)
-    btnm.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
-
-    lbl = add_label("m/", style="title")
-    lbl.set_y(PADDING+150)
-    lbl.set_width(40)
-    lbl.set_x(PADDING)
-
-    ta = lv.ta(scr)
-    ta.set_text("")
-    ta.set_width(HOR_RES-2*PADDING-40)
-    ta.set_x(PADDING+40)
-    ta.set_y(PADDING+150)
-    ta.set_cursor_type(lv.CURSOR.HIDDEN)
-    ta.set_one_line(True)
-
-    @feed_rng
-    def cb(obj, event):
-        if event == lv.EVENT.RELEASED:
-            c = obj.get_active_btn_text()
-            if c is None:
-                return
-            if c == "Back":
-                cb_back()
-                ta.set_text("")
-            if c[0] == lv.SYMBOL.LEFT:
-                ta.del_char()
-            elif c[0] == lv.SYMBOL.CLOSE:
-                ta.set_text("")
-            elif c[0] == lv.SYMBOL.OK:
-                cb_continue("m/"+ta.get_text())
-                ta.set_text("")
-            elif c[0] == "h":
-                ta.add_text("h/")
-            else:
-                ta.add_text(c)
-    btnm.set_event_cb(cb)
-
-# global
-words = []
-
-def ask_for_mnemonic(cb_continue, cb_back, 
-                     check_mnemonic=None, words_lookup=None,
-                     title="Enter your recovery phrase"):
-    scr = switch_to_new_screen()
-    add_label(title, style="title")
-    table = add_mnemonic_table("", y=70)
-
-    btnm = lv.btnm(scr)
-    btnm.set_map([
-        "Q","W","E","R","T","Y","U","I","O","P","\n",
-        "A","S","D","F","G","H","J","K","L","\n",
-        "Z","X","C","V","B","N","M",lv.SYMBOL.LEFT,"\n",
-        lv.SYMBOL.LEFT+" Back","Next word",lv.SYMBOL.OK+" Done",""
-    ])
-
-    if words_lookup is not None:
-        # Next word button inactive
-        btnm.set_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
-    if check_mnemonic is not None:
-        # Done inactive
-        btnm.set_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
-    btnm.set_width(HOR_RES)
-    btnm.set_height(VER_RES//3)
-    btnm.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
-
-    key_hint = lv.btn(scr)
-    key_hint.set_size(50,60)
-    key_lbl = add_label(" ", style="title", scr=key_hint)
-    key_hint.set_hidden(True)
-
-    @feed_rng
-    def cb(obj, event):
-        global words
-        if event == lv.EVENT.PRESSING:
-            c = obj.get_active_btn_text()
-            if c is None:
-                return
-            if len(c)>1:
-                key_hint.set_hidden(True)
-                return
-            key_hint.set_hidden(False)
-            key_lbl.set_text(c)
-            point = lv.point_t()
-            indev = lv.indev_get_act()
-            lv.indev_get_point(indev, point)
-            key_hint.set_pos(point.x-25, point.y-130)
-        elif event == lv.EVENT.RELEASED:
-            key_hint.set_hidden(True)
-            c = obj.get_active_btn_text()
-            if c is None:
-                return
-            num = obj.get_active_btn()
-            # if inactive button is clicked - return
-            if obj.get_btn_ctrl(num,lv.btnm.CTRL.INACTIVE):
-                return
-            if c == lv.SYMBOL.LEFT+" Back":
-                cb_back()
-            elif c == lv.SYMBOL.LEFT:
-                if len(words) == 0:
-                    return
-                if len(words[-1]) > 0:
-                    words[-1] = words[-1][:-1]
-                elif len(words) > 0:
-                    words = words[:-1]
-                table_set_mnemonic(table, " ".join(words))
-            elif c == "Next word":
-                if words_lookup is not None and len(words[-1])>=2:
-                    candidates = words_lookup(words[-1])
-                    if len(candidates) == 1:
-                        words[-1] = candidates[0]
-                words.append("")
-                table_set_mnemonic(table, " ".join(words))
-            elif c == lv.SYMBOL.OK+" Done":
-                pass
-            else:
-                if len(words) == 0:
-                    words.append("")
-                words[-1] = words[-1]+c.lower()
-                table_set_mnemonic(table, " ".join(words))
-
-            mnemonic = None
-            if words_lookup is not None:
-                btnm.set_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
-                if len(words) > 0 and len(words[-1])>=2:
-                    candidates = words_lookup(words[-1])
-                    if len(candidates) == 1 or words[-1] in candidates:
-                        btnm.clear_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
-                        mnemonic = " ".join(words[:-1])
-                        if len(candidates) == 1:
-                            mnemonic += " "+candidates[0]
-                        else:
-                            mnemonic += " "+words[-1]
-                else:
-                    mnemonic = " ".join(words)
-            else:
-                mnemonic = " ".join(words)
-            if mnemonic is None:
-                return
-            mnemonic = mnemonic.strip()
-            if check_mnemonic is not None and mnemonic is not None:
-                if check_mnemonic(mnemonic):
-                    btnm.clear_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
-                else:
-                    btnm.set_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
-            # if user was able to click this button then mnemonic is correct
-            if c == lv.SYMBOL.OK+" Done":
-                cb_continue(mnemonic)
-
-    btnm.set_event_cb(cb);
+class QRAlert(Alert):
+    def __init__(self,
+                 title="QR Alert!", 
+                 message="Something happened", 
+                 qr_message=None,
+                 qr_width=None,
+                 button_text="Close"):
+        if qr_message is None:
+            qr_message = message
+        super().__init__(title, message, button_text)
+        self.qr = add_qrcode(qr_message, scr=self, width=qr_width)
+        self.qr.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)

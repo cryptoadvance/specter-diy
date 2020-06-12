@@ -1,12 +1,15 @@
 import lvgl as lv
+import qrcode
 import math
 from micropython import const
 import gc
+from .components import QRCode
 
-PADDING    = const(30)
-BTN_HEIGHT = const(80)
+PADDING    = const(20)
+BTN_HEIGHT = const(70)
 HOR_RES    = const(480)
 VER_RES    = const(800)
+QR_PADDING = const(40)
 
 styles = {}
 
@@ -136,9 +139,6 @@ def add_button(text=None, callback=None, scr=None, y=700):
 
     return btn
 
-def add_mnemonic(mnemonic, scr=None, y=200):
-    return add_label(mnemonic, y=y, scr=scr)
-
 def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     """Helper function that creates a button with a text label"""
     w = (HOR_RES-3*PADDING)//2
@@ -149,48 +149,17 @@ def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     btn2.set_x(HOR_RES//2+PADDING//2)
     return btn1, btn2
 
-def table_set_mnemonic(table, mnemonic):
-    words = mnemonic.split()
-    for i in range(24):
-        row = i%12
-        col = 1+2*(i//12)
-        if i < len(words):
-            table.set_cell_value(row, col, words[i])
-        else:
-            table.set_cell_value(row, col, "")
-
-def add_mnemonic_table(mnemonic, y=PADDING, scr=None):
+def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
+    """Helper functions that creates a title-styled label"""
     if scr is None:
         scr = lv.scr_act()
 
-    cell_style = lv.style_t()
-    lv.style_copy(cell_style, styles["theme"].style.label.prim)
-    cell_style.body.opa = 0
-    cell_style.text.font = lv.font_roboto_22
+    if width is None:
+        width = 350
 
-    num_style = lv.style_t()
-    lv.style_copy(num_style, cell_style)
-    num_style.text.opa = lv.OPA._40
-
-    table = lv.table(scr)
-    table.set_col_cnt(4)
-    table.set_row_cnt(12)
-    table.set_col_width(0, 50)
-    table.set_col_width(2, 50)
-    table.set_col_width(1, 150)
-    table.set_col_width(3, 150)
-
-    table.set_style(lv.page.STYLE.BG, cell_style)
-    table.set_style(lv.table.STYLE.CELL1, cell_style)
-    table.set_style(lv.table.STYLE.CELL2, num_style)
-
-    for i in range(12):
-        table.set_cell_value(i, 0, "%d" % (i+1))
-        table.set_cell_value(i, 2, "%d" % (i+13))
-        table.set_cell_type(i, 0, lv.table.STYLE.CELL2)
-        table.set_cell_type(i, 2, lv.table.STYLE.CELL2)
-    table.align(scr, lv.ALIGN.IN_TOP_MID, 0, y)
-
-    table_set_mnemonic(table, mnemonic)
-
-    return table
+    qr = QRCode(scr)
+    qr.set_text(text)
+    qr.set_size(width)
+    qr.set_text(text)
+    qr.align(scr, lv.ALIGN.IN_TOP_MID, 0, y)
+    return qr

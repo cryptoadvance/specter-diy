@@ -1,16 +1,10 @@
-import utime as time
-import sys
+from .core import Host, HostError
+import asyncio
 from platform import simulator
 from io import BytesIO
-from ubinascii import hexlify
+from binascii import b2a_base64, a2b_base64
+import time
 import pyb
-
-QRSCANNER_TRIGGER = "D5"
-
-try:
-    from config import QRSCANNER_TRIGGER
-except:
-    pass
 
 # OK response from scanner
 SUCCESS        = b"\x02\x00\x00\x01\x00\x33\x31"
@@ -44,17 +38,26 @@ which happens if we scan a different qr code. """
 DELAY_OF_SAME_BARCODES_ADDR = b"\x00\x13"
 DELAY_OF_SAME_BARCODES = 0x85 # 5 seconds
 
-
-class QRScanner:
-    uart_bus = None
+class QRHost(Host):
+    """
+    QRHost class.
+    Manages QR code scanner:
+    - scan unsigned transaction and authentications
+    - trigger display of the signed transaction
+    """
     def __init__(self, trigger=None, uart="YA", baudrate=9600):
+        super().__init__()
+        self.button = "Scan QR code"
+
         if simulator:
             self.EOL = "\r\n"
             self.UART_EMPTY = b""
         else:
             self.EOL = "\r"
             self.UART_EMPTY = None
-        QRScanner.uart_bus = uart
+
+        self.data = b""
+        self.uart_bus = uart
         self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
         self.trigger = None
         self.is_configured = False
@@ -64,8 +67,6 @@ class QRScanner:
             self.is_configured = True
         self.init()
         self.scanning = False
-        self.callback = None
-        self.callback_animated_qr = None
 
     def query(self, data):
         self.uart.write(data)
@@ -145,7 +146,7 @@ class QRScanner:
         ret = self.query(b"\x7E\x00\x08\x02"+BAUD_RATE_ADDR+BAUD_RATE+b"\xAB\xCD")
         if ret != SUCCESS:
             return False
-        self.uart = pyb.UART(QRScanner.uart_bus, 115200, read_buf_len=2048)
+        self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
         return True
 
     def init(self):
@@ -159,7 +160,7 @@ class QRScanner:
                 return
 
             # Try one more time with different baudrate
-            self.uart = pyb.UART(QRScanner.uart_bus, 115200, read_buf_len=2048)
+            self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
             self.clean_uart()
             self.is_configured = self.configure()
             if self.is_configured:
@@ -167,7 +168,7 @@ class QRScanner:
                 return
 
             # PIN trigger mode
-            self.uart = pyb.UART(QRScanner.uart_bus, 9600, read_buf_len=2048)
+            self.uart = pyb.UART(self.uart_bus, 9600, read_buf_len=2048)
             self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
             self.trigger.on()
             self.is_configured = True
@@ -175,113 +176,77 @@ class QRScanner:
 
     def stop_scanning(self):
         self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
+        self.scanning = False
 
     def clean_uart(self):
         self.uart.read()
 
-    def start_scan(self, callback=None):
+    def stop_scanning(self):
+        self.scanning = False
+        self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
+
+    async def scan(self):
+        self.clean_uart()
         if self.trigger is not None:
             self.trigger.off()
         else:
-            self.clean_uart()
             self.set_setting(SETTINGS_ADDR, SETTINGS_CONT_MODE)
-        QRAnimated.clean()
-        self.data = ""
+        self.data = b""
         self.scanning = True
-        self.callback = callback
+        while self.scanning:
+            # read all available data
+            res = self.uart.read()
+            if res is not None:
+                if res.endswith(self.EOL):
+                    # check if it is animated
+                    if res.startswith(b'p'):
+                        self.stop_scanning()
+                        raise HostError("Animated QR codes are not supported yet")
+                    self.data += res[:-len(self.EOL)]
+                    self.stop_scanning()
+                    return self.data
+                else:
+                    self.data += res
+            await asyncio.sleep_ms(10)
+        # raise if scan was interrupted
+        raise HostError("Scan failed")
 
-    def update(self, cb_error=None):
-        def process():
-            assert cb_error != None, "callback missing"
-            data = self.data[:-len(self.EOL)]
-            self.data = ""
-            if self.EOL in data:
-                """ when scanning qrs fast many at once can be read.
-                We split and handle them all """
-                data = data.split(self.EOL)
-                for w in data:
-                    qr_anim = QRAnimated.process(w, self.trigger)
-                    if qr_anim != "skip" and qr_anim != None:
-                        # animated qr assembled
-                        break
-            else:
-                qr_anim = QRAnimated.process(data, self.trigger)
-            if qr_anim == "skip":
-                return
-            # is this animated QR code
-            if qr_anim != None:
-                data = qr_anim
-            self.stop()
-            self.callback(data)
-        try:
-            if self.scanning:
-                res = self.uart.read()
-                if not simulator and res is self.UART_EMPTY:
-                    res = b""
-                if len(res) > 0:
-                    self.data += res.decode('utf-8')
-                if self.is_done() and self.callback is not None:
-                    process()
-        except Exception as e:
-            QRAnimated.clean()
-            self.stop()
-            b = BytesIO()
-            sys.print_exception(e, b)
-            cb_error("Something bad happened...\n\n%s" % b.getvalue().decode())
+    async def get_tx(self):
+        # scan_progress is a QR scanning specific screen
+        # that shows that QR code(s) is being scanned
+        # and displays cancel button that calls self.stop_scanning()
+        # self.manager.scan_progress([])
+        data = await self.scan()
+        tx, auths = data.split(b" ")
+        tx = a2b_base64(tx)
+        auths = a2b_base64(auths)
+        mvtx = memoryview(tx)
+        mvauths = memoryview(auths)
+        sigs = []
+        b = BytesIO(auths)
+        cur = 0
+        while True:
+            bb = b.read(1)
+            # cant read? - done
+            if len(bb) == 0:
+                break
+            cur += 1
+            l = bb[0]
+            # ignore empty sig
+            if l == 0:
+                continue
+            b.read(l)
+            sigs.append(BytesIO(mvauths[cur:cur+l]))
+            cur += l
+        return BytesIO(mvtx), sigs
 
-    def is_done(self):
-        return self.data.endswith(self.EOL)
-
-    def stop(self):
-        QRAnimated.clean()
-        self.scanning = False
-        self.data = ""
-        if self.trigger is not None:
-            self.trigger.on()
-        else:
-            self.stop_scanning()
-
-class QRAnimated:
-    """
-    Example of animated QR: "p1of3 payload"
-    """
-    # holds the current indices, e.g. for p1of3:  [1, 3]
-    indx = []
-    # list of payloads of animated qr codes
-    payload = []
-
-    @staticmethod
-    def process(data, trigger_mode):
-        if data.startswith('p'):
-            # This is probably an animated qr
-            datal = data.split(" ", 1)
-            if len(datal) != 2:
-                return None
-            if "of" not in datal[0]:
-                return None
-            # This is definitely an animated qr
-            # PIN trigger mode does not support animated qrs except with Simulator
-            if not simulator:
-                assert trigger_mode == None, \
-                       "Your scanner does not support animated QRs!"
-            m = datal[0][1:].split("of")
-            ind = [int(m[0]), int(m[1])]
-            if QRAnimated.indx == []:
-                QRAnimated.payload = [None] * ind[1]
-            elif QRAnimated.payload[ind[0]-1] != None:
-                # we already have this part
-                return "skip"
-            QRAnimated.indx = ind
-            QRAnimated.payload[ind[0]-1] = datal[1]
-            if None in QRAnimated.payload:
-                # we are still missing some parts, cant assemble yet
-                return "skip"
-            # return fully assembled qr code
-            return "".join(QRAnimated.payload)
-        # This is not an animated qr but a normal one
-        return None
-
-    @staticmethod
-    def clean():
-        QRAnimated.indx = []
-        QRAnimated.payload = []
+    async def send_tx(self, tx, fingerprint=None):
+        tx.unknown = {}
+        for inp in tx.inputs:
+            inp.unknown = {}
+        for out in tx.outputs:
+            out.unknown = {}
+        txt = b2a_base64(tx.serialize()).decode().strip("\n")
+        if self.manager is not None:
+            await self.manager.gui.qr_alert("Transaction is signed!", 
+                        "Scan this QR code with your wallet", txt, qr_width=450)
