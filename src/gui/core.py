@@ -1,5 +1,5 @@
 import lvgl as lv
-import utime as time
+import time
 
 import display
 

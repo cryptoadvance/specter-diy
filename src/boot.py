@@ -2,6 +2,7 @@
 # can run arbitrary Python, but best to keep it minimal
 
 import pyb, os, time
+import platform
 
 # power hold
 pwr = pyb.Pin("B15", pyb.Pin.OUT)
@@ -11,9 +12,7 @@ pwr.on()
 pwrcb = lambda e: pwr.off()
 pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 
-import platform
-
-# uncomment this lines if you want to override DEV_ENABLED
+# uncomment this lines if you want to override DEV_ENABLED and USB_ENABLED
 # platform.DEV_ENABLED = True
 # platform.USB_ENABLED = True
 
@@ -34,6 +33,3 @@ if platform.DEV_ENABLED and platform.USB_ENABLED:
 if platform.USB_ENABLED:
     # unconnect REPL from USB
     os.dupterm(None, 1)
-
-# uncomment this line to get interactive access over REPL
-# pyb.main('repl.py')

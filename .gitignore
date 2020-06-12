@@ -4,3 +4,5 @@ reckless.json
 specter-diy.bin
 src/bitcoin
 userdata
+fs
+testdir
