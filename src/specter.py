@@ -27,18 +27,7 @@ class Specter:
         self.path = settings_path
         self.load_network(self.path)
         self.current_menu = self.initmenu
-
-    def load_network(self, path):
-        network = 'test'
-        try:
-            with open(path+"/network","r") as f:
-                network = f.read()
-                if network not in NETWORKS:
-                    raise SpecterError("Invalid network")
-        except:
-            with open(path+"/network", "w") as f:
-                f.write(network)
-        self.network = network
+        self.just_booted = True
 
     def start(self):
         # start the GUI
@@ -79,7 +68,15 @@ class Specter:
         try:
             # load secrets
             self.keystore.init()
-            # unlock with the PIN code if needed
+            # unlock with the PIN code
+            # check if we just booted and have less than max attempts
+            if self.just_booted and (self.keystore.pin_attempts_left != self.keystore.pin_attempts_max):
+                await self.gui.alert("Warning!", 
+                    "You only have %d of %d attempts\nto enter correct PIN code!" % (
+                        self.keystore.pin_attempts_left, self.keystore.pin_attempts_max
+                        ))
+            # no need to show the warning every time
+            self.just_booted = False
             # or set up the PIN code
             await self.unlock()
             # register coroutines for all hosts
@@ -99,9 +96,9 @@ class Specter:
             try:
                 # trigger garbage collector
                 gc.collect()
-                # show init menu and wait for the next
-                # returns next menu or None 
-                # if the same menu should be used
+                # show init menu and wait for the next menu
+                # any menu returns next menu or
+                # None if the same menu should be used
                 next_menu = await self.current_menu()
                 if next_menu is not None:
                     self.current_menu = next_menu
@@ -121,7 +118,7 @@ class Specter:
             (1, "Enter recovery phrase"),
             (2, "Load key from flash"),
             (None, "Settings"),
-            (3, "Hardware settings"),
+            (3, "Developer & USB settings"),
             (4, "Change PIN code"),
             (5, "Lock device"),
         ]
@@ -152,9 +149,8 @@ class Specter:
             return self.mainmenu
         # change pin code
         elif menuitem == 4:
-            self.keystore.unset_pin()
-            # go to PIN setup screen
-            await self.unlock()
+            await self.change_pin()
+            await self.gui.alert("Success!", "PIN code is sucessfully changed!")
         # lock device
         elif menuitem == 5:
             self.keystore.lock()
@@ -163,6 +159,16 @@ class Specter:
         else:
             print(menuitem,"menu is not implemented yet")
             raise SpecterError("Not implemented")
+
+    async def change_pin(self):
+        # get_auth_word function can generate words from part of the PIN
+        get_auth_word = self.keystore.get_auth_word
+        old_pin = await self.gui.get_pin(get_word=get_auth_word, 
+                            title="First enter your old PIN code")
+        # check pin - will raise if not valid
+        self.keystore.unlock(old_pin)
+        new_pin = await self.gui.setup_pin(get_word=get_auth_word)
+        self.keystore.change_pin(old_pin, new_pin)
 
     async def mainmenu(self):
         # buttons defined by host classes
@@ -195,7 +201,9 @@ class Specter:
             self.keystore.lock()
             # go to the unlock screen
             await self.unlock()
-        if menuitem == 4:
+        elif menuitem == 3:
+            await self.select_network()
+        elif menuitem == 4:
             return await self.settingsmenu()
         # if it's a host
         elif hasattr(menuitem, 'get_data'):
@@ -205,6 +213,37 @@ class Specter:
             print(menuitem)
             raise SpecterError("Not implemented")
 
+    async def select_network(self):
+        # dict is unordered unfortunately, so we need to use hardcoded arr
+        nets = ["main", "test", "regtest", "signet"]
+        buttons = [(net, NETWORKS[net]["name"]) for net in nets]
+        # wait for menu selection
+        menuitem = await self.gui.menu(buttons, last=(255, None))
+        if menuitem != 255:
+            self.set_network(menuitem)
+
+    def set_network(self, net):
+        if net not in NETWORKS:
+            raise SpecterError("Invalid network")
+        self.network = net
+        # save
+        with open(self.path+"/network", "w") as f:
+            f.write(net)
+        # load wallets for this network
+        self.wallet_manager.init(self.keystore, self.network)
+
+    def load_network(self, path):
+        network = 'test'
+        try:
+            with open(path+"/network","r") as f:
+                network = f.read()
+                if network not in NETWORKS:
+                    raise SpecterError("Invalid network")
+        except:
+            with open(path+"/network", "w") as f:
+                f.write(network)
+        self.network = network
+
     async def settingsmenu(self):
         buttons = [
             # id, text
@@ -213,7 +252,7 @@ class Specter:
             (2, "Enter a bip39 password"),
             (None, "Security".upper()), # delimiter
             (3, "Change PIN code"),
-            (4, "Developer and USB"),
+            (4, "Developer & USB"),
         ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
@@ -224,6 +263,15 @@ class Specter:
             return self.mainmenu
         elif menuitem == 0:
             return await self.recklessmenu()
+        elif menuitem == 2:
+            pwd = await self.gui.get_password()
+            if pwd is not None:
+                self.keystore.load_mnemonic(password=pwd)
+                self.wallet_manager.init(self.keystore, self.network)
+        elif menuitem == 3:
+            await self.change_pin()
+            await self.gui.alert("Success!", "PIN code is sucessfully changed!")
+            return self.mainmenu
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
