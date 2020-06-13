@@ -22,12 +22,16 @@ def main():
     keystore = FlashKeyStore(keystore_path)
     # define WalletManager, requires keystore
     # to authenticate wallet files
-    wallet_manager = WalletManager(keystore)
+    wallets_path = platform.fpath("/qspi/wallets")
+    wallet_manager = WalletManager(wallets_path)
+
     # make Specter instance
+    settings_path = platform.fpath("/flash")
     specter = Specter(gui=gui, 
                       wallet_manager=wallet_manager,
                       keystore=keystore,
-                      hosts=hosts)
+                      hosts=hosts,
+                      settings_path=settings_path)
     specter.start()
 
 if __name__ == '__main__':

@@ -3,15 +3,13 @@ import qrcode
 import math
 from micropython import const
 import gc
-from .components import QRCode
+from .components import QRCode, styles
 
 PADDING    = const(20)
 BTN_HEIGHT = const(70)
 HOR_RES    = const(480)
 VER_RES    = const(800)
 QR_PADDING = const(40)
-
-styles = {}
 
 def switch_to_new_screen():
     scr = lv.obj()
@@ -141,13 +139,17 @@ def add_button(text=None, callback=None, scr=None, y=700):
 
 def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     """Helper function that creates a button with a text label"""
-    w = (HOR_RES-3*PADDING)//2
     btn1 = add_button(text1, callback1, scr=scr, y=y)
-    btn1.set_width(w)
     btn2 = add_button(text2, callback2, scr=scr, y=y)
+    align_button_pair(btn1, btn2)
+    return btn1, btn2
+
+def align_button_pair(btn1, btn2):
+    """Aligns two buttons in a row"""
+    w = (HOR_RES-3*PADDING)//2
+    btn1.set_width(w)
     btn2.set_width(w)
     btn2.set_x(HOR_RES//2+PADDING//2)
-    return btn1, btn2
 
 def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""

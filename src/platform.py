@@ -41,7 +41,7 @@ def delete_recursively(path):
             os.remove(f)
         # directory
         elif _file[1] == 0x4000:
-            self.wipe(f)
+            delete_recursively(f)
             os.rmdir(f)
 
     files = os.ilistdir(path)
