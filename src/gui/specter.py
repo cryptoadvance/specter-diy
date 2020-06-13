@@ -76,3 +76,6 @@ class SpecterGUI(AsyncGUI):
         scr = PasswordScreen()
         self.load_screen(scr)
         return await scr.result()
+
+    def set_network(self, net):
+        Screen.network = net

@@ -226,6 +226,7 @@ class Specter:
         if net not in NETWORKS:
             raise SpecterError("Invalid network")
         self.network = net
+        self.gui.set_network(net)
         # save
         with open(self.path+"/network", "w") as f:
             f.write(net)
@@ -243,6 +244,7 @@ class Specter:
             with open(path+"/network", "w") as f:
                 f.write(network)
         self.network = network
+        self.gui.set_network(network)
 
     async def settingsmenu(self):
         buttons = [

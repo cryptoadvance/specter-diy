@@ -5,11 +5,31 @@ from .components import MnemonicTable, HintKeyboard
 import rng
 import asyncio
 
+COLORS = {
+    'main': lv.color_hex(0xFF9A00),
+    'test': lv.color_hex(0x00F100),
+    'regtest': lv.color_hex(0x00CAF1),
+    'signet': lv.color_hex(0xBD10E0),
+}
+
 class Screen(lv.obj):
+    network = 'test'
     def __init__(self):
         super().__init__()
         self.waiting = True
         self._value = None
+
+        self.topbar = lv.obj(self)
+        s = lv.style_t()
+        lv.style_copy(s, styles["theme"].style.btn.rel)
+        s.body.main_color = COLORS[Screen.network]
+        s.body.grad_color = COLORS[Screen.network]
+        s.body.opa = 200
+        s.body.radius = 0
+        s.body.border.width = 0
+        self.topbar.set_style(s)
+        self.topbar.set_size(HOR_RES, 5)
+        self.topbar.set_pos(0, 0)
 
     def release(self):
         self.waiting = False
