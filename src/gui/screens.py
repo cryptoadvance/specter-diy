@@ -292,6 +292,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.table.add_char(c.lower())
 
         mnemonic = self.table.get_mnemonic()
+        # check if we can autocomplete the last word
         if self.lookup is not None:
             self.kb.set_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
             word = self.table.get_last_word()
@@ -302,6 +303,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
                     mnemonic = " ".join(self.table.words[:-1])
                     mnemonic += " "+candidates[0]
         mnemonic = mnemonic.strip()
+        # check if mnemonic is valid
         if self.checker is not None and mnemonic is not None:
             if self.checker(mnemonic):
                 self.kb.clear_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)

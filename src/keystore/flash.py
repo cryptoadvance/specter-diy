@@ -5,6 +5,7 @@ from rng import get_random_bytes
 import json, hashlib, hmac
 from bitcoin import ec, bip39, bip32
 import platform
+from ucryptolib import aes
 
 def derive_keys(secret, pin=None):
     """
@@ -28,7 +29,7 @@ def derive_keys(secret, pin=None):
         # for encryption of stuff
         keys["pin_aes"] = hashlib.sha256(b"aes"+pin_key).digest()
         keys["pin_hmac"] = hashlib.sha256(b"hmac"+pin_key).digest()
-        keys["pin_ecdsa"] = hashlib.sha256(b"ecdsa"+pin_key).digest()
+        keys["pin_ecdsa"] = ec.PrivateKey(hashlib.sha256(b"ecdsa"+pin_key).digest())
     return keys
 
 def sign_file(path, key):
@@ -39,6 +40,39 @@ def sign_file(path, key):
     with open(path+".sig", "wb") as f:
         f.write(sig.serialize())
 
+def verify_file(path, key):
+    """
+    Verify that the file is signed with the key
+    Raises KeyStoreError if signature is invalid
+    """
+    with open(path, "rb") as f:
+        h = hashlib.sha256(f.read()).digest()
+    with open(path+".sig", "rb") as f:
+        sig = ec.Signature.parse(f.read())
+    pub = key.get_public_key()
+    if not pub.verify(sig, h):
+        raise KeyStoreError("Signature is invalid!")
+
+def encrypt(data, key):
+    # 2 - MODE_CBC
+    iv = get_random_bytes(16)
+    crypto = aes(key, 2, iv)
+    # encrypted data should be mod 16 (blocksize)
+    # we do x80000.. padding
+    data += b'\x80'
+    if len(data) % 16 != 0:
+        data += b"\x00"*(16-(len(data) % 16))
+    return iv+crypto.encrypt(data)
+
+def decrypt(data, key):
+    iv = data[:16]
+    ct = data[16:]
+    # 2 - MODE_CBC
+    crypto = aes(key, 2, iv)
+    plain = crypto.decrypt(ct)
+    # remove padding
+    d = b"\x80".join(plain.split(b"\x80")[:-1])
+    return d
 
 class FlashKeyStore(KeyStore):
     """
@@ -87,7 +121,7 @@ class FlashKeyStore(KeyStore):
         """Verify file and load PIN state from it"""
         try:
             # verify that the pin file is ok
-            self.verify(self.path+"/pin.json")
+            verify_file(self.path+"/pin.json", self.keys["ecdsa"])
             # load pin object
             with open(self.path+"/pin.json","r") as f:
                 self.state = json.load(f)
@@ -118,19 +152,6 @@ class FlashKeyStore(KeyStore):
         signing_key = derive_keys(secret)["ecdsa"]
         sign_file(path+"/pin.json", key=signing_key)
         return secret
-
-    def verify(self, path):
-        """
-        Verify that the file is signed with the internal key
-        Raises KeyStoreError if signature is invalid
-        """
-        with open(path, "rb") as f:
-            h = hashlib.sha256(f.read()).digest()
-        with open(path+".sig", "rb") as f:
-            sig = ec.Signature.parse(f.read())
-        pub = self.keys["ecdsa"].get_public_key()
-        if not pub.verify(sig, h):
-            raise KeyStoreError("Signature is invalid!")
 
     def get_status(self):
         """Check card status"""
@@ -233,3 +254,25 @@ class FlashKeyStore(KeyStore):
         self.save_state()
         # call unlock now
         self.unlock(pin)
+
+    def save(self):
+        if self.is_locked:
+            raise KeyStoreError("Keystore is locked")
+        if self.mnemonic is None:
+            raise KeyStoreError("Recovery phrase is not loaded")
+        with open(self.path+"/reckless", "wb") as f:
+            f.write(encrypt(self.mnemonic.encode(), self.keys["pin_aes"]))
+        sign_file(self.path+"/reckless", self.keys["pin_ecdsa"])
+        # check it's ok
+        self.load()
+
+    def load(self):
+        if self.is_locked:
+            raise KeyStoreError("Keystore is locked")
+        if not platform.file_exists(self.path+"/reckless"):
+            raise KeyStoreError("Key is not saved")
+        verify_file(self.path+"/reckless", self.keys["pin_ecdsa"])
+        with open(self.path+"/reckless", "rb") as f:
+            data = f.read()
+        self.load_mnemonic(decrypt(data, self.keys["pin_aes"]).decode(),"")
+

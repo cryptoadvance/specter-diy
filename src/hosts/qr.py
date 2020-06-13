@@ -211,7 +211,7 @@ class QRHost(Host):
         # raise if scan was interrupted
         raise HostError("Scan failed")
 
-    async def get_tx(self):
+    async def get_data(self):
         # scan_progress is a QR scanning specific screen
         # that shows that QR code(s) is being scanned
         # and displays cancel button that calls self.stop_scanning()
@@ -240,7 +240,7 @@ class QRHost(Host):
             cur += l
         return BytesIO(mvtx), sigs
 
-    async def send_tx(self, tx, fingerprint=None):
+    async def send_data(self, tx, fingerprint=None):
         tx.unknown = {}
         for inp in tx.inputs:
             inp.unknown = {}

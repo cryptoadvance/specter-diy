@@ -47,13 +47,13 @@ class Host:
             # It allows other functions to run
             await asyncio.sleep_ms(dt)
 
-    async def get_tx(self):
+    async def get_data(self):
         """Implement how to get transaction from unidirectional host"""
-        raise HostError("Transaction loading is not implemented for this class")
+        raise HostError("Data loading is not implemented for this class")
 
-    async def send_tx(self, tx, fingerprint):
+    async def send_data(self, tx, fingerprint):
         """Implement how to send the signed transaction to the host"""
-        raise HostError("Sending transaction is not implemented for this class")
+        raise HostError("Sending data is not implemented for this class")
 
     def user_canceled(self):
         """
