@@ -41,6 +41,14 @@ class SpecterGUI(AsyncGUI):
         await self.error("PIN codes are different!")
         return await self.setup_pin(get_word)
 
+    async def show_mnemonic(self, mnemonic:str):
+        """
+        Shows mnemonic on the screen
+        """
+        scr = MnemonicScreen(mnemonic)
+        self.load_screen(scr)
+        return await scr.result()
+
     async def new_mnemonic(self, generator):
         """
         Generates a new mnemonic and shows it on the screen
