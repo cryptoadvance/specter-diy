@@ -200,9 +200,6 @@ class FlashKeyStore(KeyStore):
         Unlock the keystore, raises PinError if PIN is invalid.
         Raises CriticalErrorWipeImmediately if no attempts left.
         """
-        # if not locked - we are good
-        if not self.is_locked:
-            return
         # decrease the counter
         self.state["pin_attempts_left"]-=1
         self.save_state()
@@ -233,6 +230,21 @@ class FlashKeyStore(KeyStore):
     def unset_pin(self):
         self.state["pin"] = None
         self.save_state()
+
+    def change_pin(self, old_pin, new_pin):
+        self.unlock(old_pin)
+        data = None
+        if platform.file_exists(self.path+"/reckless"):
+            verify_file(self.path+"/reckless", self.keys["pin_ecdsa"])
+            with open(self.path+"/reckless", "rb") as f:
+                data = f.read()
+            data = decrypt(data, self.keys["pin_aes"])
+        self.set_pin(new_pin)
+        if data is not None:
+            with open(self.path+"/reckless", "wb") as f:
+                f.write(encrypt(data, self.keys["pin_aes"]))
+            sign_file(self.path+"/reckless", self.keys["pin_ecdsa"])
+
 
     def get_auth_word(self, pin_part):
         """

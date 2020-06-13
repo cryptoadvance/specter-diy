@@ -312,3 +312,71 @@ class RecoverMnemonicScreen(MnemonicScreen):
         # if user was able to click this button then mnemonic is correct
         if c == lv.SYMBOL.OK+" Done":
             self.set_value(mnemonic)
+
+CHARSET = [
+    "q","w","e","r","t","y","u","i","o","p","\n",
+    "#@","a","s","d","f","g","h","j","k","l","\n",
+    lv.SYMBOL.UP,"z","x","c","v","b","n","m",lv.SYMBOL.LEFT,"\n",
+    lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
+]
+CHARSET_EXTRA = [
+    "1","2","3","4","5","6","7","8","9","0","\n",
+    "aA","@","#","$","_","&","-","+","(",")","/","\n",
+    "[","]","*","\"","'",":",";","!","?","\\",lv.SYMBOL.LEFT,"\n",
+    lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
+]
+
+class PasswordScreen(Screen):
+    def __init__(self, title="Enter your bip-39 password:", 
+            note="It is never stored on the device"):
+        super().__init__()
+        self.kb = HintKeyboard(self)
+        self.kb.set_map(CHARSET)
+        self.kb.set_width(HOR_RES)
+        self.kb.set_height(VER_RES//3)
+        self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+
+        self.ta = lv.ta(self)
+        self.ta.set_text("")
+        # self.ta.set_pwd_mode(True)
+        self.ta.set_width(HOR_RES-2*PADDING)
+        self.ta.set_x(PADDING)
+        self.ta.set_text_align(lv.label.ALIGN.CENTER)
+        self.ta.set_y(PADDING+150)
+        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        self.ta.set_one_line(True)
+        # self.ta.set_pwd_show_time(0)
+
+        self.kb.set_event_cb(self.cb)
+
+    def cb(self, obj, event):
+        if event == lv.EVENT.RELEASED:
+            c = obj.get_active_btn_text()
+            if c is None:
+                return
+            if c[0] == lv.SYMBOL.LEFT:
+                self.ta.del_char()
+            elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
+                for i,ch in enumerate(CHARSET):
+                    if ch.isalpha():
+                        if c == lv.SYMBOL.UP:
+                            CHARSET[i] = CHARSET[i].upper()
+                        else:
+                            CHARSET[i] = CHARSET[i].lower()
+                    elif ch == lv.SYMBOL.UP:
+                        CHARSET[i] = lv.SYMBOL.DOWN
+                    elif ch == lv.SYMBOL.DOWN:
+                        CHARSET[i] = lv.SYMBOL.UP
+                self.kb.set_map(CHARSET)
+            elif c == "#@":
+                self.kb.set_map(CHARSET_EXTRA)
+            elif c == "aA":
+                self.kb.set_map(CHARSET)
+            elif c[0] == lv.SYMBOL.CLOSE:
+                self.ta.set_text("")
+            elif c[0] == lv.SYMBOL.OK:
+                text = self.ta.get_text()
+                self.ta.set_text("")
+                self.set_value(text)
+            else:
+                self.ta.add_text(c)
