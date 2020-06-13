@@ -6,6 +6,11 @@ import json, hashlib, hmac
 from bitcoin import ec, bip39, bip32
 import platform
 from ucryptolib import aes
+import os
+
+AES_BLOCK = 16
+IV_SIZE   = 16
+AES_CBC   = 2
 
 def derive_keys(secret, pin=None):
     """
@@ -54,21 +59,22 @@ def verify_file(path, key):
         raise KeyStoreError("Signature is invalid!")
 
 def encrypt(data, key):
-    # 2 - MODE_CBC
-    iv = get_random_bytes(16)
-    crypto = aes(key, 2, iv)
+    """Encrypt data with AES_CBC 80... padding"""
+    iv = get_random_bytes(IV_SIZE)
+    crypto = aes(key, AES_CBC, iv)
     # encrypted data should be mod 16 (blocksize)
     # we do x80000.. padding
     data += b'\x80'
-    if len(data) % 16 != 0:
-        data += b"\x00"*(16-(len(data) % 16))
+    if len(data) % AES_BLOCK != 0:
+        data += b"\x00"*(AES_BLOCK-(len(data) % AES_BLOCK))
     return iv+crypto.encrypt(data)
 
 def decrypt(data, key):
-    iv = data[:16]
-    ct = data[16:]
+    """Decrypt data with AES_CBC 80... padding"""
+    iv = data[:IV_SIZE]
+    ct = data[IV_SIZE:]
     # 2 - MODE_CBC
-    crypto = aes(key, 2, iv)
+    crypto = aes(key, AES_CBC, iv)
     plain = crypto.decrypt(ct)
     # remove padding
     d = b"\x80".join(plain.split(b"\x80")[:-1])
@@ -85,6 +91,7 @@ class FlashKeyStore(KeyStore):
         self.root = None
         self.fingerprint = None
         self.idkey = None
+        self.keys = {}
 
     def load_mnemonic(self, mnemonic=None, password=""):
         """Load mnemonic and password and create root key"""
@@ -115,7 +122,7 @@ class FlashKeyStore(KeyStore):
                 secret = f.read()
         except:
             secret = self.create_new_secret(path)
-        self.keys = derive_keys(secret)
+        self.keys.update(derive_keys(secret))
 
     def load_state(self):
         """Verify file and load PIN state from it"""
@@ -215,7 +222,7 @@ class FlashKeyStore(KeyStore):
         self._is_locked = False
         self.save_state()
         # derive PIN keys for reckless storage
-        self.keys = derive_keys(self.keys["secret"], pin)
+        self.keys.update(derive_keys(self.keys["secret"], pin))
         return self.get_status()
 
     def lock(self):
@@ -276,3 +283,11 @@ class FlashKeyStore(KeyStore):
             data = f.read()
         self.load_mnemonic(decrypt(data, self.keys["pin_aes"]).decode(),"")
 
+    def delete_saved(self):
+        if not platform.file_exists(self.path+"/reckless"):
+            raise KeyStoreError("Secret is not saved. No need to delete anything.")
+        try:
+            os.remove(self.path+"/reckless")
+            os.remove(self.path+"/reckless.sig")
+        except:
+            raise KeyStoreError("Failed to delete from memory")

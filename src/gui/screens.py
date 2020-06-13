@@ -188,7 +188,7 @@ class QRAlert(Alert):
         self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
 class MnemonicScreen(Screen):
-    def __init__(self, title="Your recovery phrase", note=None, mnemonic=""):
+    def __init__(self, mnemonic="", title="Your recovery phrase", note=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
@@ -208,7 +208,7 @@ class NewMnemonicScreen(MnemonicScreen):
     def __init__(self, generator, title="Your recovery phrase:", 
             note="Write it down and never show to anybody"):
         mnemonic = generator(12)
-        super().__init__(title, note, mnemonic)
+        super().__init__(mnemonic, title, note)
         self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
         self.close_label.set_text(lv.SYMBOL.LEFT+" Back")
@@ -241,7 +241,7 @@ class NewMnemonicScreen(MnemonicScreen):
 class RecoverMnemonicScreen(MnemonicScreen):
     def __init__(self, checker=None, lookup=None, 
                  title="Enter your recovery phrase"):
-        super().__init__(title)
+        super().__init__("", title)
         self.checker = checker
         self.lookup = lookup
 

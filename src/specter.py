@@ -196,7 +196,7 @@ class Specter:
             # go to the unlock screen
             await self.unlock()
         if menuitem == 4:
-            await self.settingsmenu()
+            return await self.settingsmenu()
         # if it's a host
         elif hasattr(menuitem, 'get_data'):
             host = menuitem
@@ -209,8 +209,7 @@ class Specter:
         buttons = [
             # id, text
             (None, "Key management".upper()),
-            (0, "Save key to flash"),
-            (1, "Load key from flash"),
+            (0, "Reckless"),
             (2, "Enter a bip39 password"),
             (None, "Security".upper()), # delimiter
             (3, "Change PIN code"),
@@ -222,13 +221,47 @@ class Specter:
         # process the menu button:
         # back button
         if menuitem == 255:
-            return
+            return self.mainmenu
         elif menuitem == 0:
-            self.keystore.save()
-            await self.gui.alert("Success!", "Your key is stored in flash now.")
+            return await self.recklessmenu()
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
+
+    async def recklessmenu(self):
+        buttons = [
+            # id, text
+            (None, "Key management".upper()),
+            (0, "Save key to flash"),
+            (1, "Load key from flash"),
+            (2, "Delete key from flash"),
+            (3, "Show recovery phrase"),
+        ]
+        # wait for menu selection
+        menuitem = await self.gui.menu(buttons, last=(255, None))
+
+        # process the menu button:
+        # back button
+        if menuitem == 255:
+            return self.settingsmenu
+        elif menuitem == 0:
+            self.keystore.save()
+            await self.gui.alert("Success!", "Your key is stored in flash now.")
+            return self.settingsmenu
+        elif menuitem == 1:
+            self.keystore.load()
+            await self.gui.alert("Success!", "Your key is loaded.")
+            return self.mainmenu
+        elif menuitem == 2:
+            self.keystore.delete_saved()
+            await self.gui.alert("Success!", "Your key is deleted from flash.")
+            return self.mainmenu
+        elif menuitem == 3:
+            await self.gui.show_mnemonic(self.keystore.mnemonic)
+        else:
+            print(menuitem)
+            raise SpecterError("Not implemented")
+
 
     async def unlock(self):
         """
