@@ -13,6 +13,7 @@ class AsyncGUI:
         # only one popup can be active at a time
         # another screen goes to the background
         self.background = None
+        self.scr = None
 
     def release(self, *args, **kwargs):
         """
@@ -25,6 +26,7 @@ class AsyncGUI:
     def load_screen(self, scr):
         old_scr = lv.scr_act()
         lv.scr_load(scr)
+        self.scr = scr
         old_scr.del_async()
 
     async def open_popup(self, scr):
@@ -33,6 +35,7 @@ class AsyncGUI:
             await asyncio.sleep_ms(100)
         self.background = lv.scr_act()
         lv.scr_load(scr)
+        self.scr = scr
 
     def close_popup(self):
         self.load_screen(self.background)

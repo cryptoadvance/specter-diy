@@ -9,7 +9,7 @@ def main():
     # define hosts - USB, QR, SDCard
     hosts = [
         QRHost(),
-        SDHost(),
+        # SDHost(), # not implemented yet
     ]
     if platform.USB_ENABLED:
         hosts.append(USBHost())

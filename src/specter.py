@@ -26,6 +26,7 @@ class Specter:
         self.wallet_manager = wallet_manager
         self.path = settings_path
         self.load_network(self.path)
+        self.current_menu = self.initmenu
 
     def load_network(self, path):
         network = 'test'
@@ -98,8 +99,12 @@ class Specter:
             try:
                 # trigger garbage collector
                 gc.collect()
-                # show main menu and wait for interactions
-                await self.initmenu()
+                # show init menu and wait for the next
+                # returns next menu or None 
+                # if the same menu should be used
+                next_menu = await self.current_menu()
+                if next_menu is not None:
+                    self.current_menu = next_menu
 
             except Exception as e:
                 next_fn = await self.handle_exception(e, self.setup)
@@ -130,7 +135,7 @@ class Specter:
                 # load keys using mnemonic and empty password
                 self.keystore.load_mnemonic(mnemonic,"")
                 self.wallet_manager.init(self.keystore, self.network)
-                await self.mainmenu()
+                return self.mainmenu
         # recover
         elif menuitem == 1:
             mnemonic = await self.gui.recover(bip39.mnemonic_is_valid, bip39.find_candidates)
@@ -138,17 +143,23 @@ class Specter:
                 # load keys using mnemonic and empty password
                 self.keystore.load_mnemonic(mnemonic,"")
                 self.wallet_manager.init(self.keystore, self.network)
-                await self.mainmenu()
+                self.current_menu = self.mainmenu
+                return self.mainmenu
+        elif menuitem == 2:
+            self.keystore.load()
+            await self.gui.alert("Success!", "Key is loaded from flash!")
+            self.wallet_manager.init(self.keystore, self.network)
+            return self.mainmenu
         # change pin code
         elif menuitem == 4:
             self.keystore.unset_pin()
             # go to PIN setup screen
-            return await self.unlock()
+            await self.unlock()
         # lock device
         elif menuitem == 5:
             self.keystore.lock()
             # go to PIN setup screen
-            return await self.unlock()
+            await self.unlock()
         else:
             print(menuitem,"menu is not implemented yet")
             raise SpecterError("Not implemented")
@@ -164,53 +175,57 @@ class Specter:
         # If ID is None - it is a section title, not a button
         buttons = [
             # id, text
-            (None, "PIN management".upper()),
-            (0, "Lock device"),
-            (1, "Change PIN code"),
-            (None, "Advanced".upper()), # delimiter
-            (2, "Configuration information"),
+            (None, "Key management".upper()),
+            (0, "Wallets"),
+            (1, "Master public keys"),
+            (None, "Communication".upper()),
+        ] + host_buttons + [
+            (None, "More".upper()), # delimiter
+            (2, "Lock device"),
+            (3, "Switch network (%s)" % NETWORKS[self.network]["name"]),
+            (4, "Settings"),
         ]
-        # if non-bidirectional hosts are available
-        # add corresponding section
-        if len(host_buttons) > 0:
-            buttons = [(None, "Sign Transaction".upper())]+host_buttons+buttons
         # wait for menu selection
         menuitem = await self.gui.menu(buttons)
 
         # process the menu button:
         # lock device
-        if menuitem == 0:
+        if menuitem == 2:
             # lock the SE
             self.keystore.lock()
             # go to the unlock screen
-            return await self.unlock()
-        # change PIN code
-        elif menuitem == 1:
-            # unset PIN
-            self.keystore.unset_pin()
-            # go to PIN setup screen
-            return await self.unlock()
-        # display config menu
-        elif menuitem == 2:
-            await self.browse_config()
+            await self.unlock()
+        if menuitem == 4:
+            await self.settingsmenu()
         # if it's a host
-        elif hasattr(menuitem, 'get_tx'):
+        elif hasattr(menuitem, 'get_data'):
             host = menuitem
-            # get_tx function returns streams:
-            # (stream with binary psbt, [list of auth signatures])
-            # TODO: await!
-            raw_tx_stream, sigs = await host.get_tx()
-            # try to sign
-            tx = await self.sign_transaction(raw_tx_stream, sigs)
-            if tx is None:
-                # notify the host that user didn't confirm
-                host.user_canceled()
-                return
-            # send to the host, fingerprint is nice to have for saving PSBT file
-            msg = await host.send_tx(tx, hexlify(self.keystore.fingerprint).decode())
-            # if we got a message from host - show it to the user
-            if msg is not None:
-                await self.gui.alert("Success!", msg)
+            raise SpecterError("Not implemented")
+        else:
+            print(menuitem)
+            raise SpecterError("Not implemented")
+
+    async def settingsmenu(self):
+        buttons = [
+            # id, text
+            (None, "Key management".upper()),
+            (0, "Save key to flash"),
+            (1, "Load key from flash"),
+            (2, "Enter a bip39 password"),
+            (None, "Security".upper()), # delimiter
+            (3, "Change PIN code"),
+            (4, "Developer and USB"),
+        ]
+        # wait for menu selection
+        menuitem = await self.gui.menu(buttons, last=(255, None))
+
+        # process the menu button:
+        # back button
+        if menuitem == 255:
+            return
+        elif menuitem == 0:
+            self.keystore.save()
+            await self.gui.alert("Success!", "Your key is stored in flash now.")
         else:
             print(menuitem)
             raise SpecterError("Not implemented")

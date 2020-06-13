@@ -30,6 +30,14 @@ def fpath(fname):
     """A small function to avoid % storage_root everywhere"""
     return "%s%s" % (storage_root, fname)
 
+def file_exists(fname:str)->bool:
+    try:
+        with open(fname, "rb") as f:
+            pass
+        return True
+    except:
+        return False
+
 def delete_recursively(path):
     files = os.ilistdir(path)
     for _file in files:

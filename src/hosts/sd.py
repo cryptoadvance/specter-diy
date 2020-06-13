@@ -18,7 +18,7 @@ class SDHost(Host):
         self.tx_fname = "vault.psbt.unsigned"
         self.auth_prefix = "authorization."
 
-    async def get_tx(self):
+    async def get_data(self):
         """
         Loads psbt transaction and tx authentications
         from the SD card.
@@ -57,7 +57,7 @@ class SDHost(Host):
                     sigs.append(BytesIO(unhexlify(f.read())))
         return raw_tx, sigs
 
-    async def send_tx(self, tx, suffix=""):
+    async def send_data(self, tx, suffix=""):
         """
         Saves transaction in base64 encoding to SD card
         as vault.psbt.signed.<suffix> file

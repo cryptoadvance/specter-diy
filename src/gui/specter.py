@@ -1,5 +1,5 @@
 from .async_gui import AsyncGUI
-from .screens import (PinScreen, 
+from .screens import (Screen, PinScreen, 
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen
                       )
 import rng
