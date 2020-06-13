@@ -6,8 +6,10 @@ import asyncio
 from keystore import FlashKeyStore, KeyStoreError
 from platform import CriticalErrorWipeImmediately
 from hosts import HostError
-from bitcoin import ec, psbt, bip32
+from bitcoin import ec, psbt, bip32, bip39
 from bitcoin.networks import NETWORKS
+# small helper functions
+from helpers import gen_mnemonic
 
 class SpecterError(Exception):
     pass
@@ -17,10 +19,25 @@ class Specter:
     Call .start() method to register in the event loop
     It will then call the .setup() and .main() functions to display the GUI
     """
-    def __init__(self, gui, wallet_manager, keystore, hosts=[]):
+    def __init__(self, gui, wallet_manager, keystore, hosts, settings_path):
         self.hosts = hosts
         self.keystore = keystore
         self.gui = gui
+        self.wallet_manager = wallet_manager
+        self.path = settings_path
+        self.load_network(self.path)
+
+    def load_network(self, path):
+        network = 'test'
+        try:
+            with open(path+"/network","r") as f:
+                network = f.read()
+                if network not in NETWORKS:
+                    raise SpecterError("Invalid network")
+        except:
+            with open(path+"/network", "w") as f:
+                f.write(network)
+        self.network = network
 
     def start(self):
         # start the GUI
@@ -35,7 +52,8 @@ class Specter:
         try:
             raise exception
         except CriticalErrorWipeImmediately as e:
-            # TODO: wipe all userdata
+            # wipe all wallets
+            self.wallet_manager.wipe()
             # show error
             await self.gui.error("%s" % e)
             # TODO: actual reboot here
@@ -55,7 +73,6 @@ class Specter:
             await self.gui.error("Something bad happened...\n\n%s" % b.getvalue().decode())
             # restart
             return next_fn
-
 
     async def setup(self):
         try:
@@ -107,8 +124,23 @@ class Specter:
         menuitem = await self.gui.menu(buttons)
 
         # process the menu button:
+        if menuitem == 0:
+            mnemonic = await self.gui.new_mnemonic(gen_mnemonic)
+            if mnemonic is not None:
+                # load keys using mnemonic and empty password
+                self.keystore.load_mnemonic(mnemonic,"")
+                self.wallet_manager.init(self.keystore, self.network)
+                await self.mainmenu()
+        # recover
+        elif menuitem == 1:
+            mnemonic = await self.gui.recover(bip39.mnemonic_is_valid, bip39.find_candidates)
+            if mnemonic is not None:
+                # load keys using mnemonic and empty password
+                self.keystore.load_mnemonic(mnemonic,"")
+                self.wallet_manager.init(self.keystore, self.network)
+                await self.mainmenu()
         # change pin code
-        if menuitem == 4:
+        elif menuitem == 4:
             self.keystore.unset_pin()
             # go to PIN setup screen
             return await self.unlock()
@@ -117,26 +149,8 @@ class Specter:
             self.keystore.lock()
             # go to PIN setup screen
             return await self.unlock()
-        # if it's a host
-        elif hasattr(menuitem, 'get_tx'):
-            host = menuitem
-            # get_tx function returns streams:
-            # (stream with binary psbt, [list of auth signatures])
-            # TODO: await!
-            raw_tx_stream, sigs = await host.get_tx()
-            # try to sign
-            tx = await self.sign_transaction(raw_tx_stream, sigs)
-            if tx is None:
-                # notify the host that user didn't confirm
-                host.user_canceled()
-                return
-            # send to the host, fingerprint is nice to have for saving PSBT file
-            msg = await host.send_tx(tx, hexlify(self.keystore.fingerprint).decode())
-            # if we got a message from host - show it to the user
-            if msg is not None:
-                await self.gui.alert("Success!", msg)
         else:
-            print(menuitem)
+            print(menuitem,"menu is not implemented yet")
             raise SpecterError("Not implemented")
 
     async def mainmenu(self):

@@ -1,5 +1,8 @@
 from .async_gui import AsyncGUI
-from .screens import PinScreen
+from .screens import (PinScreen, 
+                      MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen
+                      )
+import rng
 
 class SpecterGUI(AsyncGUI):
 
@@ -38,3 +41,21 @@ class SpecterGUI(AsyncGUI):
         await self.error("PIN codes are different!")
         return await self.setup_pin(get_word)
 
+    async def new_mnemonic(self, generator):
+        """
+        Generates a new mnemonic and shows it on the screen
+        """
+        scr = NewMnemonicScreen(generator)
+        self.load_screen(scr)
+        return await scr.result()
+
+    async def recover(self, checker=None, lookup=None):
+        """
+        Asks the user for his recovery phrase.
+        checker(mnemonic) - a function that validates recovery phrase
+        lookup(word, num_candidates) - a function that 
+                returns num_candidates words starting with word
+        """
+        scr = RecoverMnemonicScreen(checker, lookup)
+        self.load_screen(scr)
+        return await scr.result()

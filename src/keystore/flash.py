@@ -3,7 +3,7 @@ from platform import CriticalErrorWipeImmediately
 from binascii import hexlify, unhexlify
 from rng import get_random_bytes
 import json, hashlib, hmac
-from bitcoin import ec, bip39
+from bitcoin import ec, bip39, bip32
 import platform
 
 def derive_keys(secret, pin=None):
@@ -47,6 +47,20 @@ class FlashKeyStore(KeyStore):
     def __init__(self, path):
         self.path=path
         self._is_locked = True
+        self.mnemonic = None
+        self.root = None
+        self.fingerprint = None
+        self.idkey = None
+
+    def load_mnemonic(self, mnemonic=None, password=""):
+        """Load mnemonic and password and create root key"""
+        if mnemonic is not None:
+            self.mnemonic = mnemonic
+        seed = bip39.mnemonic_to_seed(self.mnemonic, password)
+        self.root = bip32.HDKey.from_seed(seed)
+        self.fingerprint = self.root.child(0).fingerprint
+        # id key to sign wallet files stored on untrusted external chip
+        self.idkey = self.root.child(0x1D, hardened=True)
 
     def init(self):
         """Load internal secret and PIN state"""
