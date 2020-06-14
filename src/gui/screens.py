@@ -129,7 +129,7 @@ class PinScreen(Screen):
 class MenuScreen(Screen):
     def __init__(self, buttons=[], 
                  title="What do you want to do?", note=None,
-                 y0=100, last=None
+                 y0=80, last=None
                  ):
         super().__init__()
         y = y0
@@ -262,6 +262,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
     def __init__(self, checker=None, lookup=None, 
                  title="Enter your recovery phrase"):
         super().__init__("", title)
+        self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         self.checker = checker
         self.lookup = lookup
 
@@ -286,6 +287,50 @@ class RecoverMnemonicScreen(MnemonicScreen):
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
         self.kb.set_event_cb(self.callback)
 
+        if lookup is not None:
+            self.autocomplete = lv.btnm(self)
+            self.autocomplete.set_width(HOR_RES)
+            self.autocomplete.set_height(50)
+            self.autocomplete.align(self.kb, lv.ALIGN.OUT_TOP_MID, 0, 0)
+            words = lookup("", 4)+[""]
+            self.autocomplete.set_map(words)
+            self.autocomplete.set_event_cb(self.select_word)
+
+    def select_word(self, obj, event):
+        if event != lv.EVENT.RELEASED:
+            return
+        word = obj.get_active_btn_text()
+        if word is None:
+            return
+        self.table.autocomplete_word(word)
+        self.autocomplete.set_map(self.lookup("", 4)+[""])
+        self.check_buttons()
+
+    def check_buttons(self):
+        """
+        Checks current mnemonic state and 
+        disables / enables Next word and Done buttons
+        """
+        mnemonic = self.table.get_mnemonic()
+        # check if we can autocomplete the last word
+        if self.lookup is not None:
+            self.kb.set_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
+            word = self.table.get_last_word()
+            candidates = self.lookup(word, 4)
+            self.autocomplete.set_map(candidates+[""])
+            if len(candidates) == 1 or word in candidates:
+                self.kb.clear_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
+                if len(candidates) == 1:
+                    mnemonic = " ".join(self.table.words[:-1])
+                    mnemonic += " "+candidates[0]
+        mnemonic = mnemonic.strip()
+        # check if mnemonic is valid
+        if self.checker is not None and mnemonic is not None:
+            if self.checker(mnemonic):
+                self.kb.clear_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
+            else:
+                self.kb.set_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
+
     def callback(self, obj, event):
         if event != lv.EVENT.RELEASED:
             return
@@ -303,7 +348,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
         elif c == "Next word":
             word = self.table.get_last_word()
             if self.lookup is not None and len(word)>=2:
-                candidates = self.lookup(word)
+                candidates = self.lookup(word, 2)
                 if len(candidates) == 1:
                     self.table.autocomplete_word(candidates[0])
         elif c == lv.SYMBOL.OK+" Done":
@@ -312,23 +357,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.table.add_char(c.lower())
 
         mnemonic = self.table.get_mnemonic()
-        # check if we can autocomplete the last word
-        if self.lookup is not None:
-            self.kb.set_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
-            word = self.table.get_last_word()
-            candidates = self.lookup(word)
-            if len(candidates) == 1 or word in candidates:
-                self.kb.clear_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
-                if len(candidates) == 1:
-                    mnemonic = " ".join(self.table.words[:-1])
-                    mnemonic += " "+candidates[0]
-        mnemonic = mnemonic.strip()
-        # check if mnemonic is valid
-        if self.checker is not None and mnemonic is not None:
-            if self.checker(mnemonic):
-                self.kb.clear_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
-            else:
-                self.kb.set_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
+        self.check_buttons()
         # if user was able to click this button then mnemonic is correct
         if c == lv.SYMBOL.OK+" Done":
             self.set_value(mnemonic)
