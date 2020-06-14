@@ -1,2 +1,3 @@
 from .manager import WalletManager
-from .base import WalletError
+from .wallet import Wallet, WalletError
+from .scripts import ScriptError
