@@ -1,3 +1,4 @@
+"""GUI components used as widgets on different screens"""
 import lvgl as lv
 import qrcode
 import math
