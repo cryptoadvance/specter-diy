@@ -6,7 +6,7 @@ from .screens import (Screen, PinScreen,
 import rng
 
 class SpecterGUI(AsyncGUI):
-
+    """Specter-related GUI"""
     async def get_pin(self, title="Enter your PIN code", get_word=None):
         """
         Async version of the PIN screen.

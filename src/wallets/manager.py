@@ -1,9 +1,7 @@
 from platform import maybe_mkdir, delete_recursively
 from binascii import hexlify
 from bitcoin.networks import NETWORKS
-
-class WalletError(Exception):
-    pass
+from .base import WalletError
 
 class WalletManager:
     """
