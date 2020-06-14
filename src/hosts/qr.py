@@ -6,6 +6,7 @@ from binascii import b2a_base64, a2b_base64
 import time
 import pyb
 
+QRSCANNER_TRIGGER = "D5"
 # OK response from scanner
 SUCCESS        = b"\x02\x00\x00\x01\x00\x33\x31"
 # serial port mode

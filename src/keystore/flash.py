@@ -91,17 +91,25 @@ class FlashKeyStore(KeyStore):
         self.root = None
         self.fingerprint = None
         self.idkey = None
+        self.state = None
         self.keys = {}
 
     def load_mnemonic(self, mnemonic=None, password=""):
         """Load mnemonic and password and create root key"""
         if mnemonic is not None:
-            self.mnemonic = mnemonic
+            self.mnemonic = mnemonic.strip()
+            if not bip39.mnemonic_is_valid(self.mnemonic):
+                raise KeyStoreError("Invalid mnemonic")
         seed = bip39.mnemonic_to_seed(self.mnemonic, password)
         self.root = bip32.HDKey.from_seed(seed)
         self.fingerprint = self.root.child(0).fingerprint
         # id key to sign wallet files stored on untrusted external chip
         self.idkey = self.root.child(0x1D, hardened=True)
+
+    def get_xpub(self, path):
+        if self.is_locked or self.root is None:
+            raise KeyStoreError("Keystore is not ready")
+        return self.root.derive(path).to_public()
 
     def init(self):
         """Load internal secret and PIN state"""
@@ -195,6 +203,12 @@ class FlashKeyStore(KeyStore):
     def is_locked(self):
         return (self.is_pin_set and self._is_locked)
 
+    @property
+    def is_ready(self):
+        return (self.state is not None) and \
+               (not self.is_locked) and \
+               (self.fingerprint is not None)
+    
     def unlock(self, pin):
         """
         Unlock the keystore, raises PinError if PIN is invalid.

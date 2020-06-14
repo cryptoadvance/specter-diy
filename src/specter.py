@@ -130,7 +130,7 @@ class Specter:
             mnemonic = await self.gui.new_mnemonic(gen_mnemonic)
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
-                self.keystore.load_mnemonic(mnemonic,"")
+                self.keystore.load_mnemonic(mnemonic.strip(),"")
                 self.wallet_manager.init(self.keystore, self.network)
                 return self.mainmenu
         # recover
@@ -144,7 +144,7 @@ class Specter:
                 return self.mainmenu
         elif menuitem == 2:
             self.keystore.load()
-            await self.gui.alert("Success!", "Key is loaded from flash!")
+            # await self.gui.alert("Success!", "Key is loaded from flash!")
             self.wallet_manager.init(self.keystore, self.network)
             return self.mainmenu
         # change pin code
@@ -181,12 +181,12 @@ class Specter:
         # If ID is None - it is a section title, not a button
         buttons = [
             # id, text
-            (None, "Key management".upper()),
+            (None, "Key management"),
             (0, "Wallets"),
             (1, "Master public keys"),
-            (None, "Communication".upper()),
+            (None, "Communication"),
         ] + host_buttons + [
-            (None, "More".upper()), # delimiter
+            (None, "More"), # delimiter
             (2, "Lock device"),
             (3, "Switch network (%s)" % NETWORKS[self.network]["name"]),
             (4, "Settings"),
@@ -195,8 +195,10 @@ class Specter:
         menuitem = await self.gui.menu(buttons)
 
         # process the menu button:
+        if menuitem == 1:
+            return await self.show_master_keys()
         # lock device
-        if menuitem == 2:
+        elif menuitem == 2:
             # lock the SE
             self.keystore.lock()
             # go to the unlock screen
@@ -230,8 +232,9 @@ class Specter:
         # save
         with open(self.path+"/network", "w") as f:
             f.write(net)
-        # load wallets for this network
-        self.wallet_manager.init(self.keystore, self.network)
+        if self.keystore.is_ready:
+            # load wallets for this network
+            self.wallet_manager.init(self.keystore, self.network)
 
     def load_network(self, path):
         network = 'test'
@@ -241,18 +244,16 @@ class Specter:
                 if network not in NETWORKS:
                     raise SpecterError("Invalid network")
         except:
-            with open(path+"/network", "w") as f:
-                f.write(network)
-        self.network = network
-        self.gui.set_network(network)
+            pass
+        self.set_network(network)
 
     async def settingsmenu(self):
         buttons = [
             # id, text
-            (None, "Key management".upper()),
+            (None, "Key management"),
             (0, "Reckless"),
             (2, "Enter a bip39 password"),
-            (None, "Security".upper()), # delimiter
+            (None, "Security"), # delimiter
             (3, "Change PIN code"),
             (4, "Developer & USB"),
         ]
@@ -279,9 +280,10 @@ class Specter:
             raise SpecterError("Not implemented")
 
     async def recklessmenu(self):
+        """Manage storage and display of the recovery phrase"""
         buttons = [
             # id, text
-            (None, "Key management".upper()),
+            (None, "Key management"),
             (0, "Save key to flash"),
             (1, "Load key from flash"),
             (2, "Delete key from flash"),
@@ -345,6 +347,61 @@ class Specter:
         xpub = self.keystore.get_xpub(bip32.path_to_str(path))
         return xpub
 
+    async def show_master_keys(self, show_all=False):
+        net = NETWORKS[self.network]
+        buttons = [
+            (None, "Recommended"),
+            ("m/84h/%dh/0h" % net["bip32"], "Single key"),
+            ("m/48h/%dh/0h/2h" % net["bip32"], "Multisig"),
+            (None, "Other keys"),
+        ]
+        if show_all:
+            buttons += [
+                ("m/84h/%dh/0h" % net["bip32"], "Single Native Segwit\nm/84h/%dh/0h" % net["bip32"]),
+                ("m/49h/%dh/0h" % net["bip32"], "Single Nested Segwit\nm/49h/%dh/0h" % net["bip32"]),
+                ("m/48h/%dh/0h/2h" % net["bip32"], "Multisig Native Segwit\nm/48h/%dh/0h/2h" % net["bip32"]),
+                ("m/48h/%dh/0h/1h" % net["bip32"], "Multisig Nested Segwit\nm/48h/%dh/0h/1h" % net["bip32"]),
+            ]
+        else:
+            buttons += [
+                (0, "Show more keys"),
+                (1, "Enter custom derivation")
+            ]
+        # wait for menu selection
+        menuitem = await self.gui.menu(buttons, last=(255, None))
+
+        # process the menu button:
+        # back button
+        if menuitem == 255:
+            # hide keys on first "back"
+            return self.show_master_keys if show_all else self.mainmenu
+        elif menuitem == 0:
+            return await self.show_master_keys(show_all=True)
+        elif menuitem == 1:
+            raise SpecterError("Not implemented")
+        else:
+            await self.show_xpub(menuitem)
+            return self.show_master_keys
+        return self.mainmenu
+
+    async def show_xpub(self, derivation):
+        net = NETWORKS[self.network]
+        xpub = self.keystore.get_xpub(derivation)
+        ver = bip32.detect_version(derivation, default="xpub",
+                        network=net)
+        canonical = xpub.to_base58(net["xpub"])
+        slip132 = xpub.to_base58(ver)
+        prefix = "[%s%s]" % (
+            hexlify(self.keystore.fingerprint).decode(), 
+            derivation[1:]
+        )
+        s = prefix+slip132
+        info = {
+            "canonical": canonical,
+            "slip132": slip132,
+            "prefix": prefix
+        }
+        await self.gui.qr_alert("Your master key", s, s)
     # remote means that this command and corresponding GUI was not triggered
     # by the user on the GUI, but from the host directly (USB)
     async def sign_transaction(self, raw_tx_stream, remote=False):
