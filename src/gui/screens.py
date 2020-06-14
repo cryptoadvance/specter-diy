@@ -5,31 +5,31 @@ from .components import MnemonicTable, HintKeyboard
 import rng
 import asyncio
 
-COLORS = {
-    'main': lv.color_hex(0xFF9A00),
-    'test': lv.color_hex(0x00F100),
-    'regtest': lv.color_hex(0x00CAF1),
-    'signet': lv.color_hex(0xBD10E0),
-}
-
 class Screen(lv.obj):
     network = 'test'
+    COLORS = {
+        'main': lv.color_hex(0xFF9A00),
+        'test': lv.color_hex(0x00F100),
+        'regtest': lv.color_hex(0x00CAF1),
+        'signet': lv.color_hex(0xBD10E0),
+    }
     def __init__(self):
         super().__init__()
         self.waiting = True
         self._value = None
 
-        self.topbar = lv.obj(self)
-        s = lv.style_t()
-        lv.style_copy(s, styles["theme"].style.btn.rel)
-        s.body.main_color = COLORS[Screen.network]
-        s.body.grad_color = COLORS[Screen.network]
-        s.body.opa = 200
-        s.body.radius = 0
-        s.body.border.width = 0
-        self.topbar.set_style(s)
-        self.topbar.set_size(HOR_RES, 5)
-        self.topbar.set_pos(0, 0)
+        if type(self).network in type(self).COLORS:
+            self.topbar = lv.obj(self)
+            s = lv.style_t()
+            lv.style_copy(s, styles["theme"].style.btn.rel)
+            s.body.main_color = type(self).COLORS[type(self).network]
+            s.body.grad_color = type(self).COLORS[type(self).network]
+            s.body.opa = 200
+            s.body.radius = 0
+            s.body.border.width = 0
+            self.topbar.set_style(s)
+            self.topbar.set_size(HOR_RES, 5)
+            self.topbar.set_pos(0, 0)
 
     def release(self):
         self.waiting = False
@@ -51,6 +51,7 @@ class Screen(lv.obj):
         return self.get_value()
 
 class PinScreen(Screen):
+    network = None
     def __init__(self, title="Enter your PIN code", note=None, get_word=None):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
@@ -122,9 +123,69 @@ class PinScreen(Screen):
                     cur_words += " "+self.get_word(self.pin.get_text())
                     self.words.set_text(cur_words)
 
-
     def get_value(self):
         return self.pin.get_text()
+
+class DerivationScreen(Screen):
+    PATH_CHARSET = [
+        "1","2","3",lv.SYMBOL.LEFT,"\n",
+        "4","5","6","h","\n",
+        "7","8","9","/","\n",
+        "Back", "0", lv.SYMBOL.CLOSE, lv.SYMBOL.OK,""
+    ]
+    def __init__(self, title="Enter derivation path"):
+        super().__init__()
+        self.title = add_label(title, scr=self, y=PADDING, style="title")
+        self.kb = lv.btnm(self)
+        self.kb.set_map(type(self).PATH_CHARSET)
+        self.kb.set_width(HOR_RES)
+        self.kb.set_height(VER_RES//2)
+        self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+
+        lbl = add_label("m/", style="title", scr=self)
+        lbl.set_y(PADDING+150)
+        lbl.set_width(40)
+        lbl.set_x(PADDING)
+
+        self.ta = lv.ta(self)
+        self.ta.set_text("")
+        self.ta.set_width(HOR_RES-2*PADDING-40)
+        self.ta.set_x(PADDING+40)
+        self.ta.set_y(PADDING+150)
+        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        self.ta.set_one_line(True)
+
+        self.kb.set_event_cb(self.cb)
+
+    def cb(self, obj, event):
+        if event != lv.EVENT.RELEASED:
+            return
+        c = obj.get_active_btn_text()
+        if c is None:
+            return
+        der = self.ta.get_text()
+        if len(der) == 0:
+            last = "/"
+        else:
+            last = der[-1]
+        if c == "Back":
+            self.ta.set_text("")
+            self.set_value(None)
+        if c[0] == lv.SYMBOL.LEFT:
+            self.ta.del_char()
+        elif c[0] == lv.SYMBOL.CLOSE:
+            self.ta.set_text("")
+        elif c[0] == lv.SYMBOL.OK:
+            self.set_value("m/"+self.ta.get_text())
+            self.ta.set_text("")
+        elif c[0] == "h":
+            if last.isdigit():
+                self.ta.add_text("h/")
+        elif c[0] == "/":
+            if last.isdigit() or last == "h":
+                self.ta.add_text(c)
+        else:
+            self.ta.add_text(c)
 
 class MenuScreen(Screen):
     def __init__(self, buttons=[], 
@@ -161,7 +222,6 @@ class MenuScreen(Screen):
                 on_release(
                         cb_with_args(self.set_value, value)
                 ), scr=self)
-
 
 class Alert(Screen):
     def __init__(self, title, message, button_text=(lv.SYMBOL.LEFT+" Back")):
@@ -206,6 +266,54 @@ class QRAlert(Alert):
         self.qr = add_qrcode(qr_message, scr=self, width=qr_width)
         self.qr.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
         self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+
+class XPubScreen(QRAlert):
+    def __init__(self,
+                 xpub,
+                 slip132 = None,
+                 prefix = None,
+                 title="Your master public key", 
+                 qr_width=None,
+                 button_text="Close"):
+        message = xpub
+        if slip132 is not None:
+            message = slip132
+        if prefix is not None:
+            message = prefix+message
+        super().__init__(title, message, message)
+        self.xpub = xpub
+        self.prefix = prefix
+        self.slip132 = slip132
+
+        if prefix is not None:
+            lbl = lv.label(self)
+            lbl.set_text("Show derivation path")
+            lbl.set_pos(2*PADDING, 540)
+            self.prefix_switch = lv.sw(self)
+            self.prefix_switch.on(lv.ANIM.OFF)
+            self.prefix_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
+
+        if slip132 is not None:
+            lbl = lv.label(self)
+            lbl.set_text("Use SLIP-132")
+            lbl.set_pos(2*PADDING, 590)
+            self.slip_switch = lv.sw(self)
+            self.slip_switch.on(lv.ANIM.OFF)
+            self.slip_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
+
+        if prefix is not None:
+            self.prefix_switch.set_event_cb(on_release(self.toggle_event))
+        if slip132 is not None:
+            self.slip_switch.set_event_cb(on_release(self.toggle_event))
+
+    def toggle_event(self):
+        msg = self.xpub
+        if self.slip132 is not None and self.slip_switch.get_state():
+            msg = self.slip132
+        if self.prefix is not None and self.prefix_switch.get_state():
+            msg = self.prefix+msg
+        self.message.set_text(msg)
+        self.qr.set_text(msg)
 
 class MnemonicScreen(Screen):
     def __init__(self, mnemonic="", title="Your recovery phrase", note=None):
@@ -362,25 +470,24 @@ class RecoverMnemonicScreen(MnemonicScreen):
         if c == lv.SYMBOL.OK+" Done":
             self.set_value(mnemonic)
 
-CHARSET = [
-    "q","w","e","r","t","y","u","i","o","p","\n",
-    "#@","a","s","d","f","g","h","j","k","l","\n",
-    lv.SYMBOL.UP,"z","x","c","v","b","n","m",lv.SYMBOL.LEFT,"\n",
-    lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
-]
-CHARSET_EXTRA = [
-    "1","2","3","4","5","6","7","8","9","0","\n",
-    "aA","@","#","$","_","&","-","+","(",")","/","\n",
-    "[","]","*","\"","'",":",";","!","?","\\",lv.SYMBOL.LEFT,"\n",
-    lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
-]
-
-class PasswordScreen(Screen):
+class InputScreen(Screen):
+    CHARSET = [
+        "q","w","e","r","t","y","u","i","o","p","\n",
+        "#@","a","s","d","f","g","h","j","k","l","\n",
+        lv.SYMBOL.UP,"z","x","c","v","b","n","m",lv.SYMBOL.LEFT,"\n",
+        lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
+    ]
+    CHARSET_EXTRA = [
+        "1","2","3","4","5","6","7","8","9","0","\n",
+        "aA","@","#","$","_","&","-","+","(",")","/","\n",
+        "[","]","*","\"","'",":",";","!","?","\\",lv.SYMBOL.LEFT,"\n",
+        lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
+    ]
     def __init__(self, title="Enter your bip-39 password:", 
             note="It is never stored on the device"):
         super().__init__()
         self.kb = HintKeyboard(self)
-        self.kb.set_map(CHARSET)
+        self.kb.set_map(type(self).CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES//3)
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
@@ -406,21 +513,21 @@ class PasswordScreen(Screen):
             if c[0] == lv.SYMBOL.LEFT:
                 self.ta.del_char()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
-                for i,ch in enumerate(CHARSET):
+                for i,ch in enumerate(type(self).CHARSET):
                     if ch.isalpha():
                         if c == lv.SYMBOL.UP:
-                            CHARSET[i] = CHARSET[i].upper()
+                            type(self).CHARSET[i] = type(self).CHARSET[i].upper()
                         else:
-                            CHARSET[i] = CHARSET[i].lower()
+                            type(self).CHARSET[i] = type(self).CHARSET[i].lower()
                     elif ch == lv.SYMBOL.UP:
-                        CHARSET[i] = lv.SYMBOL.DOWN
+                        type(self).CHARSET[i] = lv.SYMBOL.DOWN
                     elif ch == lv.SYMBOL.DOWN:
-                        CHARSET[i] = lv.SYMBOL.UP
-                self.kb.set_map(CHARSET)
+                        type(self).CHARSET[i] = lv.SYMBOL.UP
+                self.kb.set_map(type(self).CHARSET)
             elif c == "#@":
-                self.kb.set_map(CHARSET_EXTRA)
+                self.kb.set_map(type(self).CHARSET_EXTRA)
             elif c == "aA":
-                self.kb.set_map(CHARSET)
+                self.kb.set_map(type(self).CHARSET)
             elif c[0] == lv.SYMBOL.CLOSE:
                 self.ta.set_text("")
             elif c[0] == lv.SYMBOL.OK:

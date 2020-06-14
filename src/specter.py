@@ -267,7 +267,7 @@ class Specter:
         elif menuitem == 0:
             return await self.recklessmenu()
         elif menuitem == 2:
-            pwd = await self.gui.get_password()
+            pwd = await self.gui.get_input()
             if pwd is not None:
                 self.keystore.load_mnemonic(password=pwd)
                 self.wallet_manager.init(self.keystore, self.network)
@@ -378,30 +378,32 @@ class Specter:
         elif menuitem == 0:
             return await self.show_master_keys(show_all=True)
         elif menuitem == 1:
-            raise SpecterError("Not implemented")
+            der = await self.gui.get_derivation()
+            if der is not None:
+                await self.show_xpub(der)
+                return self.show_master_keys
         else:
             await self.show_xpub(menuitem)
             return self.show_master_keys
         return self.mainmenu
 
     async def show_xpub(self, derivation):
+        derivation = derivation.rstrip("/")
         net = NETWORKS[self.network]
         xpub = self.keystore.get_xpub(derivation)
         ver = bip32.detect_version(derivation, default="xpub",
                         network=net)
         canonical = xpub.to_base58(net["xpub"])
         slip132 = xpub.to_base58(ver)
+        if slip132 == canonical:
+            slip132 = None
         prefix = "[%s%s]" % (
             hexlify(self.keystore.fingerprint).decode(), 
             derivation[1:]
         )
-        s = prefix+slip132
-        info = {
-            "canonical": canonical,
-            "slip132": slip132,
-            "prefix": prefix
-        }
-        await self.gui.qr_alert("Your master key", s, s)
+        await self.gui.show_xpub(xpub=canonical, 
+                                slip132=slip132, 
+                                prefix=prefix)
     # remote means that this command and corresponding GUI was not triggered
     # by the user on the GUI, but from the host directly (USB)
     async def sign_transaction(self, raw_tx_stream, remote=False):

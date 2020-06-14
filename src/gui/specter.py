@@ -1,7 +1,7 @@
 from .async_gui import AsyncGUI
 from .screens import (Screen, PinScreen, 
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
-                      PasswordScreen,
+                      InputScreen, XPubScreen, DerivationScreen
                       )
 import rng
 
@@ -69,13 +69,27 @@ class SpecterGUI(AsyncGUI):
         self.load_screen(scr)
         return await scr.result()
 
-    async def get_password(self):
+    async def get_input(self):
         """
         Asks the user for a password
         """
-        scr = PasswordScreen()
+        scr = InputScreen()
         self.load_screen(scr)
         return await scr.result()
 
     def set_network(self, net):
+        """Changes color of the top line on all screens to network color"""
         Screen.network = net
+
+    async def get_derivation(self, title="Enter derivation path"):
+        """Asks user to enter derivation path"""
+        scr = DerivationScreen(title=title)
+        self.load_screen(scr)
+        return await scr.result()
+
+    async def show_xpub(self, xpub, slip132=None, prefix=None, 
+                    title="Your master public key"):
+        """Shows xpub with slip132 and prefix switches"""
+        scr = XPubScreen(xpub=xpub, slip132=slip132, prefix=prefix, title=title)
+        self.load_screen(scr)
+        return await scr.result()
