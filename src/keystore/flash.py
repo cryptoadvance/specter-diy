@@ -37,27 +37,6 @@ def derive_keys(secret, pin=None):
         keys["pin_ecdsa"] = ec.PrivateKey(hashlib.sha256(b"ecdsa"+pin_key).digest())
     return keys
 
-def sign_file(path, key):
-    """Sign a file with a private key"""
-    with open(path, "rb") as f:
-        h = hashlib.sha256(f.read()).digest()
-    sig = key.sign(h)
-    with open(path+".sig", "wb") as f:
-        f.write(sig.serialize())
-
-def verify_file(path, key):
-    """
-    Verify that the file is signed with the key
-    Raises KeyStoreError if signature is invalid
-    """
-    with open(path, "rb") as f:
-        h = hashlib.sha256(f.read()).digest()
-    with open(path+".sig", "rb") as f:
-        sig = ec.Signature.parse(f.read())
-    pub = key.get_public_key()
-    if not pub.verify(sig, h):
-        raise KeyStoreError("Signature is invalid!")
-
 def encrypt(data, key):
     """Encrypt data with AES_CBC 80... padding"""
     iv = get_random_bytes(IV_SIZE)
@@ -104,7 +83,38 @@ class FlashKeyStore(KeyStore):
         self.root = bip32.HDKey.from_seed(seed)
         self.fingerprint = self.root.child(0).fingerprint
         # id key to sign wallet files stored on untrusted external chip
-        self.idkey = self.root.child(0x1D, hardened=True)
+        self.idkey = self.root.child(0x1D, hardened=True).key
+
+    def sign_to_file(self, data, path, key=None):
+        """Sign a file with a private key"""
+        if key is None:
+            key = self.idkey
+        if key is None:
+            raise KeyStoreError("Pass the key please")
+        h = hashlib.sha256(data).digest()
+        sig = key.sign(h)
+        with open(path, "wb") as f:
+            f.write(sig.serialize())
+
+    def verify_file(self, path, key=None):
+        """
+        Verify that the file is signed with the key
+        Raises KeyStoreError if signature is invalid
+        Returns content of the file if it's ok
+        """
+        if key is None:
+            key = self.idkey
+        if key is None:
+            raise KeyStoreError("Pass the key please")
+        with open(path, "rb") as f:
+            data = f.read()
+            h = hashlib.sha256(data).digest()
+        with open(path+".sig", "rb") as f:
+            sig = ec.Signature.parse(f.read())
+        pub = key.get_public_key()
+        if not pub.verify(sig, h):
+            raise KeyStoreError("Signature is invalid!")
+        return data
 
     def get_xpub(self, path):
         if self.is_locked or self.root is None:
@@ -136,10 +146,9 @@ class FlashKeyStore(KeyStore):
         """Verify file and load PIN state from it"""
         try:
             # verify that the pin file is ok
-            verify_file(self.path+"/pin.json", self.keys["ecdsa"])
+            data = self.verify_file(self.path+"/pin.json", self.keys["ecdsa"])
             # load pin object
-            with open(self.path+"/pin.json","r") as f:
-                self.state = json.load(f)
+            self.state = json.loads(data.decode())
         except Exception as e:
             self.wipe(self.path)
             raise CriticalErrorWipeImmediately(
@@ -161,11 +170,13 @@ class FlashKeyStore(KeyStore):
             "pin_attempts_max": 10
         }
         # save and sign pin file
-        with open(path+"/pin.json", "w") as f:
-            json.dump(state, f)
+        data = json.dumps(state)
         # derive signing key
         signing_key = derive_keys(secret)["ecdsa"]
-        sign_file(path+"/pin.json", key=signing_key)
+        self.sign_to_file(data, path+"/pin.json.sig", key=signing_key)
+        # now we save file itseld
+        with open(path+"/pin.json", "w") as f:
+            f.write(data)
         return secret
 
     def get_status(self):
@@ -249,15 +260,14 @@ class FlashKeyStore(KeyStore):
         self.unlock(old_pin)
         data = None
         if platform.file_exists(self.path+"/reckless"):
-            verify_file(self.path+"/reckless", self.keys["pin_ecdsa"])
-            with open(self.path+"/reckless", "rb") as f:
-                data = f.read()
+            data = self.verify_file(self.path+"/reckless", self.keys["pin_ecdsa"])
             data = decrypt(data, self.keys["pin_aes"])
         self.set_pin(new_pin)
         if data is not None:
+            ct = encrypt(data, self.keys["pin_aes"])
             with open(self.path+"/reckless", "wb") as f:
-                f.write(encrypt(data, self.keys["pin_aes"]))
-            sign_file(self.path+"/reckless", self.keys["pin_ecdsa"])
+                f.write(ct)
+            self.sign_to_file(ct, self.path+"/reckless.sig", self.keys["pin_ecdsa"])
 
 
     def get_auth_word(self, pin_part):
@@ -273,9 +283,10 @@ class FlashKeyStore(KeyStore):
 
     def save_state(self):
         """Saves PIN state to flash"""
+        data = json.dumps(self.state)
         with open(self.path+"/pin.json","w") as f:
-            json.dump(self.state, f)
-        sign_file(self.path+"/pin.json", key=self.keys["ecdsa"])
+            f.write(data)
+        self.sign_to_file(data, self.path+"/pin.json.sig", key=self.keys["ecdsa"])
         # check it loads
         self.load_state()
 
@@ -293,9 +304,10 @@ class FlashKeyStore(KeyStore):
             raise KeyStoreError("Keystore is locked")
         if self.mnemonic is None:
             raise KeyStoreError("Recovery phrase is not loaded")
+        ct = encrypt(self.mnemonic.encode(), self.keys["pin_aes"])
         with open(self.path+"/reckless", "wb") as f:
-            f.write(encrypt(self.mnemonic.encode(), self.keys["pin_aes"]))
-        sign_file(self.path+"/reckless", self.keys["pin_ecdsa"])
+            f.write(ct)
+        self.sign_to_file(ct, self.path+"/reckless.sig", self.keys["pin_ecdsa"])
         # check it's ok
         self.load()
 
@@ -304,9 +316,7 @@ class FlashKeyStore(KeyStore):
             raise KeyStoreError("Keystore is locked")
         if not platform.file_exists(self.path+"/reckless"):
             raise KeyStoreError("Key is not saved")
-        verify_file(self.path+"/reckless", self.keys["pin_ecdsa"])
-        with open(self.path+"/reckless", "rb") as f:
-            data = f.read()
+        data = self.verify_file(self.path+"/reckless", self.keys["pin_ecdsa"])
         self.load_mnemonic(decrypt(data, self.keys["pin_aes"]).decode(),"")
 
     def delete_saved(self):
