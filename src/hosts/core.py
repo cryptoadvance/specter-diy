@@ -13,7 +13,9 @@ class Host:
     Can be unidirectional like QRHost
     or bidirectional like USBHost or SDHost
     """
-    def __init__(self):
+    def __init__(self, path):
+        # storage for data
+        self.path = path
         # set manager
         self.manager = None
         # set the button on the main screen

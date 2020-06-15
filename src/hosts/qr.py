@@ -46,8 +46,8 @@ class QRHost(Host):
     - scan unsigned transaction and authentications
     - trigger display of the signed transaction
     """
-    def __init__(self, trigger=None, uart="YA", baudrate=9600):
-        super().__init__()
+    def __init__(self, path, trigger=None, uart="YA", baudrate=9600):
+        super().__init__(path)
         self.button = "Scan QR code"
 
         if simulator:
