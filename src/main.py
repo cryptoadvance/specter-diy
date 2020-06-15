@@ -6,13 +6,17 @@ from wallets import WalletManager
 import platform
 
 def main():
+    # create virtual file system /sdram
+    # for temp untrusted data storage
+    rampath = platform.mount_sdram()
     # define hosts - USB, QR, SDCard
+    # each hosts gets it's own RAM folder for data
     hosts = [
-        QRHost(),
-        # SDHost(), # not implemented yet
+        QRHost(rampath+"/qr"),
+        # SDHost(rampath+"/sd"), # not implemented yet
     ]
     if platform.USB_ENABLED:
-        hosts.append(USBHost())
+        hosts.append(USBHost(rampath+"/usb"))
     # define GUI
     gui = SpecterGUI()
 

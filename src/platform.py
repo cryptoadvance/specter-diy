@@ -26,6 +26,21 @@ if simulator:
 else:
     storage_root = ""
 
+def mount_sdram():
+    path = "%s/ramdisk"%storage_root
+    if simulator:
+        # not a real RAM on simulator
+        maybe_mkdir(path)
+        # cleanup
+        delete_recursively(path)
+    else:
+        import sdram
+        sdram.init()
+        bdev = RAMDevice(512)
+        os.VfsFat.mkfs(bdev)
+        os.mount(bdev, path)
+    return path
+
 def fpath(fname):
     """A small function to avoid % storage_root everywhere"""
     return "%s%s" % (storage_root, fname)

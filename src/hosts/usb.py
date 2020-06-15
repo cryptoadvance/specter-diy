@@ -17,8 +17,8 @@ class USBHost(Host):
       - load seed
       - set label
     """
-    def __init__(self):
-        super().__init__()
+    def __init__(self, path):
+        super().__init__(path)
         self.usb = pyb.USB_VCP()
         self.data = b""
 

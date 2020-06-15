@@ -11,9 +11,9 @@ class SDHost(Host):
     - loading unsigned transaction and authentications
     - saving signed transaction to the card
     """
-    def __init__(self, path=fpath("/sd")):
-        super().__init__()
-        self.path = path
+    def __init__(self, path, sdpath=fpath("/sd")):
+        super().__init__(path)
+        self.sdpath = sdpath
         self.button = "Load from SD card"
         self.tx_fname = "vault.psbt.unsigned"
         self.auth_prefix = "authorization."
@@ -32,14 +32,14 @@ class SDHost(Host):
         """
         # checking size of transaction
         try:
-            size = os.stat("%s/%s" % (self.path, self.tx_fname))[6]
+            size = os.stat("%s/%s" % (self.sdpath, self.tx_fname))[6]
         except:
             raise HostError("Failed to find\n%s\nfile on the SD card" % self.tx_fname)
 
         # loading transaction and decoding in pieces
         # - saves memory for large txs
         raw_tx = BytesIO()
-        with open("%s/%s" % (self.path, self.tx_fname), "rb") as f:
+        with open("%s/%s" % (self.sdpath, self.tx_fname), "rb") as f:
             for i in range(size//4):
                 b64chunk = f.read(4).strip() # remove "\n etc"
                 try:
@@ -51,9 +51,9 @@ class SDHost(Host):
 
         # loading authorizations
         sigs = []
-        for file, *_ in os.ilistdir(self.path):
+        for file, *_ in os.ilistdir(self.sdpath):
             if file.startswith(self.auth_prefix):
-                with open("%s/%s" % (self.path, file), "rb") as f:
+                with open("%s/%s" % (self.sdpath, file), "rb") as f:
                     sigs.append(BytesIO(unhexlify(f.read())))
         return raw_tx, sigs
 
@@ -63,7 +63,7 @@ class SDHost(Host):
         as vault.psbt.signed.<suffix> file
         Returns a success message to display
         """
-        with open("%s/vault.psbt.signed.%s" % (self.path, suffix), "wb") as f:
+        with open("%s/vault.psbt.signed.%s" % (self.sdpath, suffix), "wb") as f:
             raw = BytesIO(tx.serialize())
             while True:
                 chunk = raw.read(3)
