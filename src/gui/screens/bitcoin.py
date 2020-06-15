@@ -52,3 +52,71 @@ class XPubScreen(QRAlert):
         self.message.set_text(msg)
         self.qr.set_text(msg)
 
+class WalletScreen(QRAlert):
+    def __init__(self, wallet, network):
+        self.wallet = wallet
+        self.network = network
+        self.idx = wallet.unused_recv
+        addr, gap = wallet.get_address(self.idx, network=network)
+        super().__init__(wallet.name, addr, "bitcoin:"+addr)
+
+        style = lv.style_t()
+        lv.style_copy(style, self.message.get_style(0))
+        style.text.font = lv.font_roboto_mono_22
+        self.message.set_style(0, style)
+
+        # index
+        self.note = add_label("Receiving address #%d" % self.idx, y=55, style="hint", scr=self)
+        self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+
+        # warning label for address gap limit
+        self.warning = add_label("", scr=self)
+        self.warning.align(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+        style = lv.style_t()
+        lv.style_copy(style, self.note.get_style(0))
+        style.text.color = lv.color_hex(0xFF9A00)
+        self.warning.set_style(0, style)
+        
+        # delbtn = add_button("Delete wallet", on_release(cb_del), y=610)
+        self.prv = add_button(lv.SYMBOL.LEFT, on_release(self.prev), scr=self)
+        self.nxt = add_button(lv.SYMBOL.RIGHT, on_release(self.next), scr=self)
+        if self.idx <= 0:
+            self.prv.set_state(lv.btn.STATE.INA)
+        self.prv.set_width(70)
+        self.prv.align(self.qr, lv.ALIGN.OUT_LEFT_MID, -20, 0)
+        self.prv.set_x(0)
+        self.nxt.set_width(70)
+        self.nxt.align(self.qr, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
+        self.nxt.set_x(HOR_RES-70)
+
+    def next(self):
+        self.idx += 1
+        self.get_address()
+
+    def prev(self):
+        if self.idx == 0:
+            return
+        self.idx -= 1
+        self.get_address()
+
+    def get_address(self):
+        if self.idx > 0:
+            self.prv.set_state(lv.btn.STATE.REL)
+        else:
+            self.prv.set_state(lv.btn.STATE.INA)
+        addr, gap = self.wallet.get_address(self.idx, network=self.network)
+        note = "Receiving address #%d" % (self.idx)
+        self.note.set_text(note)
+        self.message.set_text(addr)
+        self.qr.set_text("bitcoin:"+addr)
+
+        if self.idx > gap:
+            self.warning.set_text("This address exceeds the gap limit.\n"
+                            "Your watching wallet may not track balance "
+                            "received to it!")
+        elif self.idx < self.wallet.unused_recv:
+            self.warning.set_text("This address may have been used before.\n"
+                           "Reusing it would diminish your privacy!")
+        else:
+            self.warning.set_text("")

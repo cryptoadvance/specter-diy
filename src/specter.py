@@ -325,7 +325,8 @@ class Specter:
             return
         else:
             w = self.wallet_manager.wallets[menuitem]
-            print(w.name)
+            # pass wallet and network
+            await self.gui.show_wallet(w, self.network)
             raise SpecterError("Not implemented")
 
     async def unlock(self):

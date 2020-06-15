@@ -28,7 +28,7 @@ class SingleKey(DescriptorScript):
         key = DescriptorKey.parse(desc[len("wpkh("):-1])
         return cls(key)
 
-    def script(self, derivation):
+    def scriptpubkey(self, derivation):
         """Derivation should be an array of two ints: [change 0 or 1, index]"""
         if len(derivation) != 2:
             raise ScriptError("Derivation should be of len 2")
@@ -73,14 +73,14 @@ class Multisig(DescriptorScript):
         keys = [DescriptorKey.parse(key) for key in keys]
         return cls(sigs_required, keys, sort_keys)
 
-    def script(self, derivation):
+    def scriptpubkey(self, derivation):
         """Derivation should be an array of two ints: [change 0 or 1, index]"""
         if len(derivation) != 2:
             raise ScriptError("Derivation should be of len 2")
         change, idx = derivation
         if change not in [0,1] or idx < 0:
             raise ScriptError("Invalid change or index")
-        pubs = [key.derive([change, idx]).key for key in self.keys]
+        pubs = [key.derive([change, idx]) for key in self.keys]
         if self.sort_keys:
             pubs = sorted(pubs)
         return script.p2wsh(script.multisig(self.sigs_required, pubs))
@@ -110,6 +110,17 @@ class DescriptorKey:
             # we don't know derivation - use it as root
             self.fingerprint = self.key.child(0).fingerprint
             self.derivation = []
+
+    def derive(self, derivation):
+        """Returns a key derived from this key"""
+        if isinstance(derivation, str):
+            derivation = bip32.parse_path(derivation)
+        xpub = self.key.derive(derivation)
+        derivation = self.derivation + derivation
+        return DescriptorKey(xpub, self.fingerprint, derivation)
+
+    def sec(self):
+        return self.key.sec()
 
     @classmethod
     def parse(cls, s):

@@ -2,6 +2,7 @@ from platform import maybe_mkdir
 from .scripts import SingleKey, Multisig
 import json
 from bitcoin import ec
+from bitcoin.networks import NETWORKS
 import hashlib
 
 class WalletError(Exception):
@@ -31,6 +32,7 @@ class Wallet:
         # receive and change gap limits
         self.gaps = [type(self).GAP_LIMIT, type(self).GAP_LIMIT]
         self.name = name
+        self.unused_recv = 0
 
     def save(self, key):
         if self.path is None:
@@ -43,10 +45,25 @@ class Wallet:
             f.write(sig.serialize())
         obj = {
             "gaps": self.gaps,
-            "name": self.name
+            "name": self.name,
+            "unused_recv": self.unused_recv
         }
         with open(self.path+"/meta.json", "w") as f:
             json.dump(obj, f)
+
+    def get_address(self, idx:int, network:str, change=False):
+        sc, gap = self.scriptpubkey([int(change), idx])
+        return sc.address(NETWORKS[network]), gap
+
+    def scriptpubkey(self, derivation:list):
+        """Returns scriptpubkey and gap limit"""
+        # derivation can be only two elements
+        change, idx = derivation
+        if change not in [0,1]:
+            raise WalletError("Invalid change index %d - can be 0 or 1" % change)
+        if idx < 0:
+            raise WalletError("Invalid index %d - can't be negative" % idx)
+        return self.script.scriptpubkey(derivation), self.gaps[change]
 
     @classmethod
     def parse(cls, desc, path=None):
@@ -95,6 +112,8 @@ class Wallet:
             w.gaps = obj["gaps"]
         if "name" in obj:
             w.name = obj["name"]
+        if "unused_recv" in obj:
+            w.unused_recv = obj["unused_recv"]
         return w
 
     @classmethod

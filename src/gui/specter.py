@@ -1,7 +1,7 @@
 from .async_gui import AsyncGUI
-from .screens import (Screen, PinScreen, 
+from .screens import (Screen, PinScreen,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
-                      InputScreen, XPubScreen, DerivationScreen
+                      InputScreen, XPubScreen, DerivationScreen, WalletScreen
                       )
 import rng
 
@@ -91,5 +91,10 @@ class SpecterGUI(AsyncGUI):
                     title="Your master public key"):
         """Shows xpub with slip132 and prefix switches"""
         scr = XPubScreen(xpub=xpub, slip132=slip132, prefix=prefix, title=title)
+        self.load_screen(scr)
+        return await scr.result()
+
+    async def show_wallet(self, w, network):
+        scr = WalletScreen(w, network)
         self.load_screen(scr)
         return await scr.result()
