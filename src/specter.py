@@ -195,7 +195,11 @@ class Specter:
         menuitem = await self.gui.menu(buttons)
 
         # process the menu button:
-        if menuitem == 1:
+        # wallets
+        if menuitem == 0:
+            return await self.show_wallets()
+        # xpubs
+        elif menuitem == 1:
             return await self.show_master_keys()
         # lock device
         elif menuitem == 2:
@@ -311,9 +315,18 @@ class Specter:
         elif menuitem == 3:
             await self.gui.show_mnemonic(self.keystore.mnemonic)
         else:
-            print(menuitem)
-            raise SpecterError("Not implemented")
+            raise SpecterError("Invalid menu")
 
+    async def show_wallets(self):
+        buttons = [(None, "Your wallets")]
+        buttons += [(i, w.name) for i, w in enumerate(self.wallet_manager.wallets)]
+        menuitem = await self.gui.menu(buttons, last=(255,None))
+        if menuitem == 255:
+            return
+        else:
+            w = self.wallet_manager.wallets[menuitem]
+            print(w.name)
+            raise SpecterError("Not implemented")
 
     async def unlock(self):
         """

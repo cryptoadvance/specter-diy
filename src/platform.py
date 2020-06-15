@@ -38,7 +38,9 @@ def file_exists(fname:str)->bool:
     except:
         return False
 
-def delete_recursively(path):
+def delete_recursively(path, include_self=False):
+    # remove trailing slash
+    path = path.rstrip("/")
     files = os.ilistdir(path)
     for _file in files:
         if _file[0] in [".",".."]:
@@ -60,6 +62,8 @@ def delete_recursively(path):
         current directory and parent directory (unix) or
         0 directories (stm32)
         """
+        if include_self:
+            os.rmdir(path)
         return True
     raise RuntimeError("Failed to delete folder %s" % path)
 
