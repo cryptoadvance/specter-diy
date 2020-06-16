@@ -185,6 +185,10 @@ class QRHost(Host):
         else:
             self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
 
+    def abort(self):
+        self.data = None
+        self.stop_scanning()
+
     async def scan(self):
         self.clean_uart()
         if self.trigger is not None:
@@ -218,6 +222,11 @@ class QRHost(Host):
                         if self.process_chunk(chunk):
                             self.stop_scanning()
                             break
+                        # animated in trigger mode
+                        elif self.trigger is not None:
+                            self.trigger.on()
+                            await asyncio.sleep_ms(30)
+                            self.trigger.off()
                 except Exception as e:
                     print(e)
                     self.stop_scanning()
@@ -225,20 +234,19 @@ class QRHost(Host):
 
     def process_chunk(self, chunk):
         """Returns true when scanning complete"""
-        # should, actually
+        # should not be there if trigger mode or simulator
         if chunk.startswith(SUCCESS):
             chunk = chunk[len(SUCCESS):]
-        print("process", chunk)
+        # check if it starts with pMofN
         if b" " not in chunk:
             if not self.animated:
                 self.data = chunk
                 return True
             else:
                 self.stop_scanning()
-                raise HostError("Ivalid QR code part encoding: %r" % data)
+                raise HostError("Ivalid QR code part encoding: %r" % chunk)
         # space is there
         prefix, *args = chunk.split(b" ")
-        print("PREFIX", prefix)
         if not self.animated:
             if prefix.startswith(b"p") and b"of" in prefix:
                 try:
@@ -256,7 +264,8 @@ class QRHost(Host):
                     return True
         # expecting animated frame
         m, n = self.parse_prefix(prefix)
-        print(prefix)
+        if n != len(self.parts):
+            raise HostError("Invalid prefix")
         self.parts[m-1] = b" ".join(args)
         # all have non-zero len
         if min([len(part) for part in self.parts]) > 0:
@@ -276,12 +285,33 @@ class QRHost(Host):
         return m, n
 
     async def get_data(self):
-        # scan_progress is a QR scanning specific screen
-        # that shows that QR code(s) is being scanned
-        # and displays cancel button that calls self.stop_scanning()
-        # self.manager.scan_progress([])
+        if self.manager is not None:
+            # pass self so user can abort
+            await self.manager.gui.show_progress(self, 
+                "Scanning...", 
+                "Point scanner to the QR code")
         data = await self.scan()
-        return BytesIO(data)
+        print("data:",data)
+        if data is not None:
+            return BytesIO(data)
+
+    @property
+    def in_progress(self):
+        return self.scanning
+
+    @property
+    def progress(self):
+        """
+        Returns progress
+        - either as a number between 0 and 1
+        - or a list of True False for checkboxes
+        """
+        if not self.in_progress:
+            return 1
+        if not self.animated:
+            return 0
+        return [len(part)>0 for part in self.parts]
+    
 
     async def send_data(self, tx, fingerprint=None):
         tx.unknown = {}

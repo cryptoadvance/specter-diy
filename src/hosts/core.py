@@ -24,6 +24,7 @@ class Host:
         # should be a tuple (text, callback)
         # keep None if you don't need a button
         self.button = None
+        self.enabled = False
 
     def init(self):
         """
@@ -32,9 +33,8 @@ class Host:
         """
         pass
 
-    def start(self, manager=None, rate:int=10):
+    def start(self, manager, rate:int=10):
         self.manager = manager
-        self.init()
         asyncio.create_task(self.update_loop(rate))
 
     async def update(self):
@@ -44,12 +44,25 @@ class Host:
         """
         pass
 
-    async def update_loop(self, dt):
+    async def update_loop(self, dt:int):
+        while not self.enabled:
+            await asyncio.sleep_ms(100)
+        self.init()
         while True:
-            await self.update()
+            if self.enabled:
+                try:
+                    await self.update()
+                except Exception as e:
+                    self.abort()
+                    if self.manager is not None:
+                        await self.manager.host_exception_handler(e)
             # Keep await sleep here
             # It allows other functions to run
             await asyncio.sleep_ms(dt)
+
+    def abort(self):
+        """What should happen if exception?"""
+        pass
 
     async def get_data(self):
         """Implement how to get transaction from unidirectional host"""

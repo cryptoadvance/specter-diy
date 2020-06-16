@@ -32,6 +32,9 @@ class Specter:
     def start(self):
         # start the GUI
         self.gui.start()
+        # register coroutines for all hosts
+        for host in self.hosts:
+            host.start(self)
         asyncio.run(self.setup())
 
     async def handle_exception(self, exception, next_fn):
@@ -79,14 +82,22 @@ class Specter:
             self.just_booted = False
             # or set up the PIN code
             await self.unlock()
-            # register coroutines for all hosts
-            for host in self.hosts:
-                host.start(self)
         except Exception as e:
             next_fn = await self.handle_exception(e, self.setup)
             await next_fn()
 
         await self.main()
+
+    async def host_exception_handler(self, e):
+        try:
+            raise e
+        except HostError as ex:
+            msg = "%s" % ex
+        except:
+            b = BytesIO()
+            sys.print_exception(e, b)
+            msg = b.getvalue().decode()
+        res = await self.gui.error(msg, popup=True)
 
     async def main(self):
         while True:
@@ -168,6 +179,8 @@ class Specter:
         self.keystore.change_pin(old_pin, new_pin)
 
     async def mainmenu(self):
+        for host in self.hosts:
+            host.enabled = True
         # buttons defined by host classes
         # only added if there is a GUI-triggered communication
         host_buttons = [
@@ -202,8 +215,14 @@ class Specter:
         elif menuitem == 2:
             # lock the SE
             self.keystore.lock()
+            # disable hosts
+            for host in self.hosts:
+                host.enabled = False
             # go to the unlock screen
             await self.unlock()
+            # enable hosts again
+            for host in self.hosts:
+                host.enabled = True
         elif menuitem == 3:
             await self.select_network()
         elif menuitem == 4:
@@ -211,7 +230,9 @@ class Specter:
         # if it's a host
         elif hasattr(menuitem, 'get_data'):
             host = menuitem
-            raise SpecterError("Not implemented")
+            b = await host.get_data()
+            if b is not None:
+                await self.gui.alert("Data from host!", b.read().decode())
         else:
             print(menuitem)
             raise SpecterError("Not implemented")

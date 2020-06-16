@@ -96,7 +96,7 @@ class Wallet:
                 pass
         if script is None:
             raise WalletError("Can't find proper type for %s" % desc)
-        return cls(script, wrapped, path, name=name)
+        return cls(script, wrapped, path)
 
     @classmethod
     def from_path(cls, path, pubkey):

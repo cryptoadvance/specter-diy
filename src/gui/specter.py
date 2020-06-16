@@ -1,9 +1,9 @@
 from .async_gui import AsyncGUI
-from .screens import (Screen, PinScreen,
+from .screens import (Screen, PinScreen, ProgressScreen,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
                       InputScreen, XPubScreen, DerivationScreen, WalletScreen
                       )
-import rng
+import rng, asyncio
 
 class SpecterGUI(AsyncGUI):
     """Specter-related GUI"""
@@ -15,7 +15,7 @@ class SpecterGUI(AsyncGUI):
         pin_scr = PinScreen(title=title, 
             note="Do you recognize these words?", 
             get_word=get_word)
-        self.load_screen(pin_scr)
+        await self.load_screen(pin_scr)
         return await pin_scr.result()
 
     async def setup_pin(self, get_word=None):
@@ -27,7 +27,7 @@ class SpecterGUI(AsyncGUI):
         pin_scr = PinScreen(title="Choose your PIN code", 
             note="Remember these words, they will stay the same on this device.", 
             get_word=get_word)
-        self.load_screen(pin_scr)
+        await self.load_screen(pin_scr)
         
         pin1 = await pin_scr.result()
 
@@ -47,7 +47,7 @@ class SpecterGUI(AsyncGUI):
         Shows mnemonic on the screen
         """
         scr = MnemonicScreen(mnemonic)
-        self.load_screen(scr)
+        await self.load_screen(scr)
         return await scr.result()
 
     async def new_mnemonic(self, generator):
@@ -55,7 +55,7 @@ class SpecterGUI(AsyncGUI):
         Generates a new mnemonic and shows it on the screen
         """
         scr = NewMnemonicScreen(generator)
-        self.load_screen(scr)
+        await self.load_screen(scr)
         return await scr.result()
 
     async def recover(self, checker=None, lookup=None):
@@ -66,7 +66,7 @@ class SpecterGUI(AsyncGUI):
                 returns num_candidates words starting with word
         """
         scr = RecoverMnemonicScreen(checker, lookup)
-        self.load_screen(scr)
+        await self.load_screen(scr)
         return await scr.result()
 
     async def get_input(self):
@@ -74,7 +74,7 @@ class SpecterGUI(AsyncGUI):
         Asks the user for a password
         """
         scr = InputScreen()
-        self.load_screen(scr)
+        await self.load_screen(scr)
         return await scr.result()
 
     def set_network(self, net):
@@ -84,17 +84,43 @@ class SpecterGUI(AsyncGUI):
     async def get_derivation(self, title="Enter derivation path"):
         """Asks user to enter derivation path"""
         scr = DerivationScreen(title=title)
-        self.load_screen(scr)
+        await self.load_screen(scr)
         return await scr.result()
 
     async def show_xpub(self, xpub, slip132=None, prefix=None, 
                     title="Your master public key"):
         """Shows xpub with slip132 and prefix switches"""
         scr = XPubScreen(xpub=xpub, slip132=slip132, prefix=prefix, title=title)
-        self.load_screen(scr)
+        await self.load_screen(scr)
         return await scr.result()
 
     async def show_wallet(self, w, network):
         scr = WalletScreen(w, network)
-        self.load_screen(scr)
+        await self.load_screen(scr)
         return await scr.result()
+
+    async def show_progress(self, host, title, message):
+        """
+        Shows progress screen and cancel button 
+        to cancel communication with the host
+        """
+        scr = ProgressScreen(title, message, button_text="Cancel")
+        await self.open_popup(scr)
+        asyncio.create_task(self.coro(host, scr))
+
+    async def coro(self, host, scr):
+        """
+        Waits for one of two events:
+        - either user presses something on the screen
+        - or host finishes processing
+        Also updates progress screen
+        """
+        while host.in_progress and scr.waiting:
+            await asyncio.sleep_ms(30)
+            scr.tick(5)
+            scr.set_progress(host.progress)
+        if host.in_progress:
+            host.abort()
+        if scr.waiting:
+            scr.waiting = False
+        self.close_popup()
