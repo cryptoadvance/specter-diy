@@ -13,7 +13,7 @@ pwrcb = lambda e: pwr.off()
 pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 
 # uncomment this lines if you want to override DEV_ENABLED and USB_ENABLED
-# platform.DEV_ENABLED = True
+platform.DEV_ENABLED = True
 # platform.USB_ENABLED = True
 
 # set up usb mode
