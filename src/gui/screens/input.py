@@ -6,7 +6,7 @@ import lvgl as lv
 from ..common import *
 from ..decorators import *
 from ..components import HintKeyboard
-from .base import Screen
+from .screen import Screen
 import rng
 
 class InputScreen(Screen):
@@ -112,7 +112,7 @@ class PinScreen(Screen):
         style = lv.style_t()
         lv.style_copy(style, styles["theme"].style.ta.oneline)
         style.text.font = lv.font_roboto_28
-        style.text.color = lv.color_hex(0xffffff)
+        style.text.color = styles["theme"].style.scr.text.color
         style.text.letter_space = 15
         self.pin.set_style(lv.label.STYLE.MAIN, style)
         self.pin.set_width(HOR_RES-2*PADDING)
@@ -124,14 +124,13 @@ class PinScreen(Screen):
         self.pin.set_pwd_show_time(0)
         self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, -150)
 
-        btnm.set_event_cb(self.cb);
+        btnm.set_event_cb(feed_rng(self.cb));
 
     def reset(self):
         self.pin.set_text("")
         if self.get_word is not None:
             self.words.set_text(self.get_word(b""))
 
-    @feed_rng
     def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()

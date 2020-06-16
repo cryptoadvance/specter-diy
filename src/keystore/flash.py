@@ -2,15 +2,10 @@ from .core import KeyStore, KeyStoreError, PinError
 from platform import CriticalErrorWipeImmediately
 from binascii import hexlify, unhexlify
 from rng import get_random_bytes
-import json, hashlib, hmac
+import os, json, hashlib, hmac
 from bitcoin import ec, bip39, bip32
 import platform
-from ucryptolib import aes
-import os
-
-AES_BLOCK = 16
-IV_SIZE   = 16
-AES_CBC   = 2
+from helpers import encrypt, decrypt
 
 def derive_keys(secret, pin=None):
     """
@@ -36,28 +31,6 @@ def derive_keys(secret, pin=None):
         keys["pin_hmac"] = hashlib.sha256(b"hmac"+pin_key).digest()
         keys["pin_ecdsa"] = ec.PrivateKey(hashlib.sha256(b"ecdsa"+pin_key).digest())
     return keys
-
-def encrypt(data, key):
-    """Encrypt data with AES_CBC 80... padding"""
-    iv = get_random_bytes(IV_SIZE)
-    crypto = aes(key, AES_CBC, iv)
-    # encrypted data should be mod 16 (blocksize)
-    # we do x80000.. padding
-    data += b'\x80'
-    if len(data) % AES_BLOCK != 0:
-        data += b"\x00"*(AES_BLOCK-(len(data) % AES_BLOCK))
-    return iv+crypto.encrypt(data)
-
-def decrypt(data, key):
-    """Decrypt data with AES_CBC 80... padding"""
-    iv = data[:IV_SIZE]
-    ct = data[IV_SIZE:]
-    # 2 - MODE_CBC
-    crypto = aes(key, AES_CBC, iv)
-    plain = crypto.decrypt(ct)
-    # remove padding
-    d = b"\x80".join(plain.split(b"\x80")[:-1])
-    return d
 
 class FlashKeyStore(KeyStore):
     """
@@ -179,25 +152,6 @@ class FlashKeyStore(KeyStore):
             f.write(data)
         return secret
 
-    def get_status(self):
-        """Check card status"""
-        if not self.is_pin_set:
-            self.status = (self.STATUS_SETUP, None)
-        elif self._is_locked:
-            if self.pin_attempts_left > 0:
-                self.status = (self.STATUS_LOCKED, 
-                    "%d of %d attempts left" % (
-                        self.pin_attempts_left,
-                        self.pin_attempts_max
-                    )
-                )
-            else:
-                self.status = (self.STATUS_BLOCKED, 
-                               "No more PIN attempts left")
-        else:
-            self.status = (self.STATUS_UNLOCKED, None)
-        return self.status
-
     @property
     def is_pin_set(self):
         return self.state["pin"] is not None
@@ -245,12 +199,11 @@ class FlashKeyStore(KeyStore):
         self.save_state()
         # derive PIN keys for reckless storage
         self.keys.update(derive_keys(self.keys["secret"], pin))
-        return self.get_status()
 
     def lock(self):
         """Locks the keystore, requires PIN to unlock"""
         self._is_locked = True
-        return self.get_status()
+        return self.is_locked
 
     def unset_pin(self):
         self.state["pin"] = None
