@@ -67,15 +67,17 @@ class Wallet:
 
     @classmethod
     def parse(cls, desc, path=None):
-        return cls.from_descriptor(desc, path)
+        name = "Untitled"
+        if "&" in desc:
+            name, desc = desc.split("&")
+        w = cls.from_descriptor(desc, path)
+        w.name = name
+        return w
 
     @classmethod
     def from_descriptor(cls, desc, path):
         # remove checksum if it's there and all spaces
         desc = desc.split("#")[0].replace(" ", "")
-        name = "Untitled"
-        if "&" in desc:
-            name, desc = desc.split("&")
         wrapped = False
         # detect wrapper
         if desc.startswith("sh("):
@@ -98,6 +100,7 @@ class Wallet:
 
     @classmethod
     def from_path(cls, path, pubkey):
+        """Loads wallet from the folder"""
         path = path.rstrip("/")
         with open(path+"/descriptor", "r") as f:
             desc = f.read()
@@ -122,6 +125,7 @@ class Wallet:
         cls.SCRIPTS.append(scriptcls)
 
     def descriptor(self):
+        """Returns descriptor of the wallet"""
         desc = str(self.script)
         if self.wrapped:
             desc = "sh(%s)" % desc

@@ -1,4 +1,5 @@
 import asyncio
+from platform import maybe_mkdir
 
 class HostError(Exception):
     """
@@ -16,6 +17,7 @@ class Host:
     def __init__(self, path):
         # storage for data
         self.path = path
+        maybe_mkdir(path)
         # set manager
         self.manager = None
         # set the button on the main screen
@@ -30,7 +32,7 @@ class Host:
         """
         pass
 
-    def start(self, manager=None, rate:int=1):
+    def start(self, manager=None, rate:int=10):
         self.manager = manager
         self.init()
         asyncio.create_task(self.update_loop(rate))

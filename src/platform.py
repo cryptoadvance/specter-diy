@@ -36,7 +36,7 @@ def mount_sdram():
     else:
         import sdram
         sdram.init()
-        bdev = RAMDevice(512)
+        bdev = sdram.RAMDevice(512)
         os.VfsFat.mkfs(bdev)
         os.mount(bdev, path)
     return path

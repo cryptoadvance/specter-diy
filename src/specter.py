@@ -81,9 +81,6 @@ class Specter:
             await self.unlock()
             # register coroutines for all hosts
             for host in self.hosts:
-                # When you start the host
-                # pass command handler class to it
-                # In this case it's us.
                 host.start(self)
         except Exception as e:
             next_fn = await self.handle_exception(e, self.setup)

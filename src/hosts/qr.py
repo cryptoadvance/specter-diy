@@ -1,10 +1,8 @@
 from .core import Host, HostError
-import asyncio
+import pyb, time, asyncio
 from platform import simulator
 from io import BytesIO
 from binascii import b2a_base64, a2b_base64
-import time
-import pyb
 
 QRSCANNER_TRIGGER = "D5"
 # OK response from scanner
@@ -51,10 +49,10 @@ class QRHost(Host):
         self.button = "Scan QR code"
 
         if simulator:
-            self.EOL = "\r\n"
+            self.EOL = b"\r\n"
             self.UART_EMPTY = b""
         else:
-            self.EOL = "\r"
+            self.EOL = b"\r"
             self.UART_EMPTY = None
 
         self.data = b""
@@ -69,13 +67,14 @@ class QRHost(Host):
         self.init()
         self.scanning = False
 
-    def query(self, data):
+    def query(self, data, timeout=100):
+        """Blocking query"""
         self.uart.write(data)
         t0 = time.time()
         while self.uart.any() < 7:
             time.sleep_ms(10)
             t = time.time()
-            if t > t0+0.1:
+            if t > t0+timeout/1000:
                 return None
         res = self.uart.read(7)
         return res
@@ -151,40 +150,40 @@ class QRHost(Host):
         return True
 
     def init(self):
+        if self.is_configured:
+            return
         # if failed to configure - probably a different scanner
         # in this case fallback to PIN trigger mode FIXME
-        if self.is_configured == False:
-            self.clean_uart()
-            self.is_configured = self.configure()
-            if self.is_configured:
-                print("Scanner: automatic mode")
-                return
+        self.clean_uart()
+        self.is_configured = self.configure()
+        if self.is_configured:
+            print("Scanner: automatic mode")
+            return
 
-            # Try one more time with different baudrate
-            self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
-            self.clean_uart()
-            self.is_configured = self.configure()
-            if self.is_configured:
-                print("Scanner: automatic mode")
-                return
+        # Try one more time with different baudrate
+        self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
+        self.clean_uart()
+        self.is_configured = self.configure()
+        if self.is_configured:
+            print("Scanner: automatic mode")
+            return
 
-            # PIN trigger mode
-            self.uart = pyb.UART(self.uart_bus, 9600, read_buf_len=2048)
-            self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
-            self.trigger.on()
-            self.is_configured = True
-            print("Scanner: Pin trigger mode")
-
-    def stop_scanning(self):
-        self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
-        self.scanning = False
+        # PIN trigger mode
+        self.uart = pyb.UART(self.uart_bus, 9600, read_buf_len=2048)
+        self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
+        self.trigger.on()
+        self.is_configured = True
+        print("Scanner: Pin trigger mode")
 
     def clean_uart(self):
         self.uart.read()
 
     def stop_scanning(self):
         self.scanning = False
-        self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
+        if self.trigger is not None:
+            self.trigger.on()
+        else:
+            self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
 
     async def scan(self):
         self.clean_uart()
@@ -194,23 +193,87 @@ class QRHost(Host):
             self.set_setting(SETTINGS_ADDR, SETTINGS_CONT_MODE)
         self.data = b""
         self.scanning = True
+        self.animated = False
         while self.scanning:
-            # read all available data
-            res = self.uart.read()
-            if res is not None:
-                if res.endswith(self.EOL):
-                    # check if it is animated
-                    if res.startswith(b'p'):
-                        self.stop_scanning()
-                        raise HostError("Animated QR codes are not supported yet")
-                    self.data += res[:-len(self.EOL)]
-                    self.stop_scanning()
-                    return self.data
-                else:
-                    self.data += res
             await asyncio.sleep_ms(10)
-        # raise if scan was interrupted
-        raise HostError("Scan failed")
+            # we will exit this loop from update() 
+            # or manual cancel from GUI
+        return self.data
+
+    async def update(self):
+        if not self.scanning:
+            self.clean_uart()
+            return
+        # read all available data
+        if self.uart.any() > 0:
+            d = self.uart.read()
+            self.data += d
+            # we got a full scan
+            if self.data.endswith(self.EOL):
+                # maybe two
+                chunks = self.data.split(self.EOL)
+                self.data = b""
+                try:
+                    for chunk in chunks[:-1]:
+                        if self.process_chunk(chunk):
+                            self.stop_scanning()
+                            break
+                except Exception as e:
+                    print(e)
+                    self.stop_scanning()
+                    raise e
+
+    def process_chunk(self, chunk):
+        """Returns true when scanning complete"""
+        # should, actually
+        if chunk.startswith(SUCCESS):
+            chunk = chunk[len(SUCCESS):]
+        print("process", chunk)
+        if b" " not in chunk:
+            if not self.animated:
+                self.data = chunk
+                return True
+            else:
+                self.stop_scanning()
+                raise HostError("Ivalid QR code part encoding: %r" % data)
+        # space is there
+        prefix, *args = chunk.split(b" ")
+        print("PREFIX", prefix)
+        if not self.animated:
+            if prefix.startswith(b"p") and b"of" in prefix:
+                try:
+                    m, n = self.parse_prefix(prefix)
+                    # if succeed - first animated frame,
+                    # allocate stuff 
+                    self.animated = True
+                    self.parts = [b""]*n
+                    self.parts[m-1] = b" ".join(args)
+                    self.data = b""
+                    return False
+                # failed - not animated, just unfortunately similar data
+                except:
+                    self.data = chunk
+                    return True
+        # expecting animated frame
+        m, n = self.parse_prefix(prefix)
+        print(prefix)
+        self.parts[m-1] = b" ".join(args)
+        # all have non-zero len
+        if min([len(part) for part in self.parts]) > 0:
+            self.data = b"".join(self.parts)
+            return True
+        else:
+            return False
+
+    def parse_prefix(self, prefix):
+        if not prefix.startswith(b"p") or b"of" not in prefix:
+            raise HostError("Invalid prefix")
+        m, n = prefix[1:].split(b"of")
+        m = int(m)
+        n = int(n)
+        if n < m or m < 0 or n < 0:
+            raise HostError("Invalid prefix")
+        return m, n
 
     async def get_data(self):
         # scan_progress is a QR scanning specific screen
@@ -218,28 +281,7 @@ class QRHost(Host):
         # and displays cancel button that calls self.stop_scanning()
         # self.manager.scan_progress([])
         data = await self.scan()
-        tx, auths = data.split(b" ")
-        tx = a2b_base64(tx)
-        auths = a2b_base64(auths)
-        mvtx = memoryview(tx)
-        mvauths = memoryview(auths)
-        sigs = []
-        b = BytesIO(auths)
-        cur = 0
-        while True:
-            bb = b.read(1)
-            # cant read? - done
-            if len(bb) == 0:
-                break
-            cur += 1
-            l = bb[0]
-            # ignore empty sig
-            if l == 0:
-                continue
-            b.read(l)
-            sigs.append(BytesIO(mvauths[cur:cur+l]))
-            cur += l
-        return BytesIO(mvtx), sigs
+        return BytesIO(data)
 
     async def send_data(self, tx, fingerprint=None):
         tx.unknown = {}
