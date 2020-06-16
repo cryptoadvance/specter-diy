@@ -1,9 +1,7 @@
 import asyncio
 from .core import init, update
-from .screens import MenuScreen, Alert, QRAlert
-from .decorators import cb_with_args
+from .screens import Menu, Alert, QRAlert
 import lvgl as lv
-import sys
 
 class AsyncGUI:
 
@@ -66,7 +64,7 @@ class AsyncGUI:
         < Back button is added to the bottom of the screen
         and if it is pressed AsyncGUI.BTN_CLOSE is returned (-99)
         """
-        menu = MenuScreen(buttons=buttons, title=title, last=last)
+        menu = Menu(buttons=buttons, title=title, last=last)
         await self.load_screen(menu)
         return await menu.result()
 

@@ -3,6 +3,10 @@ import time
 import rng
 
 def feed_touch():
+    """
+    Gets a point from the touchscreen 
+    and feeds it to random number pool
+    """
     point = lv.point_t()
     indev = lv.indev_get_act()
     lv.indev_get_point(indev, point)
@@ -13,13 +17,15 @@ def feed_touch():
     rng.feed(random_data)
 
 def feed_rng(func):
-    def wrapper(*args):
-        if args[-1] == lv.EVENT.PRESSING:
+    """Any callback will contribute to random number pool"""
+    def wrapper(o,e):
+        if e == lv.EVENT.PRESSING:
             feed_touch()
-        func(*args)
+        func(o,e)
     return wrapper
 
 def on_release(func):
+    """Handy decorator if you only care about click event"""
     def wrapper(o, e):
         if e == lv.EVENT.PRESSING:
             feed_touch()
@@ -28,6 +34,7 @@ def on_release(func):
     return wrapper
 
 def cb_with_args(callback, *args, **kwargs):
+    """Pass arguments to the lv callback"""
     def cb():
         if callback is not None:
             callback(*args, **kwargs)

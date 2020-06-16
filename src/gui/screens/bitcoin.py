@@ -1,8 +1,8 @@
 """Bitcoin-related screens"""
 import lvgl as lv
-from ..common import *
-from ..decorators import *
-from .base import QRAlert
+from ..common import add_label, add_button, HOR_RES
+from ..decorators import on_release
+from .qralert import QRAlert
 
 class XPubScreen(QRAlert):
     def __init__(self,

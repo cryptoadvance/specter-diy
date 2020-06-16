@@ -1,5 +1,5 @@
 from .async_gui import AsyncGUI
-from .screens import (Screen, PinScreen, ProgressScreen,
+from .screens import (Screen, PinScreen, Progress,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
                       InputScreen, XPubScreen, DerivationScreen, WalletScreen
                       )
@@ -104,7 +104,7 @@ class SpecterGUI(AsyncGUI):
         Shows progress screen and cancel button 
         to cancel communication with the host
         """
-        scr = ProgressScreen(title, message, button_text="Cancel")
+        scr = Progress(title, message, button_text="Cancel")
         await self.open_popup(scr)
         asyncio.create_task(self.coro(host, scr))
 

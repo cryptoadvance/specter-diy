@@ -12,28 +12,36 @@ HOR_RES    = const(480)
 VER_RES    = const(800)
 QR_PADDING = const(40)
 
-def switch_to_new_screen():
-    scr = lv.obj()
-    old_scr = lv.scr_act()
-    lv.scr_load(scr)
-    old_scr.del_async()
-    return scr
-
-def init_styles():
-    # Set theme
-    th = lv.theme_night_init(210, lv.font_roboto_22)
-    # adjusting theme
-    # background color
-    cbg = lv.color_hex(0x192432)
+def init_styles(dark=True):
+    if dark:
+        # Set theme
+        th = lv.theme_night_init(210, lv.font_roboto_22)
+        # adjusting theme
+        # background color
+        cbg = lv.color_hex(0x192432)
+        # ctxt = lv.color_hex(0x7f8fa4)
+        ctxt = lv.color_hex(0xffffff)
+        cbtnrel = lv.color_hex(0x506072)
+        cbtnpr = lv.color_hex(0x405062)
+        chl = lv.color_hex(0x313E50)
+    else:
+        # Set theme to light
+        # TODO: work in progress...
+        th = lv.theme_material_init(210, lv.font_roboto_22)
+        # adjusting theme
+        # background color
+        cbg = lv.color_hex(0xeeeeee)
+        # ctxt = lv.color_hex(0x7f8fa4)
+        ctxt = lv.color_hex(0)
+        cbtnrel = lv.color_hex(0x506072)
+        cbtnpr = lv.color_hex(0x405062)
+        chl = lv.color_hex(0x313E50)
+        th.style.label.sec.text.color = cbtnrel
     th.style.scr.body.main_color = cbg
     th.style.scr.body.grad_color = cbg
     # text color
-    # ctxt = lv.color_hex(0x7f8fa4)
-    ctxt = lv.color_hex(0xffffff)
     th.style.scr.text.color = ctxt
     # buttons
-    cbtnrel = lv.color_hex(0x506072)
-    cbtnpr = lv.color_hex(0x405062)
     # btn released
     th.style.btn.rel.body.main_color = cbtnrel
     th.style.btn.rel.body.grad_color = cbtnrel
@@ -50,8 +58,8 @@ def init_styles():
     th.style.btnm.btn.rel.body.radius = 0
     th.style.btnm.btn.rel.body.border.width = 0
     th.style.btnm.btn.rel.body.shadow.width = 0
+    th.style.btnm.btn.rel.text.color = ctxt
     # button map pressed
-    chl = lv.color_hex(0x313E50)
     lv.style_copy(th.style.btnm.btn.pr, th.style.btnm.btn.rel)
     th.style.btnm.btn.pr.body.main_color = chl
     th.style.btnm.btn.pr.body.grad_color = chl
@@ -66,6 +74,7 @@ def init_styles():
     th.style.ta.oneline.body.opa = 0
     th.style.ta.oneline.body.border.width = 0
     th.style.ta.oneline.text.font = lv.font_roboto_28
+    th.style.ta.oneline.text.color = ctxt
     # slider
     th.style.slider.knob.body.main_color = cbtnrel
     th.style.slider.knob.body.grad_color = cbtnrel
@@ -85,20 +94,18 @@ def init_styles():
     th.style.page.scrl.body.padding.top = 0
     th.style.page.scrl.body.padding.bottom = 0
 
-    styles["theme"] = th
-
     lv.theme_set_current(th)
 
+    styles["theme"] = th
     # Title style - just a default style with larger font
     styles["title"] = lv.style_t()
     lv.style_copy(styles["title"], th.style.label.prim)
     styles["title"].text.font = lv.font_roboto_28
-    styles["title"].text.color = lv.color_hex(0xffffff)
+    styles["title"].text.color = ctxt
 
     styles["hint"] = lv.style_t()
     lv.style_copy(styles["hint"], th.style.label.sec)
     styles["hint"].text.font = lv.font_roboto_16
-    # styles["hint"].text.color = lv.color_hex(0xffffff)
 
 def add_label(text, y=PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""

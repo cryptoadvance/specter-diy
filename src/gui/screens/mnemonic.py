@@ -3,7 +3,7 @@ import lvgl as lv
 from ..common import *
 from ..decorators import *
 from ..components import MnemonicTable, HintKeyboard
-from .base import Screen
+from .screen import Screen
 
 class MnemonicScreen(Screen):
     def __init__(self, mnemonic="", title="Your recovery phrase", note=None):

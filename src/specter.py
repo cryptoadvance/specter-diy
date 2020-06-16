@@ -344,8 +344,10 @@ class Specter:
         else:
             w = self.wallet_manager.wallets[menuitem]
             # pass wallet and network
-            await self.gui.show_wallet(w, self.network)
-            raise SpecterError("Not implemented")
+            res = await self.gui.show_wallet(w, self.network)
+            if res is not None:
+                cmd, data = res
+                # TODO: delete, rename, whatever
 
     async def unlock(self):
         """
@@ -362,8 +364,7 @@ class Specter:
         # if card is locked - ask for PIN code
         while self.keystore.is_locked:
             pin = await self.gui.get_pin(get_word=get_auth_word)
-            if not self.keystore.unlock(pin):
-                await self.gui.error("Invalid PIN code!")
+            self.keystore.unlock(pin)
 
         # now card is unlocked - we can proceed
 
