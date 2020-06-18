@@ -22,8 +22,7 @@ class FlashKeyStoreTest(TestCase):
         ks.init()
         files = [f[0] for f in os.ilistdir(TEST_DIR)]
         self.assertTrue("secret" in files)
-        self.assertTrue("pin.json" in files)
-        self.assertTrue("pin.json.sig" in files)
+        self.assertTrue("pin" in files)
         self.assertEqual(ks.is_pin_set, False)
         self.assertEqual(ks.pin_attempts_left, ks.pin_attempts_max)
         self.assertTrue(ks.pin_attempts_left is not None)
@@ -44,24 +43,23 @@ class FlashKeyStoreTest(TestCase):
         # files are deleted
         files = [f[0] for f in os.ilistdir(TEST_DIR)]
         self.assertFalse("secret" in files)
-        self.assertFalse("pin.json" in files)
-        self.assertFalse("pin.json.sig" in files)
+        self.assertFalse("pin" in files)
 
-    def test_change_pin(self):
+    def test_change_pin_file(self):
         """Test wipe exception if pin state changed"""
         # create keystore
         ks = self.get_keystore()
         ks.init()
         # load signed pin state
-        with open(TEST_DIR+"/pin.json", "r") as f:
+        with open(TEST_DIR+"/pin", "rb") as f:
             # a different value
-            pin_state = json.load(f)
+            content = f.read()
         # set invalid value
-        pin_state["pin_attempts_left"] = pin_state["pin_attempts_max"]+1
+        content = content[1:] + b"1"
         # write new state
-        with open(TEST_DIR+"/pin.json", "w") as f:
+        with open(TEST_DIR+"/pin", "wb") as f:
             # a different value
-            json.dump(pin_state, f)
+            f.write(content)
         ks = FlashKeyStore(TEST_DIR)
         # check it raises
         with self.assertRaises(platform.CriticalErrorWipeImmediately):
@@ -69,5 +67,4 @@ class FlashKeyStoreTest(TestCase):
         # files are deleted
         files = [f[0] for f in os.ilistdir(TEST_DIR)]
         self.assertFalse("secret" in files)
-        self.assertFalse("pin.json" in files)
-        self.assertFalse("pin.json.sig" in files)
+        self.assertFalse("pin" in files)
