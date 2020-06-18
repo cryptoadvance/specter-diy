@@ -34,22 +34,18 @@ class Wallet:
         self.name = name
         self.unused_recv = 0
 
-    def save(self, key):
+    def save(self, keystore):
         if self.path is None:
             raise WalletError("Path is not defined")
         desc = self.descriptor()
-        with open(self.path+"/descriptor", "w") as f:
-            f.write(desc)
-        sig = key.sign(hashlib.sha256(desc).digest())
-        with open(self.path+"/descriptor.sig", "wb") as f:
-            f.write(sig.serialize())
+        keystore.save_aead(self.path+"/descriptor", plaintext=desc.encode())
         obj = {
             "gaps": self.gaps,
             "name": self.name,
             "unused_recv": self.unused_recv
         }
-        with open(self.path+"/meta.json", "w") as f:
-            json.dump(obj, f)
+        meta = json.dumps(obj).encode()
+        keystore.save_aead(self.path+"/meta", plaintext=meta)
 
     def get_address(self, idx:int, network:str, change=False):
         sc, gap = self.scriptpubkey([int(change), idx])
@@ -99,18 +95,13 @@ class Wallet:
         return cls(script, wrapped, path)
 
     @classmethod
-    def from_path(cls, path, pubkey):
+    def from_path(cls, path, keystore):
         """Loads wallet from the folder"""
         path = path.rstrip("/")
-        with open(path+"/descriptor", "r") as f:
-            desc = f.read()
-        with open(path+"/descriptor.sig", "rb") as f:
-            sig = ec.Signature.parse(f.read())
-        if not pubkey.verify(sig, hashlib.sha256(desc).digest()):
-            raise WalletError("Wallet signature is invalid")
-        w = cls.from_descriptor(desc, path)
-        with open(path+"/meta.json", "r") as f:
-            obj = json.load(f)
+        _, desc = keystore.load_aead(path+"/descriptor")
+        w = cls.from_descriptor(desc.decode(), path)
+        _, meta = keystore.load_aead(path+"/meta")
+        obj = json.loads(meta.decode())
         if "gaps" in obj:
             w.gaps = obj["gaps"]
         if "name" in obj:

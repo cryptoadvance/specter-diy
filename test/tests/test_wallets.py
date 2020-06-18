@@ -21,7 +21,7 @@ class WalletsTest(TestCase):
         ]
         for desc in descriptors:
             w = Wallet.parse(desc)
-            self.assertEqual(str(w), desc)
+            self.assertEqual(w.descriptor(), desc)
 
     def test_invalid_desc(self):
         """Test initial config creation"""

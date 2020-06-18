@@ -138,7 +138,7 @@ class Specter:
             mnemonic = await self.gui.new_mnemonic(gen_mnemonic)
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
-                self.keystore.load_mnemonic(mnemonic.strip(),"")
+                self.keystore.set_mnemonic(mnemonic.strip(),"")
                 self.wallet_manager.init(self.keystore, self.network)
                 return self.mainmenu
         # recover
@@ -146,12 +146,12 @@ class Specter:
             mnemonic = await self.gui.recover(bip39.mnemonic_is_valid, bip39.find_candidates)
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
-                self.keystore.load_mnemonic(mnemonic,"")
+                self.keystore.set_mnemonic(mnemonic,"")
                 self.wallet_manager.init(self.keystore, self.network)
                 self.current_menu = self.mainmenu
                 return self.mainmenu
         elif menuitem == 2:
-            self.keystore.load()
+            self.keystore.load_mnemonic()
             # await self.gui.alert("Success!", "Key is loaded from flash!")
             self.wallet_manager.init(self.keystore, self.network)
             return self.mainmenu
@@ -291,7 +291,7 @@ class Specter:
         elif menuitem == 2:
             pwd = await self.gui.get_input()
             if pwd is not None:
-                self.keystore.load_mnemonic(password=pwd)
+                self.keystore.set_mnemonic(password=pwd)
                 self.wallet_manager.init(self.keystore, self.network)
         elif menuitem == 3:
             await self.change_pin()
@@ -319,15 +319,15 @@ class Specter:
         if menuitem == 255:
             return self.settingsmenu
         elif menuitem == 0:
-            self.keystore.save()
+            self.keystore.save_mnemonic()
             await self.gui.alert("Success!", "Your key is stored in flash now.")
             return self.settingsmenu
         elif menuitem == 1:
-            self.keystore.load()
+            self.keystore.load_mnemonic()
             await self.gui.alert("Success!", "Your key is loaded.")
             return self.mainmenu
         elif menuitem == 2:
-            self.keystore.delete_saved()
+            self.keystore.delete_mnemonic()
             await self.gui.alert("Success!", "Your key is deleted from flash.")
             return self.mainmenu
         elif menuitem == 3:

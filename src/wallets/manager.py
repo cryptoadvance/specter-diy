@@ -60,8 +60,7 @@ class WalletManager:
         for walletcls in self.WALLETS:
             try:
                 # pass path and key for verification
-                pub = self.keystore.idkey.get_public_key()
-                w = walletcls.from_path(path, pub)
+                w = walletcls.from_path(path, self.keystore)
             except Exception as e:
                 pass
         # if we failed to load -> delete folder and throw an error
@@ -80,8 +79,8 @@ class WalletManager:
             xpub.to_base58(NETWORKS[self.network]["xpub"])
         )
         w = Wallet.parse(desc, path)
-        # pass idkey to sign data
-        w.save(self.keystore.idkey)
+        # pass keystore to encrypt data
+        w.save(self.keystore)
 
     def wipe(self):
         """Deletes all wallets info"""

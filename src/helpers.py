@@ -47,7 +47,7 @@ def decrypt(ct:bytes, key:bytes)->bytes:
     # join all but last
     return b"\x80".join(arr)
 
-def aead_encrypt(key:bytes, adata:bytes, plaintext:bytes)->bytes:
+def aead_encrypt(key:bytes, adata:bytes=b"", plaintext:bytes=b"")->bytes:
     """
     Encrypts and authenticates with associated data using key k.
     output format: <compact-len:associated data><iv><ct><hmac>

@@ -66,6 +66,10 @@ class RecoverMnemonicScreen(MnemonicScreen):
 
         self.close_button.del_async()
         self.close_button = None
+
+        if lookup is not None:
+            self.autocomplete = lv.btnm(self)
+
         self.kb = HintKeyboard(self)
         self.kb.set_map([
             "Q","W","E","R","T","Y","U","I","O","P","\n",
@@ -86,7 +90,6 @@ class RecoverMnemonicScreen(MnemonicScreen):
         self.kb.set_event_cb(self.callback)
 
         if lookup is not None:
-            self.autocomplete = lv.btnm(self)
             self.autocomplete.set_width(HOR_RES)
             self.autocomplete.set_height(50)
             self.autocomplete.align(self.kb, lv.ALIGN.OUT_TOP_MID, 0, 0)
