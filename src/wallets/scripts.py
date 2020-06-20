@@ -38,6 +38,9 @@ class SingleKey(DescriptorScript):
         pub = self.key.derive([change, idx])
         return script.p2wpkh(pub)
 
+    def witness_script(self, derivation):
+        return None
+
     def get_keys(self):
         return [self.key]
 
@@ -75,6 +78,10 @@ class Multisig(DescriptorScript):
 
     def scriptpubkey(self, derivation):
         """Derivation should be an array of two ints: [change 0 or 1, index]"""
+        return script.p2wsh(self.witness_script(derivation))
+
+    def witness_script(self, derivation):
+        """Derivation should be an array of two ints: [change 0 or 1, index]"""
         if len(derivation) != 2:
             raise ScriptError("Derivation should be of len 2")
         change, idx = derivation
@@ -83,7 +90,7 @@ class Multisig(DescriptorScript):
         pubs = [key.derive([change, idx]) for key in self.keys]
         if self.sort_keys:
             pubs = sorted(pubs)
-        return script.p2wsh(script.multisig(self.sigs_required, pubs))
+        return script.multisig(self.sigs_required, pubs)
 
     def __str__(self):
         keystring = ",".join([str(key) for key in self.keys])
@@ -118,6 +125,9 @@ class DescriptorKey:
         xpub = self.key.derive(derivation)
         derivation = self.derivation + derivation
         return DescriptorKey(xpub, self.fingerprint, derivation)
+
+    def get_public_key(self):
+        return self.key.key
 
     def sec(self):
         return self.key.sec()

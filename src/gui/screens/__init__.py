@@ -7,3 +7,4 @@ from .progress import Progress
 from .input import PinScreen, InputScreen, DerivationScreen
 from .mnemonic import MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen
 from .bitcoin import XPubScreen, WalletScreen
+from .transaction import TransactionScreen

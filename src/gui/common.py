@@ -173,3 +173,17 @@ def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
     qr.set_text(text)
     qr.align(scr, lv.ALIGN.IN_TOP_MID, 0, y)
     return qr
+
+def separate(addr, letters=6, separator=" "):
+    extra = ""
+    if len(addr) % letters > 0:
+        extra = " "*(letters-(len(addr) % letters))
+    return separator.join([addr[i:i+letters] for i in range(0, len(addr), letters)])+extra
+
+def format_addr(addr, letters=6, words=3):
+    return separate(
+        separate(
+            addr, letters=letters, separator=" "
+        ), 
+        letters=(words*(letters+1)), separator="\n"
+    )

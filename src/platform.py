@@ -41,6 +41,12 @@ def mount_sdram():
         os.mount(bdev, path)
     return path
 
+def sync():
+    try:
+        os.sync()
+    except:
+        pass
+
 def fpath(fname):
     """A small function to avoid % storage_root everywhere"""
     return "%s%s" % (storage_root, fname)

@@ -14,6 +14,11 @@ class Host:
     Can be unidirectional like QRHost
     or bidirectional like USBHost or SDHost
     """
+    # command types
+    UNKNOWN         = 0x00
+    SIGN_PSBT       = 0x01
+    ADD_WALLET      = 0x02
+    VERIFY_ADDRESS  = 0x03
     def __init__(self, path):
         # storage for data
         self.path = path

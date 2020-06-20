@@ -3,6 +3,7 @@ import pyb, time, asyncio
 from platform import simulator
 from io import BytesIO
 from binascii import b2a_base64, a2b_base64
+from bitcoin.psbt import PSBT, InputScope
 
 QRSCANNER_TRIGGER = "D5"
 # OK response from scanner
@@ -291,9 +292,22 @@ class QRHost(Host):
                 "Scanning...", 
                 "Point scanner to the QR code")
         data = await self.scan()
-        print("data:",data)
-        if data is not None:
-            return BytesIO(data)
+        return self.parse(data)
+
+    def parse(self, data):
+        # TODO: refactor with ramfiles
+        if data is None:
+            return None, None
+        # probably base64-encoded PSBT
+        if data[:4] == b"cHNi":
+            try:
+                psbt = a2b_base64(data)
+                if psbt[:5] != b"psbt\xff":
+                    raise HostError("Not a PSBT")
+                return type(self).SIGN_PSBT, BytesIO(psbt)
+            except:
+                pass
+        return type(self).UNKONWN, BytesIO(data)
 
     @property
     def in_progress(self):
@@ -312,14 +326,12 @@ class QRHost(Host):
             return 0
         return [len(part)>0 for part in self.parts]
     
-
-    async def send_data(self, tx, fingerprint=None):
-        tx.unknown = {}
-        for inp in tx.inputs:
-            inp.unknown = {}
-        for out in tx.outputs:
-            out.unknown = {}
-        txt = b2a_base64(tx.serialize()).decode().strip("\n")
+    async def send_psbt(self, psbt):
+        # we only keep partial sigs in the psbt
+        out_psbt = PSBT(psbt.tx)
+        for i, inp in enumerate(psbt.inputs):
+            out_psbt.inputs[i].partial_sigs = inp.partial_sigs
+        txt = b2a_base64(out_psbt.serialize()).decode().strip("\n")
         if self.manager is not None:
             await self.manager.gui.qr_alert("Transaction is signed!", 
-                        "Scan this QR code with your wallet", txt, qr_width=450)
+                        "Scan this QR code with your wallet", txt, qr_width=500)

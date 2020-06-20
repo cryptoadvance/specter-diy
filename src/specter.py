@@ -7,6 +7,7 @@ from keystore import FlashKeyStore, KeyStoreError
 from platform import CriticalErrorWipeImmediately
 from hosts import HostError
 from bitcoin import ec, psbt, bip32, bip39
+from bitcoin.psbt import PSBT
 from bitcoin.networks import NETWORKS
 # small helper functions
 from helpers import gen_mnemonic
@@ -230,12 +231,30 @@ class Specter:
         # if it's a host
         elif hasattr(menuitem, 'get_data'):
             host = menuitem
-            b = await host.get_data()
-            if b is not None:
-                await self.gui.alert("Data from host!", b.read().decode())
+            cmd, stream = await host.get_data()
+            if cmd == host.SIGN_PSBT:
+                res = await self.sign_psbt(stream)
+                if res is not None:
+                    await host.send_psbt(res)
+            # probably user cancelled
+            elif cmd == None:
+                pass
+            else:
+                # read first 30 bytes and print them to the error
+                raise HostError("Unsupported data type:\n%r..." % stream.read(30))
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
+
+    async def sign_psbt(self, stream):
+        psbt = PSBT.read_from(stream)
+        wallet, meta = self.wallet_manager.parse_psbt(psbt=psbt)
+        res = await self.gui.confirm_transaction(wallet.name, meta)
+        if res:
+            # fill derivation paths from proprietary fields
+            psbt = wallet.fill_psbt(psbt, self.keystore.fingerprint)
+            self.keystore.sign_psbt(psbt)
+            return psbt
 
     async def select_network(self):
         # dict is unordered unfortunately, so we need to use hardcoded arr
@@ -437,24 +456,3 @@ class Specter:
         await self.gui.show_xpub(xpub=canonical, 
                                 slip132=slip132, 
                                 prefix=prefix)
-    # remote means that this command and corresponding GUI was not triggered
-    # by the user on the GUI, but from the host directly (USB)
-    async def sign_transaction(self, raw_tx_stream, remote=False):
-        # parse psbt transaction
-        tx = psbt.PSBT.read_from(raw_tx_stream)
-        raw_tx_stream.close()
-        # get GUI-friendly dict and list
-        tx_data = self.wallet_manager.verify_tx(tx)
-        # ask the user
-        res = await self.gui.display_transaction(tx_data, 
-                                                 self.network,
-                                                 popup=remote)
-        # if it was triggered by the host
-        # close the request window
-        if remote:
-            self.gui.close_popup()
-        # if user confirmed - sign and save / show
-        if res:
-            # sign transaction
-            self.keystore.sign(tx, sigs)
-            return tx

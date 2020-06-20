@@ -47,7 +47,6 @@ class WalletsTest(TestCase):
             "tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2",
         ]
         for k in keys:
-            print(k)
             DescriptorKey.parse(k)
 
     def test_invalid_keys(self):
@@ -60,4 +59,5 @@ class WalletsTest(TestCase):
         for k in keys:
             with self.assertRaises(Exception):
                 DescriptorKey.parse(k)
+                print(k)
 

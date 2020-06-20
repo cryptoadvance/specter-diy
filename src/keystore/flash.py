@@ -1,5 +1,6 @@
 from .core import KeyStore, KeyStoreError, PinError
 from platform import CriticalErrorWipeImmediately
+import platform
 from binascii import hexlify, unhexlify
 from rng import get_random_bytes
 import os, json, hashlib, hmac
@@ -37,6 +38,9 @@ class FlashKeyStore(KeyStore):
         # stored on untrusted external chip
         self.idkey = self.root.child(0x1D, hardened=True).key.serialize()
 
+    def sign_psbt(self, psbt):
+        psbt.sign_with(self.root)
+
     def save_aead(self, path, adata=b"", plaintext=b"", key=None):
         """Encrypts and saves plaintext and associated data to file"""
         if key is None:
@@ -46,6 +50,7 @@ class FlashKeyStore(KeyStore):
         d = aead_encrypt(key, adata, plaintext)
         with open(path, "wb") as f:
             f.write(d)
+        platform.sync()
 
     def load_aead(self, path, key=None):
         """

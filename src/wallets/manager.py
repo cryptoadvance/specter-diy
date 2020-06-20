@@ -1,4 +1,4 @@
-from platform import maybe_mkdir, delete_recursively
+import platform
 from binascii import hexlify
 from bitcoin.networks import NETWORKS
 from .wallet import WalletError, Wallet
@@ -15,7 +15,7 @@ class WalletManager:
     ]
     def __init__(self, path):
         self.root_path = path
-        maybe_mkdir(path)
+        platform.maybe_mkdir(path)
         self.path = None
         self.wallets = []
 
@@ -24,18 +24,18 @@ class WalletManager:
         self.keystore = keystore
         # add fingerprint dir
         path = self.root_path+"/"+hexlify(self.keystore.fingerprint).decode()
-        maybe_mkdir(path)
+        platform.maybe_mkdir(path)
         if network not in NETWORKS:
             raise WalletError("Invalid network")
         self.network = network
         # add network dir
         path += "/"+network
-        maybe_mkdir(path)
+        platform.maybe_mkdir(path)
         self.path = path
         self.wallets = self.load_wallets()
-        if len(self.wallets) == 0:
+        if self.wallets is None or len(self.wallets) == 0:
             w = self.create_default_wallet(path=self.path+"/0")
-            self.wallets.append(w)
+            self.wallets = [w]
 
     @classmethod
     def register(cls, walletcls):
@@ -65,7 +65,7 @@ class WalletManager:
                 pass
         # if we failed to load -> delete folder and throw an error
         if w is None:
-            delete_recursively(path, include_self=True)
+            platform.delete_recursively(path, include_self=True)
             raise WalletError("Can't load wallet from %s" % path)
         return w
 
@@ -81,9 +81,65 @@ class WalletManager:
         w = Wallet.parse(desc, path)
         # pass keystore to encrypt data
         w.save(self.keystore)
+        platform.sync()
+        return w
+
+    def parse_psbt(self, psbt):
+        """Detects a wallet for transaction and returns an object to display"""
+        wallet = None
+        # detect wallet for first input
+        inp = psbt.inputs[0]
+        for w in self.wallets:
+            if w.owns(inp):
+                wallet = w
+        if wallet is None:
+            raise WalletError("Wallet for this transaction is not found.\nWrong network?")
+        # check that all other inputs that they belong
+        # to the same wallet
+        for inp in psbt.inputs[1:]:
+            if not wallet.owns(inp):
+                raise WalletError("Mixed inputs are not allowed")
+        fee = sum([inp.witness_utxo.value for inp in psbt.inputs])
+        fee -= sum([out.value for out in psbt.tx.vout])
+        meta = {
+            "outputs": [{
+                "address": out.script_pubkey.address(NETWORKS[self.network]),
+                "value": out.value,
+                "change": False,
+            } for out in psbt.tx.vout],
+            "fee": fee,
+            "warnings": [],
+        }
+        # check change outputs
+        for i, out in enumerate(psbt.outputs):
+            if wallet.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
+                meta["outputs"][i]["change"] = True
+        # check gap limits
+        # ugly copy
+        gaps = []+wallet.gaps
+        # update gaps according to all inputs
+        # because if input and output use the same branch (recv / change)
+        # it's ok if both are larger than gap limit
+        # but differ by less than gap limit
+        # (i.e. old wallet is used)
+        for inp in psbt.inputs:
+            change, idx = wallet.get_derivation(inp)
+            if gaps[change] < idx+type(wallet).GAP_LIMIT:
+                gaps[change] = idx+type(wallet).GAP_LIMIT
+        # check all outputs if index is ok
+        for i, out in enumerate(psbt.outputs):
+            if not meta["outputs"][i]["change"]:
+                continue
+            change, idx = wallet.get_derivation(out)
+            # add warning if idx beyond gap
+            if idx > gaps[change]:
+                meta["warnings"].append("Change index %d is beyond the gap limit!" % idx)
+                # one warning of this type is enough
+                break
+        return wallet, meta
 
     def wipe(self):
         """Deletes all wallets info"""
         self.wallets = []
         self.path = None
-        delete_recursively(self.root_path)
+        platform.delete_recursively(self.root_path)

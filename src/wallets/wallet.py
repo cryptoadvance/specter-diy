@@ -1,8 +1,9 @@
 from platform import maybe_mkdir
 from .scripts import SingleKey, Multisig
 import json
-from bitcoin import ec
+from bitcoin import ec, hashes, script
 from bitcoin.networks import NETWORKS
+from bitcoin.psbt import DerivationPath
 import hashlib
 
 class WalletError(Exception):
@@ -59,7 +60,78 @@ class Wallet:
             raise WalletError("Invalid change index %d - can be 0 or 1" % change)
         if idx < 0:
             raise WalletError("Invalid index %d - can't be negative" % idx)
-        return self.script.scriptpubkey(derivation), self.gaps[change]
+        sc = self.script.scriptpubkey(derivation)
+        if self.wrapped:
+            sc = script.p2sh(sc)
+        return sc, self.gaps[change]
+
+    @property
+    def fingerprint(self):
+        """Fingerprint of the wallet - hash160(descriptor)"""
+        return hashes.hash160(self.descriptor())[:4]
+
+    def owns(self, psbt_in=None, psbt_out=None, tx_out=None):
+        """
+        Checks that psbt scope belongs to the wallet.
+        Pass psbt_in or psbt_out + tx_out
+        """
+        output = None
+        derivation = None
+        if psbt_in is not None:
+            output = psbt_in.witness_utxo
+            derivation = self.get_derivation(psbt_in)
+        if psbt_out is not None:
+            output = tx_out
+            derivation = self.get_derivation(psbt_out)
+
+        # derivation not found
+        if derivation is None:
+            return False
+        # check that scriptpubkey matches
+        sc, _ = self.scriptpubkey(derivation)
+        return (sc == output.script_pubkey)
+
+    def get_derivation(self, scope):
+        # check if wallet derivation is there (custom psbt field)
+        derivation = None
+        wallet_key = b"\xfc\xca\x01"+self.fingerprint
+        # only 2-index derivations are allowed
+        if wallet_key in scope.unknown and len(scope.unknown[wallet_key])==8:
+            der = scope.unknown[wallet_key]
+            derivation = []
+            for i in range(len(der)//4):
+                idx = int.from_bytes(der[4*i:4*i+4], 'little')
+                derivation.append(idx)
+            return derivation
+        # otherwise we need standard derivation
+        # we take any of the derivations and extract last two indexes
+        for pub in scope.bip32_derivations:
+            if len(scope.bip32_derivations[pub].derivation) >= 2:
+                return scope.bip32_derivations[pub].derivation[-2:]
+
+    def fill_psbt(self, psbt, fingerprint):
+        """Fills derivation paths in inputs"""
+        for scope in psbt.inputs:
+            # fill derivation paths
+            wallet_key = b"\xfc\xca\x01"+self.fingerprint
+            if wallet_key not in scope.unknown:
+                continue
+            der = scope.unknown[wallet_key]
+            wallet_derivation = []
+            for i in range(len(der)//4):
+                idx = int.from_bytes(der[4*i:4*i+4], 'little')
+                wallet_derivation.append(idx)
+            # find keys with our fingerprint
+            for key in self.script.get_keys():
+                if key.fingerprint == fingerprint:
+                    pub = key.derive(wallet_derivation).get_public_key()
+                    # fill our derivations
+                    scope.bip32_derivations[pub] = DerivationPath(fingerprint, key.derivation + wallet_derivation)
+            # fill script
+            scope.witness_script = self.script.witness_script(wallet_derivation)
+            if self.wrapped:
+                scope.redeem_script = self.script.scriptpubkey(wallet_derivation)
+        return psbt
 
     @classmethod
     def parse(cls, desc, path=None):

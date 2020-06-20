@@ -1,6 +1,6 @@
 """Bitcoin-related screens"""
 import lvgl as lv
-from ..common import add_label, add_button, HOR_RES
+from ..common import add_label, add_button, HOR_RES, format_addr
 from ..decorators import on_release
 from .qralert import QRAlert
 
@@ -58,7 +58,7 @@ class WalletScreen(QRAlert):
         self.network = network
         self.idx = wallet.unused_recv
         addr, gap = wallet.get_address(self.idx, network=network)
-        super().__init__(wallet.name, addr, "bitcoin:"+addr)
+        super().__init__(wallet.name, format_addr(addr, words=4), "bitcoin:"+addr)
 
         style = lv.style_t()
         lv.style_copy(style, self.message.get_style(0))
@@ -92,15 +92,15 @@ class WalletScreen(QRAlert):
 
     def next(self):
         self.idx += 1
-        self.get_address()
+        self.update_address()
 
     def prev(self):
         if self.idx == 0:
             return
         self.idx -= 1
-        self.get_address()
+        self.update_address()
 
-    def get_address(self):
+    def update_address(self):
         if self.idx > 0:
             self.prv.set_state(lv.btn.STATE.REL)
         else:
@@ -108,7 +108,7 @@ class WalletScreen(QRAlert):
         addr, gap = self.wallet.get_address(self.idx, network=self.network)
         note = "Receiving address #%d" % (self.idx)
         self.note.set_text(note)
-        self.message.set_text(addr)
+        self.message.set_text(format_addr(addr, words=4))
         self.qr.set_text("bitcoin:"+addr)
 
         if self.idx > gap:

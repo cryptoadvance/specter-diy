@@ -1,8 +1,8 @@
 from .async_gui import AsyncGUI
 from .screens import (Screen, PinScreen, Progress,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
-                      InputScreen, XPubScreen, DerivationScreen, WalletScreen
-                      )
+                      InputScreen, XPubScreen, DerivationScreen, WalletScreen,
+                      TransactionScreen)
 import rng, asyncio
 
 class SpecterGUI(AsyncGUI):
@@ -124,3 +124,8 @@ class SpecterGUI(AsyncGUI):
         if scr.waiting:
             scr.waiting = False
         self.close_popup()
+
+    async def confirm_transaction(self, wallet_name, meta):
+        scr = TransactionScreen(wallet_name, meta)
+        await self.load_screen(scr)
+        return await scr.result()
