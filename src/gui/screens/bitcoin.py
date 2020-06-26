@@ -4,6 +4,7 @@ from ..common import add_label, add_button, HOR_RES, format_addr
 from ..decorators import on_release
 from .qralert import QRAlert
 from ..commands import DELETE_WALLET
+from .prompt import Prompt
 
 class XPubScreen(QRAlert):
     def __init__(self,
@@ -61,13 +62,15 @@ class WalletScreen(QRAlert):
         addr, gap = wallet.get_address(self.idx, network=network)
         super().__init__(wallet.name, format_addr(addr, words=4), "bitcoin:"+addr)
 
+        self.policy = add_label(wallet.policy, y=55, style="hint", scr=self)
+
         style = lv.style_t()
         lv.style_copy(style, self.message.get_style(0))
         style.text.font = lv.font_roboto_mono_22
         self.message.set_style(0, style)
 
         # index
-        self.note = add_label("Receiving address #%d" % self.idx, y=55, style="hint", scr=self)
+        self.note = add_label("Receiving address #%d" % self.idx, y=80, style="hint", scr=self)
         self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
         self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
@@ -133,3 +136,18 @@ class WalletScreen(QRAlert):
                            "Reusing it would diminish your privacy!")
         else:
             self.warning.set_text("")
+
+class ConfirmWalletScreen(Prompt):
+    def __init__(self, name, policy, keys):
+        super().__init__("Add wallet \"%s\"?" % name, "")
+        self.policy = add_label("Policy: " + policy, y=75, scr=self)
+        self.page.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        self.message.set_recolor(True)
+        self.page.set_height(550)
+        msg = ""
+        for k in keys:
+            if k["mine"]:
+                msg += "#7ED321 My key: # %s\n\n" % k["key"]
+            else:
+                msg += "#F5A623 External key: # %s\n\n" % k["key"]
+        self.message.set_text(msg)

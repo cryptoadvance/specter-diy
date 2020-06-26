@@ -140,6 +140,9 @@ class Wallet:
                 scope.redeem_script = self.script.scriptpubkey(wallet_derivation)
         return psbt
 
+    def get_keys(self):
+        return self.script.get_keys()
+
     @classmethod
     def parse(cls, desc, path=None):
         name = "Untitled"
@@ -200,6 +203,12 @@ class Wallet:
         if self.wrapped:
             desc = "sh(%s)" % desc
         return desc
+
+    @property
+    def policy(self):
+        p = "Nested " if self.wrapped else "Native "
+        p += self.script.policy
+        return p
 
     def __str__(self):
         return "%s&%s" % (self.name, self.descriptor())

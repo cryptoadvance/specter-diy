@@ -44,6 +44,10 @@ class SingleKey(DescriptorScript):
     def get_keys(self):
         return [self.key]
 
+    @property
+    def policy(self):
+        return "segwit, single key"
+
     def __str__(self):
         return "wpkh(%s)" % str(self.key)
 
@@ -87,10 +91,15 @@ class Multisig(DescriptorScript):
         change, idx = derivation
         if change not in [0,1] or idx < 0:
             raise ScriptError("Invalid change or index")
-        pubs = [key.derive([change, idx]) for key in self.keys]
+        # derive and get public keys
+        pubs = [key.derive([change, idx]).get_public_key() for key in self.keys]
         if self.sort_keys:
             pubs = sorted(pubs)
         return script.multisig(self.sigs_required, pubs)
+
+    @property
+    def policy(self):
+        return "segwit, %d of %d multisig" % (self.sigs_required, len(self.keys))
 
     def __str__(self):
         keystring = ",".join([str(key) for key in self.keys])

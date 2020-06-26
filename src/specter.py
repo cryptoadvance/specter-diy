@@ -266,14 +266,10 @@ class Specter:
             return psbt
 
     async def confirm_new_wallet(self, w):
-        # Warning: none of the keys belong to this device
-        # policy, script type: nested / native segwit
-        # for key in w.keys:
-        #     if keystore.owns_key(key):
-        #         keys_str.append("#7ED321 My key: # %s" % k)
-        #     else:
-        #         keys_str.append("#F5A623 External key: # %s" % k)
-        return await self.gui.prompt("Add wallet \"%s\"?" % w.name, w.descriptor())
+        keys = [{"key": k, "mine": self.keystore.owns(k)} for k in w.get_keys()]
+        if not any([k["mine"] for k in keys]):
+            raise SpecterError("None of the keys belong to the device")
+        return await self.gui.confirm_new_wallet(w.name, w.policy, keys)
 
     async def select_network(self):
         # dict is unordered unfortunately, so we need to use hardcoded arr

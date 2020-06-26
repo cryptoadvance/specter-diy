@@ -70,6 +70,13 @@ class FlashKeyStore(KeyStore):
             raise KeyStoreError("Keystore is not ready")
         return self.root.derive(path).to_public()
 
+    def owns(self, key):
+        if key.fingerprint is not None and key.fingerprint != self.fingerprint:
+            return False
+        if key.derivation is None:
+            return key.key == self.root.to_public()
+        return key.key == self.root.derive(key.derivation).to_public()
+
     def init(self):
         """Load internal secret and PIN state"""
         platform.maybe_mkdir(self.path)
