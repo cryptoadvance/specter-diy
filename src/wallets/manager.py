@@ -61,6 +61,8 @@ class WalletManager:
             try:
                 # pass path and key for verification
                 w = walletcls.from_path(path, self.keystore)
+                # if fails - we continue, otherwise - we are done
+                break
             except Exception as e:
                 pass
         # if we failed to load -> delete folder and throw an error
@@ -83,6 +85,36 @@ class WalletManager:
         w.save(self.keystore)
         platform.sync()
         return w
+
+    def parse_wallet(self, desc):
+        w = None
+        # trying to find a correct wallet type
+        for walletcls in self.WALLETS:
+            try:
+                w = walletcls.parse(desc)
+                # if fails - we continue, otherwise - we are done
+                break
+            except Exception as e:
+                pass
+        if w is None:
+            raise WalletError("Can't detect matching wallet type")
+        if w.descriptor() in [ww.descriptor() for ww in self.wallets]:
+            raise WalletError("Wallet with this descriptor already exists")
+        return w
+
+    def add_wallet(self, w):
+        self.wallets.append(w)
+        wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path) \
+                    if f[0].isdigit() and f[1] == 0x4000])
+        newpath = self.path+("/%d" % (max(wallet_ids)+1))
+        platform.maybe_mkdir(newpath)
+        w.save(self.keystore, path=newpath)
+
+    def delete_wallet(self, w):
+        if w not in self.wallets:
+            raise WalletError("Wallet not found")
+        self.wallets.pop(self.wallets.index(w))
+        w.wipe()
 
     def parse_psbt(self, psbt):
         """Detects a wallet for transaction and returns an object to display"""

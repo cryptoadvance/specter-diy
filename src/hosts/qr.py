@@ -263,6 +263,9 @@ class QRHost(Host):
                 except:
                     self.data = chunk
                     return True
+            else:
+                self.data = chunk
+                return True
         # expecting animated frame
         m, n = self.parse_prefix(prefix)
         if n != len(self.parts):
@@ -307,6 +310,9 @@ class QRHost(Host):
                 return type(self).SIGN_PSBT, BytesIO(psbt)
             except:
                 pass
+        # probably wallet descriptor
+        if b"&" in data and "?" not in data:
+            return type(self).ADD_WALLET, BytesIO(data)
         return type(self).UNKONWN, BytesIO(data)
 
     @property

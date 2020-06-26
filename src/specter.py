@@ -11,6 +11,7 @@ from bitcoin.psbt import PSBT
 from bitcoin.networks import NETWORKS
 # small helper functions
 from helpers import gen_mnemonic
+from gui.commands import DELETE_WALLET
 
 class SpecterError(Exception):
     pass
@@ -236,6 +237,14 @@ class Specter:
                 res = await self.sign_psbt(stream)
                 if res is not None:
                     await host.send_psbt(res)
+            elif cmd == host.ADD_WALLET:
+                # read content, it's small
+                desc = stream.read().decode()
+                w = self.wallet_manager.parse_wallet(desc)
+                res = await self.confirm_new_wallet(w)
+                if res:
+                    self.wallet_manager.add_wallet(w)
+                    return await self.show_wallets()
             # probably user cancelled
             elif cmd == None:
                 pass
@@ -255,6 +264,16 @@ class Specter:
             psbt = wallet.fill_psbt(psbt, self.keystore.fingerprint)
             self.keystore.sign_psbt(psbt)
             return psbt
+
+    async def confirm_new_wallet(self, w):
+        # Warning: none of the keys belong to this device
+        # policy, script type: nested / native segwit
+        # for key in w.keys:
+        #     if keystore.owns_key(key):
+        #         keys_str.append("#7ED321 My key: # %s" % k)
+        #     else:
+        #         keys_str.append("#F5A623 External key: # %s" % k)
+        return await self.gui.prompt("Add wallet \"%s\"?" % w.name, w.descriptor())
 
     async def select_network(self):
         # dict is unordered unfortunately, so we need to use hardcoded arr
@@ -366,7 +385,10 @@ class Specter:
             res = await self.gui.show_wallet(w, self.network)
             if res is not None:
                 cmd, data = res
-                # TODO: delete, rename, whatever
+                if cmd == DELETE_WALLET:
+                    conf = await self.gui.prompt("Delete wallet?", "You are deleting wallet \"%s\".\nAre you sure you want to do it?" % w.name)
+                    if conf:
+                        self.wallet_manager.delete_wallet(w)
 
     async def unlock(self):
         """

@@ -3,6 +3,7 @@ import lvgl as lv
 from ..common import add_label, add_button, HOR_RES, format_addr
 from ..decorators import on_release
 from .qralert import QRAlert
+from ..commands import DELETE_WALLET
 
 class XPubScreen(QRAlert):
     def __init__(self,
@@ -89,6 +90,18 @@ class WalletScreen(QRAlert):
         self.nxt.set_width(70)
         self.nxt.align(self.qr, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
         self.nxt.set_x(HOR_RES-70)
+
+        self.delbtn = add_button(lv.SYMBOL.TRASH+" Delete wallet", on_release(self.delwallet), scr=self)
+        self.delbtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
+        style = lv.style_t()
+        lv.style_copy(style, self.delbtn.get_style(lv.btn.STYLE.REL))
+        style.body.main_color = lv.color_hex(0x951E2D)
+        style.body.grad_color = lv.color_hex(0x951E2D)
+        self.delbtn.set_style(lv.btn.STYLE.REL, style)
+
+    def delwallet(self):
+        # TODO: ugly, 255 should go to some constant
+        self.set_value((DELETE_WALLET, None))
 
     def next(self):
         self.idx += 1

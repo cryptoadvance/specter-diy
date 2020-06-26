@@ -1,4 +1,4 @@
-from platform import maybe_mkdir
+from platform import maybe_mkdir, delete_recursively
 from .scripts import SingleKey, Multisig
 import json
 from bitcoin import ec, hashes, script
@@ -10,16 +10,16 @@ class WalletError(Exception):
     pass
 
 class Wallet:
-    SCRIPTS = [
-        SingleKey, 
-        Multisig,
-    ]
-    GAP_LIMIT = 20
     """
     Wallet class, 
     wrapped=False - native segwit, 
     wrapped=True - nested segwit
     """
+    SCRIPTS = [
+        SingleKey, 
+        Multisig,
+    ]
+    GAP_LIMIT = 20
     def __init__(self, script, wrapped=False, path=None, name="Untitled"):
         self.name = name
         self.path = path
@@ -35,7 +35,9 @@ class Wallet:
         self.name = name
         self.unused_recv = 0
 
-    def save(self, keystore):
+    def save(self, keystore, path=None):
+        if path is not None:
+            self.path = path
         if self.path is None:
             raise WalletError("Path is not defined")
         desc = self.descriptor()
@@ -47,6 +49,11 @@ class Wallet:
         }
         meta = json.dumps(obj).encode()
         keystore.save_aead(self.path+"/meta", plaintext=meta)
+
+    def wipe(self):
+        if self.path is None:
+            raise WalletError("I don't know path...")
+        delete_recursively(self.path, include_self=True)
 
     def get_address(self, idx:int, network:str, change=False):
         sc, gap = self.scriptpubkey([int(change), idx])
