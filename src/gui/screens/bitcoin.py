@@ -1,6 +1,6 @@
 """Bitcoin-related screens"""
 import lvgl as lv
-from ..common import add_label, add_button, HOR_RES, format_addr
+from ..common import add_label, add_button, HOR_RES, format_addr, PADDING
 from ..decorators import on_release
 from .qralert import QRAlert
 from ..commands import DELETE_WALLET
@@ -27,7 +27,7 @@ class XPubScreen(QRAlert):
         if prefix is not None:
             lbl = lv.label(self)
             lbl.set_text("Show derivation path")
-            lbl.set_pos(2*PADDING, 540)
+            lbl.set_pos(2*PADDING, 580)
             self.prefix_switch = lv.sw(self)
             self.prefix_switch.on(lv.ANIM.OFF)
             self.prefix_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
@@ -35,7 +35,7 @@ class XPubScreen(QRAlert):
         if slip132 is not None:
             lbl = lv.label(self)
             lbl.set_text("Use SLIP-132")
-            lbl.set_pos(2*PADDING, 590)
+            lbl.set_pos(2*PADDING, 640)
             self.slip_switch = lv.sw(self)
             self.slip_switch.on(lv.ANIM.OFF)
             self.slip_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
@@ -71,8 +71,8 @@ class WalletScreen(QRAlert):
 
         # index
         self.note = add_label("Receiving address #%d" % self.idx, y=80, style="hint", scr=self)
-        self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
-        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
         # warning label for address gap limit
         self.warning = add_label("", scr=self)

@@ -19,6 +19,7 @@ class Host:
     SIGN_PSBT       = 0x01
     ADD_WALLET      = 0x02
     VERIFY_ADDRESS  = 0x03
+    UNKNOWN         = -1
     def __init__(self, path):
         # storage for data
         self.path = path

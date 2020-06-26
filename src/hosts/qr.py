@@ -343,4 +343,4 @@ class QRHost(Host):
         txt = b2a_base64(out_psbt.serialize()).decode().strip("\n")
         if self.manager is not None:
             await self.manager.gui.qr_alert("Transaction is signed!", 
-                        "Scan this QR code with your wallet", txt, qr_width=500)
+                        "Scan this QR code with your wallet", txt, qr_width=480)
