@@ -116,6 +116,13 @@ class WalletManager:
         self.wallets.pop(self.wallets.index(w))
         w.wipe()
 
+    def find_wallet_from_address(self, addr:str, idx:int, change=False):
+        for w in self.wallets:
+            a, gap = w.get_address(idx, self.network, change)
+            if a == addr:
+                return w
+        raise WalletError("Can't find wallet owning address %s" % addr)
+
     def parse_psbt(self, psbt):
         """Detects a wallet for transaction and returns an object to display"""
         wallet = None

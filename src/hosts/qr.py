@@ -313,6 +313,9 @@ class QRHost(Host):
         # probably wallet descriptor
         if b"&" in data and "?" not in data:
             return type(self).ADD_WALLET, BytesIO(data)
+        # probably verifying address
+        if data.startswith(b"bitcoin:") or b"index=" in data:
+            return type(self).VERIFY_ADDRESS, BytesIO(data)
         return type(self).UNKONWN, BytesIO(data)
 
     @property

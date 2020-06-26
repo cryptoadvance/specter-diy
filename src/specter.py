@@ -245,6 +245,20 @@ class Specter:
                 if res:
                     self.wallet_manager.add_wallet(w)
                     return await self.show_wallets()
+            elif cmd == host.VERIFY_ADDRESS:
+                data = stream.read().decode().replace("bitcoin:","")
+                # should be of the form addr?index=N or similar
+                if "index=" not in data or "?" not in data:
+                    raise SpecterError("Can't verify address with unknown index")
+                addr, rest = data.split("?")
+                args = rest.split("&")
+                idx = None
+                for arg in args:
+                    if arg.startswith("index="):
+                        idx = int(arg[6:])
+                        break
+                w = self.wallet_manager.find_wallet_from_address(addr, idx)
+                await self.gui.show_wallet(w, self.network, idx)
             # probably user cancelled
             elif cmd == None:
                 pass

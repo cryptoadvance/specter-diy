@@ -94,8 +94,8 @@ class SpecterGUI(AsyncGUI):
         await self.load_screen(scr)
         return await scr.result()
 
-    async def show_wallet(self, w, network):
-        scr = WalletScreen(w, network)
+    async def show_wallet(self, w, network, idx=None):
+        scr = WalletScreen(w, network, idx=idx)
         await self.load_screen(scr)
         return await scr.result()
 

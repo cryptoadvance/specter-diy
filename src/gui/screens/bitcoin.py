@@ -55,7 +55,7 @@ class XPubScreen(QRAlert):
         self.qr.set_text(msg)
 
 class WalletScreen(QRAlert):
-    def __init__(self, wallet, network):
+    def __init__(self, wallet, network, idx=None):
         self.wallet = wallet
         self.network = network
         self.idx = wallet.unused_recv
@@ -101,6 +101,10 @@ class WalletScreen(QRAlert):
         style.body.main_color = lv.color_hex(0x951E2D)
         style.body.grad_color = lv.color_hex(0x951E2D)
         self.delbtn.set_style(lv.btn.STYLE.REL, style)
+
+        if idx is not None:
+            self.idx = idx
+            self.update_address()
 
     def delwallet(self):
         # TODO: ugly, 255 should go to some constant
