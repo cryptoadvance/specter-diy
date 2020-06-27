@@ -3,7 +3,7 @@ import lvgl as lv
 from ..common import add_label, add_button, HOR_RES, format_addr, PADDING
 from ..decorators import on_release
 from .qralert import QRAlert
-from ..commands import DELETE_WALLET
+from ..commands import DELETE, EDIT
 from .prompt import Prompt
 
 class XPubScreen(QRAlert):
@@ -60,8 +60,10 @@ class WalletScreen(QRAlert):
         self.network = network
         self.idx = wallet.unused_recv
         addr, gap = wallet.get_address(self.idx, network=network)
-        super().__init__(wallet.name, format_addr(addr, words=4), "bitcoin:"+addr)
-
+        super().__init__("    "+wallet.name+"  #708092 "+lv.SYMBOL.EDIT, format_addr(addr, words=4), "bitcoin:"+addr)
+        self.title.set_recolor(True)
+        self.title.set_click(True)
+        self.title.set_event_cb(on_release(self.rename))
         self.policy = add_label(wallet.policy, y=55, style="hint", scr=self)
 
         style = lv.style_t()
@@ -106,9 +108,12 @@ class WalletScreen(QRAlert):
             self.idx = idx
             self.update_address()
 
+    def rename(self):
+        self.set_value(EDIT)
+
     def delwallet(self):
         # TODO: ugly, 255 should go to some constant
-        self.set_value((DELETE_WALLET, None))
+        self.set_value(DELETE)
 
     def next(self):
         self.idx += 1

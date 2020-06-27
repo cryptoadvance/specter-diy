@@ -1,6 +1,6 @@
 import asyncio
 from .core import init, update
-from .screens import Menu, Alert, QRAlert, Prompt
+from .screens import Menu, Alert, QRAlert, Prompt, InputScreen
 import lvgl as lv
 
 class AsyncGUI:
@@ -37,6 +37,15 @@ class AsyncGUI:
         self.background = self.scr
         self.scr = scr
         lv.scr_load(scr)
+
+    async def get_input(self, title="Enter your bip-39 password:", 
+            note="It is never stored on the device", suggestion=""):
+        """
+        Asks the user for a password
+        """
+        scr = InputScreen(title, note, suggestion)
+        await self.load_screen(scr)
+        return await scr.result()
 
     def close_popup(self):
         scr = self.background

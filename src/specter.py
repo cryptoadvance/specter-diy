@@ -11,7 +11,7 @@ from bitcoin.psbt import PSBT
 from bitcoin.networks import NETWORKS
 # small helper functions
 from helpers import gen_mnemonic
-from gui.commands import DELETE_WALLET
+from gui.commands import EDIT, DELETE
 
 class SpecterError(Exception):
     pass
@@ -338,9 +338,10 @@ class Specter:
             return await self.recklessmenu()
         elif menuitem == 2:
             pwd = await self.gui.get_input()
-            if pwd is not None:
-                self.keystore.set_mnemonic(password=pwd)
-                self.wallet_manager.init(self.keystore, self.network)
+            if pwd is None:
+                return self.mainmenu
+            self.keystore.set_mnemonic(password=pwd)
+            self.wallet_manager.init(self.keystore, self.network)
         elif menuitem == 3:
             await self.change_pin()
             await self.gui.alert("Success!", "PIN code is sucessfully changed!")
@@ -388,17 +389,23 @@ class Specter:
         buttons += [(i, w.name) for i, w in enumerate(self.wallet_manager.wallets)]
         menuitem = await self.gui.menu(buttons, last=(255,None))
         if menuitem == 255:
-            return
+            return self.mainmenu
         else:
             w = self.wallet_manager.wallets[menuitem]
             # pass wallet and network
-            res = await self.gui.show_wallet(w, self.network)
-            if res is not None:
-                cmd, data = res
-                if cmd == DELETE_WALLET:
-                    conf = await self.gui.prompt("Delete wallet?", "You are deleting wallet \"%s\".\nAre you sure you want to do it?" % w.name)
-                    if conf:
-                        self.wallet_manager.delete_wallet(w)
+            cmd = await self.gui.show_wallet(w, self.network)
+            if cmd == DELETE:
+                conf = await self.gui.prompt("Delete wallet?", "You are deleting wallet \"%s\".\nAre you sure you want to do it?" % w.name)
+                if conf:
+                    self.wallet_manager.delete_wallet(w)
+                return self.show_wallets
+            elif cmd == EDIT:
+                name = await self.gui.get_input(title="Enter new wallet name", 
+                            note="", suggestion=w.name)
+                if name is not None and name != w.name and name != "":
+                    w.name = name
+                    w.save(self.keystore)
+                return self.show_wallets
 
     async def unlock(self):
         """

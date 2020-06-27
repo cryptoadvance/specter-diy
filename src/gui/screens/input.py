@@ -6,6 +6,7 @@ import lvgl as lv
 from ..common import *
 from ..decorators import *
 from ..components import HintKeyboard
+from ..common import add_label
 from .screen import Screen
 import rng
 
@@ -14,17 +15,22 @@ class InputScreen(Screen):
         "q","w","e","r","t","y","u","i","o","p","\n",
         "#@","a","s","d","f","g","h","j","k","l","\n",
         lv.SYMBOL.UP,"z","x","c","v","b","n","m",lv.SYMBOL.LEFT,"\n",
-        lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
+        lv.SYMBOL.LEFT+" Back", " ",lv.SYMBOL.OK+" Done",""
     ]
     CHARSET_EXTRA = [
         "1","2","3","4","5","6","7","8","9","0","\n",
         "aA","@","#","$","_","&","-","+","(",")","/","\n",
         "[","]","*","\"","'",":",";","!","?","\\",lv.SYMBOL.LEFT,"\n",
-        lv.SYMBOL.CLOSE+" Clear"," ",lv.SYMBOL.OK+" Done",""
+        lv.SYMBOL.LEFT+" Back", " ",lv.SYMBOL.OK+" Done",""
     ]
     def __init__(self, title="Enter your bip-39 password:", 
-            note="It is never stored on the device"):
+            note="It is never stored on the device", suggestion=""):
         super().__init__()
+        self.title = add_label(title, scr=self, style="title")
+        if note is not None:
+            self.note = add_label(note, scr=self, style="hint")
+            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+
         self.kb = HintKeyboard(self)
         self.kb.set_map(type(self).CHARSET)
         self.kb.set_width(HOR_RES)
@@ -32,13 +38,13 @@ class InputScreen(Screen):
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
         self.ta = lv.ta(self)
-        self.ta.set_text("")
+        self.ta.set_text(suggestion)
         # self.ta.set_pwd_mode(True)
         self.ta.set_width(HOR_RES-2*PADDING)
         self.ta.set_x(PADDING)
         self.ta.set_text_align(lv.label.ALIGN.CENTER)
         self.ta.set_y(PADDING+150)
-        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        # self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
         self.ta.set_one_line(True)
         # self.ta.set_pwd_show_time(0)
 
@@ -49,7 +55,7 @@ class InputScreen(Screen):
             c = obj.get_active_btn_text()
             if c is None:
                 return
-            if c[0] == lv.SYMBOL.LEFT:
+            if c == lv.SYMBOL.LEFT:
                 self.ta.del_char()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
                 for i,ch in enumerate(type(self).CHARSET):
@@ -73,6 +79,9 @@ class InputScreen(Screen):
                 text = self.ta.get_text()
                 self.ta.set_text("")
                 self.set_value(text)
+            elif c == lv.SYMBOL.LEFT+" Back":
+                self.ta.set_text("")
+                self.set_value(None)
             else:
                 self.ta.add_text(c)
 

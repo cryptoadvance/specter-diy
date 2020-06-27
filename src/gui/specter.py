@@ -1,7 +1,7 @@
 from .async_gui import AsyncGUI
 from .screens import (Screen, PinScreen, Progress,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
-                      InputScreen, XPubScreen, DerivationScreen, WalletScreen,
+                      XPubScreen, DerivationScreen, WalletScreen,
                       TransactionScreen, ConfirmWalletScreen)
 import rng, asyncio
 
@@ -66,14 +66,6 @@ class SpecterGUI(AsyncGUI):
                 returns num_candidates words starting with word
         """
         scr = RecoverMnemonicScreen(checker, lookup)
-        await self.load_screen(scr)
-        return await scr.result()
-
-    async def get_input(self):
-        """
-        Asks the user for a password
-        """
-        scr = InputScreen()
         await self.load_screen(scr)
         return await scr.result()
 

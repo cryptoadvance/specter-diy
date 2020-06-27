@@ -1,4 +1,4 @@
 """Commands coming from the GUI"""
 
-DELETE_WALLET = 255
-RENAME_WALLET = 1
+DELETE = 255
+EDIT = 1
