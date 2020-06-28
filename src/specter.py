@@ -1,10 +1,10 @@
-import sys, gc
+import sys, gc, json
 from binascii import hexlify
 from io import BytesIO
 import asyncio
 
 from keystore import FlashKeyStore, KeyStoreError
-from platform import CriticalErrorWipeImmediately
+from platform import CriticalErrorWipeImmediately, set_usb_mode
 from hosts import HostError
 from bitcoin import ec, psbt, bip32, bip39
 from bitcoin.psbt import PSBT
@@ -30,6 +30,8 @@ class Specter:
         self.load_network(self.path)
         self.current_menu = self.initmenu
         self.just_booted = True
+        self.usb = False
+        self.dev = False
 
     def start(self):
         # start the GUI
@@ -157,13 +159,15 @@ class Specter:
             # await self.gui.alert("Success!", "Key is loaded from flash!")
             self.wallet_manager.init(self.keystore, self.network)
             return self.mainmenu
+        elif menuitem == 3:
+            await self.update_devsettings()
         # change pin code
         elif menuitem == 4:
             await self.change_pin()
             await self.gui.alert("Success!", "PIN code is sucessfully changed!")
         # lock device
         elif menuitem == 5:
-            self.keystore.lock()
+            self.lock()
             # go to PIN setup screen
             await self.unlock()
         else:
@@ -215,16 +219,9 @@ class Specter:
             return await self.show_master_keys()
         # lock device
         elif menuitem == 2:
-            # lock the SE
-            self.keystore.lock()
-            # disable hosts
-            for host in self.hosts:
-                host.enabled = False
+            self.lock()
             # go to the unlock screen
             await self.unlock()
-            # enable hosts again
-            for host in self.hosts:
-                host.enabled = True
         elif menuitem == 3:
             await self.select_network()
         elif menuitem == 4:
@@ -346,9 +343,16 @@ class Specter:
             await self.change_pin()
             await self.gui.alert("Success!", "PIN code is sucessfully changed!")
             return self.mainmenu
+        elif menuitem == 4:
+            await self.update_devsettings()
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
+
+    async def update_devsettings(self):
+        res = await self.gui.devscreen(dev=self.dev, usb=self.usb)
+        if res is not None:
+            self.update_config(**res)
 
     async def recklessmenu(self):
         """Manage storage and display of the recovery phrase"""
@@ -407,6 +411,15 @@ class Specter:
                     w.save(self.keystore)
                 return self.show_wallets
 
+    def lock(self):
+        # lock the keystore
+        self.keystore.lock()
+        # disable hosts
+        for host in self.hosts:
+            host.enabled = False
+        # disable usb and dev
+        set_usb_mode(False, False)
+
     async def unlock(self):
         """
         - setup PIN if not set
@@ -419,12 +432,44 @@ class Specter:
             pin = await self.gui.setup_pin(get_word=get_auth_word)
             self.keystore.set_pin(pin)
 
-        # if card is locked - ask for PIN code
+        # if keystore is locked - ask for PIN code
         while self.keystore.is_locked:
             pin = await self.gui.get_pin(get_word=get_auth_word)
             self.keystore.unlock(pin)
 
-        # now card is unlocked - we can proceed
+        # now keystore is unlocked - we can proceed
+        # load configuration
+        self.load_config()
+        set_usb_mode(usb=self.usb, dev=self.dev)
+        # enable hosts
+        for host in self.hosts:
+            host.enabled = True
+
+    def load_config(self):
+        try:
+            config, _ = self.keystore.load_aead(self.path+"/settings", 
+                                                self.keystore.pin_secret)
+            config = json.loads(config.decode())
+        except Exception as e:
+            print(e)
+            config = {"dev": self.dev, "usb": self.usb}
+            self.keystore.save_aead(self.path+"/settings", 
+                                    adata=json.dumps(config).encode(),
+                                    key=self.keystore.pin_secret)
+        self.dev = config["dev"]
+        self.usb = config["usb"]
+
+    def update_config(self, usb=False, dev=False):
+        config = {
+            "usb": usb,
+            "dev": dev,
+        }
+        self.keystore.save_aead(self.path+"/settings", 
+                                adata=json.dumps(config).encode(),
+                                key=self.keystore.pin_secret)
+        self.usb = usb
+        self.dev = dev
+        set_usb_mode(usb=self.usb, dev=self.dev)
 
     # host related commands
     def get_fingerprint(self) -> bytes:

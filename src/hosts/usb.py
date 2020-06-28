@@ -4,7 +4,7 @@ import sys
 from bitcoin.bip32 import parse_path
 from bitcoin import ec, psbt
 from binascii import hexlify, unhexlify, b2a_base64, a2b_base64
-import pyb
+import pyb, asyncio
 
 class USBHost(Host):
     """
@@ -19,8 +19,15 @@ class USBHost(Host):
     """
     def __init__(self, path):
         super().__init__(path)
-        self.usb = pyb.USB_VCP()
+        self.usb = None
         self.data = b""
+
+    def init(self):
+        # doesn't work if it was enabled and then disabled
+        if "VCP" in pyb.usb_mode():
+            self.usb = pyb.USB_VCP()
+        else:
+            raise HostError("USB is disabled")
 
     async def process_command(self, mv):
         if self.manager == None:
@@ -136,6 +143,8 @@ class USBHost(Host):
     async def update(self):
         if self.manager == None:
             return
+        if self.usb is None:
+            return await asyncio.sleep_ms(100)
         res = self.usb.read()
         if res is not None and len(res) > 0:
             self.data += res

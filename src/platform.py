@@ -1,5 +1,5 @@
 # detect if it's a hardware device or linuxport
-import sys, os
+import sys, os, pyb
 simulator = (sys.platform != 'pyboard')
 
 class CriticalErrorWipeImmediately(Exception):
@@ -88,19 +88,26 @@ def delete_recursively(path, include_self=False):
         return True
     raise RuntimeError("Failed to delete folder %s" % path)
 
-# defaults
-USB_ENABLED = False
-DEV_ENABLED = False
+stlk = pyb.UART('YB',9600)
 
-# check if these files are in flash, enable corresponding mode
-try:
-    os.stat(fpath("/flash/USB_ENABLED"))
-    USB_ENABLED = True
-except:
-    pass
-
-try:
-    os.stat(fpath("/flash/DEV_ENABLED"))
-    DEV_ENABLED = True
-except:
-    pass
+def set_usb_mode(dev=False, usb=False):
+    if simulator:
+        print("dev:", dev, ", usb:", usb)
+    # first set to None
+    pyb.usb_mode(None)
+    # now get correct mode
+    if usb and not dev:
+        pyb.usb_mode("VCP")
+    elif usb and dev:
+        pyb.usb_mode("VCP+MSC")
+        if not simulator:
+            # duplicate repl to stlink 
+            # as usb is busy for communication
+            os.dupterm(stlk,0)
+            os.dupterm(None,1)
+    elif not usb and dev:
+        pyb.usb_mode("VCP+MSC")
+        usb = pyb.USB_VCP()
+        if not simulator:
+            os.dupterm(None,0)
+            os.dupterm(usb,1)

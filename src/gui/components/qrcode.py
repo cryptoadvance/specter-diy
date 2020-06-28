@@ -49,7 +49,10 @@ class QRCode(lv.obj):
         if event == lv.EVENT.DELETE:
             self.task.cancel()
         if event == lv.EVENT.RELEASED:
-            if self.idx is None and len(self._text) > self.MIN_SIZE:
+            # nothing to do here
+            if len(self._text) <= self.MIN_SIZE or len(self._text) > self.MAX_SIZE:
+                return
+            if self.idx is None:
                 self.idx = 0
                 self.set_frame()
             else:

@@ -2,7 +2,7 @@ from .async_gui import AsyncGUI
 from .screens import (Screen, PinScreen, Progress,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
                       XPubScreen, DerivationScreen, WalletScreen,
-                      TransactionScreen, ConfirmWalletScreen)
+                      TransactionScreen, ConfirmWalletScreen, DevSettings)
 import rng, asyncio
 
 class SpecterGUI(AsyncGUI):
@@ -124,5 +124,10 @@ class SpecterGUI(AsyncGUI):
 
     async def confirm_new_wallet(self, name, policy, keys):
         scr = ConfirmWalletScreen(name, policy, keys)
+        await self.load_screen(scr)
+        return await scr.result()
+
+    async def devscreen(self, dev=False, usb=False):
+        scr = DevSettings(dev=dev, usb=usb)
         await self.load_screen(scr)
         return await scr.result()
