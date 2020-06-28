@@ -272,6 +272,8 @@ class Specter:
         res = await self.gui.confirm_transaction(wallet.name, meta)
         if res:
             # fill derivation paths from proprietary fields
+            wallet.update_gaps(psbt=psbt)
+            wallet.save(self.keystore)
             psbt = wallet.fill_psbt(psbt, self.keystore.fingerprint)
             self.keystore.sign_psbt(psbt)
             return psbt
@@ -397,7 +399,7 @@ class Specter:
         else:
             w = self.wallet_manager.wallets[menuitem]
             # pass wallet and network
-            cmd = await self.gui.show_wallet(w, self.network)
+            cmd = await self.gui.show_wallet(w, self.network, idx=w.unused_recv)
             if cmd == DELETE:
                 conf = await self.gui.prompt("Delete wallet?", "You are deleting wallet \"%s\".\nAre you sure you want to do it?" % w.name)
                 if conf:

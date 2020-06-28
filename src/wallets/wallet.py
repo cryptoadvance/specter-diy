@@ -31,7 +31,7 @@ class Wallet:
         self.script = script
         self.wrapped = wrapped
         # receive and change gap limits
-        self.gaps = [type(self).GAP_LIMIT, type(self).GAP_LIMIT]
+        self.gaps = [self.GAP_LIMIT, self.GAP_LIMIT]
         self.name = name
         self.unused_recv = 0
 
@@ -115,6 +115,24 @@ class Wallet:
         for pub in scope.bip32_derivations:
             if len(scope.bip32_derivations[pub].derivation) >= 2:
                 return scope.bip32_derivations[pub].derivation[-2:]
+
+    def update_gaps(self, psbt=None, known_idxs=None):
+        gaps = self.gaps
+        # update from psbt
+        if psbt is not None:
+            for scope in psbt.inputs + psbt.outputs:
+                res = self.get_derivation(scope)
+                if res is not None:
+                    change, idx = res
+                    if idx+self.GAP_LIMIT > gaps[change]:
+                        gaps[change] = idx+self.GAP_LIMIT+1
+        # update from gaps arg
+        if known_idxs is not None:
+            for i, gap in enumerate(gaps):
+                if known_idxs[i] is not None and known_idxs[i] + self.GAP_LIMIT > gap:
+                    gaps[i] = known_idxs[i]+self.GAP_LIMIT
+        self.unused_recv = gaps[0]-self.GAP_LIMIT
+        self.gaps = gaps
 
     def fill_psbt(self, psbt, fingerprint):
         """Fills derivation paths in inputs"""
