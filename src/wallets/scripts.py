@@ -1,8 +1,9 @@
 from bitcoin import bip32, script
 from binascii import unhexlify, hexlify
+from errors import BaseError
 
-class ScriptError(Exception):
-    pass
+class ScriptError(BaseError):
+    NAME = "Script error"
 
 class DescriptorScript:
     def script(self, derivation):

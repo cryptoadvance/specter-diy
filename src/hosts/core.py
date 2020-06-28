@@ -1,11 +1,9 @@
 import asyncio
 from platform import maybe_mkdir
+from errors import BaseError
 
-class HostError(Exception):
-    """
-    Host-specific error
-    """
-    pass
+class HostError(BaseError):
+    NAME = "Host error"
 
 class Host:
     """
@@ -15,7 +13,6 @@ class Host:
     or bidirectional like USBHost or SDHost
     """
     # command types
-    UNKNOWN         = 0x00
     SIGN_PSBT       = 0x01
     ADD_WALLET      = 0x02
     VERIFY_ADDRESS  = 0x03
@@ -30,12 +27,23 @@ class Host:
         # should be a tuple (text, callback)
         # keep None if you don't need a button
         self.button = None
+        # check this flag in update function
+        # if disabled - throw all incoming data
         self.enabled = False
+        # if host can be triggered by the user
+        # this is monitored by the manager
+        # self.in_progress = False
+        # this is the current state of the host
+        # can be a float between 0 and 1 or
+        # a list of [True, False, ...] (for QR code)
+        # self.progress = 0
 
     def init(self):
         """
-        Define here what should happen before ioloop starts
+        Define here what should happen when host is initialized
         Configure hardware, do selfchecks etc.
+        This may happen after start() function,
+        so check in update() if initialized already
         """
         pass
 
@@ -70,11 +78,24 @@ class Host:
         """What should happen if exception?"""
         pass
 
+    def enable(self):
+        """
+        What should happen when host enables?
+        Maybe you want to remove all pending data first?
+        """
+        self.enabled = True
+
+    def disable(self):
+        """
+        What should happen when host disables?
+        """
+        self.enabled = False
+
     async def get_data(self):
         """Implement how to get transaction from unidirectional host"""
         raise HostError("Data loading is not implemented for this class")
 
-    async def send_data(self, tx, fingerprint):
+    async def send_psbt(self, psbt):
         """Implement how to send the signed transaction to the host"""
         raise HostError("Sending data is not implemented for this class")
 

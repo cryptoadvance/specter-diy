@@ -51,10 +51,8 @@ class QRHost(Host):
 
         if simulator:
             self.EOL = b"\r\n"
-            self.UART_EMPTY = b""
         else:
             self.EOL = b"\r"
-            self.UART_EMPTY = None
 
         self.data = b""
         self.uart_bus = uart
@@ -307,16 +305,16 @@ class QRHost(Host):
                 psbt = a2b_base64(data)
                 if psbt[:5] != b"psbt\xff":
                     raise HostError("Not a PSBT")
-                return type(self).SIGN_PSBT, BytesIO(psbt)
+                return self.SIGN_PSBT, BytesIO(psbt)
             except:
                 pass
         # probably wallet descriptor
         if b"&" in data and "?" not in data:
-            return type(self).ADD_WALLET, BytesIO(data)
+            return self.ADD_WALLET, BytesIO(data)
         # probably verifying address
         if data.startswith(b"bitcoin:") or b"index=" in data:
-            return type(self).VERIFY_ADDRESS, BytesIO(data)
-        return type(self).UNKONWN, BytesIO(data)
+            return self.VERIFY_ADDRESS, BytesIO(data)
+        return self.UNKNOWN, BytesIO(data)
 
     @property
     def in_progress(self):

@@ -3,7 +3,7 @@ from binascii import hexlify
 from io import BytesIO
 import asyncio
 
-from keystore import FlashKeyStore, KeyStoreError
+from keystore import FlashKeyStore
 from platform import CriticalErrorWipeImmediately, set_usb_mode
 from hosts import HostError
 from bitcoin import ec, psbt, bip32, bip39
@@ -12,9 +12,10 @@ from bitcoin.networks import NETWORKS
 # small helper functions
 from helpers import gen_mnemonic
 from gui.commands import EDIT, DELETE
+from errors import BaseError
 
-class SpecterError(Exception):
-    pass
+class SpecterError(BaseError):
+    NAME = "Specter error"
 
 class Specter:
     """Specter class.
@@ -56,18 +57,17 @@ class Specter:
             # TODO: actual reboot here
             return self.setup
         # catch an expected error
-        except (SpecterError, HostError, KeyStoreError) as e:
+        except BaseError as e:
             # show error
-            await self.gui.error("%s" % e)
+            await self.gui.alert(e.NAME, "%s" % e)
             # restart
             return next_fn
-
         # show trace for unexpected errors
         except Exception as e:
             print(e)
             b = BytesIO()
             sys.print_exception(e, b)
-            await self.gui.error("Something bad happened...\n\n%s" % b.getvalue().decode())
+            await self.gui.error("Something unexpected happened...\n\n%s" % b.getvalue().decode())
             # restart
             return next_fn
 
@@ -186,7 +186,7 @@ class Specter:
 
     async def mainmenu(self):
         for host in self.hosts:
-            host.enabled = True
+            host.enable()
         # buttons defined by host classes
         # only added if there is a GUI-triggered communication
         host_buttons = [
@@ -418,7 +418,7 @@ class Specter:
         self.keystore.lock()
         # disable hosts
         for host in self.hosts:
-            host.enabled = False
+            host.disable()
         # disable usb and dev
         set_usb_mode(False, False)
 
@@ -445,7 +445,7 @@ class Specter:
         set_usb_mode(usb=self.usb, dev=self.dev)
         # enable hosts
         for host in self.hosts:
-            host.enabled = True
+            host.enable()
 
     def load_config(self):
         try:
