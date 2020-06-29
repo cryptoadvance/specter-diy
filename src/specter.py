@@ -183,6 +183,9 @@ class Specter:
         self.keystore.unlock(old_pin)
         new_pin = await self.gui.setup_pin(get_word=get_auth_word)
         self.keystore.change_pin(old_pin, new_pin)
+        # as pin change also changes the pin_key 
+        # we need to save settings under new pin_key
+        self.update_config(usb=self.usb, dev=self.dev)
 
     async def mainmenu(self):
         for host in self.hosts:
