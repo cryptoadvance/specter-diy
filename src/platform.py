@@ -109,3 +109,13 @@ def set_usb_mode(dev=False, usb=False):
         if not simulator:
             os.dupterm(None,0)
             os.dupterm(usb,1)
+
+def reboot():
+    if simulator:
+        sys.exit()
+    else:
+        pyb.hard_reset()
+
+def wipe():
+    delete_recursively(fpath("/flash"))
+    delete_recursively(fpath("/qspi"))

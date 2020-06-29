@@ -4,7 +4,7 @@ from io import BytesIO
 import asyncio
 
 from keystore import FlashKeyStore
-from platform import CriticalErrorWipeImmediately, set_usb_mode
+from platform import CriticalErrorWipeImmediately, set_usb_mode, reboot
 from hosts import HostError
 from bitcoin import ec, psbt, bip32, bip39
 from bitcoin.psbt import PSBT
@@ -358,6 +358,8 @@ class Specter:
         res = await self.gui.devscreen(dev=self.dev, usb=self.usb)
         if res is not None:
             self.update_config(**res)
+            if await self.gui.prompt("Reboot required!", "Changing USB mode requires to reboot the device. Proceed?"):
+                reboot()
 
     async def recklessmenu(self):
         """Manage storage and display of the recovery phrase"""
