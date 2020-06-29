@@ -47,6 +47,7 @@ class WalletManager:
 
     def load_wallets(self):
         """Loads all wallets from path"""
+        platform.maybe_mkdir(self.path)
         # get ids of the wallets - every wallet is stored in a numeric folder
         wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path) \
                     if f[0].isdigit() and f[1] == 0x4000])

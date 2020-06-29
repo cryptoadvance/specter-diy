@@ -93,8 +93,6 @@ stlk = pyb.UART('YB',9600)
 def set_usb_mode(dev=False, usb=False):
     if simulator:
         print("dev:", dev, ", usb:", usb)
-    # first set to None
-    pyb.usb_mode(None)
     # now get correct mode
     if usb and not dev:
         pyb.usb_mode("VCP")

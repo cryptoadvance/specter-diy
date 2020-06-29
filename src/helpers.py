@@ -54,7 +54,7 @@ def aead_encrypt(key:bytes, adata:bytes=b"", plaintext:bytes=b"")->bytes:
     """
     aes_key = tagged_hash("aes", key)
     hmac_key = tagged_hash("hmac", key)
-    data = compact.to_bytes(len(adata))
+    data = compact.to_bytes(len(adata))+adata
     # if there is not ct - just add hmac
     if len(plaintext) > 0:
         data += encrypt(plaintext, aes_key)
