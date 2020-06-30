@@ -1,5 +1,11 @@
 # Specter-DIY
 
+    "Cypherpunks write code. We know that someone has to write software to defend privacy, 
+    and since we can't get privacy unless we all do, we're going to write it."
+    A Cypherpunk's Manifesto - Eric Hughes - 9 March 1993
+
+    ...and Cypherpunks do build their own Bitcoin Hardware Wallets.
+
 ![](./docs/pictures/kit.jpg)
 
 The idea of the project is to build a hardware wallet from off-the-shelf components.
