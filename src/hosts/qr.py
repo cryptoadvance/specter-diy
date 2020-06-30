@@ -45,6 +45,9 @@ class QRHost(Host):
     - scan unsigned transaction and authentications
     - trigger display of the signed transaction
     """
+    # time to wait after init
+    RECOVERY_TIME   = 30
+
     def __init__(self, path, trigger=None, uart="YA", baudrate=9600):
         super().__init__(path)
         self.button = "Scan QR code"
@@ -63,7 +66,6 @@ class QRHost(Host):
             self.trigger = pyb.Pin(trigger, pyb.Pin.OUT)
             self.trigger.on()
             self.is_configured = True
-        self.init()
         self.scanning = False
 
     def query(self, data, timeout=100):

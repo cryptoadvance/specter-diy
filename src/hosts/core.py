@@ -17,6 +17,8 @@ class Host:
     ADD_WALLET      = 0x02
     VERIFY_ADDRESS  = 0x03
     UNKNOWN         = -1
+    # time to wait after init
+    RECOVERY_TIME   = 1 
     def __init__(self, path):
         # storage for data
         self.path = path
@@ -30,6 +32,7 @@ class Host:
         # check this flag in update function
         # if disabled - throw all incoming data
         self.enabled = False
+        self.initialized = False
         # if host can be triggered by the user
         # this is monitored by the manager
         # self.in_progress = False
@@ -42,8 +45,6 @@ class Host:
         """
         Define here what should happen when host is initialized
         Configure hardware, do selfchecks etc.
-        This may happen after start() function,
-        so check in update() if initialized already
         """
         pass
 
@@ -61,7 +62,6 @@ class Host:
     async def update_loop(self, dt:int):
         while not self.enabled:
             await asyncio.sleep_ms(100)
-        self.init()
         while True:
             if self.enabled:
                 try:
@@ -78,14 +78,18 @@ class Host:
         """What should happen if exception?"""
         pass
 
-    def enable(self):
+    async def enable(self):
         """
         What should happen when host enables?
         Maybe you want to remove all pending data first?
         """
+        if not self.initialized:
+            self.init()
+            await asyncio.sleep_ms(self.RECOVERY_TIME)
+            self.initialized = True
         self.enabled = True
 
-    def disable(self):
+    async def disable(self):
         """
         What should happen when host disables?
         """

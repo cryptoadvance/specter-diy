@@ -167,7 +167,7 @@ class Specter:
             await self.gui.alert("Success!", "PIN code is sucessfully changed!")
         # lock device
         elif menuitem == 5:
-            self.lock()
+            await self.lock()
             # go to PIN setup screen
             await self.unlock()
         else:
@@ -189,7 +189,7 @@ class Specter:
 
     async def mainmenu(self):
         for host in self.hosts:
-            host.enable()
+            await host.enable()
         # buttons defined by host classes
         # only added if there is a GUI-triggered communication
         host_buttons = [
@@ -222,7 +222,7 @@ class Specter:
             return await self.show_master_keys()
         # lock device
         elif menuitem == 2:
-            self.lock()
+            await self.lock()
             # go to the unlock screen
             await self.unlock()
         elif menuitem == 3:
@@ -418,12 +418,12 @@ class Specter:
                     w.save(self.keystore)
                 return self.show_wallets
 
-    def lock(self):
+    async def lock(self):
         # lock the keystore
         self.keystore.lock()
         # disable hosts
         for host in self.hosts:
-            host.disable()
+            await host.disable()
         # disable usb and dev
         set_usb_mode(False, False)
 
@@ -450,7 +450,7 @@ class Specter:
         set_usb_mode(usb=self.usb, dev=self.dev)
         # enable hosts
         for host in self.hosts:
-            host.enable()
+            await host.enable()
 
     def load_config(self):
         try:

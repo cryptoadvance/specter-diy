@@ -13,7 +13,7 @@ def main():
     # each hosts gets it's own RAM folder for data
     hosts = [
         QRHost(rampath+"/qr"),
-        # USBHost(rampath+"/usb"),
+        USBHost(rampath+"/usb"),
         # SDHost(rampath+"/sd"), # not implemented yet
     ]
     # define GUI

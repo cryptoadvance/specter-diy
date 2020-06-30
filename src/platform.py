@@ -119,3 +119,8 @@ def reboot():
 def wipe():
     delete_recursively(fpath("/flash"))
     delete_recursively(fpath("/qspi"))
+
+def usb_connected():
+    if simulator:
+        return True
+    return bool(pyb.Pin.board.USB_VBUS.value())
