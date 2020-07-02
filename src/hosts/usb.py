@@ -49,6 +49,9 @@ class USBHost(Host):
             raise HostError("Device is busy")
         # all commands are pretty short
         b = stream.read(20)
+        # if empty command - return \r\n back
+        if len(b) == 0:
+            return self.respond(b"")
         # find space
         prefix = b.split(b' ')[0]
         # point to the beginning of the data
@@ -104,7 +107,7 @@ class USBHost(Host):
             # if tx is not ok - it will raise an error
             psbt = await self.manager.sign_psbt(f, remote=True)
             if psbt is None:
-                raise HostError("User cancelled")
+                self.respond(b'error: User cancelled')
         # serialize, convert to base64, send back
         raw_tx_stream = BytesIO(psbt.serialize())
         # convert to base64 in chunks
@@ -120,6 +123,54 @@ class USBHost(Host):
         self.usb.write(data)
         self.usb.write("\r\n")
 
+    def read_to_file(self):
+        """
+        Keeps reading from usb to ramdisk until EOL found.
+        Returns None if line is not complete,
+        filename with data if line is read
+        """
+        # trying to read something
+        res = self.usb.read(64)
+        # if we didn't get anything - return
+        if res is None or len(res) == 0:
+            return
+        # check if we already have something
+        # if not - create new file on the ramdisk
+        if self.f is None:
+            self.f = open(self.path+"/data", "wb")
+        # check if we dont have EOL in the data
+        if b"\n" not in res and b"\r" not in res:
+            self.f.write(res)
+            return
+        # if we do - there is a command
+        # both \r, \n or \r\n should work:
+        for eol in [b"\r\n", b"\r", b"\n"]:
+            # check if we have two EOL at once
+            # this means the host wants to start over
+            # like \n\n or \r\n\r\n or \r\r
+            if eol*2 in res:
+                arr = res.split(eol*2)
+                # cleanup and start over
+                self.cleanup()
+                self.f = open(self.path+"/data", "wb")
+                # this is the part we care about
+                res = arr[-1]
+                # if command is not complete yet
+                # we write and return
+                if eol not in res:
+                    self.f.write(res)
+                    return
+            if eol in res:
+                arr = res.split(eol)
+                break
+        # only one command at a time is allowed,
+        # throw everything else away
+        self.f.write(arr[0])
+        # close file
+        self.f.close()
+        self.f = None
+        return self.path+"/data"
+
     async def update(self):
         if self.manager == None:
             return await asyncio.sleep_ms(100)
@@ -127,33 +178,24 @@ class USBHost(Host):
             return await asyncio.sleep_ms(100)
         if not platform.usb_connected():
             return await asyncio.sleep_ms(100)
-        res = self.usb.read(64)
-        if res is not None and len(res) > 0:
-            if self.f is None:
-                self.f = open(self.path+"/data", "wb")
-            if b"\n" not in res and b"\r" not in res:
-                self.f.write(res)
-            else:
-                # both \r, \n or \r\n should work:
-                for eol in [b"\r\n", b"\r", b"\n"]:
-                    if eol in res:
-                        arr = res.split(eol)
-                        break
-                # only one command at a time is allowed,
-                # throw everything else away
-                self.f.write(arr[0])
-                # send back ACK to notify host 
-                # that we are processing data
-                # self.usb.write(self.ACK)
-                self.f.close()
-                self.f = None
-                try:
-                    with open(self.path+"/data", "rb") as f:
-                        await self.process_command(f)
-                except Exception as e:
-                    self.respond(b"error: %s" % e)
-                    sys.print_exception(e)
-                self.cleanup()
+        res = self.read_to_file()
+        # if we got a filename - line is ready
+        if res is not None:
+            # first send the host that we are processing data
+            self.usb.write(self.ACK)
+            # open again for reading and try to process content
+            try:
+                with open(self.path+"/data", "rb") as f:
+                    await self.process_command(f)
+            # if we fail with host error - tell the host why we failed
+            except HostError as e:
+                self.respond(b"error: %s" % e)
+                sys.print_exception(e)
+            # for all other exceptions - send back generic message
+            except Exception as e:
+                self.respond(b"error: Unknown error")
+                sys.print_exception(e)
+            self.cleanup()
 
         # wait a bit
         await asyncio.sleep_ms(10)
