@@ -117,10 +117,16 @@ class SpecterGUI(AsyncGUI):
             scr.waiting = False
         self.close_popup()
 
-    async def confirm_transaction(self, wallet_name, meta):
+    async def confirm_transaction(self, wallet_name, meta, remote=False):
         scr = TransactionScreen(wallet_name, meta)
-        await self.load_screen(scr)
-        return await scr.result()
+        if remote:
+            await self.open_popup(scr)
+        else:
+            await self.load_screen(scr)
+        res = await scr.result()
+        if remote:
+            await self.close_popup()
+        return res
 
     async def confirm_new_wallet(self, name, policy, keys):
         scr = ConfirmWalletScreen(name, policy, keys)

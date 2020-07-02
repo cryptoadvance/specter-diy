@@ -12,5 +12,7 @@ pwrcb = lambda e: pwr.off()
 pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 
 # configure usb from start if you want, 
-# otherwise will be configured
+# otherwise will be configured after PIN
 # pyb.usb_mode("VCP+MSC") # debug mode without USB from start
+# disable at start
+pyb.usb_mode(None)

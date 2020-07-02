@@ -266,10 +266,10 @@ class Specter:
             print(menuitem)
             raise SpecterError("Not implemented")
 
-    async def sign_psbt(self, stream):
+    async def sign_psbt(self, stream, remote=False):
         psbt = PSBT.read_from(stream)
         wallet, meta = self.wallet_manager.parse_psbt(psbt=psbt)
-        res = await self.gui.confirm_transaction(wallet.name, meta)
+        res = await self.gui.confirm_transaction(wallet.name, meta, remote=remote)
         if res:
             # fill derivation paths from proprietary fields
             wallet.update_gaps(psbt=psbt)
@@ -445,9 +445,6 @@ class Specter:
         # load configuration
         self.load_config()
         set_usb_mode(usb=self.usb, dev=self.dev)
-        # enable hosts
-        for host in self.hosts:
-            await host.enable()
 
     def load_config(self):
         try:

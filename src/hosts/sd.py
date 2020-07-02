@@ -15,60 +15,17 @@ class SDHost(Host):
         super().__init__(path)
         self.sdpath = sdpath
         self.button = "Load from SD card"
-        self.tx_fname = "vault.psbt.unsigned"
-        self.auth_prefix = "authorization."
 
     async def get_data(self):
         """
-        Loads psbt transaction and tx authentications
-        from the SD card.
-        Returns a tuple: 
-        - byte stream with psbt transaction in binary form and 
-        - list of authentications, also in binary streams
-        Files on the SD card should be: 
-        - base64 encoded psbt in vault.psbt.unsigned file
-        - hex-encoded ECDSA der-encoded signatures in authorization.N
-          where N is any number
+        Loads psbt transaction from the SD card.
         """
-        # checking size of transaction
-        try:
-            size = os.stat("%s/%s" % (self.sdpath, self.tx_fname))[6]
-        except:
-            raise HostError("Failed to find\n%s\nfile on the SD card" % self.tx_fname)
-
-        # loading transaction and decoding in pieces
-        # - saves memory for large txs
-        raw_tx = BytesIO()
-        with open("%s/%s" % (self.sdpath, self.tx_fname), "rb") as f:
-            for i in range(size//4):
-                b64chunk = f.read(4).strip() # remove "\n etc"
-                try:
-                    raw_tx.write(a2b_base64(b64chunk))
-                except:
-                    raise HostError("Invalid base64-encoded transaction size!")
-        # reset pointer
-        raw_tx.seek(0)
-
-        # loading authorizations
-        sigs = []
-        for file, *_ in os.ilistdir(self.sdpath):
-            if file.startswith(self.auth_prefix):
-                with open("%s/%s" % (self.sdpath, file), "rb") as f:
-                    sigs.append(BytesIO(unhexlify(f.read())))
-        return raw_tx, sigs
+        raise HostError("Not implemented")
 
     async def send_data(self, tx, suffix=""):
         """
         Saves transaction in base64 encoding to SD card
-        as vault.psbt.signed.<suffix> file
+        as psbt.signed.<suffix> file
         Returns a success message to display
         """
-        with open("%s/vault.psbt.signed.%s" % (self.sdpath, suffix), "wb") as f:
-            raw = BytesIO(tx.serialize())
-            while True:
-                chunk = raw.read(3)
-                f.write(b2a_base64(chunk).strip())
-                if len(chunk) < 3:
-                    break
-        # TODO: refactor using self.manager
-        return "Transaction was saved to\n\nvault.psbt.signed.%s\n\nfile" % suffix
+        raise HostError("Not implemented")

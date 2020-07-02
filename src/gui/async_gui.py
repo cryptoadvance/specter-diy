@@ -38,6 +38,11 @@ class AsyncGUI:
         self.scr = scr
         lv.scr_load(scr)
 
+    async def close_popup(self):
+        scr = self.background
+        self.background = None
+        await self.load_screen(scr)
+
     async def get_input(self, title="Enter your bip-39 password:", 
             note="It is never stored on the device", suggestion=""):
         """
@@ -46,11 +51,6 @@ class AsyncGUI:
         scr = InputScreen(title, note, suggestion)
         await self.load_screen(scr)
         return await scr.result()
-
-    def close_popup(self):
-        scr = self.background
-        self.background = None
-        self.load_screen(scr)
 
     def start(self, rate:int=30):
         init()
