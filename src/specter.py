@@ -183,9 +183,6 @@ class Specter:
         self.keystore.unlock(old_pin)
         new_pin = await self.gui.setup_pin(get_word=get_auth_word)
         self.keystore.change_pin(old_pin, new_pin)
-        # as pin change also changes the pin_key 
-        # we need to save settings under new pin_key
-        self.update_config(usb=self.usb, dev=self.dev)
 
     async def mainmenu(self):
         for host in self.hosts:
@@ -455,14 +452,14 @@ class Specter:
     def load_config(self):
         try:
             config, _ = self.keystore.load_aead(self.path+"/settings", 
-                                                self.keystore.pin_secret)
+                                                self.keystore.enc_secret)
             config = json.loads(config.decode())
         except Exception as e:
             print(e)
             config = {"dev": self.dev, "usb": self.usb}
             self.keystore.save_aead(self.path+"/settings", 
                                     adata=json.dumps(config).encode(),
-                                    key=self.keystore.pin_secret)
+                                    key=self.keystore.enc_secret)
         self.dev = config["dev"]
         self.usb = config["usb"]
 
@@ -473,7 +470,7 @@ class Specter:
         }
         self.keystore.save_aead(self.path+"/settings", 
                                 adata=json.dumps(config).encode(),
-                                key=self.keystore.pin_secret)
+                                key=self.keystore.enc_secret)
         self.usb = usb
         self.dev = dev
         set_usb_mode(usb=self.usb, dev=self.dev)

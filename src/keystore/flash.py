@@ -24,6 +24,7 @@ class FlashKeyStore(KeyStore):
         self._pin_attempts_max = 10
         self._pin_attempts_left = 10
         self.pin_secret = None
+        self.enc_secret = None
 
     def set_mnemonic(self, mnemonic=None, password=""):
         """Load mnemonic and password and create root key"""
@@ -148,6 +149,7 @@ class FlashKeyStore(KeyStore):
     @property
     def is_ready(self):
         return (self.pin_secret is not None) and \
+               (self.enc_secret is not None) and \
                (not self.is_locked) and \
                (self.fingerprint is not None)
     
@@ -177,24 +179,26 @@ class FlashKeyStore(KeyStore):
         self.save_state()
         # derive PIN keys for reckless storage
         self.pin_secret = tagged_hash("pin", self.secret+pin.encode())
+        self.load_enc_secret()
+
+    def load_enc_secret(self):
+        fpath = self.path+"/enc_secret"
+        if platform.file_exists(fpath):
+            _, secret = self.load_aead(fpath, self.pin_secret)
+        else:
+            # create new key if it doesn't exist
+            secret = get_random_bytes(32)
+            self.save_aead(fpath, plaintext=secret, key=self.pin_secret)
+        self.enc_secret = secret
 
     def lock(self):
         """Locks the keystore, requires PIN to unlock"""
         self._is_locked = True
         return self.is_locked
 
-    def unset_pin(self):
-        self.pin = None
-        self.save_state()
-
     def change_pin(self, old_pin, new_pin):
         self.unlock(old_pin)
-        data = None
-        if platform.file_exists(self.path+"/reckless"):
-            _, data = self.load_aead(self.path+"/reckless", self.pin_secret)
         self.set_pin(new_pin)
-        if data is not None:
-            self.save_aead(self.path+"/reckless", plaintext=data)
 
     def get_auth_word(self, pin_part):
         """
@@ -226,7 +230,12 @@ class FlashKeyStore(KeyStore):
         key = tagged_hash("pin", self.secret)
         self.pin = hmac.new(key=key,
                             msg=pin,digestmod="sha256").digest()
+        self.pin_secret = tagged_hash("pin", self.secret+pin.encode())
         self.save_state()
+        # update encryption secret
+        if self.enc_secret is None:
+            self.enc_secret = get_random_bytes(32)
+        self.save_aead(self.path+"/enc_secret", plaintext=self.enc_secret, key=self.pin_secret)
         # call unlock now
         self.unlock(pin)
 
