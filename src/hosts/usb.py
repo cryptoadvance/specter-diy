@@ -6,6 +6,7 @@ from bitcoin import ec, psbt
 from binascii import hexlify, unhexlify, b2a_base64, a2b_base64
 import pyb, asyncio
 import platform
+from rng import get_random_bytes
 
 class USBHost(Host):
     """
@@ -89,6 +90,21 @@ class USBHost(Host):
             mnemonic = stream.read().decode().strip()
             self.manager.load_mnemonic(mnemonic)
             self.respond(mnemonic)
+        # get 32 bytes of randomness in hex
+        elif prefix == b"getrandom":
+            num_bytes = 32
+            try:
+                num_bytes = int(stream.read().decode().strip())
+            except:
+                pass
+            if num_bytes < 0:
+                raise HostError("Seriously? %d bytes? No..." % num_bytes)
+            if num_bytes > 10000:
+                raise HostError("Sorry, 10k bytes max.")
+            while num_bytes > 32:
+                self.usb.write(hexlify(get_random_bytes(32)))
+                num_bytes -= 32
+            self.respond(hexlify(get_random_bytes(num_bytes)).decode())
         else:
             print("USB got:", prefix, stream.read())
             raise HostError("Unknown command: \"%s\"" % prefix.decode())
