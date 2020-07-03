@@ -523,15 +523,15 @@ class Specter:
             derivation = derivation[-2:]
         else:
             raise HostError("Invalid derivation")
-        if address is not None:
-            try:
-                w = self.wallet_manager.find_wallet_from_address(address, derivation[1], change=bool(derivation[0]))
-            except BaseError as e:
-                raise HostError("%s" % e)
-            await self.gui.show_wallet(w, self.network, derivation[1], remote=True)
-            return address
-        else:
-            return ""
+        if address is None:
+            raise HostError("Can't derive address. Provide redeem script.")
+        try:
+            change = bool(derivation[0])
+            w = self.wallet_manager.find_wallet_from_address(address, derivation[1], change=change)
+        except BaseError as e:
+            raise HostError("%s" % e)
+        await self.gui.show_wallet(w, self.network, derivation[1], change=change, remote=True)
+        return address
 
     async def show_master_keys(self, show_all=False):
         net = NETWORKS[self.network]

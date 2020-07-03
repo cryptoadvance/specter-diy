@@ -55,11 +55,11 @@ class XPubScreen(QRAlert):
         self.qr.set_text(msg)
 
 class WalletScreen(QRAlert):
-    def __init__(self, wallet, network, idx=None):
+    def __init__(self, wallet, network, idx=None, change=False):
         self.wallet = wallet
         self.network = network
         self.idx = wallet.unused_recv
-        addr, gap = wallet.get_address(self.idx, network=network)
+        addr, gap = wallet.get_address(self.idx, network=network, change=change)
         super().__init__("    "+wallet.name+"  #708092 "+lv.SYMBOL.EDIT, format_addr(addr, words=4), "bitcoin:"+addr)
         self.title.set_recolor(True)
         self.title.set_click(True)
@@ -72,7 +72,9 @@ class WalletScreen(QRAlert):
         self.message.set_style(0, style)
 
         # index
-        self.note = add_label("Receiving address #%d" % self.idx, y=80, style="hint", scr=self)
+        self.change = change
+        prefix = "Change" if change else "Receiving"
+        self.note = add_label("%s address #%d" % (prefix, self.idx), y=80, style="hint", scr=self)
         self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
@@ -130,8 +132,9 @@ class WalletScreen(QRAlert):
             self.prv.set_state(lv.btn.STATE.REL)
         else:
             self.prv.set_state(lv.btn.STATE.INA)
-        addr, gap = self.wallet.get_address(self.idx, network=self.network)
-        note = "Receiving address #%d" % (self.idx)
+        addr, gap = self.wallet.get_address(self.idx, network=self.network, change=self.change)
+        prefix = "Change" if self.change else "Receiving"
+        note = "%s address #%d" % (prefix, self.idx)
         self.note.set_text(note)
         self.message.set_text(format_addr(addr, words=4))
         self.qr.set_text("bitcoin:"+addr)

@@ -86,8 +86,8 @@ class SpecterGUI(AsyncGUI):
         await self.load_screen(scr)
         return await scr.result()
 
-    async def show_wallet(self, w, network, idx=None, remote=False):
-        scr = WalletScreen(w, network, idx=idx)
+    async def show_wallet(self, w, network, idx=None, change=False, remote=False):
+        scr = WalletScreen(w, network, idx=idx, change=change)
         if remote:
             await self.open_popup(scr)
         else:
