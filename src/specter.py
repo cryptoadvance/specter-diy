@@ -1,12 +1,12 @@
 import sys, gc, json
-from binascii import hexlify
+from binascii import hexlify, unhexlify
 from io import BytesIO
 import asyncio
 
 from keystore import FlashKeyStore
 from platform import CriticalErrorWipeImmediately, set_usb_mode, reboot
 from hosts import HostError
-from bitcoin import ec, psbt, bip32, bip39
+from bitcoin import ec, psbt, bip32, bip39, script
 from bitcoin.psbt import PSBT
 from bitcoin.networks import NETWORKS
 # small helper functions
@@ -483,6 +483,55 @@ class Specter:
             raise SpecterError("Device is locked")
         xpub = self.keystore.get_xpub(bip32.path_to_str(path))
         return xpub
+
+    async def showaddr(self, paths:list, script_type:str, redeem_script=None) -> str:
+        if redeem_script is not None:
+            redeem_script = script.Script(unhexlify(redeem_script))
+        # first check if we have corresponding wallet:
+        # - just take last 2 indexes of the derivation
+        # and see if redeem script matches
+        address = None
+        if redeem_script is not None:
+            if script_type == b"wsh":
+                address = script.p2wsh(redeem_script).address(NETWORKS[self.network])
+            elif script_type == b"sh-wsh":
+                address = script.p2sh(
+                            script.p2wsh(redeem_script)
+                          ).address(NETWORKS[self.network])
+            else:
+                raise HostError("Unsupported script type: %s" % script_type)
+        # in our wallets every key 
+        # has the same two last indexes for derivation
+        path = paths[0]
+        if not path.startswith(b"m/"):
+            path = b"m"+path[8:]
+        derivation = bip32.parse_path(path.decode())
+
+        # if not multisig:
+        if address is None and len(paths)==1:
+            pub = self.keystore.get_xpub(derivation)
+            if script_type == b"wpkh":
+                address = script.p2wpkh(pub).address(NETWORKS[self.network])
+            elif script_type == b"sh-wpkh":
+                address = script.p2sh(
+                            script.p2wpkh(pub).address(NETWORKS[self.network])
+                          )
+            else:
+                raise HostError("Unsupported script type: %s" % script_type)
+
+        if len(derivation) >= 2:
+            derivation = derivation[-2:]
+        else:
+            raise HostError("Invalid derivation")
+        if address is not None:
+            try:
+                w = self.wallet_manager.find_wallet_from_address(address, derivation[1], change=bool(derivation[0]))
+            except BaseError as e:
+                raise HostError("%s" % e)
+            await self.gui.show_wallet(w, self.network, derivation[1], remote=True)
+            return address
+        else:
+            return ""
 
     async def show_master_keys(self, show_all=False):
         net = NETWORKS[self.network]

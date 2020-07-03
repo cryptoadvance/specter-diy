@@ -86,10 +86,16 @@ class SpecterGUI(AsyncGUI):
         await self.load_screen(scr)
         return await scr.result()
 
-    async def show_wallet(self, w, network, idx=None):
+    async def show_wallet(self, w, network, idx=None, remote=False):
         scr = WalletScreen(w, network, idx=idx)
-        await self.load_screen(scr)
-        return await scr.result()
+        if remote:
+            await self.open_popup(scr)
+        else:
+            await self.load_screen(scr)
+        res = await scr.result()
+        if remote:
+            await self.close_popup()
+        return res
 
     async def show_progress(self, host, title, message):
         """
@@ -115,7 +121,7 @@ class SpecterGUI(AsyncGUI):
             host.abort()
         if scr.waiting:
             scr.waiting = False
-        self.close_popup()
+        await self.close_popup()
 
     async def confirm_transaction(self, wallet_name, meta, remote=False):
         scr = TransactionScreen(wallet_name, meta)

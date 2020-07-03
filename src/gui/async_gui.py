@@ -98,7 +98,7 @@ class AsyncGUI:
             await self.load_screen(alert)
         res = await alert.result()
         if popup:
-            self.close_popup()
+            await self.close_popup()
         return res
 
     async def prompt(self, title, msg):

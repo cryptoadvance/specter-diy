@@ -90,6 +90,20 @@ class USBHost(Host):
             mnemonic = stream.read().decode().strip()
             self.manager.load_mnemonic(mnemonic)
             self.respond(mnemonic)
+        elif prefix == b"showaddr":
+            arr = stream.read().split(b' ')
+            redeem_script = None
+            if len(arr) == 2:
+                script_type, path = arr
+            elif len(arr) == 3:
+                script_type, path, redeem_script = arr
+            else:
+                raise HostError("Too many arguments")
+            paths = path.split(b",")
+            if len(paths) == 0:
+                raise HostError("Invalid path argument")
+            res = await self.manager.showaddr(paths, script_type, redeem_script)
+            self.respond(res)
         # get 32 bytes of randomness in hex
         elif prefix == b"getrandom":
             num_bytes = 32
