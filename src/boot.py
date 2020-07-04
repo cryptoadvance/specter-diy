@@ -16,3 +16,5 @@ pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 # pyb.usb_mode("VCP+MSC") # debug mode without USB from start
 # disable at start
 pyb.usb_mode(None)
+os.dupterm(None,0)
+os.dupterm(None,1)

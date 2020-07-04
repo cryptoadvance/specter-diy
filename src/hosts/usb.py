@@ -31,6 +31,7 @@ class USBHost(Host):
         # doesn't work if it was enabled and then disabled
         if self.usb is None:
             self.usb = pyb.USB_VCP()
+            self.usb.init(flow=(pyb.USB_VCP.RTS | pyb.USB_VCP.CTS))
 
     async def enable(self):
         # cleanup first

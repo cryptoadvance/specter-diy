@@ -96,6 +96,9 @@ def set_usb_mode(dev=False, usb=False):
     # now get correct mode
     if usb and not dev:
         pyb.usb_mode("VCP")
+        if not simulator:
+            os.dupterm(None,0)
+            os.dupterm(None,1)
     elif usb and dev:
         pyb.usb_mode("VCP+MSC")
         if not simulator:
@@ -109,6 +112,11 @@ def set_usb_mode(dev=False, usb=False):
         if not simulator:
             os.dupterm(None,0)
             os.dupterm(usb,1)
+    else:
+        pyb.usb_mode(None)
+        if not simulator:
+            os.dupterm(None,0)
+            os.dupterm(None,1)
 
 def reboot():
     if simulator:
