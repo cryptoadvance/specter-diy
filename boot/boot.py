@@ -1,7 +1,6 @@
 # boot.py -- run on boot-up
 # can run arbitrary Python, but best to keep it minimal
-
-import pyb, os, time
+import pyb, os
 
 # power hold
 pwr = pyb.Pin("B15", pyb.Pin.OUT)

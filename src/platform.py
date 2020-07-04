@@ -14,6 +14,8 @@ def maybe_mkdir(path):
         os.mkdir(path)
     except:
         pass
+    if not simulator:
+        os.sync()
 
 # path to store #reckless entropy
 if simulator:

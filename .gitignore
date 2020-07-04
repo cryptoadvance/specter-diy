@@ -6,3 +6,4 @@ src/bitcoin
 userdata
 fs
 testdir
+__pycache__

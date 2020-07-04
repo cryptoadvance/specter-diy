@@ -38,9 +38,10 @@ class Wallet:
 
     def save(self, keystore, path=None):
         if path is not None:
-            self.path = path
+            self.path = path.rstrip("/")
         if self.path is None:
             raise WalletError("Path is not defined")
+        maybe_mkdir(self.path)
         desc = self.descriptor()
         keystore.save_aead(self.path+"/descriptor", plaintext=desc.encode())
         obj = {
