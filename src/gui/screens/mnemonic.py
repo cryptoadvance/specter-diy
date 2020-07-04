@@ -143,7 +143,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
         if obj.get_btn_ctrl(num,lv.btnm.CTRL.INACTIVE):
             return
         if c == lv.SYMBOL.LEFT+" Back":
-            self.set_value(None)
+            self.confirm_exit()
         elif c == lv.SYMBOL.LEFT:
             self.table.del_char()
         elif c == "Next word":
@@ -163,3 +163,40 @@ class RecoverMnemonicScreen(MnemonicScreen):
         if c == lv.SYMBOL.OK+" Done":
             self.set_value(mnemonic)
 
+    def confirm_exit(self):
+
+        mnemonic = self.table.get_mnemonic()
+        if len(mnemonic)==0:
+            self.set_value(None)
+            return
+
+        modal_style = lv.style_t()
+        lv.style_copy(modal_style, lv.style_plain_color)
+        # Set the background's style
+        modal_style.body.main_color = modal_style.body.grad_color = lv.color_make(0,0,0)
+        modal_style.body.opa = lv.OPA._50
+        
+        # Create a base object for the modal background
+        bg = lv.obj(self)
+        bg.set_style(modal_style)
+        bg.set_pos(0, 0)
+        bg.set_size(self.get_width(), self.get_height())
+        bg.set_opa_scale_enable(True)  # Enable opacity scaling for the animation
+
+        btns = ["No, stay here", "Yes, leave", ""]
+
+        def event_handler(obj, event):
+            if event == lv.EVENT.VALUE_CHANGED:
+                if lv.mbox.get_active_btn_text(obj) == btns[1]:
+                    self.set_value(None)
+                else:
+                    obj.del_async()
+                    bg.del_async()
+        
+        mbox = lv.mbox(self)
+        mbox.set_text("\nAre you sure you want to exit?\n\n"
+                      "Everything you entered will be forgotten!\n\n");
+        mbox.add_btns(btns)
+        mbox.set_width(400)
+        mbox.set_event_cb(event_handler)
+        mbox.align(None, lv.ALIGN.CENTER, 0, 0)
