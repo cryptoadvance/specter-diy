@@ -6,7 +6,6 @@ from bitcoin import ec, psbt
 from binascii import hexlify, unhexlify, b2a_base64, a2b_base64
 import pyb, asyncio
 import platform
-from rng import get_random_bytes
 
 class USBHost(Host):
     """
@@ -107,24 +106,14 @@ class USBHost(Host):
                 raise HostError("Invalid path argument")
             res = await self.manager.showaddr(paths, script_type, redeem_script)
             self.respond(res)
-        # get 32 bytes of randomness in hex
-        elif prefix == b"getrandom":
-            num_bytes = 32
-            try:
-                num_bytes = int(stream.read().decode().strip())
-            except:
-                pass
-            if num_bytes < 0:
-                raise HostError("Seriously? %d bytes? No..." % num_bytes)
-            if num_bytes > 10000:
-                raise HostError("Sorry, 10k bytes max.")
-            while num_bytes > 32:
-                self.usb.write(hexlify(get_random_bytes(32)))
-                num_bytes -= 32
-            self.respond(hexlify(get_random_bytes(num_bytes)).decode())
         else:
-            print("USB got:", prefix, stream.read())
-            raise HostError("Unknown command: \"%s\"" % prefix.decode())
+            # res should be a stream as well
+            res = await self.manager.process_host_request(prefix, stream)
+            if res is None:
+                self.respond(b'error: User cancelled')
+            else:
+                # TODO: better to loop here
+                self.respond(res.read())
 
     async def sign_psbt(self, stream):
         # decode to file

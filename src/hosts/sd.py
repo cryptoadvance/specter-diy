@@ -11,10 +11,10 @@ class SDHost(Host):
     - loading unsigned transaction and authentications
     - saving signed transaction to the card
     """
+    button = "Load from SD card"
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)
         self.sdpath = sdpath
-        self.button = "Load from SD card"
 
     async def get_data(self):
         """

@@ -23,6 +23,18 @@ def main():
     keystore_path = platform.fpath("/flash/keystore")
     # define KeyStore
     keystore = FlashKeyStore(keystore_path)
+
+    # loading apps
+    from apps import __all__ as mods
+    applications = []
+    for modname in mods:
+        appmod = __import__('apps.%s' % modname)
+        mod = getattr(appmod, modname)
+        if hasattr(mod, 'App'):
+            app = mod.App(platform.fpath("/qspi/%s" % modname))
+            applications.append(app)
+        else:
+            print("Failed loading app:", modname)
     # define WalletManager, requires keystore
     # to authenticate wallet files
     wallets_path = platform.fpath("/qspi/wallets")
@@ -34,6 +46,7 @@ def main():
                       wallet_manager=wallet_manager,
                       keystore=keystore,
                       hosts=hosts,
+                      apps=applications,
                       settings_path=settings_path)
     specter.start()
 

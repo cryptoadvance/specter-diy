@@ -101,8 +101,14 @@ class AsyncGUI:
             await self.close_popup()
         return res
 
-    async def prompt(self, title, msg):
+    async def prompt(self, title, msg, popup=False):
         """Asks the user to confirm action"""
         scr = Prompt(title, msg)
-        await self.load_screen(scr)
-        return await scr.result()
+        if popup:
+            await self.open_popup(scr)
+        else:
+            await self.load_screen(scr)
+        res = await scr.result()
+        if popup:
+            await self.close_popup()
+        return res

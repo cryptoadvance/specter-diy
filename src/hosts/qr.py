@@ -48,9 +48,9 @@ class QRHost(Host):
     # time to wait after init
     RECOVERY_TIME   = 30
 
+    button = "Scan QR code"
     def __init__(self, path, trigger=None, uart="YA", baudrate=9600):
         super().__init__(path)
-        self.button = "Scan QR code"
 
         if simulator:
             self.EOL = b"\r\n"
@@ -298,6 +298,10 @@ class QRHost(Host):
                 "Point scanner to the QR code")
         data = await self.scan()
         return self.parse(data)
+
+    async def send_data(self, prefix, stream):
+        response = stream.read().decode()
+        await self.manager.gui.qr_alert("Your data:", response, response)
 
     def parse(self, data):
         # TODO: refactor with ramfiles
