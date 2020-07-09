@@ -90,7 +90,8 @@ def delete_recursively(path, include_self=False):
         return True
     raise RuntimeError("Failed to delete folder %s" % path)
 
-stlk = pyb.UART('YB',9600)
+if not simulator:
+    stlk = pyb.UART('YB',9600)
 
 def set_usb_mode(dev=False, usb=False):
     if simulator:
