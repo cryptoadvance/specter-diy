@@ -60,7 +60,7 @@ class WalletScreen(QRAlert):
         self.network = network
         self.idx = wallet.unused_recv
         addr, gap = wallet.get_address(self.idx, network=network, change=change)
-        super().__init__("    "+wallet.name+"  #708092 "+lv.SYMBOL.EDIT, format_addr(addr, words=4), "bitcoin:"+addr)
+        super().__init__("    "+wallet.name+"  #708092 "+lv.SYMBOL.EDIT, format_addr(addr, words=4), "bitcoin:"+addr, qr_width=320)
         self.title.set_recolor(True)
         self.title.set_click(True)
         self.title.set_event_cb(on_release(self.rename))
@@ -75,8 +75,8 @@ class WalletScreen(QRAlert):
         self.change = change
         prefix = "Change" if change else "Receiving"
         self.note = add_label("%s address #%d" % (prefix, self.idx), y=80, style="hint", scr=self)
-        self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
 
         # warning label for address gap limit
         self.warning = add_label("", scr=self)
