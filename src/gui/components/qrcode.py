@@ -88,7 +88,7 @@ class QRCode(lv.obj):
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
     def _set_text(self, text):
-        qr = qrcode.encode_to_string(text)
+        qr = qrcode.encode_to_string(text).strip()
         size = int(math.sqrt(len(qr))) # + 4 clear space on every side
         width = self.get_width()
         scale = width//size
