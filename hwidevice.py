@@ -351,3 +351,29 @@ class SpecterSimulator(SpecterBase):
         res = self.read_until(s, self.EOL, timeout)[:-len(self.EOL)]
         s.close()
         return res.decode()
+
+###### test for communication ######
+
+if __name__ == '__main__':
+    import sys
+
+    devices = enumerate()
+    if len(devices) == 0:
+        print("No devices found")
+        sys.exit()
+    inp = 0;
+    if len(devices) > 1:
+        print("Found %d devices." % len(devices))
+        for i, dev in enumerate(devices):
+            print("[%d]" % i, dev)
+        inp = int(raw_input("Enter the device number to use:"))
+        if inp > len(devices):
+            print("Meh... Screw you.")
+            sys.exit()
+    dev = SpecterClient(devices[inp]["path"])
+    mfp = dev.get_master_fingerprint_hex()
+    derivation = "m/84h/0h/0h"
+    xpub = dev.get_pubkey_at_path(derivation)["xpub"]
+    print(f"Device fingerprint: {mfp}")
+    print(f"Segwit xpub: {xpub}")
+    print(f"Full key: [{mfp}{derivation[1:]}]{xpub}")

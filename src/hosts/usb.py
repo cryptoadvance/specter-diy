@@ -32,6 +32,8 @@ class USBHost(Host):
         if self.usb is None:
             self.usb = pyb.USB_VCP()
             self.usb.init(flow=(pyb.USB_VCP.RTS | pyb.USB_VCP.CTS))
+            if platform.simulator:
+                print("Connect to 127.0.0.1:8789 to do USB communication")
 
     async def enable(self):
         # cleanup first

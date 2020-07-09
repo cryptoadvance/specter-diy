@@ -60,6 +60,8 @@ class QRHost(Host):
         self.data = b""
         self.uart_bus = uart
         self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
+        if simulator:
+            print("Connect to 127.0.0.1:22849 to send QR code content")
         self.trigger = None
         self.is_configured = False
         if trigger is not None or simulator:
