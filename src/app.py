@@ -16,6 +16,24 @@ class BaseApp:
         maybe_mkdir(path)
         self.path = path
 
+    def can_process(self, stream):
+        """Checks if the app can process this stream"""
+        prefix = self.get_prefix(stream)
+        return prefix in self.prefixes
+
+    def get_prefix(self, stream):
+        """Gets prefix from the stream (first "word")"""
+        prefix = stream.read(20)
+        if b" " not in prefix:
+            if len(prefix) < 20:
+                return prefix
+            stream.seek(0)
+            return None
+        prefix = prefix.split(b' ')[0]
+        # point to the beginning of the data
+        stream.seek(len(prefix)+1)
+        return prefix
+
     def init(self, keystore, network:str='test'):
         """
         This method is called when new key is loaded

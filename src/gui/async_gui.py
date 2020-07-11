@@ -43,6 +43,22 @@ class AsyncGUI:
         self.background = None
         await self.load_screen(scr)
 
+    def show_screen(self, popup=False):
+        """
+        Return a function to show a new screen
+        as a popup or not
+        """
+        async def fn(scr):
+            if popup:
+                await self.open_popup(scr)
+            else:
+                await self.load_screen(scr)
+            res = await scr.result()
+            if popup:
+                await self.close_popup()
+            return res
+        return fn
+
     async def get_input(self, title="Enter your bip-39 password:", 
             note="It is never stored on the device", suggestion=""):
         """
@@ -77,15 +93,15 @@ class AsyncGUI:
         await self.load_screen(menu)
         return await menu.result()
 
-    async def alert(self, title, msg, button_text="OK"):
+    async def alert(self, title, msg, button_text="OK", note=None):
         """Shows an alert"""
-        alert = Alert(title, msg, button_text=button_text)
+        alert = Alert(title, msg, button_text=button_text, note=note)
         await self.load_screen(alert)
         await alert.result()
 
-    async def qr_alert(self, title, msg, qr_msg, qr_width=None, button_text="OK"):
+    async def qr_alert(self, title, msg, qr_msg, qr_width=None, button_text="OK", note=None):
         """Shows an alert with QR code"""
-        alert = QRAlert(title, msg, qr_msg, qr_width=qr_width, button_text=button_text)
+        alert = QRAlert(title, msg, qr_msg, qr_width=qr_width, button_text=button_text, note=note)
         await self.load_screen(alert)
         return await alert.result()
 

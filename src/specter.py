@@ -271,18 +271,9 @@ class Specter:
                 pass
             else:
                 # check against all apps
-                # all commands are pretty short
-                b = stream.read(20)
-                # find space
-                prefix = b.split(b' ')[0]
-                # point to the beginning of the data
-                if b' ' in b:
-                    stream.seek(len(prefix)+1)
-                else:
-                    stream.seek(0)
-                res = await self.process_host_request(prefix, stream, popup=False)
+                res = await self.process_host_request(stream, popup=False)
                 if res is not None:
-                    await host.send_data(prefix, res)
+                    await host.send_data(*res)
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
@@ -299,15 +290,18 @@ class Specter:
             self.keystore.sign_psbt(psbt)
             return psbt
 
-    async def process_host_request(self, prefix, stream, popup=True):
+    async def process_host_request(self, stream, popup=True):
         matching_apps = []
         for app in self.apps:
-            if prefix in app.prefixes:
+            stream.seek(0)
+            # check if the app can process this stream
+            if app.can_process(stream):
                 matching_apps.append(app)
         if len(matching_apps) == 0:
             raise HostError("Host command is not recognized")
         # TODO: if more than one - ask which one to use
-        return await matching_apps[0].process_host_command(prefix, stream, self.gui, popup=popup)
+        stream.seek(0)
+        return await matching_apps[0].process_host_command(stream, self.gui.show_screen(popup))
 
     async def confirm_new_wallet(self, w):
         keys = [{"key": k, "mine": self.keystore.owns(k)} for k in w.get_keys()]

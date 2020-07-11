@@ -299,9 +299,15 @@ class QRHost(Host):
         data = await self.scan()
         return self.parse(data)
 
-    async def send_data(self, prefix, stream):
+    async def send_data(self, stream, meta):
         response = stream.read().decode()
-        await self.manager.gui.qr_alert("Your data:", response, response)
+        title = "Your data:"
+        note = None
+        if "title" in meta:
+            title = meta["title"]
+        if "note" in meta:
+            note = meta["note"]
+        await self.manager.gui.qr_alert(title, response, response, note=note)
 
     def parse(self, data):
         # TODO: refactor with ramfiles

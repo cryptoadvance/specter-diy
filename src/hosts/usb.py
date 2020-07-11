@@ -107,13 +107,19 @@ class USBHost(Host):
             res = await self.manager.showaddr(paths, script_type, redeem_script)
             self.respond(res)
         else:
+            stream.seek(0)
             # res should be a stream as well
-            res = await self.manager.process_host_request(prefix, stream)
+            res = await self.manager.process_host_request(stream)
             if res is None:
                 self.respond(b'error: User cancelled')
             else:
-                # TODO: better to loop here
-                self.respond(res.read())
+                stream, meta = res
+                # loop until we read everything
+                chunk = stream.read(32)
+                while len(chunk)>0:
+                    self.usb.write(chunk)
+                    chunk = stream.read(32)
+                self.respond(b"")
 
     async def sign_psbt(self, stream):
         # decode to file

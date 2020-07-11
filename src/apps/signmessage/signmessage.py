@@ -2,8 +2,9 @@
 Demo of a simple app that extends Specter with custom functionality.
 """
 from app import BaseApp, AppError
+from gui.screens import Prompt
 
-from bitcoin import ec, bip32
+from bitcoin import ec, bip32, script
 from hashlib import sha256
 from binascii import b2a_base64, unhexlify
 import secp256k1
@@ -14,12 +15,16 @@ class MessageApp(BaseApp):
     This app can sign a text message with a private key.
     """
     prefixes = [b"signmessage"]
-    async def process_host_command(self, prefix, stream, gui, popup):
+    async def process_host_command(self, stream, show_screen):
         """
         If command with one of the prefixes is received
         it will be passed to this method.
-        Should return a stream (file, BytesIO etc).
+        Should return a tuple: 
+        - stream (file, BytesIO etc) 
+        - meta object with title and note
         """
+        # reads prefix from the stream (until first space)
+        prefix = self.get_prefix(stream)
         if prefix != b"signmessage":
             # WTF? It's not our data...
             raise AppError("Prefix is not valid: %s" % prefix.decode())
@@ -40,11 +45,18 @@ class MessageApp(BaseApp):
             derivation_path = "m"+derivation_path[8:]
         derivation_path = bip32.parse_path(derivation_path)
         # ask the user if he really wants to sign this message
-        res = await gui.prompt("Sign message with private key at %s?" % bip32.path_to_str(derivation_path), "Message:\n%s" % message, popup=popup)
+        scr = Prompt("Sign message with private key at %s?" % bip32.path_to_str(derivation_path), "Message:\n%s" % message)
+        res = await show_screen(scr)
         if res is False:
             return None
         sig = self.sign_message(derivation_path, message.encode())
-        return BytesIO(sig)
+        # for GUI we can also return an object with helpful data
+        address = "1qweasdqwefds23"
+        obj = {
+            "title": "Signature for the message:", 
+            "note": "using address %s" % address
+        }
+        return BytesIO(sig), obj
 
     def sign_message(self, derivation, msg:bytes, compressed:bool=True) -> bytes:
         """Sign message with private key"""

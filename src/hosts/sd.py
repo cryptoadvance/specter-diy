@@ -22,7 +22,7 @@ class SDHost(Host):
         """
         raise HostError("Not implemented")
 
-    async def send_data(self, tx, suffix=""):
+    async def send_data(self, stream, *args, **kwargs):
         """
         Saves transaction in base64 encoding to SD card
         as psbt.signed.<suffix> file
