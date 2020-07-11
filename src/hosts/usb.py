@@ -1,21 +1,12 @@
 from io import BytesIO
 from .core import Host, HostError
-import sys
-from bitcoin.bip32 import parse_path
-from binascii import hexlify, unhexlify
-import pyb, asyncio
+import sys, pyb, asyncio
 import platform
 
 class USBHost(Host):
     """
     USBHost class.
-    Manages USB communication with the host:
-    - commands can be triggered by the host
-      - get xpub
-      - get fingerprint
-      - sign tx (requires user conf)
-      - load seed
-      - set label
+    Manages USB communication with the host.
     """
     ACK = b"ACK\r\n"
     RECOVERY_TIME   = 10

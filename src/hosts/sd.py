@@ -1,8 +1,7 @@
 from .core import Host, HostError
 from platform import fpath
-from binascii import unhexlify, a2b_base64, b2a_base64
-import os
 from io import BytesIO
+import os
 
 class SDHost(Host):
     """

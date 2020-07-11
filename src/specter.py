@@ -7,8 +7,7 @@ from keystore import FlashKeyStore
 from platform import CriticalErrorWipeImmediately, set_usb_mode, reboot
 from hosts import Host, HostError
 from app import BaseApp
-from bitcoin import ec, psbt, bip32, bip39, script
-from bitcoin.psbt import PSBT
+from bitcoin import bip39
 from bitcoin.networks import NETWORKS
 # small helper functions
 from helpers import gen_mnemonic
