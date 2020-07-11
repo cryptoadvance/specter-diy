@@ -1,7 +1,6 @@
 from .async_gui import AsyncGUI
 from .screens import (Screen, PinScreen, Progress,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
-                      XPubScreen, DerivationScreen,
                       DevSettings)
 import rng, asyncio
 
@@ -72,19 +71,6 @@ class SpecterGUI(AsyncGUI):
     def set_network(self, net):
         """Changes color of the top line on all screens to network color"""
         Screen.network = net
-
-    async def get_derivation(self, title="Enter derivation path"):
-        """Asks user to enter derivation path"""
-        scr = DerivationScreen(title=title)
-        await self.load_screen(scr)
-        return await scr.result()
-
-    async def show_xpub(self, xpub, slip132=None, prefix=None, 
-                    title="Your master public key"):
-        """Shows xpub with slip132 and prefix switches"""
-        scr = XPubScreen(xpub=xpub, slip132=slip132, prefix=prefix, title=title)
-        await self.load_screen(scr)
-        return await scr.result()
 
     async def show_progress(self, host, title, message):
         """

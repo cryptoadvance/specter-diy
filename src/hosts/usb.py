@@ -54,53 +54,20 @@ class USBHost(Host):
         # if empty command - return \r\n back
         if len(b) == 0:
             return self.respond(b"")
-        # find space
-        prefix = b.split(b' ')[0]
-        # point to the beginning of the data
-        if b' ' in b:
-            stream.seek(len(prefix)+1)
+        # rewind
+        stream.seek(0)
+        # res should be a stream as well
+        res = await self.manager.process_host_request(stream)
+        if res is None:
+            self.respond(b'error: User cancelled')
         else:
-            stream.seek(0)
-        # get device fingerprint, data is ignored
-        if prefix == b"fingerprint":
-            self.respond(hexlify(self.manager.get_fingerprint()))
-        # get xpub, 
-        # data: derivation path in human-readable form like m/44h/1h/0
-        elif prefix == b"xpub":
-            try:
-                path = stream.read().strip()
-                # convert to list of indexes
-                path = parse_path(path.decode())
-            except:
-                raise HostError("Invalid path: \"%s\"" % path.decode())
-            # get xpub
-            xpub = self.manager.get_xpub(path)
-            # send back as base58
-            self.respond(xpub.to_base58().encode())
-        # set device label
-        elif prefix == b"set_label":
-            label = stream.read().decode()
-            self.manager.set_label(label)
-            self.respond(label.encode())
-        # load mnemonic to the card
-        elif prefix == b"load_mnemonic":
-            mnemonic = stream.read().decode().strip()
-            self.manager.load_mnemonic(mnemonic)
-            self.respond(mnemonic)
-        else:
-            stream.seek(0)
-            # res should be a stream as well
-            res = await self.manager.process_host_request(stream)
-            if res is None:
-                self.respond(b'error: User cancelled')
-            else:
-                stream, meta = res
-                # loop until we read everything
+            stream, meta = res
+            # loop until we read everything
+            chunk = stream.read(32)
+            while len(chunk)>0:
+                self.usb.write(chunk)
                 chunk = stream.read(32)
-                while len(chunk)>0:
-                    self.usb.write(chunk)
-                    chunk = stream.read(32)
-                self.respond(b"")
+            self.respond(b"")
 
     def respond(self, data):
         self.usb.write(data)

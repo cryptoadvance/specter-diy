@@ -207,8 +207,6 @@ class Specter:
             # id, text
             (None, "Applications"),
         ] + app_buttons + [
-            (None, "Key management"),
-            (1, "Master public keys"),
             (None, "Communication"),
         ] + host_buttons + [
             (None, "More"), # delimiter
@@ -220,11 +218,8 @@ class Specter:
         menuitem = await self.gui.menu(buttons)
 
         # process the menu button:
-        # xpubs
-        if menuitem == 1:
-            return await self.show_master_keys()
         # lock device
-        elif menuitem == 2:
+        if menuitem == 2:
             await self.lock()
             # go to the unlock screen
             await self.unlock()
@@ -252,6 +247,10 @@ class Specter:
             raise SpecterError("Not implemented")
 
     async def process_host_request(self, stream, popup=True):
+        """
+        This method is called whenever we got data from the host.
+        It tries to find a proper app and pass the stream with data to it.
+        """
         matching_apps = []
         for app in self.apps:
             stream.seek(0)
@@ -432,73 +431,3 @@ class Specter:
         self.usb = usb
         self.dev = dev
         set_usb_mode(usb=self.usb, dev=self.dev)
-
-    # host related commands
-    def get_fingerprint(self) -> bytes:
-        if self.keystore.is_locked:
-            raise SpecterError("Device is locked")
-        return self.keystore.fingerprint
-
-    def get_xpub(self, path:list):
-        if self.keystore.is_locked:
-            raise SpecterError("Device is locked")
-        xpub = self.keystore.get_xpub(bip32.path_to_str(path))
-        return xpub
-
-    async def show_master_keys(self, show_all=False):
-        net = NETWORKS[self.network]
-        buttons = [
-            (None, "Recommended"),
-            ("m/84h/%dh/0h" % net["bip32"], "Single key"),
-            ("m/48h/%dh/0h/2h" % net["bip32"], "Multisig"),
-            (None, "Other keys"),
-        ]
-        if show_all:
-            buttons += [
-                ("m/84h/%dh/0h" % net["bip32"], "Single Native Segwit\nm/84h/%dh/0h" % net["bip32"]),
-                ("m/49h/%dh/0h" % net["bip32"], "Single Nested Segwit\nm/49h/%dh/0h" % net["bip32"]),
-                ("m/48h/%dh/0h/2h" % net["bip32"], "Multisig Native Segwit\nm/48h/%dh/0h/2h" % net["bip32"]),
-                ("m/48h/%dh/0h/1h" % net["bip32"], "Multisig Nested Segwit\nm/48h/%dh/0h/1h" % net["bip32"]),
-            ]
-        else:
-            buttons += [
-                (0, "Show more keys"),
-                (1, "Enter custom derivation")
-            ]
-        # wait for menu selection
-        menuitem = await self.gui.menu(buttons, last=(255, None))
-
-        # process the menu button:
-        # back button
-        if menuitem == 255:
-            # hide keys on first "back"
-            return self.show_master_keys if show_all else self.mainmenu
-        elif menuitem == 0:
-            return await self.show_master_keys(show_all=True)
-        elif menuitem == 1:
-            der = await self.gui.get_derivation()
-            if der is not None:
-                await self.show_xpub(der)
-                return self.show_master_keys
-        else:
-            await self.show_xpub(menuitem)
-            return self.show_master_keys
-        return self.mainmenu
-
-    async def show_xpub(self, derivation):
-        derivation = derivation.rstrip("/")
-        net = NETWORKS[self.network]
-        xpub = self.keystore.get_xpub(derivation)
-        ver = bip32.detect_version(derivation, default="xpub",
-                        network=net)
-        canonical = xpub.to_base58(net["xpub"])
-        slip132 = xpub.to_base58(ver)
-        if slip132 == canonical:
-            slip132 = None
-        prefix = "[%s%s]" % (
-            hexlify(self.keystore.fingerprint).decode(), 
-            derivation[1:]
-        )
-        await self.gui.show_xpub(xpub=canonical, 
-                                slip132=slip132, 
-                                prefix=prefix)
