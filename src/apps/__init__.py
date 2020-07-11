@@ -1,4 +1,5 @@
 __all__ = [
+	'wallets',     # wallet manager, main app for bitcoin tx stuff
 	'signmessage', # adds bitcoin message signing functionality
 	'getrandom',   # allows to query random bytes from on-board TRNG
 ]

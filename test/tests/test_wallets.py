@@ -1,6 +1,6 @@
 from unittest import TestCase
-from wallets import Wallet
-from wallets.scripts import DescriptorKey
+from apps.wallets.wallet import Wallet
+from apps.wallets.scripts import DescriptorKey
 import os, json
 import platform
 

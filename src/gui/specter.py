@@ -1,8 +1,8 @@
 from .async_gui import AsyncGUI
 from .screens import (Screen, PinScreen, Progress,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
-                      XPubScreen, DerivationScreen, WalletScreen,
-                      TransactionScreen, ConfirmWalletScreen, DevSettings)
+                      XPubScreen, DerivationScreen,
+                      DevSettings)
 import rng, asyncio
 
 class SpecterGUI(AsyncGUI):
@@ -86,17 +86,6 @@ class SpecterGUI(AsyncGUI):
         await self.load_screen(scr)
         return await scr.result()
 
-    async def show_wallet(self, w, network, idx=None, change=False, remote=False):
-        scr = WalletScreen(w, network, idx=idx, change=change)
-        if remote:
-            await self.open_popup(scr)
-        else:
-            await self.load_screen(scr)
-        res = await scr.result()
-        if remote:
-            await self.close_popup()
-        return res
-
     async def show_progress(self, host, title, message):
         """
         Shows progress screen and cancel button 
@@ -122,22 +111,6 @@ class SpecterGUI(AsyncGUI):
         if scr.waiting:
             scr.waiting = False
         await self.close_popup()
-
-    async def confirm_transaction(self, wallet_name, meta, remote=False):
-        scr = TransactionScreen(wallet_name, meta)
-        if remote:
-            await self.open_popup(scr)
-        else:
-            await self.load_screen(scr)
-        res = await scr.result()
-        if remote:
-            await self.close_popup()
-        return res
-
-    async def confirm_new_wallet(self, name, policy, keys):
-        scr = ConfirmWalletScreen(name, policy, keys)
-        await self.load_screen(scr)
-        return await scr.result()
 
     async def devscreen(self, dev=False, usb=False):
         scr = DevSettings(dev=dev, usb=usb)

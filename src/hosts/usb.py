@@ -2,8 +2,7 @@ from io import BytesIO
 from .core import Host, HostError
 import sys
 from bitcoin.bip32 import parse_path
-from bitcoin import ec, psbt
-from binascii import hexlify, unhexlify, b2a_base64, a2b_base64
+from binascii import hexlify, unhexlify
 import pyb, asyncio
 import platform
 
@@ -78,10 +77,6 @@ class USBHost(Host):
             xpub = self.manager.get_xpub(path)
             # send back as base58
             self.respond(xpub.to_base58().encode())
-        # sign authenticated transaction
-        # data: b64_psbt
-        elif prefix == b"sign":
-            await self.sign_psbt(stream)
         # set device label
         elif prefix == b"set_label":
             label = stream.read().decode()
@@ -92,20 +87,6 @@ class USBHost(Host):
             mnemonic = stream.read().decode().strip()
             self.manager.load_mnemonic(mnemonic)
             self.respond(mnemonic)
-        elif prefix == b"showaddr":
-            arr = stream.read().split(b' ')
-            redeem_script = None
-            if len(arr) == 2:
-                script_type, path = arr
-            elif len(arr) == 3:
-                script_type, path, redeem_script = arr
-            else:
-                raise HostError("Too many arguments")
-            paths = path.split(b",")
-            if len(paths) == 0:
-                raise HostError("Invalid path argument")
-            res = await self.manager.showaddr(paths, script_type, redeem_script)
-            self.respond(res)
         else:
             stream.seek(0)
             # res should be a stream as well
@@ -120,32 +101,6 @@ class USBHost(Host):
                     self.usb.write(chunk)
                     chunk = stream.read(32)
                 self.respond(b"")
-
-    async def sign_psbt(self, stream):
-        # decode to file
-        with open(self.path+"/psbt", "wb") as f:
-            chunk = bytearray(4)
-            l = stream.readinto(chunk)
-            while l > 0:
-                f.write(a2b_base64(chunk[:l]))
-                l = stream.readinto(chunk)
-        # reopen to read
-        with open(self.path+"/psbt", "rb") as f:
-            # ask the manager to sign transaction
-            # if tx is not ok - it will raise an error
-            psbt = await self.manager.sign_psbt(f, remote=True)
-            if psbt is None:
-                self.respond(b'error: User cancelled')
-        # serialize, convert to base64, send back
-        raw_tx_stream = BytesIO(psbt.serialize())
-        # convert to base64 in chunks
-        chunk = bytearray(3)
-        l = raw_tx_stream.readinto(chunk)
-        while l > 0:
-            self.usb.write(b2a_base64(chunk[:l]).strip())
-            l = raw_tx_stream.readinto(chunk)
-        # add EOL
-        self.respond(b'')
 
     def respond(self, data):
         self.usb.write(data)

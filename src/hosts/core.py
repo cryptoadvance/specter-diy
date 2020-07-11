@@ -12,11 +12,6 @@ class Host:
     Can be unidirectional like QRHost
     or bidirectional like USBHost or SDHost
     """
-    # command types
-    SIGN_PSBT       = 0x01
-    ADD_WALLET      = 0x02
-    VERIFY_ADDRESS  = 0x03
-    UNKNOWN         = -1
     # time to wait after init
     RECOVERY_TIME   = 1
     # set the button on the main screen
