@@ -17,3 +17,23 @@ pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 pyb.usb_mode(None)
 os.dupterm(None,0)
 os.dupterm(None,1)
+
+# check and mount internal flash
+# last 512 kB are used for secrets
+if os.statvfs('/flash')==os.statvfs('/qspi'):
+    os.umount('/flash')
+    f = pyb.Flash()
+    numblocks = f.ioctl(4,None)
+    blocksize = f.ioctl(5,None) # 512
+    size = numblocks*blocksize
+    # we use last 512 kB
+    start = numblocks*blocksize-512*1024
+    if start < 0:
+        start = 0
+    # try to mount
+    try:
+        os.mount(pyb.Flash(start=start), '/flash')
+    # if fail - format and mount
+    except:
+        os.VfsFat.mkfs(pyb.Flash(start=start))
+        os.mount(pyb.Flash(start=start), '/flash')
