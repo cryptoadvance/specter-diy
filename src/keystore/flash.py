@@ -8,6 +8,7 @@ from bitcoin import ec, bip39, bip32
 import platform
 from helpers import encrypt, decrypt, aead_encrypt, aead_decrypt, tagged_hash
 import sys
+import secp256k1
 
 class FlashKeyStore(KeyStore):
     """
@@ -41,6 +42,16 @@ class FlashKeyStore(KeyStore):
 
     def sign_psbt(self, psbt):
         psbt.sign_with(self.root)
+
+    def sign_hash(self, derivation, msghash: bytes):
+        return self.root.derive(derivation).key.sign(msghash)
+
+    def sign_recoverable(self, derivation, msghash: bytes):
+        """Returns a signature and a recovery flag"""
+        prv = self.root.derive(derivation).key
+        sig = secp256k1.ecdsa_sign_recoverable(msghash, prv._secret)
+        flag = sig[64]
+        return ec.Signature(sig[:64]), flag
 
     def save_aead(self, path, adata=b"", plaintext=b"", key=None):
         """Encrypts and saves plaintext and associated data to file"""

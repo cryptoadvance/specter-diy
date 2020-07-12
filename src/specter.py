@@ -5,13 +5,12 @@ import asyncio
 
 from keystore import FlashKeyStore
 from platform import CriticalErrorWipeImmediately, set_usb_mode, reboot
-from hosts import HostError
-from bitcoin import ec, psbt, bip32, bip39, script
-from bitcoin.psbt import PSBT
+from hosts import Host, HostError
+from app import BaseApp
+from bitcoin import bip39
 from bitcoin.networks import NETWORKS
 # small helper functions
 from helpers import gen_mnemonic
-from gui.commands import EDIT, DELETE
 from errors import BaseError
 
 class SpecterError(BaseError):
@@ -22,17 +21,17 @@ class Specter:
     Call .start() method to register in the event loop
     It will then call the .setup() and .main() functions to display the GUI
     """
-    def __init__(self, gui, wallet_manager, keystore, hosts, settings_path):
+    def __init__(self, gui, keystore, hosts, apps, settings_path):
         self.hosts = hosts
         self.keystore = keystore
         self.gui = gui
-        self.wallet_manager = wallet_manager
         self.path = settings_path
         self.load_network(self.path)
         self.current_menu = self.initmenu
         self.just_booted = True
         self.usb = False
         self.dev = False
+        self.apps = apps
 
     def start(self):
         # start the GUI
@@ -50,8 +49,9 @@ class Specter:
         try:
             raise exception
         except CriticalErrorWipeImmediately as e:
-            # wipe all wallets
-            self.wallet_manager.wipe()
+            # wipe all apps
+            for app in self.apps:
+                app.wipe()
             # show error
             await self.gui.error("%s" % e)
             # TODO: actual reboot here
@@ -143,7 +143,8 @@ class Specter:
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic.strip(),"")
-                self.wallet_manager.init(self.keystore, self.network)
+                for app in self.apps:
+                    app.init(self.keystore, self.network)
                 return self.mainmenu
         # recover
         elif menuitem == 1:
@@ -151,13 +152,15 @@ class Specter:
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic,"")
-                self.wallet_manager.init(self.keystore, self.network)
+                for app in self.apps:
+                    app.init(self.keystore, self.network)
                 self.current_menu = self.mainmenu
                 return self.mainmenu
         elif menuitem == 2:
             self.keystore.load_mnemonic()
             # await self.gui.alert("Success!", "Key is loaded from flash!")
-            self.wallet_manager.init(self.keystore, self.network)
+            for app in self.apps:
+                app.init(self.keystore, self.network)
             return self.mainmenu
         elif menuitem == 3:
             await self.update_devsettings()
@@ -192,14 +195,17 @@ class Specter:
         host_buttons = [
             (host, host.button) for host in self.hosts if host.button is not None
         ]
+        # buttons defined by app classes
+        app_buttons = [
+            (app, app.button) for app in self.apps if app.button is not None
+        ]
         # for every button we use an ID
         # to avoid mistakes when editing strings
         # If ID is None - it is a section title, not a button
         buttons = [
             # id, text
-            (None, "Key management"),
-            (0, "Wallets"),
-            (1, "Master public keys"),
+            (None, "Applications"),
+        ] + app_buttons + [
             (None, "Communication"),
         ] + host_buttons + [
             (None, "More"), # delimiter
@@ -211,14 +217,8 @@ class Specter:
         menuitem = await self.gui.menu(buttons)
 
         # process the menu button:
-        # wallets
-        if menuitem == 0:
-            return await self.show_wallets()
-        # xpubs
-        elif menuitem == 1:
-            return await self.show_master_keys()
         # lock device
-        elif menuitem == 2:
+        if menuitem == 2:
             await self.lock()
             # go to the unlock screen
             await self.unlock()
@@ -226,63 +226,43 @@ class Specter:
             await self.select_network()
         elif menuitem == 4:
             return await self.settingsmenu()
-        # if it's a host
-        elif hasattr(menuitem, 'get_data'):
-            host = menuitem
-            cmd, stream = await host.get_data()
-            if cmd == host.SIGN_PSBT:
-                res = await self.sign_psbt(stream)
-                if res is not None:
-                    await host.send_psbt(res)
-            elif cmd == host.ADD_WALLET:
-                # read content, it's small
-                desc = stream.read().decode()
-                w = self.wallet_manager.parse_wallet(desc)
-                res = await self.confirm_new_wallet(w)
-                if res:
-                    self.wallet_manager.add_wallet(w)
-                    return await self.show_wallets()
-            elif cmd == host.VERIFY_ADDRESS:
-                data = stream.read().decode().replace("bitcoin:","")
-                # should be of the form addr?index=N or similar
-                if "index=" not in data or "?" not in data:
-                    raise SpecterError("Can't verify address with unknown index")
-                addr, rest = data.split("?")
-                args = rest.split("&")
-                idx = None
-                for arg in args:
-                    if arg.startswith("index="):
-                        idx = int(arg[6:])
-                        break
-                w = self.wallet_manager.find_wallet_from_address(addr, idx)
-                await self.gui.show_wallet(w, self.network, idx)
-            # probably user cancelled
-            elif cmd == None:
+        elif isinstance(menuitem, BaseApp) and hasattr(menuitem, 'menu'):
+            app = menuitem
+            # stay in this menu while something is returned
+            while await app.menu(self.gui.show_screen()):
                 pass
-            else:
-                # read first 30 bytes and print them to the error
-                raise HostError("Unsupported data type:\n%r..." % stream.read(30))
+        # if it's a host
+        elif isinstance(menuitem, Host) and hasattr(menuitem, 'get_data'):
+            host = menuitem
+            stream = await host.get_data()
+            # probably user cancelled
+            if stream is not None:
+                # check against all apps
+                res = await self.process_host_request(stream, popup=False)
+                if res is not None:
+                    await host.send_data(*res)
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
 
-    async def sign_psbt(self, stream, remote=False):
-        psbt = PSBT.read_from(stream)
-        wallet, meta = self.wallet_manager.parse_psbt(psbt=psbt)
-        res = await self.gui.confirm_transaction(wallet.name, meta, remote=remote)
-        if res:
-            # fill derivation paths from proprietary fields
-            wallet.update_gaps(psbt=psbt)
-            wallet.save(self.keystore)
-            psbt = wallet.fill_psbt(psbt, self.keystore.fingerprint)
-            self.keystore.sign_psbt(psbt)
-            return psbt
-
-    async def confirm_new_wallet(self, w):
-        keys = [{"key": k, "mine": self.keystore.owns(k)} for k in w.get_keys()]
-        if not any([k["mine"] for k in keys]):
-            raise SpecterError("None of the keys belong to the device")
-        return await self.gui.confirm_new_wallet(w.name, w.policy, keys)
+    async def process_host_request(self, stream, popup=True):
+        """
+        This method is called whenever we got data from the host.
+        It tries to find a proper app and pass the stream with data to it.
+        """
+        matching_apps = []
+        for app in self.apps:
+            stream.seek(0)
+            # check if the app can process this stream
+            if app.can_process(stream):
+                matching_apps.append(app)
+        if len(matching_apps) == 0:
+            raise HostError("Host command is not recognized")
+        # TODO: if more than one - ask which one to use
+        if len(matching_apps) > 1:
+            raise HostError("Not sure what app to use... There are %d" % len(matching_apps))
+        stream.seek(0)
+        return await matching_apps[0].process_host_command(stream, self.gui.show_screen(popup))
 
     async def select_network(self):
         # dict is unordered unfortunately, so we need to use hardcoded arr
@@ -303,7 +283,8 @@ class Specter:
             f.write(net)
         if self.keystore.is_ready:
             # load wallets for this network
-            self.wallet_manager.init(self.keystore, self.network)
+            for app in self.apps:
+                app.init(self.keystore, self.network)
 
     def load_network(self, path):
         network = 'test'
@@ -321,7 +302,7 @@ class Specter:
             # id, text
             (None, "Key management"),
             (0, "Reckless"),
-            (2, "Enter a bip39 password"),
+            (2, "Enter password"),
             (None, "Security"), # delimiter
             (3, "Change PIN code"),
             (4, "Developer & USB"),
@@ -340,7 +321,8 @@ class Specter:
             if pwd is None:
                 return self.mainmenu
             self.keystore.set_mnemonic(password=pwd)
-            self.wallet_manager.init(self.keystore, self.network)
+            for app in self.apps:
+                app.init(self.keystore, self.network)
         elif menuitem == 3:
             await self.change_pin()
             await self.gui.alert("Success!", "PIN code is sucessfully changed!")
@@ -391,29 +373,6 @@ class Specter:
             await self.gui.show_mnemonic(self.keystore.mnemonic)
         else:
             raise SpecterError("Invalid menu")
-
-    async def show_wallets(self):
-        buttons = [(None, "Your wallets")]
-        buttons += [(i, w.name) for i, w in enumerate(self.wallet_manager.wallets)]
-        menuitem = await self.gui.menu(buttons, last=(255,None))
-        if menuitem == 255:
-            return self.mainmenu
-        else:
-            w = self.wallet_manager.wallets[menuitem]
-            # pass wallet and network
-            cmd = await self.gui.show_wallet(w, self.network, idx=w.unused_recv)
-            if cmd == DELETE:
-                conf = await self.gui.prompt("Delete wallet?", "You are deleting wallet \"%s\".\nAre you sure you want to do it?" % w.name)
-                if conf:
-                    self.wallet_manager.delete_wallet(w)
-                return self.show_wallets
-            elif cmd == EDIT:
-                name = await self.gui.get_input(title="Enter new wallet name", 
-                            note="", suggestion=w.name)
-                if name is not None and name != w.name and name != "":
-                    w.name = name
-                    w.save(self.keystore)
-                return self.show_wallets
 
     async def lock(self):
         # lock the keystore
@@ -471,122 +430,3 @@ class Specter:
         self.usb = usb
         self.dev = dev
         set_usb_mode(usb=self.usb, dev=self.dev)
-
-    # host related commands
-    def get_fingerprint(self) -> bytes:
-        if self.keystore.is_locked:
-            raise SpecterError("Device is locked")
-        return self.keystore.fingerprint
-
-    def get_xpub(self, path:list):
-        if self.keystore.is_locked:
-            raise SpecterError("Device is locked")
-        xpub = self.keystore.get_xpub(bip32.path_to_str(path))
-        return xpub
-
-    async def showaddr(self, paths:list, script_type:str, redeem_script=None) -> str:
-        if redeem_script is not None:
-            redeem_script = script.Script(unhexlify(redeem_script))
-        # first check if we have corresponding wallet:
-        # - just take last 2 indexes of the derivation
-        # and see if redeem script matches
-        address = None
-        if redeem_script is not None:
-            if script_type == b"wsh":
-                address = script.p2wsh(redeem_script).address(NETWORKS[self.network])
-            elif script_type == b"sh-wsh":
-                address = script.p2sh(
-                            script.p2wsh(redeem_script)
-                          ).address(NETWORKS[self.network])
-            else:
-                raise HostError("Unsupported script type: %s" % script_type)
-        # in our wallets every key 
-        # has the same two last indexes for derivation
-        path = paths[0]
-        if not path.startswith(b"m/"):
-            path = b"m"+path[8:]
-        derivation = bip32.parse_path(path.decode())
-
-        # if not multisig:
-        if address is None and len(paths)==1:
-            pub = self.keystore.get_xpub(derivation)
-            if script_type == b"wpkh":
-                address = script.p2wpkh(pub).address(NETWORKS[self.network])
-            elif script_type == b"sh-wpkh":
-                address = script.p2sh(
-                            script.p2wpkh(pub).address(NETWORKS[self.network])
-                          )
-            else:
-                raise HostError("Unsupported script type: %s" % script_type)
-
-        if len(derivation) >= 2:
-            derivation = derivation[-2:]
-        else:
-            raise HostError("Invalid derivation")
-        if address is None:
-            raise HostError("Can't derive address. Provide redeem script.")
-        try:
-            change = bool(derivation[0])
-            w = self.wallet_manager.find_wallet_from_address(address, derivation[1], change=change)
-        except BaseError as e:
-            raise HostError("%s" % e)
-        await self.gui.show_wallet(w, self.network, derivation[1], change=change, remote=True)
-        return address
-
-    async def show_master_keys(self, show_all=False):
-        net = NETWORKS[self.network]
-        buttons = [
-            (None, "Recommended"),
-            ("m/84h/%dh/0h" % net["bip32"], "Single key"),
-            ("m/48h/%dh/0h/2h" % net["bip32"], "Multisig"),
-            (None, "Other keys"),
-        ]
-        if show_all:
-            buttons += [
-                ("m/84h/%dh/0h" % net["bip32"], "Single Native Segwit\nm/84h/%dh/0h" % net["bip32"]),
-                ("m/49h/%dh/0h" % net["bip32"], "Single Nested Segwit\nm/49h/%dh/0h" % net["bip32"]),
-                ("m/48h/%dh/0h/2h" % net["bip32"], "Multisig Native Segwit\nm/48h/%dh/0h/2h" % net["bip32"]),
-                ("m/48h/%dh/0h/1h" % net["bip32"], "Multisig Nested Segwit\nm/48h/%dh/0h/1h" % net["bip32"]),
-            ]
-        else:
-            buttons += [
-                (0, "Show more keys"),
-                (1, "Enter custom derivation")
-            ]
-        # wait for menu selection
-        menuitem = await self.gui.menu(buttons, last=(255, None))
-
-        # process the menu button:
-        # back button
-        if menuitem == 255:
-            # hide keys on first "back"
-            return self.show_master_keys if show_all else self.mainmenu
-        elif menuitem == 0:
-            return await self.show_master_keys(show_all=True)
-        elif menuitem == 1:
-            der = await self.gui.get_derivation()
-            if der is not None:
-                await self.show_xpub(der)
-                return self.show_master_keys
-        else:
-            await self.show_xpub(menuitem)
-            return self.show_master_keys
-        return self.mainmenu
-
-    async def show_xpub(self, derivation):
-        derivation = derivation.rstrip("/")
-        net = NETWORKS[self.network]
-        xpub = self.keystore.get_xpub(derivation)
-        ver = bip32.detect_version(derivation, default="xpub",
-                        network=net)
-        canonical = xpub.to_base58(net["xpub"])
-        slip132 = xpub.to_base58(ver)
-        if slip132 == canonical:
-            slip132 = None
-        prefix = "[%s%s]" % (
-            hexlify(self.keystore.fingerprint).decode(), 
-            derivation[1:]
-        )
-        await self.gui.show_xpub(xpub=canonical, 
-                                slip132=slip132, 
-                                prefix=prefix)

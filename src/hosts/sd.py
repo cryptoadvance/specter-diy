@@ -1,8 +1,7 @@
 from .core import Host, HostError
 from platform import fpath
-from binascii import unhexlify, a2b_base64, b2a_base64
-import os
 from io import BytesIO
+import os
 
 class SDHost(Host):
     """
@@ -11,10 +10,10 @@ class SDHost(Host):
     - loading unsigned transaction and authentications
     - saving signed transaction to the card
     """
+    button = "Load from SD card"
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)
         self.sdpath = sdpath
-        self.button = "Load from SD card"
 
     async def get_data(self):
         """
@@ -22,7 +21,7 @@ class SDHost(Host):
         """
         raise HostError("Not implemented")
 
-    async def send_data(self, tx, suffix=""):
+    async def send_data(self, stream, *args, **kwargs):
         """
         Saves transaction in base64 encoding to SD card
         as psbt.signed.<suffix> file

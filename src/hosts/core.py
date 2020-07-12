@@ -12,23 +12,18 @@ class Host:
     Can be unidirectional like QRHost
     or bidirectional like USBHost or SDHost
     """
-    # command types
-    SIGN_PSBT       = 0x01
-    ADD_WALLET      = 0x02
-    VERIFY_ADDRESS  = 0x03
-    UNKNOWN         = -1
     # time to wait after init
-    RECOVERY_TIME   = 1 
+    RECOVERY_TIME   = 1
+    # set the button on the main screen
+    # should be a tuple (text, callback)
+    # keep None if you don't need a button
+    button = None
     def __init__(self, path):
         # storage for data
         self.path = path
         maybe_mkdir(path)
         # set manager
         self.manager = None
-        # set the button on the main screen
-        # should be a tuple (text, callback)
-        # keep None if you don't need a button
-        self.button = None
         # check this flag in update function
         # if disabled - throw all incoming data
         self.enabled = False

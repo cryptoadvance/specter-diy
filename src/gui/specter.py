@@ -1,8 +1,7 @@
 from .async_gui import AsyncGUI
 from .screens import (Screen, PinScreen, Progress,
                       MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
-                      XPubScreen, DerivationScreen, WalletScreen,
-                      TransactionScreen, ConfirmWalletScreen, DevSettings)
+                      DevSettings)
 import rng, asyncio
 
 class SpecterGUI(AsyncGUI):
@@ -73,30 +72,6 @@ class SpecterGUI(AsyncGUI):
         """Changes color of the top line on all screens to network color"""
         Screen.network = net
 
-    async def get_derivation(self, title="Enter derivation path"):
-        """Asks user to enter derivation path"""
-        scr = DerivationScreen(title=title)
-        await self.load_screen(scr)
-        return await scr.result()
-
-    async def show_xpub(self, xpub, slip132=None, prefix=None, 
-                    title="Your master public key"):
-        """Shows xpub with slip132 and prefix switches"""
-        scr = XPubScreen(xpub=xpub, slip132=slip132, prefix=prefix, title=title)
-        await self.load_screen(scr)
-        return await scr.result()
-
-    async def show_wallet(self, w, network, idx=None, change=False, remote=False):
-        scr = WalletScreen(w, network, idx=idx, change=change)
-        if remote:
-            await self.open_popup(scr)
-        else:
-            await self.load_screen(scr)
-        res = await scr.result()
-        if remote:
-            await self.close_popup()
-        return res
-
     async def show_progress(self, host, title, message):
         """
         Shows progress screen and cancel button 
@@ -122,22 +97,6 @@ class SpecterGUI(AsyncGUI):
         if scr.waiting:
             scr.waiting = False
         await self.close_popup()
-
-    async def confirm_transaction(self, wallet_name, meta, remote=False):
-        scr = TransactionScreen(wallet_name, meta)
-        if remote:
-            await self.open_popup(scr)
-        else:
-            await self.load_screen(scr)
-        res = await scr.result()
-        if remote:
-            await self.close_popup()
-        return res
-
-    async def confirm_new_wallet(self, name, policy, keys):
-        scr = ConfirmWalletScreen(name, policy, keys)
-        await self.load_screen(scr)
-        return await scr.result()
 
     async def devscreen(self, dev=False, usb=False):
         scr = DevSettings(dev=dev, usb=usb)

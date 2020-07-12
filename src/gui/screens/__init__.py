@@ -6,6 +6,5 @@ from .qralert import QRAlert
 from .progress import Progress
 from .input import PinScreen, InputScreen, DerivationScreen
 from .mnemonic import MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen
-from .bitcoin import XPubScreen, WalletScreen, ConfirmWalletScreen
 from .transaction import TransactionScreen
 from .settings import DevSettings

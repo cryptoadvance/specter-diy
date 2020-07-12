@@ -1,3 +1,4 @@
+from app import AppError
 from platform import maybe_mkdir, delete_recursively
 from .scripts import SingleKey, Multisig
 import json
@@ -5,9 +6,8 @@ from bitcoin import ec, hashes, script
 from bitcoin.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
 import hashlib
-from errors import BaseError
 
-class WalletError(BaseError):
+class WalletError(AppError):
     NAME = "Wallet error"
 
 class Wallet:
