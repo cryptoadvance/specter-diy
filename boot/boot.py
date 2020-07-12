@@ -18,8 +18,9 @@ pyb.usb_mode(None)
 os.dupterm(None,0)
 os.dupterm(None,1)
 
-# check and mount internal flash
 # last 512 kB are used for secrets
+FLASH_SIZE = 512*1024
+# check and mount internal flash
 if os.statvfs('/flash')==os.statvfs('/qspi'):
     os.umount('/flash')
     f = pyb.Flash()
@@ -27,7 +28,7 @@ if os.statvfs('/flash')==os.statvfs('/qspi'):
     blocksize = f.ioctl(5,None) # 512
     size = numblocks*blocksize
     # we use last 512 kB
-    start = numblocks*blocksize-512*1024
+    start = numblocks*blocksize-FLASH_SIZE
     if start < 0:
         start = 0
     # try to mount
