@@ -4,7 +4,7 @@ Demo of a simple app that extends Specter with custom functionality.
 from app import BaseApp, AppError
 from gui.screens import Prompt
 
-from bitcoin import ec, bip32, script
+from bitcoin import ec, bip32, script, compact
 from hashlib import sha256
 from binascii import b2a_base64, unhexlify
 import secp256k1
@@ -28,7 +28,7 @@ class MessageApp(BaseApp):
         if prefix != b"signmessage":
             # WTF? It's not our data...
             raise AppError("Prefix is not valid: %s" % prefix.decode())
-        # data format: derivation_path<space>message to sign
+        # data format: message to sign<space>derivation_path
         # read all and delete all crap at the end (if any)
         # also message should be utf-8 decodable
         data = stream.read().strip().decode()
@@ -63,7 +63,7 @@ class MessageApp(BaseApp):
         """Sign message with private key"""
         msghash = sha256(
                         sha256(
-                            b'\x18Bitcoin Signed Message:\n' + bytes([len(msg)]) + msg
+                            b'\x18Bitcoin Signed Message:\n' + compact.to_bytes(len(msg)) + msg
                         ).digest()
                     ).digest()
         sig, flag = self.keystore.sign_recoverable(derivation, msghash)
