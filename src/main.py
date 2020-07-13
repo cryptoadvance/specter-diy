@@ -3,6 +3,7 @@ from gui.specter import SpecterGUI
 from keystore import FlashKeyStore
 from hosts import SDHost, QRHost, USBHost
 import platform
+from apps import __all__ as mods
 
 def main():
     # create virtual file system /sdram
@@ -24,7 +25,6 @@ def main():
     keystore = FlashKeyStore(keystore_path)
 
     # loading apps
-    from apps import __all__ as mods
     applications = []
     for modname in mods:
         appmod = __import__('apps.%s' % modname)
