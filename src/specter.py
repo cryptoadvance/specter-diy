@@ -21,12 +21,12 @@ class Specter:
     Call .start() method to register in the event loop
     It will then call the .setup() and .main() functions to display the GUI
     """
-    def __init__(self, gui, keystore, hosts, apps, settings_path):
+    def __init__(self, gui, keystore, hosts, apps, settings_path, network='test'):
         self.hosts = hosts
         self.keystore = keystore
         self.gui = gui
         self.path = settings_path
-        self.load_network(self.path)
+        self.load_network(self.path, network)
         self.current_menu = self.initmenu
         self.just_booted = True
         self.usb = False
@@ -286,8 +286,7 @@ class Specter:
             for app in self.apps:
                 app.init(self.keystore, self.network)
 
-    def load_network(self, path):
-        network = 'test'
+    def load_network(self, path, network='test'):
         try:
             with open(path+"/network","r") as f:
                 network = f.read()

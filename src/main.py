@@ -3,9 +3,26 @@ from gui.specter import SpecterGUI
 from keystore import FlashKeyStore
 from hosts import SDHost, QRHost, USBHost
 import platform
-from apps import __all__ as mods
 
-def main():
+def load_apps(mod='apps', whitelist=None, blacklist=None):
+    mod = __import__(mod)
+    mods = mod.__all__
+    apps = []
+    if blacklist is not None:
+        mods = [mod for mod in mods if mod not in blacklist]
+    if whitelist is not None:
+        mods = [mod for mod in mods if mod in whitelist]
+    for modname in mods:
+        appmod = __import__('apps.%s' % modname)
+        mod = getattr(appmod, modname)
+        if hasattr(mod, 'App'):
+            app = mod.App(platform.fpath("/qspi/%s" % modname))
+            apps.append(app)
+        else:
+            print("Failed loading app:", modname)
+    return apps
+
+def main(apps=None, network='test'):
     # create virtual file system /sdram
     # for temp untrusted data storage
     rampath = platform.mount_sdram()
@@ -25,23 +42,17 @@ def main():
     keystore = FlashKeyStore(keystore_path)
 
     # loading apps
-    applications = []
-    for modname in mods:
-        appmod = __import__('apps.%s' % modname)
-        mod = getattr(appmod, modname)
-        if hasattr(mod, 'App'):
-            app = mod.App(platform.fpath("/qspi/%s" % modname))
-            applications.append(app)
-        else:
-            print("Failed loading app:", modname)
+    if apps is None:
+        apps = load_apps()
 
     # make Specter instance
     settings_path = platform.fpath("/flash")
     specter = Specter(gui=gui, 
                       keystore=keystore,
                       hosts=hosts,
-                      apps=applications,
-                      settings_path=settings_path)
+                      apps=apps,
+                      settings_path=settings_path,
+                      network=network)
     specter.start()
 
 if __name__ == '__main__':
