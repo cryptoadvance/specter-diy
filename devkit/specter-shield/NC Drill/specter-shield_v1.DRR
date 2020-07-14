@@ -1,0 +1,23 @@
+---------------------------------------------------------------------------
+NCDrill File Report For: specter-shield_v1.CMPcbDoc   12.12.2019  23:16:20
+---------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII RoundHoles File : specter-shield_v1-RoundHoles.TXT
+ASCII SlotHoles File : specter-shield_v1-SlotHoles.TXT
+
+Tool         Hole Size           Hole Type     Hole Count Plated       Tool Travel
+---------------------------------------------------------------------------
+T1        0.2mm (7.874mil)         Round          6                98.49 mm (3.88 Inch)
+T2        0.3mm (11.811mil)        Round          277              844.57 mm (33.25 Inch)
+T3        0.5mm (19.685mil)        Slot           2                7612.06 mm (299.69 Inch)
+T4        0.762mm (30mil)          Round          2                4.50 mm (0.18 Inch)
+T5        0.8mm (31.496mil)        Slot           2                7712.11 mm (303.63 Inch)
+T6        0.8128mm (32mil)         Round          3                4.06 mm (0.16 Inch)
+T7        1.29mm (50.787mil)       Round          2                7.00 mm (0.28 Inch)
+T8        2.1mm (82.677mil)        Round          2                48.87 mm (1.92 Inch)
+T9        3.5mm (137.795mil)       Round          4         NPTH   221.85 mm (8.73 Inch)
+---------------------------------------------------------------------------
+Totals                                            300              16553.54 mm (651.71 Inch)
+
+Total Processing Time (hh:mm:ss) : 00:00:00
