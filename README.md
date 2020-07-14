@@ -1,123 +1,61 @@
 # Specter-DIY
 
+    "Cypherpunks write code. We know that someone has to write software to defend privacy, 
+    and since we can't get privacy unless we all do, we're going to write it."
+    A Cypherpunk's Manifesto - Eric Hughes - 9 March 1993
+
+    ...and Cypherpunks do build their own Bitcoin Hardware Wallets.
+
+![](./docs/pictures/kit.jpg)
+
+The idea of the project is to build a hardware wallet from off-the-shelf components.
+Even though we have [a devkit](./devkit) that puts everything in a nice form-factor and helps you to avoid any soldering, we will continue supporting and maintaining compatibility with standard components.
+
+We also want to keep the project flexible such that it can work on any other set of components with minimal changes. Maybe you want to make a hardware wallet on a different architecture (RISC-V?), with an audio modem as a communication channel - you should be able to do it. It should be easy to add or change functionality of Specter and we try to abstract logical modules as much as we can.
+
+QR codes are a default way for Specter to communicate with the host. QR codes are pretty convenient and allow the user to be in control of the data transmission - every QR code has a very limited capacity and communication happens unidirectionally. And it's airgapped - you don't need to connect the wallet to the computer at any time.
+
+For secret storage we support agnostic mode (wallet forgets all secrets when turned off), reckless mode (stores secrets in flash of the application microcontroller) and secure element integration is coming soon.
+
+Our main focus is multisignature setup with other hardware wallets, but wallet can also work as a single signer. We try to make it compatible with Bitcoin Core where we can - PSBT for unsigned transactions, wallet descriptors for importing/exporting multisig wallets. To communcate with Bitcoin Core easier we are also working on [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) - a small python flask server talking to your Bitcoin Core node.
+
+Most of the firmware is written in MicroPython which makes the code easy to audit and change. We use [secp256k1](https://github.com/bitcoin-core/secp256k1) library from Bitcoin Core for elliptic curve calculations and [LittlevGL](https://littlevgl.com/) library for GUI.
+
 ## DISCLAIMER
 
-This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testnet. 
+This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testnet. It is not perfectly stable yet - sometimes it crashes. If this happens to you please open an issue and we will try to fix it. Meanwhile try reseting the device (press the black button on the back or powercycle the board).
 
-This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). But this prototype is not ment to be secure. That's why **we don't store your private keys on the device** - you need to type your recovery phrase every time you power it on.
+This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). That's why **by default we don't store your private keys on the device** - you need to type your recovery phrase every time you power it on. You still can save your recovery phrase to the device if you wish - there is a setting for that.
 
-We also have a #Reckless option that allows you to store recovery phrase on the device (no pin, no encryption - for testing purposes).
+If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/spectersupport).
 
-If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/spectersupport) or [Slack](https://join.slack.com/t/spectersupport/shared_invite/enQtNzY4MTQ2MTg0NDY1LWQzMGMzMTk2MWE2YmVmNzE3ODgxODIxNWRlMzJjZTZlMDBlMjA5YzVhZjQ0NzJlNmE0N2Q4MzE0ZGJiNjM4NTY).
+## Documentation
 
-## What is this project for?
+All the docs are stored in the [`docs/`](./docs) folder:
 
-It is a Do-It-Yourself airgapped hardware wallet that uses QR codes for communication with the computer (i.e. [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) on top of Bitcoin Core). It can be used as an additional item in your multisignature setup that has a completely different security model:
-
-- It can be built from off-the-shelf hardware - this reduces chance of the supply chain attack
-- It is airgapped with a very limited uni-directional communication protocol (QR codes) - you control communication with the host
-- It can be tuned and extended according to your security model
-
-## Current status
-
-Works for single key and multisig transactions.
+- [`shopping.md`](./docs/shopping.md) explains what to buy
+- [`assembly.md`](./docs/assembly.md) shows how to put everything together.
+- [`quickstart.md`](./docs/quickstart.md) guides you through the initial steps how to get firmware on the board
+- [`security.md`](./docs/security.md) explains possible attack vectors and security model of the project
+- [`development.md`](./docs/development.md) explains how to start developing on Specter
+- [`simulator.md`](./docs/simulator.md) shows how to run a simulator on unix/macOS
+- [`communication.md`](./docs/communication.md) defines communication protocol with the host over QR codes and USB
+- [`roadmap.md`](./docs/roadmap.md) explains what we need to implement before we can consider the wallet be ready to use with real funds.
 
 Supported networks: Mainnet, Testnet, Regtest, Signet.
-
-## Shopping list
-
-While we are coding you can buy the components. Somehow expensive, but the price can be reducesed if you are ok with soldering.
-
-Main part of the device is the developer board:
-
-- STM32F469I-DISCO developer board (i.e. from [Mouser](https://eu.mouser.com/ProductDetail/STMicroelectronics/STM32F469I-DISCO?qs=kWQV1gtkNndotCjy2DKZ4w==) or [Digikey](https://www.digikey.com/product-detail/en/stmicroelectronics/STM32F469I-DISCO/497-15990-ND/5428811))
-- **Mini**USB cable (for example [this](https://eu.mouser.com/ProductDetail/Omron-Automation-and-Safety/USB-MINIUSB?qs=sGAEpiMZZMt93J8DTi5DC6y9EQiX1Vkv))
-
-For QR code scanner you have several options.
-
-**Option 1.** Lazy, minimal soldering required, extremely nice scanner but pretty expensive:
-
-- [Barcode Click](https://www.mikroe.com/barcode-click) + [Adapter](https://www.mikroe.com/arduino-uno-click-shield)
-
-**Option 2.** Requires some soldering / mounting and configuration:
-
-- [Waveshare scanner](https://www.waveshare.com/barcode-scanner-module.htm) - you will need to configure it to use UART for communication, solder a wire to the trigger button and connect to the D5 pin of the board. See more details [here](docs/waveshare.md).
-
-Extra: battery & power charger/booster - docs will follow later.
-
-We are also working on the kit that you could buy from us that will include a 3d printed case, QR code scanner, battery and charging circuit, but without the main part - dev board. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
-
-## Installing the compiled code
-* Connect the DISCO board to your computer via the mini USB cable on the top of the board.
-    * The board should appear as a removable disk named DIS_F469NI.
-* Go the Releases section of this github repo.
-* Download the `specter-diy.bin` file from the latest release.
-* Copy the bin file into the root of the DISCO filesystem.
-* When the board is done loading the bin the board will reset itself and begin running the Specter UI.
-* The on-screen UI should prompt you to calibrate the screen and then will take you to the Specter UI's "What do you want to do?" startup screen.
-
-
-## Dev plan
-
-- [x] Single key functionality
-- [x] Reckless storage
-- [x] Multisig
-- [ ] SD card support
-- [ ] Secure element integration
-- [ ] Secure boot
-- [ ] DIY kit
 
 ## Video and screenshots
 
 Check out [this Twitter thread](https://twitter.com/StepanSnigirev/status/1168923849699876881) to get an idea how it works.
 
-A few crappy pictures:
+Here is a [Gallery](./docs/pictures/gallery/README.md) with devices assembled by the community.
 
-### Init screens
-
-![](./docs/pictures/init.jpg)
+A few pictures of the UI:
 
 ### Wallet screens
 
-![](./docs/pictures/wallet.jpg)
+![](./docs/pictures/wallet_screens.jpg)
 
+### Key generation and recovery
 
-## Compiling the code yourself
-_(This is an optional step for developers. Typical users can just run off the pre-compiled `specter-diy.bin` file referenced above)_
-
-Create a virtualenv and once it's active install Mbed CLI via pip:
-```
-pip install mbed-cli
-```
-
-Make sure you're in the `specter-diy` root and initialize the project dir:
-```
-mbed config root .
-```
-
-Download `gcc-arm-none-eabi` from: https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
-
-And then decompress it:
-```
-tar xjf gcc-arm-none-eabi-8-2019-q3-update-mac.tar.bz2
-```
-
-Configure Mbed to use gcc-arm:
-```
-mbed config GCC_ARM_PATH /path/to/gcc-arm/bin
-```
-
-Fetch the libraries mbed will need:
-```
-mbed deploy
-```
-
-Set the default Mbed toolchain:
-```
-mbed toolchain GCC_ARM
-```
-
-Finally:
-```
-mbed compile
-```
+![](./docs/pictures/init_screens.jpg)
