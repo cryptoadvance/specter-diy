@@ -1,9 +1,9 @@
 from .core import Host, HostError
 import pyb, time, asyncio
-from platform import simulator
+from platform import simulator, config
 from io import BytesIO
 
-QRSCANNER_TRIGGER = "D5"
+QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
 SUCCESS        = b"\x02\x00\x00\x01\x00\x33\x31"
 # serial port mode
@@ -295,7 +295,8 @@ class QRHost(Host):
                 "Scanning...", 
                 "Point scanner to the QR code")
         data = await self.scan()
-        return BytesIO(data)
+        if data is not None:
+            return BytesIO(data)
 
     async def send_data(self, stream, meta):
         response = stream.read().decode()

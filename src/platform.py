@@ -2,6 +2,11 @@
 import sys, os, pyb
 simulator = (sys.platform != 'pyboard')
 
+try:
+    import config
+except:
+    import config_default as config
+
 class CriticalErrorWipeImmediately(Exception):
     """
     This exception should be raised when device needs to be wiped
@@ -17,19 +22,22 @@ def maybe_mkdir(path):
     if not simulator:
         os.sync()
 
+def fpath(fname):
+    """A small function to avoid % storage_root everywhere"""
+    return "%s%s" % (config.storage_root, fname)
+
 # path to store #reckless entropy
 if simulator:
-    storage_root = "../fs"
     # create folders for simulator
-    maybe_mkdir(storage_root)
-    maybe_mkdir("%s/flash"%storage_root)
-    maybe_mkdir("%s/qspi"%storage_root)
-    maybe_mkdir("%s/sd"%storage_root)
+    maybe_mkdir(config.storage_root)
+    maybe_mkdir(fpath("/flash"))
+    maybe_mkdir(fpath("/qspi"))
+    maybe_mkdir(fpath("/sd"))
 else:
     storage_root = ""
 
 def mount_sdram():
-    path = "%s/ramdisk"%storage_root
+    path = fpath("/ramdisk")
     if simulator:
         # not a real RAM on simulator
         maybe_mkdir(path)
@@ -48,10 +56,6 @@ def sync():
         os.sync()
     except:
         pass
-
-def fpath(fname):
-    """A small function to avoid % storage_root everywhere"""
-    return "%s%s" % (storage_root, fname)
 
 def file_exists(fname:str)->bool:
     try:
