@@ -16,29 +16,47 @@ class TransactionScreen(Prompt):
         lv.style_copy(style, self.message.get_style(0))
         style.text.font = lv.font_roboto_mono_28
 
+        style_secondary = lv.style_t()
+        lv.style_copy(style_secondary, self.message.get_style(0))
+        style_secondary.text.color = lv.color_hex(0x999999)
+        style_secondary.text.font = lv.font_roboto_mono_22
+
         obj = self.message
         for out in meta["outputs"]:
             if not out["change"]:
                 lbl = add_label("%.8f BTC to" % (out["value"]/1e8), 
-                                style="title", scr=self)
-                lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
-                addr = add_label(format_addr(out["address"]), scr=self)
-                addr.set_style(0, style)
-                addr.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+                                style="title", scr=self.page)
+                lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+                obj = lbl
+                if "label" in out:
+                    lbl = add_label(out["label"],
+                                    style="title", scr=self.page)
+                    lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+                    obj = lbl
+                if "label" in out:
+                    txt = format_addr(out["address"], words=4)
+                else:
+                    txt = format_addr(out["address"])
+                addr = add_label(txt, scr=self.page)
+                if "label" in out:
+                    addr.set_style(0, style_secondary)
+                else:
+                    addr.set_style(0, style)
+                addr.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
                 obj = addr
 
         fee_percent = meta["fee"]*100/(send_amount-meta["fee"])
         fee = add_label("Fee: %d satoshi (%.2f%%)" % (
-                    meta["fee"], fee_percent), scr=self)
-        fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+                    meta["fee"], fee_percent), scr=self.page)
+        fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
         # warning label for address gap limit
         if "warnings" in meta and len(meta["warnings"]) > 0:
             text = "WARNING!\n"+"\n".join(meta["warnings"])
-            self.warning = add_label(text, scr=self)
+            self.warning = add_label(text, scr=self.page)
             style = lv.style_t()
             lv.style_copy(style, self.message.get_style(0))
             style.text.color = lv.color_hex(0xFF9A00)
             self.warning.set_style(0, style)
-            self.warning.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+            self.warning.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         
