@@ -1,6 +1,10 @@
 from .async_gui import AsyncGUI
-from .screens import (Screen, PinScreen, Progress,
-                      MnemonicScreen, NewMnemonicScreen, RecoverMnemonicScreen,
+from .screens import (Screen,
+                      PinScreen,
+                      Progress,
+                      MnemonicScreen,
+                      NewMnemonicScreen,
+                      RecoverMnemonicScreen,
                       DevSettings)
 import rng
 import asyncio

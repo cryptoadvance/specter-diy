@@ -1,4 +1,5 @@
 from io import BytesIO
+from errors import BaseError
 from .core import Host, HostError
 import sys
 import pyb
@@ -131,8 +132,9 @@ class USBHost(Host):
             try:
                 with open(self.path+"/data", "rb") as f:
                     await self.process_command(f)
-            # if we fail with host error - tell the host why we failed
-            except HostError as e:
+            # if we fail with our own error type
+            # tell the host why we failed
+            except BaseError as e:
                 self.respond(b"error: %s" % e)
                 sys.print_exception(e)
             # for all other exceptions - send back generic message

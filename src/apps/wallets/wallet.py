@@ -119,6 +119,7 @@ class Wallet:
             return derivation
         # otherwise we need standard derivation
         # we take any of the derivations and extract last two indexes
+        # TODO: check our derivation for mixed inputs!
         for pub in scope.bip32_derivations:
             if len(scope.bip32_derivations[pub].derivation) >= 2:
                 return scope.bip32_derivations[pub].derivation[-2:]
@@ -127,7 +128,14 @@ class Wallet:
         gaps = self.gaps
         # update from psbt
         if psbt is not None:
-            for scope in psbt.inputs + psbt.outputs:
+            scopes = []
+            for inp in psbt.inputs:
+                if self.owns(inp):
+                    scopes.append(inp)
+            for i, out in enumerate(psbt.outputs):
+                if self.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
+                    scopes.append(out)
+            for scope in scopes:
                 res = self.get_derivation(scope)
                 if res is not None:
                     change, idx = res

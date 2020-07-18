@@ -191,13 +191,26 @@ class WalletManager(BaseApp):
     async def sign_psbt(self, stream, show_screen):
         data = a2b_base64(stream.read())
         psbt = PSBT.parse(data)
-        wallet, meta = self.parse_psbt(psbt=psbt)
-        res = await show_screen(TransactionScreen(wallet.name, meta))
+        wallets, meta = self.parse_psbt(psbt=psbt)
+        spends = []
+        for w, amount in wallets:
+            if w is None:
+                name = "Unkown wallet"
+            else:
+                name = w.name
+            spends.append("%.8f BTC\nfrom \"%s\"" % (
+                amount/1e8, name
+            ))
+        title = "Spending:\n" + "\n".join(spends)
+        res = await show_screen(TransactionScreen(title, meta))
         if res:
-            # fill derivation paths from proprietary fields
-            wallet.update_gaps(psbt=psbt)
-            wallet.save(self.keystore)
-            psbt = wallet.fill_psbt(psbt, self.keystore.fingerprint)
+            for w, _ in wallets:
+                if w is None:
+                    continue
+                # fill derivation paths from proprietary fields
+                w.update_gaps(psbt=psbt)
+                w.save(self.keystore)
+                psbt = w.fill_psbt(psbt, self.keystore.fingerprint)
             self.keystore.sign_psbt(psbt)
             # remove unnecessary stuff:
             out_psbt = PSBT(psbt.tx)
@@ -353,22 +366,17 @@ class WalletManager(BaseApp):
 
     def parse_psbt(self, psbt):
         """Detects a wallet for transaction and returns an object to display"""
-        wallet = None
-        # detect wallet for first input
-        inp = psbt.inputs[0]
-        for w in self.wallets:
-            if w.owns(inp):
-                wallet = w
-        if wallet is None:
-            raise WalletError(
-                "Wallet for this transaction is not found.\nWrong network?")
-        # check that all other inputs that they belong
-        # to the same wallet
-        for inp in psbt.inputs[1:]:
-            if not wallet.owns(inp):
-                raise WalletError("Mixed inputs are not allowed")
+        # wallets owning the inputs
+        # will be a tuple (wallet, amount)
+        # if wallet is not found - (None, amount)
+        wallets = []
+        amounts = []
+
+        # calculate fee
         fee = sum([inp.witness_utxo.value for inp in psbt.inputs])
         fee -= sum([out.value for out in psbt.tx.vout])
+
+        # metadata for GUI
         meta = {
             "outputs": [{
                 "address": out.script_pubkey.address(NETWORKS[self.network]),
@@ -378,34 +386,73 @@ class WalletManager(BaseApp):
             "fee": fee,
             "warnings": [],
         }
+        # detect wallet for all inputs
+        for inp in psbt.inputs:
+            found = False
+            for w in self.wallets:
+                if w.owns(inp):
+                    if w not in wallets:
+                        wallets.append(w)
+                        amounts.append(inp.witness_utxo.value)
+                    else:
+                        idx = wallets.index(w)
+                        amounts[idx] += inp.witness_utxo.value
+                    found = True
+                    break
+            if not found:
+                if None not in wallets:
+                    wallets.append(None)
+                    amounts.append(inp.witness_utxo.value)
+                else:
+                    idx = wallets.index(None)
+                    amounts[idx] += inp.witness_utxo.value
+
+        if None in wallets:
+            meta["warnings"].append("Unknown wallet in input!")
+        if len(wallets) > 1:
+            warnings.append("Mixed inputs!")
+
         # check change outputs
         for i, out in enumerate(psbt.outputs):
-            if wallet.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
-                meta["outputs"][i]["change"] = True
+            for w in wallets:
+                if w is None:
+                    continue
+                if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
+                    meta["outputs"][i]["change"] = True
+                    # if mixed inputs - we show all outputs
+                    if len(wallets) > 1:
+                        meta["outputs"][i]["label"] = w.name
+                    break
         # check gap limits
-        # ugly copy
-        gaps = []+wallet.gaps
+        gaps = [[]+w.gaps if w is not None else [0,0] for w in wallets]
         # update gaps according to all inputs
         # because if input and output use the same branch (recv / change)
         # it's ok if both are larger than gap limit
         # but differ by less than gap limit
         # (i.e. old wallet is used)
         for inp in psbt.inputs:
-            change, idx = wallet.get_derivation(inp)
-            if gaps[change] < idx+type(wallet).GAP_LIMIT:
-                gaps[change] = idx+type(wallet).GAP_LIMIT
+            for i, w in enumerate(wallets):
+                if w is None:
+                    continue
+                if w.owns(inp):
+                    change, idx = w.get_derivation(inp)
+                    if gaps[i][change] < idx+type(w).GAP_LIMIT:
+                        gaps[i][change] = idx+type(w).GAP_LIMIT
         # check all outputs if index is ok
         for i, out in enumerate(psbt.outputs):
             if not meta["outputs"][i]["change"]:
                 continue
-            change, idx = wallet.get_derivation(out)
-            # add warning if idx beyond gap
-            if idx > gaps[change]:
-                meta["warnings"].append(
-                    "Change index %d is beyond the gap limit!" % idx)
-                # one warning of this type is enough
-                break
-        return wallet, meta
+            for j, w in enumerate(wallets):
+                if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
+                    change, idx = w.get_derivation(out)
+                    # add warning if idx beyond gap
+                    if idx > gaps[j][change]:
+                        meta["warnings"].append(
+                            "Change index %d is beyond the gap limit!" % idx)
+                        # one warning of this type is enough
+                        break
+        wallets = [(wallets[i], amounts[i]) for i in range(len(wallets))]
+        return wallets, meta
 
     def wipe(self):
         """Deletes all wallets info"""

@@ -4,14 +4,9 @@ from ..common import add_label, format_addr
 
 
 class TransactionScreen(Prompt):
-    def __init__(self, wallet_name, meta):
+    def __init__(self, title, meta):
         send_amount = sum([out["value"]
                            for out in meta["outputs"] if not out["change"]])
-        send_amount += meta["fee"]
-        send_btc = send_amount/1e8
-        title = "Spending %.8f BTC\nfrom wallet \"%s\"" % (
-            send_btc, wallet_name
-        )
         super().__init__(title, "verify transaction and confirm")
 
         style = lv.style_t()
