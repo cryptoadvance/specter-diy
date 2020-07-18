@@ -5,6 +5,7 @@ from ..decorators import *
 from ..components import MnemonicTable, HintKeyboard
 from .screen import Screen
 
+
 class MnemonicScreen(Screen):
     def __init__(self, mnemonic="", title="Your recovery phrase", note=None):
         super().__init__()
@@ -16,22 +17,23 @@ class MnemonicScreen(Screen):
         self.table.set_mnemonic(mnemonic)
         self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        self.close_button = add_button(scr=self, 
-                                callback=on_release(self.release))
+        self.close_button = add_button(scr=self,
+                                       callback=on_release(self.release))
 
         self.close_label = lv.label(self.close_button)
         self.close_label.set_text("OK")
 
+
 class NewMnemonicScreen(MnemonicScreen):
-    def __init__(self, generator, title="Your recovery phrase:", 
-            note="Write it down and never show to anybody"):
+    def __init__(self, generator, title="Your recovery phrase:",
+                 note="Write it down and never show to anybody"):
         mnemonic = generator(12)
         super().__init__(mnemonic, title, note)
         self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
         self.close_label.set_text(lv.SYMBOL.LEFT+" Back")
-        self.next_button = add_button(scr=self, 
-                                callback=on_release(self.confirm))
+        self.next_button = add_button(scr=self,
+                                      callback=on_release(self.confirm))
 
         self.next_label = lv.label(self.next_button)
         self.next_label.set_text("Next "+lv.SYMBOL.RIGHT)
@@ -52,12 +54,12 @@ class NewMnemonicScreen(MnemonicScreen):
 
         self.switch.set_event_cb(on_release(cb))
 
-
     def confirm(self):
         self.set_value(self.table.get_mnemonic())
 
+
 class RecoverMnemonicScreen(MnemonicScreen):
-    def __init__(self, checker=None, lookup=None, 
+    def __init__(self, checker=None, lookup=None,
                  title="Enter your recovery phrase"):
         super().__init__("", title)
         self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
@@ -72,10 +74,10 @@ class RecoverMnemonicScreen(MnemonicScreen):
 
         self.kb = HintKeyboard(self)
         self.kb.set_map([
-            "Q","W","E","R","T","Y","U","I","O","P","\n",
-            "A","S","D","F","G","H","J","K","L","\n",
-            "Z","X","C","V","B","N","M",lv.SYMBOL.LEFT,"\n",
-            lv.SYMBOL.LEFT+" Back","Next word",lv.SYMBOL.OK+" Done",""
+            "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
+            "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
+            "Z", "X", "C", "V", "B", "N", "M", lv.SYMBOL.LEFT, "\n",
+            lv.SYMBOL.LEFT+" Back", "Next word", lv.SYMBOL.OK+" Done", ""
         ])
 
         if lookup is not None:
@@ -140,7 +142,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
             return
         num = obj.get_active_btn()
         # if inactive button is clicked - return
-        if obj.get_btn_ctrl(num,lv.btnm.CTRL.INACTIVE):
+        if obj.get_btn_ctrl(num, lv.btnm.CTRL.INACTIVE):
             return
         if c == lv.SYMBOL.LEFT+" Back":
             self.confirm_exit()
@@ -148,7 +150,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.table.del_char()
         elif c == "Next word":
             word = self.table.get_last_word()
-            if self.lookup is not None and len(word)>=2:
+            if self.lookup is not None and len(word) >= 2:
                 candidates = self.lookup(word, 2)
                 if len(candidates) == 1:
                     self.table.autocomplete_word(candidates[0])
@@ -166,22 +168,24 @@ class RecoverMnemonicScreen(MnemonicScreen):
     def confirm_exit(self):
 
         mnemonic = self.table.get_mnemonic()
-        if len(mnemonic)==0:
+        if len(mnemonic) == 0:
             self.set_value(None)
             return
 
         modal_style = lv.style_t()
         lv.style_copy(modal_style, lv.style_plain_color)
         # Set the background's style
-        modal_style.body.main_color = modal_style.body.grad_color = lv.color_make(0,0,0)
+        modal_style.body.main_color = lv.color_make(0, 0, 0)
+        modal_style.body.grad_color = modal_style.body.main_color
         modal_style.body.opa = lv.OPA._50
-        
+
         # Create a base object for the modal background
         bg = lv.obj(self)
         bg.set_style(modal_style)
         bg.set_pos(0, 0)
         bg.set_size(self.get_width(), self.get_height())
-        bg.set_opa_scale_enable(True)  # Enable opacity scaling for the animation
+        # Enable opacity scaling for the animation
+        bg.set_opa_scale_enable(True)
 
         btns = ["No, stay here", "Yes, leave", ""]
 
@@ -192,10 +196,10 @@ class RecoverMnemonicScreen(MnemonicScreen):
                 else:
                     obj.del_async()
                     bg.del_async()
-        
+
         mbox = lv.mbox(self)
         mbox.set_text("\nAre you sure you want to exit?\n\n"
-                      "Everything you entered will be forgotten!\n\n");
+                      "Everything you entered will be forgotten!\n\n")
         mbox.add_btns(btns)
         mbox.set_width(400)
         mbox.set_event_cb(event_handler)

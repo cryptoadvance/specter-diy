@@ -2,14 +2,16 @@ import lvgl as lv
 from .prompt import Prompt
 from ..common import add_label, format_addr
 
+
 class TransactionScreen(Prompt):
     def __init__(self, wallet_name, meta):
-        send_amount = sum([out["value"] for out in meta["outputs"] if not out["change"]])
+        send_amount = sum([out["value"]
+                           for out in meta["outputs"] if not out["change"]])
         send_amount += meta["fee"]
         send_btc = send_amount/1e8
         title = "Spending %.8f BTC\nfrom wallet \"%s\"" % (
-                        send_btc, wallet_name
-                )
+            send_btc, wallet_name
+        )
         super().__init__(title, "verify transaction and confirm")
 
         style = lv.style_t()
@@ -31,7 +33,7 @@ class TransactionScreen(Prompt):
             if out["change"] and "warning" not in out:
                 continue
             # otherwise show as usual
-            lbl = add_label("%.8f BTC to" % (out["value"]/1e8), 
+            lbl = add_label("%.8f BTC to" % (out["value"]/1e8),
                             style="title", scr=self.page)
             lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
             obj = lbl
@@ -61,10 +63,9 @@ class TransactionScreen(Prompt):
                 warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
                 obj = warning
 
-
         fee_percent = meta["fee"]*100/(send_amount-meta["fee"])
         fee = add_label("Fee: %d satoshi (%.2f%%)" % (
-                    meta["fee"], fee_percent), scr=self.page)
+            meta["fee"], fee_percent), scr=self.page)
         fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
         # warning label for address gap limit
@@ -73,4 +74,3 @@ class TransactionScreen(Prompt):
             self.warning = add_label(text, scr=self.page)
             self.warning.set_style(0, style_warning)
             self.warning.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        

@@ -1,4 +1,6 @@
-import sys, gc, json
+import sys
+import gc
+import json
 from binascii import hexlify, unhexlify
 from io import BytesIO
 import asyncio
@@ -13,15 +15,19 @@ from bitcoin.networks import NETWORKS
 from helpers import gen_mnemonic
 from errors import BaseError
 
+
 class SpecterError(BaseError):
     NAME = "Specter error"
+
 
 class Specter:
     """Specter class.
     Call .start() method to register in the event loop
     It will then call the .setup() and .main() functions to display the GUI
     """
-    def __init__(self, gui, keystore, hosts, apps, settings_path, network='test'):
+
+    def __init__(self, gui, keystore, hosts, apps,
+                 settings_path, network='test'):
         self.hosts = hosts
         self.keystore = keystore
         self.gui = gui
@@ -67,7 +73,9 @@ class Specter:
             print(e)
             b = BytesIO()
             sys.print_exception(e, b)
-            await self.gui.error("Something unexpected happened...\n\n%s" % b.getvalue().decode())
+            errmsg = "Something unexpected happened...\n\n"
+            errmsg += b.getvalue().decode()
+            await self.gui.error(errmsg)
             # restart
             return next_fn
 
@@ -77,11 +85,14 @@ class Specter:
             self.keystore.init()
             # unlock with the PIN code
             # check if we just booted and have less than max attempts
-            if self.just_booted and (self.keystore.pin_attempts_left != self.keystore.pin_attempts_max):
-                await self.gui.alert("Warning!", 
-                    "You only have %d of %d attempts\nto enter correct PIN code!" % (
-                        self.keystore.pin_attempts_left, self.keystore.pin_attempts_max
-                        ))
+            pin_left = self.keystore.pin_attempts_left
+            pin_max = self.keystore.pin_attempts_max
+            if (self.just_booted and pin_left != pin_max):
+                await self.gui.alert("Warning!",
+                                     "You only have %d of %d attempts\n"
+                                     "to enter correct PIN code!" % (
+                                         pin_left, pin_max
+                                     ))
             # no need to show the warning every time
             self.just_booted = False
             # or set up the PIN code
@@ -142,16 +153,17 @@ class Specter:
             mnemonic = await self.gui.new_mnemonic(gen_mnemonic)
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
-                self.keystore.set_mnemonic(mnemonic.strip(),"")
+                self.keystore.set_mnemonic(mnemonic.strip(), "")
                 for app in self.apps:
                     app.init(self.keystore, self.network)
                 return self.mainmenu
         # recover
         elif menuitem == 1:
-            mnemonic = await self.gui.recover(bip39.mnemonic_is_valid, bip39.find_candidates)
+            mnemonic = await self.gui.recover(bip39.mnemonic_is_valid,
+                                              bip39.find_candidates)
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
-                self.keystore.set_mnemonic(mnemonic,"")
+                self.keystore.set_mnemonic(mnemonic, "")
                 for app in self.apps:
                     app.init(self.keystore, self.network)
                 self.current_menu = self.mainmenu
@@ -167,21 +179,22 @@ class Specter:
         # change pin code
         elif menuitem == 4:
             await self.change_pin()
-            await self.gui.alert("Success!", "PIN code is sucessfully changed!")
+            await self.gui.alert("Success!",
+                                 "PIN code is sucessfully changed!")
         # lock device
         elif menuitem == 5:
             await self.lock()
             # go to PIN setup screen
             await self.unlock()
         else:
-            print(menuitem,"menu is not implemented yet")
+            print(menuitem, "menu is not implemented yet")
             raise SpecterError("Not implemented")
 
     async def change_pin(self):
         # get_auth_word function can generate words from part of the PIN
         get_auth_word = self.keystore.get_auth_word
-        old_pin = await self.gui.get_pin(get_word=get_auth_word, 
-                            title="First enter your old PIN code")
+        old_pin = await self.gui.get_pin(get_word=get_auth_word,
+                                         title="First enter your old PIN code")
         # check pin - will raise if not valid
         self.keystore.unlock(old_pin)
         new_pin = await self.gui.setup_pin(get_word=get_auth_word)
@@ -193,24 +206,29 @@ class Specter:
         # buttons defined by host classes
         # only added if there is a GUI-triggered communication
         host_buttons = [
-            (host, host.button) for host in self.hosts if host.button is not None
+            (host, host.button)
+            for host in self.hosts
+            if host.button is not None
         ]
         # buttons defined by app classes
         app_buttons = [
-            (app, app.button) for app in self.apps if app.button is not None
+            (app, app.button)
+            for app in self.apps
+            if app.button is not None
         ]
         # for every button we use an ID
         # to avoid mistakes when editing strings
         # If ID is None - it is a section title, not a button
+        net = NETWORKS[self.network]["name"]
         buttons = [
             # id, text
             (None, "Applications"),
         ] + app_buttons + [
             (None, "Communication"),
         ] + host_buttons + [
-            (None, "More"), # delimiter
+            (None, "More"),  # delimiter
             (2, "Lock device"),
-            (3, "Switch network (%s)" % NETWORKS[self.network]["name"]),
+            (3, "Switch network (%s)" % net),
             (4, "Settings"),
         ]
         # wait for menu selection
@@ -260,9 +278,13 @@ class Specter:
             raise HostError("Host command is not recognized")
         # TODO: if more than one - ask which one to use
         if len(matching_apps) > 1:
-            raise HostError("Not sure what app to use... There are %d" % len(matching_apps))
+            raise HostError(
+                "Not sure what app to use... "
+                "There are %d" % len(matching_apps))
         stream.seek(0)
-        return await matching_apps[0].process_host_command(stream, self.gui.show_screen(popup))
+        app = matching_apps[0]
+        return await app.process_host_command(stream,
+                                              self.gui.show_screen(popup))
 
     async def select_network(self):
         # dict is unordered unfortunately, so we need to use hardcoded arr
@@ -288,7 +310,7 @@ class Specter:
 
     def load_network(self, path, network='test'):
         try:
-            with open(path+"/network","r") as f:
+            with open(path+"/network", "r") as f:
                 network = f.read()
                 if network not in NETWORKS:
                     raise SpecterError("Invalid network")
@@ -302,7 +324,7 @@ class Specter:
             (None, "Key management"),
             (0, "Reckless"),
             (2, "Enter password"),
-            (None, "Security"), # delimiter
+            (None, "Security"),  # delimiter
             (3, "Change PIN code"),
             (4, "Developer & USB"),
         ]
@@ -324,7 +346,8 @@ class Specter:
                 app.init(self.keystore, self.network)
         elif menuitem == 3:
             await self.change_pin()
-            await self.gui.alert("Success!", "PIN code is sucessfully changed!")
+            await self.gui.alert("Success!",
+                                 "PIN code is sucessfully changed!")
             return self.mainmenu
         elif menuitem == 4:
             await self.update_devsettings()
@@ -336,7 +359,9 @@ class Specter:
         res = await self.gui.devscreen(dev=self.dev, usb=self.usb)
         if res is not None:
             self.update_config(**res)
-            if await self.gui.prompt("Reboot required!", "Changing USB mode requires to reboot the device. Proceed?"):
+            if await self.gui.prompt("Reboot required!",
+                                     "Changing USB mode requires to "
+                                     "reboot the device. Proceed?"):
                 reboot()
 
     async def recklessmenu(self):
@@ -358,15 +383,18 @@ class Specter:
             return self.settingsmenu
         elif menuitem == 0:
             self.keystore.save_mnemonic()
-            await self.gui.alert("Success!", "Your key is stored in flash now.")
+            await self.gui.alert("Success!",
+                                 "Your key is stored in flash now.")
             return self.settingsmenu
         elif menuitem == 1:
             self.keystore.load_mnemonic()
-            await self.gui.alert("Success!", "Your key is loaded.")
+            await self.gui.alert("Success!",
+                                 "Your key is loaded.")
             return self.mainmenu
         elif menuitem == 2:
             self.keystore.delete_mnemonic()
-            await self.gui.alert("Success!", "Your key is deleted from flash.")
+            await self.gui.alert("Success!",
+                                 "Your key is deleted from flash.")
             return self.mainmenu
         elif menuitem == 3:
             await self.gui.show_mnemonic(self.keystore.mnemonic)
@@ -387,7 +415,8 @@ class Specter:
         - setup PIN if not set
         - enter PIN if set
         """
-        # get_auth_word function can generate words from part of the PIN
+        # get_auth_word function can
+        # generate words from part of the PIN
         get_auth_word = self.keystore.get_auth_word
         # pin is not set - choose one
         if not self.keystore.is_pin_set:
@@ -406,13 +435,13 @@ class Specter:
 
     def load_config(self):
         try:
-            config, _ = self.keystore.load_aead(self.path+"/settings", 
+            config, _ = self.keystore.load_aead(self.path+"/settings",
                                                 self.keystore.enc_secret)
             config = json.loads(config.decode())
         except Exception as e:
             print(e)
             config = {"dev": self.dev, "usb": self.usb}
-            self.keystore.save_aead(self.path+"/settings", 
+            self.keystore.save_aead(self.path+"/settings",
                                     adata=json.dumps(config).encode(),
                                     key=self.keystore.enc_secret)
         self.dev = config["dev"]
@@ -423,7 +452,7 @@ class Specter:
             "usb": usb,
             "dev": dev,
         }
-        self.keystore.save_aead(self.path+"/settings", 
+        self.keystore.save_aead(self.path+"/settings",
                                 adata=json.dumps(config).encode(),
                                 key=self.keystore.enc_secret)
         self.usb = usb

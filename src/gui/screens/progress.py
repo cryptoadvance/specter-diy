@@ -2,12 +2,14 @@ import lvgl as lv
 from .alert import Alert
 from ..common import add_label
 
+
 class Progress(Alert):
     """
     Shows progress (rotating thingy), also can show
     percentage of the progress or checkboxes for parts of QR code
     Use tick() to rotate, set_progress(float or list) to set progress
     """
+
     def __init__(self, title, message, button_text="Cancel"):
         super().__init__(title, message, button_text=button_text)
         self.arc = lv.arc(self)
@@ -20,7 +22,7 @@ class Progress(Alert):
         self.progress.align(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         self.progress.set_recolor(True)
 
-    def tick(self, d:int=10):
+    def tick(self, d: int = 10):
         self.start = (self.start-2*d) % 360
         self.end = (self.end-d) % 360
         self.arc.set_angles(self.start, self.end)

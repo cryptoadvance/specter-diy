@@ -4,12 +4,13 @@ from gui.common import PADDING
 from gui.decorators import on_release
 from gui.screens.qralert import QRAlert
 
+
 class XPubScreen(QRAlert):
     def __init__(self,
                  xpub,
-                 slip132 = None,
-                 prefix = None,
-                 title="Your master public key", 
+                 slip132=None,
+                 prefix=None,
+                 title="Your master public key",
                  qr_width=None,
                  button_text="Close"):
         message = xpub

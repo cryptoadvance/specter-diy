@@ -10,21 +10,23 @@ from ..common import add_label
 from .screen import Screen
 import rng
 
+
 class InputScreen(Screen):
     CHARSET = [
-        "q","w","e","r","t","y","u","i","o","p","\n",
-        "#@","a","s","d","f","g","h","j","k","l","\n",
-        lv.SYMBOL.UP,"z","x","c","v","b","n","m",lv.SYMBOL.LEFT,"\n",
-        lv.SYMBOL.LEFT+" Back", " ",lv.SYMBOL.OK+" Done",""
+        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
+        "#@", "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
+        lv.SYMBOL.UP, "z", "x", "c", "v", "b", "n", "m", lv.SYMBOL.LEFT, "\n",
+        lv.SYMBOL.LEFT+" Back", " ", lv.SYMBOL.OK+" Done", ""
     ]
     CHARSET_EXTRA = [
-        "1","2","3","4","5","6","7","8","9","0","\n",
-        "aA","@","#","$","_","&","-","+","(",")","/","\n",
-        "[","]","*","\"","'",":",";","!","?","\\",lv.SYMBOL.LEFT,"\n",
-        lv.SYMBOL.LEFT+" Back", " ",lv.SYMBOL.OK+" Done",""
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
+        "aA", "@", "#", "$", "_", "&", "-", "+", "(", ")", "/", "\n",
+        "[", "]", "*", "\"", "'", ":", ";", "!", "?", "\\", lv.SYMBOL.LEFT, "\n",
+        lv.SYMBOL.LEFT+" Back", " ", lv.SYMBOL.OK+" Done", ""
     ]
-    def __init__(self, title="Enter your bip-39 password:", 
-            note="It is never stored on the device", suggestion=""):
+
+    def __init__(self, title="Enter your bip-39 password:",
+                 note="It is never stored on the device", suggestion=""):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
@@ -58,12 +60,14 @@ class InputScreen(Screen):
             if c == lv.SYMBOL.LEFT:
                 self.ta.del_char()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
-                for i,ch in enumerate(type(self).CHARSET):
+                for i, ch in enumerate(type(self).CHARSET):
                     if ch.isalpha():
                         if c == lv.SYMBOL.UP:
-                            type(self).CHARSET[i] = type(self).CHARSET[i].upper()
+                            type(self).CHARSET[i] = type(
+                                self).CHARSET[i].upper()
                         else:
-                            type(self).CHARSET[i] = type(self).CHARSET[i].lower()
+                            type(self).CHARSET[i] = type(
+                                self).CHARSET[i].lower()
                     elif ch == lv.SYMBOL.UP:
                         type(self).CHARSET[i] = lv.SYMBOL.DOWN
                     elif ch == lv.SYMBOL.DOWN:
@@ -85,8 +89,10 @@ class InputScreen(Screen):
             else:
                 self.ta.add_text(c)
 
+
 class PinScreen(Screen):
     network = None
+
     def __init__(self, title="Enter your PIN code", note=None, get_word=None):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
@@ -98,9 +104,9 @@ class PinScreen(Screen):
             self.words = add_label(get_word(b""), scr=self)
             self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 210)
         btnm = lv.btnm(self)
-        # shuffle numbers to make sure 
+        # shuffle numbers to make sure
         # no constant fingerprints left on screen
-        buttons = ["%d" % i for i in range(0,10)]
+        buttons = ["%d" % i for i in range(0, 10)]
         btnmap = []
         for j in range(3):
             for i in range(3):
@@ -113,7 +119,8 @@ class PinScreen(Screen):
         btnm.set_height(HOR_RES)
         btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
         # remove feedback on press to avoid sidechannels
-        btnm.set_style(lv.btnm.STYLE.BTN_PR,btnm.get_style(lv.btnm.STYLE.BTN_REL))
+        btnm.set_style(lv.btnm.STYLE.BTN_PR,
+                       btnm.get_style(lv.btnm.STYLE.BTN_REL))
 
         self.pin = lv.ta(self)
         self.pin.set_text("")
@@ -133,7 +140,7 @@ class PinScreen(Screen):
         self.pin.set_pwd_show_time(0)
         self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, -150)
 
-        btnm.set_event_cb(feed_rng(self.cb));
+        btnm.set_event_cb(feed_rng(self.cb))
 
     def reset(self):
         self.pin.set_text("")
@@ -160,13 +167,15 @@ class PinScreen(Screen):
     def get_value(self):
         return self.pin.get_text()
 
+
 class DerivationScreen(Screen):
     PATH_CHARSET = [
-        "1","2","3",lv.SYMBOL.LEFT,"\n",
-        "4","5","6","h","\n",
-        "7","8","9","/","\n",
-        "Back", "0", lv.SYMBOL.CLOSE, lv.SYMBOL.OK,""
+        "1", "2", "3", lv.SYMBOL.LEFT, "\n",
+        "4", "5", "6", "h", "\n",
+        "7", "8", "9", "/", "\n",
+        "Back", "0", lv.SYMBOL.CLOSE, lv.SYMBOL.OK, ""
     ]
+
     def __init__(self, title="Enter derivation path"):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")

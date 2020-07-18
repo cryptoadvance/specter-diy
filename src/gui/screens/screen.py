@@ -2,6 +2,7 @@ import lvgl as lv
 import asyncio
 from ..common import styles, HOR_RES
 
+
 class Screen(lv.obj):
     network = 'test'
     COLORS = {
@@ -10,6 +11,7 @@ class Screen(lv.obj):
         'regtest': lv.color_hex(0x00CAF1),
         'signet': lv.color_hex(0xBD10E0),
     }
+
     def __init__(self):
         super().__init__()
         self.waiting = True

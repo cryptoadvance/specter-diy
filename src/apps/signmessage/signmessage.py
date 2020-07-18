@@ -10,11 +10,13 @@ from binascii import b2a_base64, unhexlify
 import secp256k1
 from io import BytesIO
 
+
 class MessageApp(BaseApp):
     """
     This app can sign a text message with a private key.
     """
     prefixes = [b"signmessage"]
+
     async def process_host_command(self, stream, show_screen):
         """
         If command with one of the prefixes is received
@@ -45,7 +47,9 @@ class MessageApp(BaseApp):
             derivation_path = "m"+derivation_path[8:]
         derivation_path = bip32.parse_path(derivation_path)
         # ask the user if he really wants to sign this message
-        scr = Prompt("Sign message with private key at %s?" % bip32.path_to_str(derivation_path), "Message:\n%s" % message)
+        scr = Prompt("Sign message with private key at %s?" %
+                     bip32.path_to_str(derivation_path),
+                     "Message:\n%s" % message)
         res = await show_screen(scr)
         if res is False:
             return None
@@ -54,21 +58,22 @@ class MessageApp(BaseApp):
         xpub = self.keystore.get_xpub(derivation_path)
         address = script.p2pkh(xpub.key).address()
         obj = {
-            "title": "Signature for the message:", 
+            "title": "Signature for the message:",
             "note": "using address %s" % address
         }
         return BytesIO(sig), obj
 
-    def sign_message(self, derivation, msg:bytes, compressed:bool=True) -> bytes:
+    def sign_message(self, derivation, msg: bytes,
+                     compressed: bool = True) -> bytes:
         """Sign message with private key"""
         msghash = sha256(
-                        sha256(
-                            b'\x18Bitcoin Signed Message:\n' + compact.to_bytes(len(msg)) + msg
-                        ).digest()
-                    ).digest()
+            sha256(
+                b'\x18Bitcoin Signed Message:\n' +
+                compact.to_bytes(len(msg)) + msg
+            ).digest()
+        ).digest()
         sig, flag = self.keystore.sign_recoverable(derivation, msghash)
         c = 4 if compressed else 0
         flag = bytes([27+flag+c])
         ser = flag + secp256k1.ecdsa_signature_serialize_compact(sig._sig)
         return b2a_base64(ser).strip().decode()
-

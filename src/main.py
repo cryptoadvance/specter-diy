@@ -4,6 +4,7 @@ from keystore import FlashKeyStore
 from hosts import SDHost, QRHost, USBHost
 import platform
 
+
 def load_apps(module='apps', whitelist=None, blacklist=None):
     mod = __import__(module)
     mods = mod.__all__
@@ -21,6 +22,7 @@ def load_apps(module='apps', whitelist=None, blacklist=None):
         else:
             print("Failed loading app:", modname)
     return apps
+
 
 def main(apps=None, network='test'):
     # create virtual file system /sdram
@@ -47,13 +49,14 @@ def main(apps=None, network='test'):
 
     # make Specter instance
     settings_path = platform.fpath("/flash")
-    specter = Specter(gui=gui, 
+    specter = Specter(gui=gui,
                       keystore=keystore,
                       hosts=hosts,
                       apps=apps,
                       settings_path=settings_path,
                       network=network)
     specter.start()
+
 
 if __name__ == '__main__':
     main()

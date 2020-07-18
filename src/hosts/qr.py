@@ -1,40 +1,43 @@
 from .core import Host, HostError
-import pyb, time, asyncio
+import pyb
+import time
+import asyncio
 from platform import simulator, config
 from io import BytesIO
 
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
-SUCCESS        = b"\x02\x00\x00\x01\x00\x33\x31"
+SUCCESS = b"\x02\x00\x00\x01\x00\x33\x31"
 # serial port mode
-SERIAL_ADDR    = b"\x00\x0D"
-SERIAL_VALUE   = 0xA0 # use serial port for data
+SERIAL_ADDR = b"\x00\x0D"
+SERIAL_VALUE = 0xA0  # use serial port for data
 
 """ We switch the scanner to continuous mode to initiate scanning and
 to command mode to stop scanning. No external trigger is necessary """
-SETTINGS_ADDR  = b"\x00\x00"
-SETTINGS_CMD_MODE = 0xD1 # use command mode + aim light, no flash light
-SETTINGS_CONT_MODE = 0xD2 # use continuous mode + aim light, no flash light
+SETTINGS_ADDR = b"\x00\x00"
+SETTINGS_CMD_MODE = 0xD1  # use command mode + aim light, no flash light
+SETTINGS_CONT_MODE = 0xD2  # use continuous mode + aim light, no flash light
 
 """ After basic scanner configuration (9600 bps) uart is set to 115200 bps
 to support fast scanning of animated qrs """
 BAUD_RATE_ADDR = b"\x00\x2A"
-BAUD_RATE = b"\x1A\x00" # 115200
+BAUD_RATE = b"\x1A\x00"  # 115200
 
 # commands
-SCAN_ADDR      = b"\x00\x02"
+SCAN_ADDR = b"\x00\x02"
 # timeout
-TIMOUT_ADDR    = b"\x00\x06"
+TIMOUT_ADDR = b"\x00\x06"
 
 """ After the scanner obtains a scan it waits 100ms and starts a new scan."""
 INTERVAL_OF_SCANNING_ADDR = b"\x00\x05"
-INTERVAL_OF_SCANNING = 0x01 # 100ms
+INTERVAL_OF_SCANNING = 0x01  # 100ms
 
 """ DELAY_OF_SAME_BARCODES of 5 seconds means scanning the same barcode again
 (and sending it over uart) can happen only when the interval times out or resets
 which happens if we scan a different qr code. """
 DELAY_OF_SAME_BARCODES_ADDR = b"\x00\x13"
-DELAY_OF_SAME_BARCODES = 0x85 # 5 seconds
+DELAY_OF_SAME_BARCODES = 0x85  # 5 seconds
+
 
 class QRHost(Host):
     """
@@ -44,9 +47,10 @@ class QRHost(Host):
     - trigger display of the signed transaction
     """
     # time to wait after init
-    RECOVERY_TIME   = 30
+    RECOVERY_TIME = 30
 
     button = "Scan QR code"
+
     def __init__(self, path, trigger=None, uart="YA", baudrate=9600):
         super().__init__(path)
 
@@ -135,7 +139,8 @@ class QRHost(Host):
         if val is None:
             return False
         if val != DELAY_OF_SAME_BARCODES:
-            self.set_setting(DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES)
+            self.set_setting(DELAY_OF_SAME_BARCODES_ADDR,
+                             DELAY_OF_SAME_BARCODES)
             save_required = True
 
         if save_required:
@@ -144,7 +149,8 @@ class QRHost(Host):
                 return False
 
         # Set 115200 bps: this query is special - it has a payload of 2 bytes
-        ret = self.query(b"\x7E\x00\x08\x02"+BAUD_RATE_ADDR+BAUD_RATE+b"\xAB\xCD")
+        ret = self.query(b"\x7E\x00\x08\x02" +
+                         BAUD_RATE_ADDR+BAUD_RATE+b"\xAB\xCD")
         if ret != SUCCESS:
             return False
         self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
@@ -201,7 +207,7 @@ class QRHost(Host):
         self.animated = False
         while self.scanning:
             await asyncio.sleep_ms(10)
-            # we will exit this loop from update() 
+            # we will exit this loop from update()
             # or manual cancel from GUI
         return self.data
 
@@ -253,7 +259,7 @@ class QRHost(Host):
                 try:
                     m, n = self.parse_prefix(prefix)
                     # if succeed - first animated frame,
-                    # allocate stuff 
+                    # allocate stuff
                     self.animated = True
                     self.parts = [b""]*n
                     self.parts[m-1] = b" ".join(args)
@@ -291,9 +297,9 @@ class QRHost(Host):
     async def get_data(self):
         if self.manager is not None:
             # pass self so user can abort
-            await self.manager.gui.show_progress(self, 
-                "Scanning...", 
-                "Point scanner to the QR code")
+            await self.manager.gui.show_progress(self,
+                                                 "Scanning...",
+                                                 "Point scanner to the QR code")
         data = await self.scan()
         if data is not None:
             return BytesIO(data)
@@ -309,7 +315,8 @@ class QRHost(Host):
         msg = response
         if "message" in meta:
             msg = meta["message"]
-        await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
+        await self.manager.gui.qr_alert(title, msg, response,
+                                        note=note, qr_width=480)
 
     @property
     def in_progress(self):
@@ -326,4 +333,4 @@ class QRHost(Host):
             return 1
         if not self.animated:
             return 0
-        return [len(part)>0 for part in self.parts]
+        return [len(part) > 0 for part in self.parts]

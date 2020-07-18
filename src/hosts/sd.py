@@ -3,6 +3,7 @@ from platform import fpath
 from io import BytesIO
 import os
 
+
 class SDHost(Host):
     """
     SDHost class.
@@ -11,6 +12,7 @@ class SDHost(Host):
     - saving signed transaction to the card
     """
     button = "Load from SD card"
+
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)
         self.sdpath = sdpath

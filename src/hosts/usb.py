@@ -1,7 +1,10 @@
 from io import BytesIO
 from .core import Host, HostError
-import sys, pyb, asyncio
+import sys
+import pyb
+import asyncio
 import platform
+
 
 class USBHost(Host):
     """
@@ -9,7 +12,7 @@ class USBHost(Host):
     Manages USB communication with the host.
     """
     ACK = b"ACK\r\n"
-    RECOVERY_TIME   = 10
+    RECOVERY_TIME = 10
 
     def __init__(self, path):
         super().__init__(path)
@@ -55,7 +58,7 @@ class USBHost(Host):
             stream, meta = res
             # loop until we read everything
             chunk = stream.read(32)
-            while len(chunk)>0:
+            while len(chunk) > 0:
                 self.usb.write(chunk)
                 chunk = stream.read(32)
             self.respond(b"")
@@ -140,4 +143,3 @@ class USBHost(Host):
 
         # wait a bit
         await asyncio.sleep_ms(10)
-

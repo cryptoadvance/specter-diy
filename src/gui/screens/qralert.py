@@ -2,10 +2,11 @@ import lvgl as lv
 from .alert import Alert
 from ..common import add_qrcode
 
+
 class QRAlert(Alert):
     def __init__(self,
-                 title="QR Alert!", 
-                 message="Something happened", 
+                 title="QR Alert!",
+                 message="Something happened",
                  qr_message=None,
                  qr_width=None,
                  button_text="Close",

@@ -3,19 +3,24 @@ from platform import CriticalErrorWipeImmediately
 import platform
 from binascii import hexlify, unhexlify
 from rng import get_random_bytes
-import os, json, hashlib, hmac
+import os
+import json
+import hashlib
+import hmac
 from bitcoin import ec, bip39, bip32
 import platform
 from helpers import encrypt, decrypt, aead_encrypt, aead_decrypt, tagged_hash
 import sys
 import secp256k1
 
+
 class FlashKeyStore(KeyStore):
     """
     KeyStore that stores secrets in Flash of the MCU
     """
+
     def __init__(self, path):
-        self.path=path
+        self.path = path
         self._is_locked = True
         self.mnemonic = None
         self.root = None
@@ -104,7 +109,7 @@ class FlashKeyStore(KeyStore):
         create new if doesn't exist"""
         try:
             # try to load secret
-            with open(path+"/secret","rb") as f:
+            with open(path+"/secret", "rb") as f:
                 self.secret = f.read()
         except:
             self.secret = self.create_new_secret(path)
@@ -116,7 +121,8 @@ class FlashKeyStore(KeyStore):
             _, data = self.load_aead(self.path+"/pin", self.secret)
             # load pin object
             data = json.loads(data.decode())
-            self.pin = unhexlify(data["pin"]) if data["pin"] is not None else None
+            self.pin = unhexlify(
+                data["pin"]) if data["pin"] is not None else None
             self._pin_attempts_max = data["pin_attempts_max"]
             self._pin_attempts_left = data["pin_attempts_left"]
         except Exception as e:
@@ -131,7 +137,7 @@ class FlashKeyStore(KeyStore):
         # generate new and save
         secret = get_random_bytes(32)
         # save secret
-        with open(path+"/secret","wb") as f:
+        with open(path+"/secret", "wb") as f:
             f.write(secret)
         # set pin object
         self.pin = None
@@ -163,14 +169,14 @@ class FlashKeyStore(KeyStore):
                (self.enc_secret is not None) and \
                (not self.is_locked) and \
                (self.fingerprint is not None)
-    
+
     def unlock(self, pin):
         """
         Unlock the keystore, raises PinError if PIN is invalid.
         Raises CriticalErrorWipeImmediately if no attempts left.
         """
         # decrease the counter
-        self._pin_attempts_left-=1
+        self._pin_attempts_left -= 1
         self.save_state()
         # check we have attempts
         if self._pin_attempts_left <= 0:
@@ -220,14 +226,15 @@ class FlashKeyStore(KeyStore):
         h = hmac.new(key, pin_part, digestmod="sha256").digest()
         # wordlist is 2048 long (11 bits) so
         # this modulo doesn't create an offset
-        word_number = int.from_bytes(h[:2],'big') % len(bip39.WORDLIST)
+        word_number = int.from_bytes(h[:2], 'big') % len(bip39.WORDLIST)
         return bip39.WORDLIST[word_number]
 
     def save_state(self):
         """Saves PIN state to flash"""
+        pin = hexlify(self.pin).decode() if self.pin is not None else None
         obj = {
-            "pin": hexlify(self.pin).decode() if self.pin is not None else None, 
-            "pin_attempts_max":  self._pin_attempts_max, 
+            "pin": pin,
+            "pin_attempts_max":  self._pin_attempts_max,
             "pin_attempts_left": self._pin_attempts_left,
         }
         data = json.dumps(obj).encode()
@@ -240,13 +247,14 @@ class FlashKeyStore(KeyStore):
         # set up pin
         key = tagged_hash("pin", self.secret)
         self.pin = hmac.new(key=key,
-                            msg=pin,digestmod="sha256").digest()
+                            msg=pin, digestmod="sha256").digest()
         self.pin_secret = tagged_hash("pin", self.secret+pin.encode())
         self.save_state()
         # update encryption secret
         if self.enc_secret is None:
             self.enc_secret = get_random_bytes(32)
-        self.save_aead(self.path+"/enc_secret", plaintext=self.enc_secret, key=self.pin_secret)
+        self.save_aead(self.path+"/enc_secret",
+                       plaintext=self.enc_secret, key=self.pin_secret)
         # call unlock now
         self.unlock(pin)
 
@@ -255,8 +263,8 @@ class FlashKeyStore(KeyStore):
             raise KeyStoreError("Keystore is locked")
         if self.mnemonic is None:
             raise KeyStoreError("Recovery phrase is not loaded")
-        self.save_aead(self.path+"/reckless", 
-                       plaintext=self.mnemonic.encode(), 
+        self.save_aead(self.path+"/reckless",
+                       plaintext=self.mnemonic.encode(),
                        key=self.pin_secret)
         # check it's ok
         self.load_mnemonic()
@@ -267,11 +275,12 @@ class FlashKeyStore(KeyStore):
         if not platform.file_exists(self.path+"/reckless"):
             raise KeyStoreError("Key is not saved")
         _, data = self.load_aead(self.path+"/reckless", self.pin_secret)
-        self.set_mnemonic(data.decode(),"")
+        self.set_mnemonic(data.decode(), "")
 
     def delete_mnemonic(self):
         if not platform.file_exists(self.path+"/reckless"):
-            raise KeyStoreError("Secret is not saved. No need to delete anything.")
+            raise KeyStoreError(
+                "Secret is not saved. No need to delete anything.")
         try:
             os.remove(self.path+"/reckless")
         except:

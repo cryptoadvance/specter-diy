@@ -2,8 +2,9 @@
 from errors import BaseError
 from platform import maybe_mkdir, delete_recursively
 
+
 class BaseApp:
-    # set text of a button here and a callback if you want to have 
+    # set text of a button here and a callback if you want to have
     # a GUI-triggered events - it will create a menu button
     # on the main screen
     button = None
@@ -11,7 +12,8 @@ class BaseApp:
     # should be byte sequences, no spaces i.e. b"appcommand"
     prefixes = []
     # button = ("My App menu item", callback name)
-    def __init__(self, path:str):
+
+    def __init__(self, path: str):
         """path is the folder where this app should store data"""
         maybe_mkdir(path)
         self.path = path
@@ -34,7 +36,7 @@ class BaseApp:
         stream.seek(len(prefix)+1)
         return prefix
 
-    def init(self, keystore, network:str='test'):
+    def init(self, keystore, network: str = 'test'):
         """
         This method is called when new key is loaded
         or a different network is selected.
@@ -48,6 +50,7 @@ class BaseApp:
         including the app folder itself.
         """
         delete_recursively(self.path, include_self=True)
+
 
 class AppError(BaseError):
     NAME = "Application error"

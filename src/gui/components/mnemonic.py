@@ -1,6 +1,7 @@
 import lvgl as lv
 from .theme import styles
 
+
 class MnemonicTable(lv.table):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -32,13 +33,13 @@ class MnemonicTable(lv.table):
             self.set_cell_type(i, 0, lv.table.STYLE.CELL2)
             self.set_cell_type(i, 2, lv.table.STYLE.CELL2)
 
-    def set_mnemonic(self, mnemonic:str):
+    def set_mnemonic(self, mnemonic: str):
         self.words = mnemonic.split()
         self.update()
 
     def update(self):
         for i in range(24):
-            row = i%12
+            row = i % 12
             col = 1+2*(i//12)
             if i < len(self.words):
                 self.set_cell_value(row, col, self.words[i])

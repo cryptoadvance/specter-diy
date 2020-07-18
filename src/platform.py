@@ -1,5 +1,7 @@
 # detect if it's a hardware device or linuxport
-import sys, os, pyb
+import sys
+import os
+import pyb
 simulator = (sys.platform != 'pyboard')
 
 try:
@@ -7,12 +9,14 @@ try:
 except:
     import config_default as config
 
+
 class CriticalErrorWipeImmediately(Exception):
     """
     This exception should be raised when device needs to be wiped
     because something terrible happened
     """
     pass
+
 
 def maybe_mkdir(path):
     try:
@@ -22,9 +26,11 @@ def maybe_mkdir(path):
     if not simulator:
         os.sync()
 
+
 def fpath(fname):
     """A small function to avoid % storage_root everywhere"""
     return "%s%s" % (config.storage_root, fname)
+
 
 # path to store #reckless entropy
 if simulator:
@@ -35,6 +41,7 @@ if simulator:
     maybe_mkdir(fpath("/sd"))
 else:
     storage_root = ""
+
 
 def mount_sdram():
     path = fpath("/ramdisk")
@@ -51,13 +58,15 @@ def mount_sdram():
         os.mount(bdev, path)
     return path
 
+
 def sync():
     try:
         os.sync()
     except:
         pass
 
-def file_exists(fname:str)->bool:
+
+def file_exists(fname: str)->bool:
     try:
         with open(fname, "rb") as f:
             pass
@@ -65,12 +74,13 @@ def file_exists(fname:str)->bool:
     except:
         return False
 
+
 def delete_recursively(path, include_self=False):
     # remove trailing slash
     path = path.rstrip("/")
     files = os.ilistdir(path)
     for _file in files:
-        if _file[0] in [".",".."]:
+        if _file[0] in [".", ".."]:
             continue
         f = "%s/%s" % (path, _file[0])
         # regular file
@@ -94,8 +104,10 @@ def delete_recursively(path, include_self=False):
         return True
     raise RuntimeError("Failed to delete folder %s" % path)
 
+
 if not simulator:
-    stlk = pyb.UART('YB',9600)
+    stlk = pyb.UART('YB', 9600)
+
 
 def set_usb_mode(dev=False, usb=False):
     if simulator:
@@ -104,26 +116,27 @@ def set_usb_mode(dev=False, usb=False):
     if usb and not dev:
         pyb.usb_mode("VCP")
         if not simulator:
-            os.dupterm(None,0)
-            os.dupterm(None,1)
+            os.dupterm(None, 0)
+            os.dupterm(None, 1)
     elif usb and dev:
         pyb.usb_mode("VCP+MSC")
         if not simulator:
-            # duplicate repl to stlink 
+            # duplicate repl to stlink
             # as usb is busy for communication
-            os.dupterm(stlk,0)
-            os.dupterm(None,1)
+            os.dupterm(stlk, 0)
+            os.dupterm(None, 1)
     elif not usb and dev:
         pyb.usb_mode("VCP+MSC")
         usb = pyb.USB_VCP()
         if not simulator:
-            os.dupterm(None,0)
-            os.dupterm(usb,1)
+            os.dupterm(None, 0)
+            os.dupterm(usb, 1)
     else:
         pyb.usb_mode(None)
         if not simulator:
-            os.dupterm(None,0)
-            os.dupterm(None,1)
+            os.dupterm(None, 0)
+            os.dupterm(None, 1)
+
 
 def reboot():
     if simulator:
@@ -131,9 +144,11 @@ def reboot():
     else:
         pyb.hard_reset()
 
+
 def wipe():
     delete_recursively(fpath("/flash"))
     delete_recursively(fpath("/qspi"))
+
 
 def usb_connected():
     if simulator:

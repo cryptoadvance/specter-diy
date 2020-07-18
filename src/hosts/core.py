@@ -2,8 +2,10 @@ import asyncio
 from platform import maybe_mkdir
 from errors import BaseError
 
+
 class HostError(BaseError):
     NAME = "Host error"
+
 
 class Host:
     """
@@ -13,11 +15,12 @@ class Host:
     or bidirectional like USBHost or SDHost
     """
     # time to wait after init
-    RECOVERY_TIME   = 1
+    RECOVERY_TIME = 1
     # set the button on the main screen
     # should be a tuple (text, callback)
     # keep None if you don't need a button
     button = None
+
     def __init__(self, path):
         # storage for data
         self.path = path
@@ -43,7 +46,7 @@ class Host:
         """
         pass
 
-    def start(self, manager, rate:int=10):
+    def start(self, manager, rate: int = 10):
         self.manager = manager
         asyncio.create_task(self.update_loop(rate))
 
@@ -54,7 +57,7 @@ class Host:
         """
         pass
 
-    async def update_loop(self, dt:int):
+    async def update_loop(self, dt: int):
         while not self.enabled:
             await asyncio.sleep_ms(100)
         while True:

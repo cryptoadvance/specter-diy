@@ -1,4 +1,5 @@
-import sys, os
+import sys
+import os
 simulator = (sys.platform != 'pyboard')
 
 # to overwrite these settings create a config.py file

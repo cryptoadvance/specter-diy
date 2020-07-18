@@ -2,7 +2,8 @@ from app import BaseApp
 from gui.screens import Menu, InputScreen, Prompt, TransactionScreen
 from .screens import WalletScreen, ConfirmWalletScreen
 
-import platform, os
+import platform
+import os
 from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
 from bitcoin.psbt import PSBT
 from bitcoin.networks import NETWORKS
@@ -16,9 +17,10 @@ ADD_WALLET = 0x02
 # verify address from address itself
 # and it's index
 VERIFY_ADDRESS = 0x03
-# show address with certain 
+# show address with certain
 # derivation path or descriptor
 DERIVE_ADDRESS = 0x04
+
 
 class WalletManager(BaseApp):
     """
@@ -30,6 +32,7 @@ class WalletManager(BaseApp):
     WALLETS = [
         Wallet,
     ]
+
     def __init__(self, path):
         self.root_path = path
         platform.maybe_mkdir(path)
@@ -65,22 +68,26 @@ class WalletManager(BaseApp):
     async def menu(self, show_screen):
         buttons = [(None, "Your wallets")]
         buttons += [(w, w.name) for w in self.wallets]
-        menuitem = await show_screen(Menu(buttons, last=(255,None)))
+        menuitem = await show_screen(Menu(buttons, last=(255, None)))
         if menuitem == 255:
             # we are done
             return False
         else:
             w = menuitem
             # pass wallet and network
-            cmd = await show_screen(WalletScreen(w, self.network, idx=w.unused_recv))
+            scr = WalletScreen(w, self.network, idx=w.unused_recv)
+            cmd = await show_screen(scr)
             if cmd == DELETE:
-                conf = await show_screen(Prompt("Delete wallet?", 
-                        "You are deleting wallet \"%s\".\nAre you sure you want to do it?" % w.name))
+                scr = Prompt("Delete wallet?",
+                             "You are deleting wallet \"%s\".\n"
+                             "Are you sure you want to do it?" % w.name)
+                conf = await show_screen(scr)
                 if conf:
                     self.delete_wallet(w)
             elif cmd == EDIT:
-                name = await show_screen(InputScreen(title="Enter new wallet name", 
-                            note="", suggestion=w.name))
+                scr = InputScreen(title="Enter new wallet name",
+                                  note="", suggestion=w.name)
+                name = await show_screen(scr)
                 if name is not None and name != w.name and name != "":
                     w.name = name
                     w.save(self.keystore)
@@ -137,7 +144,7 @@ class WalletManager(BaseApp):
             res = await self.sign_psbt(stream, show_screen)
             if res is not None:
                 obj = {
-                    "title": "Transaction is signed!", 
+                    "title": "Transaction is signed!",
                     "message": "Scan it with your wallet"
                 }
                 return res, obj
@@ -150,7 +157,7 @@ class WalletManager(BaseApp):
                 self.add_wallet(w)
                 return
         elif cmd == VERIFY_ADDRESS:
-            data = stream.read().decode().replace("bitcoin:","")
+            data = stream.read().decode().replace("bitcoin:", "")
             # should be of the form addr?index=N or similar
             if "index=" not in data or "?" not in data:
                 raise WalletError("Can't verify address with unknown index")
@@ -175,7 +182,8 @@ class WalletManager(BaseApp):
             paths = path.split(b",")
             if len(paths) == 0:
                 raise WalletError("Invalid path argument")
-            res = await self.showaddr(paths, script_type, redeem_script, show_screen=show_screen)
+            res = await self.showaddr(paths, script_type, redeem_script,
+                                      show_screen=show_screen)
             return BytesIO(res), {}
         else:
             raise WalletError("Unknown command")
@@ -199,12 +207,14 @@ class WalletManager(BaseApp):
             return BytesIO(txt)
 
     async def confirm_new_wallet(self, w, show_screen):
-        keys = [{"key": k, "mine": self.keystore.owns(k)} for k in w.get_keys()]
+        keys = [{"key": k, "mine": self.keystore.owns(
+            k)} for k in w.get_keys()]
         if not any([k["mine"] for k in keys]):
             raise WalletError("None of the keys belong to the device")
         return await show_screen(ConfirmWalletScreen(w.name, w.policy, keys))
 
-    async def showaddr(self, paths:list, script_type:str, redeem_script=None, show_screen=None) -> str:
+    async def showaddr(self, paths: list, script_type: str,
+                       redeem_script=None, show_screen=None) -> str:
         if redeem_script is not None:
             redeem_script = script.Script(unhexlify(redeem_script))
         # first check if we have corresponding wallet:
@@ -213,14 +223,15 @@ class WalletManager(BaseApp):
         address = None
         if redeem_script is not None:
             if script_type == b"wsh":
-                address = script.p2wsh(redeem_script).address(NETWORKS[self.network])
+                address = script.p2wsh(redeem_script).address(
+                    NETWORKS[self.network])
             elif script_type == b"sh-wsh":
                 address = script.p2sh(
-                            script.p2wsh(redeem_script)
-                          ).address(NETWORKS[self.network])
+                    script.p2wsh(redeem_script)
+                ).address(NETWORKS[self.network])
             else:
                 raise HostError("Unsupported script type: %s" % script_type)
-        # in our wallets every key 
+        # in our wallets every key
         # has the same two last indexes for derivation
         path = paths[0]
         if not path.startswith(b"m/"):
@@ -228,14 +239,14 @@ class WalletManager(BaseApp):
         derivation = bip32.parse_path(path.decode())
 
         # if not multisig:
-        if address is None and len(paths)==1:
+        if address is None and len(paths) == 1:
             pub = self.keystore.get_xpub(derivation)
             if script_type == b"wpkh":
                 address = script.p2wpkh(pub).address(NETWORKS[self.network])
             elif script_type == b"sh-wpkh":
                 address = script.p2sh(
-                            script.p2wpkh(pub).address(NETWORKS[self.network])
-                          )
+                    script.p2wpkh(pub).address(NETWORKS[self.network])
+                )
             else:
                 raise WalletError("Unsupported script type: %s" % script_type)
 
@@ -247,21 +258,25 @@ class WalletManager(BaseApp):
             raise WalletError("Can't derive address. Provide redeem script.")
         try:
             change = bool(derivation[0])
-            w = self.find_wallet_from_address(address, derivation[1], change=change)
+            w = self.find_wallet_from_address(
+                address, derivation[1], change=change)
         except Exception as e:
             raise WalletError("%s" % e)
         if show_screen is not None:
-            await show_screen(WalletScreen(w, self.network, derivation[1], change=change))
+            await show_screen(WalletScreen(w, self.network,
+                                           derivation[1], change=change))
         return address
 
     def load_wallets(self):
         """Loads all wallets from path"""
         try:
             platform.maybe_mkdir(self.path)
-            # get ids of the wallets - every wallet is stored in a numeric folder
-            wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path) \
-                        if f[0].isdigit() and f[1] == 0x4000])
-            return [self.load_wallet(self.path+("/%d" % wid)) for wid in wallet_ids]
+            # Get ids of the wallets.
+            # Every wallet is stored in a numeric folder
+            wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path)
+                                 if f[0].isdigit() and f[1] == 0x4000])
+            return [self.load_wallet(self.path+("/%d" % wid))
+                    for wid in wallet_ids]
         except:
             return []
 
@@ -289,7 +304,7 @@ class WalletManager(BaseApp):
         der = "m/84h/%dh/0h" % NETWORKS[self.network]["bip32"]
         xpub = self.keystore.get_xpub(der)
         desc = "Default&wpkh([%s%s]%s)" % (
-            hexlify(self.keystore.fingerprint).decode(), 
+            hexlify(self.keystore.fingerprint).decode(),
             der[1:],
             xpub.to_base58(NETWORKS[self.network]["xpub"])
         )
@@ -317,8 +332,8 @@ class WalletManager(BaseApp):
 
     def add_wallet(self, w):
         self.wallets.append(w)
-        wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path) \
-                    if f[0].isdigit() and f[1] == 0x4000])
+        wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path)
+                             if f[0].isdigit() and f[1] == 0x4000])
         newpath = self.path+("/%d" % (max(wallet_ids)+1))
         platform.maybe_mkdir(newpath)
         w.save(self.keystore, path=newpath)
@@ -329,7 +344,7 @@ class WalletManager(BaseApp):
         self.wallets.pop(self.wallets.index(w))
         w.wipe()
 
-    def find_wallet_from_address(self, addr:str, idx:int, change=False):
+    def find_wallet_from_address(self, addr: str, idx: int, change=False):
         for w in self.wallets:
             a, gap = w.get_address(idx, self.network, change)
             if a == addr:
@@ -345,7 +360,8 @@ class WalletManager(BaseApp):
             if w.owns(inp):
                 wallet = w
         if wallet is None:
-            raise WalletError("Wallet for this transaction is not found.\nWrong network?")
+            raise WalletError(
+                "Wallet for this transaction is not found.\nWrong network?")
         # check that all other inputs that they belong
         # to the same wallet
         for inp in psbt.inputs[1:]:
@@ -385,7 +401,8 @@ class WalletManager(BaseApp):
             change, idx = wallet.get_derivation(out)
             # add warning if idx beyond gap
             if idx > gaps[change]:
-                meta["warnings"].append("Change index %d is beyond the gap limit!" % idx)
+                meta["warnings"].append(
+                    "Change index %d is beyond the gap limit!" % idx)
                 # one warning of this type is enough
                 break
         return wallet, meta

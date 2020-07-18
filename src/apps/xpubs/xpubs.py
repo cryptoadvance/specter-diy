@@ -7,6 +7,7 @@ from bitcoin.networks import NETWORKS
 from bitcoin import bip32
 from io import BytesIO
 
+
 class XpubApp(BaseApp):
     """
     WalletManager class manages your wallets.
@@ -18,6 +19,7 @@ class XpubApp(BaseApp):
         b'fingerprint',
         b'xpub',
     ]
+
     def __init__(self, path):
         # we don't need to store anything
         pass
@@ -31,11 +33,16 @@ class XpubApp(BaseApp):
             (None, "Other keys"),
         ]
         if show_all:
+            coin = net["bip32"]
             buttons += [
-                ("m/84h/%dh/0h" % net["bip32"], "Single Native Segwit\nm/84h/%dh/0h" % net["bip32"]),
-                ("m/49h/%dh/0h" % net["bip32"], "Single Nested Segwit\nm/49h/%dh/0h" % net["bip32"]),
-                ("m/48h/%dh/0h/2h" % net["bip32"], "Multisig Native Segwit\nm/48h/%dh/0h/2h" % net["bip32"]),
-                ("m/48h/%dh/0h/1h" % net["bip32"], "Multisig Nested Segwit\nm/48h/%dh/0h/1h" % net["bip32"]),
+                ("m/84h/%dh/0h" % coin,
+                 "Single Native Segwit\nm/84h/%dh/0h" % coin),
+                ("m/49h/%dh/0h" % coin,
+                 "Single Nested Segwit\nm/49h/%dh/0h" % coin),
+                ("m/48h/%dh/0h/2h" % coin,
+                 "Multisig Native Segwit\nm/48h/%dh/0h/2h" % coin),
+                ("m/48h/%dh/0h/1h" % coin,
+                 "Multisig Nested Segwit\nm/48h/%dh/0h/1h" % coin),
             ]
         else:
             buttons += [
@@ -69,7 +76,7 @@ class XpubApp(BaseApp):
         # get device fingerprint, data is ignored
         if prefix == b"fingerprint":
             return BytesIO(hexlify(self.keystore.fingerprint)), {}
-        # get xpub, 
+        # get xpub,
         # data: derivation path in human-readable form like m/44h/1h/0
         elif prefix == b"xpub":
             try:
@@ -89,18 +96,18 @@ class XpubApp(BaseApp):
         net = NETWORKS[self.network]
         xpub = self.keystore.get_xpub(derivation)
         ver = bip32.detect_version(derivation, default="xpub",
-                        network=net)
+                                   network=net)
         canonical = xpub.to_base58(net["xpub"])
         slip132 = xpub.to_base58(ver)
         if slip132 == canonical:
             slip132 = None
         prefix = "[%s%s]" % (
-            hexlify(self.keystore.fingerprint).decode(), 
+            hexlify(self.keystore.fingerprint).decode(),
             derivation[1:]
         )
-        await show_screen(XPubScreen(xpub=canonical, 
-                                    slip132=slip132, 
-                                    prefix=prefix))
+        await show_screen(XPubScreen(xpub=canonical,
+                                     slip132=slip132,
+                                     prefix=prefix))
 
     def wipe(self):
         # nothing to delete

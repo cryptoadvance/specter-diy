@@ -7,8 +7,10 @@ from bitcoin.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
 import hashlib
 
+
 class WalletError(AppError):
     NAME = "Wallet error"
+
 
 class Wallet:
     """
@@ -17,10 +19,11 @@ class Wallet:
     wrapped=True - nested segwit
     """
     SCRIPTS = [
-        SingleKey, 
+        SingleKey,
         Multisig,
     ]
     GAP_LIMIT = 20
+
     def __init__(self, script, wrapped=False, path=None, name="Untitled"):
         self.name = name
         self.path = path
@@ -28,7 +31,8 @@ class Wallet:
             self.path = self.path.rstrip("/")
             maybe_mkdir(self.path)
         if type(script) not in type(self).SCRIPTS:
-            raise WalletError("%s not in %s" % (type(script), type(self).SCRIPTS))
+            raise WalletError("%s not in %s" %
+                              (type(script), type(self).SCRIPTS))
         self.script = script
         self.wrapped = wrapped
         # receive and change gap limits
@@ -57,16 +61,17 @@ class Wallet:
             raise WalletError("I don't know path...")
         delete_recursively(self.path, include_self=True)
 
-    def get_address(self, idx:int, network:str, change=False):
+    def get_address(self, idx: int, network: str, change=False):
         sc, gap = self.scriptpubkey([int(change), idx])
         return sc.address(NETWORKS[network]), gap
 
-    def scriptpubkey(self, derivation:list):
+    def scriptpubkey(self, derivation: list):
         """Returns scriptpubkey and gap limit"""
         # derivation can be only two elements
         change, idx = derivation
-        if change not in [0,1]:
-            raise WalletError("Invalid change index %d - can be 0 or 1" % change)
+        if change not in [0, 1]:
+            raise WalletError(
+                "Invalid change index %d - can be 0 or 1" % change)
         if idx < 0:
             raise WalletError("Invalid index %d - can't be negative" % idx)
         sc = self.script.scriptpubkey(derivation)
@@ -105,7 +110,7 @@ class Wallet:
         derivation = None
         wallet_key = b"\xfc\xca\x01"+self.fingerprint
         # only 2-index derivations are allowed
-        if wallet_key in scope.unknown and len(scope.unknown[wallet_key])==8:
+        if wallet_key in scope.unknown and len(scope.unknown[wallet_key]) == 8:
             der = scope.unknown[wallet_key]
             derivation = []
             for i in range(len(der)//4):
@@ -131,7 +136,8 @@ class Wallet:
         # update from gaps arg
         if known_idxs is not None:
             for i, gap in enumerate(gaps):
-                if known_idxs[i] is not None and known_idxs[i] + self.GAP_LIMIT > gap:
+                if (known_idxs[i] is not None
+                        and known_idxs[i] + self.GAP_LIMIT > gap):
                     gaps[i] = known_idxs[i]+self.GAP_LIMIT
         self.unused_recv = gaps[0]-self.GAP_LIMIT
         self.gaps = gaps
@@ -153,11 +159,14 @@ class Wallet:
                 if key.fingerprint == fingerprint:
                     pub = key.derive(wallet_derivation).get_public_key()
                     # fill our derivations
-                    scope.bip32_derivations[pub] = DerivationPath(fingerprint, key.derivation + wallet_derivation)
+                    scope.bip32_derivations[pub] = DerivationPath(
+                        fingerprint, key.derivation + wallet_derivation)
             # fill script
-            scope.witness_script = self.script.witness_script(wallet_derivation)
+            scope.witness_script = self.script.witness_script(
+                wallet_derivation)
             if self.wrapped:
-                scope.redeem_script = self.script.scriptpubkey(wallet_derivation)
+                scope.redeem_script = self.script.scriptpubkey(
+                    wallet_derivation)
         return psbt
 
     def get_keys(self):
@@ -235,4 +244,3 @@ class Wallet:
 
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, str(self))
-

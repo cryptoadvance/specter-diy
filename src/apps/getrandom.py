@@ -8,9 +8,12 @@ from binascii import hexlify
 from rng import get_random_bytes
 
 # Should be called App if you use a single file
+
+
 class App(BaseApp):
     """Allows to query random bytes from on-board TRNG."""
     prefixes = [b"getrandom"]
+
     async def process_host_command(self, stream, show_fn):
         """
         If command with one of the prefixes is received

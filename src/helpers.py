@@ -1,25 +1,29 @@
 from bitcoin import bip39, compact
-import hashlib, hmac
+import hashlib
+import hmac
 from ucryptolib import aes
 from io import BytesIO
 import rng
 
 AES_BLOCK = 16
-IV_SIZE   = 16
-AES_CBC   = 2
+IV_SIZE = 16
+AES_CBC = 2
 
-def gen_mnemonic(num_words:int)->str:
+
+def gen_mnemonic(num_words: int)->str:
     """Generates a mnemonic with num_words"""
-    if num_words < 12 or num_words > 24 or num_words%3 != 0:
+    if num_words < 12 or num_words > 24 or num_words % 3 != 0:
         raise RuntimeError("Invalid word count")
     return bip39.mnemonic_from_bytes(rng.get_random_bytes(num_words*4//3))
 
-def tagged_hash(tag:str, data:bytes)->bytes:
+
+def tagged_hash(tag: str, data: bytes)->bytes:
     """BIP-Schnorr tag-specific key derivation"""
     hashtag = hashlib.sha256(tag.encode()).digest()
     return hashlib.sha256(hashtag+hashtag+data).digest()
 
-def encrypt(plain:bytes, key:bytes)->bytes:
+
+def encrypt(plain: bytes, key: bytes)->bytes:
     """Encrypt data with bit padding (0x80...)"""
     iv = rng.get_random_bytes(IV_SIZE)
     crypto = aes(key, AES_CBC, iv)
@@ -31,14 +35,15 @@ def encrypt(plain:bytes, key:bytes)->bytes:
         plain += b"\x00"*(AES_BLOCK-(len(plain) % AES_BLOCK))
     return iv+crypto.encrypt(plain)
 
-def decrypt(ct:bytes, key:bytes)->bytes:
+
+def decrypt(ct: bytes, key: bytes)->bytes:
     """Decrypt data and remove AES_CBC 80... padding"""
     iv = ct[:IV_SIZE]
     ct = ct[IV_SIZE:]
     # 2 - MODE_CBC
     crypto = aes(key, AES_CBC, iv)
     plain = crypto.decrypt(ct)
-    # remove padding: 
+    # remove padding:
     # split
     arr = plain.split(b"\x80")
     # remove last element and check it's all zeroes
@@ -47,7 +52,9 @@ def decrypt(ct:bytes, key:bytes)->bytes:
     # join all but last
     return b"\x80".join(arr)
 
-def aead_encrypt(key:bytes, adata:bytes=b"", plaintext:bytes=b"")->bytes:
+
+def aead_encrypt(key: bytes, adata: bytes = b"",
+                 plaintext: bytes = b"")->bytes:
     """
     Encrypts and authenticates with associated data using key k.
     output format: <compact-len:associated data><iv><ct><hmac>
@@ -61,7 +68,8 @@ def aead_encrypt(key:bytes, adata:bytes=b"", plaintext:bytes=b"")->bytes:
     mac = hmac.new(hmac_key, msg=data, digestmod="sha256").digest()
     return data+mac
 
-def aead_decrypt(ciphertext:bytes, key:bytes)->tuple:
+
+def aead_decrypt(ciphertext: bytes, key: bytes)->tuple:
     """
     Verifies MAC and decrypts ciphertext with associated data.
     Inverse to aead_encrypt
@@ -76,8 +84,8 @@ def aead_decrypt(ciphertext:bytes, key:bytes)->tuple:
     b = BytesIO(ct)
     l = compact.read_from(b)
     adata = b.read(l)
-    assert len(adata)==l
+    assert len(adata) == l
     ct = b.read()
-    if len(ct)==0:
+    if len(ct) == 0:
         return adata, b""
     return adata, decrypt(ct, aes_key)

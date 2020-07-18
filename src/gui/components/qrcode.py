@@ -13,11 +13,13 @@ qr_style.text.color = lv.color_hex(0)
 qr_style.text.line_space = 0
 qr_style.text.letter_space = 0
 
+
 class QRCode(lv.obj):
-    RATE = 200 # ms
+    RATE = 200  # ms
     FRAME_SIZE = 300
     MIN_SIZE = 300
     MAX_SIZE = 850
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.label = lv.label(self)
@@ -50,7 +52,8 @@ class QRCode(lv.obj):
             self.task.cancel()
         if event == lv.EVENT.RELEASED:
             # nothing to do here
-            if len(self._text) <= self.MIN_SIZE or len(self._text) > self.MAX_SIZE:
+            if (len(self._text) <= self.MIN_SIZE
+                    or len(self._text) > self.MAX_SIZE):
                 return
             if self.idx is None:
                 self.idx = 0
@@ -84,15 +87,16 @@ class QRCode(lv.obj):
         prefix = "p%dof%d " % (self.idx+1, self.frame_num)
         offset = self.frame_size*self.idx
         self._set_text(prefix+self._text[offset:offset+self.frame_size])
-        self.note.set_text("Part %d of %d. Click to stop." % (self.idx+1, self.frame_num))
+        self.note.set_text("Part %d of %d. Click to stop." %
+                           (self.idx+1, self.frame_num))
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
     def _set_text(self, text):
         qr = qrcode.encode_to_string(text).strip()
-        size = int(math.sqrt(len(qr))) # + 4 clear space on every side
+        size = int(math.sqrt(len(qr)))  # + 4 clear space on every side
         width = self.get_width()
         scale = width//size
-        sizes = range(1,10)
+        sizes = range(1, 10)
         fontsize = [s for s in sizes if s < scale or s == 1][-1]
         font = getattr(lv, "square%d" % fontsize)
         style = lv.style_t()
@@ -111,7 +115,7 @@ class QRCode(lv.obj):
 
     def get_text(self):
         return self._text
-    
+
     def set_size(self, size):
         self.label.set_size(size, size)
         super().set_size(size, size)

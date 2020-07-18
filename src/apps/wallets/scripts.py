@@ -2,8 +2,10 @@ from bitcoin import bip32, script
 from binascii import unhexlify, hexlify
 from errors import BaseError
 
+
 class ScriptError(BaseError):
     NAME = "Script error"
+
 
 class DescriptorScript:
     def script(self, derivation):
@@ -17,6 +19,7 @@ class DescriptorScript:
 
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, str(self))
+
 
 class SingleKey(DescriptorScript):
     def __init__(self, key):
@@ -34,7 +37,7 @@ class SingleKey(DescriptorScript):
         if len(derivation) != 2:
             raise ScriptError("Derivation should be of len 2")
         change, idx = derivation
-        if change not in [0,1] or idx < 0:
+        if change not in [0, 1] or idx < 0:
             raise ScriptError("Invalid change or index")
         pub = self.key.derive([change, idx])
         return script.p2wpkh(pub)
@@ -52,10 +55,12 @@ class SingleKey(DescriptorScript):
     def __str__(self):
         return "wpkh(%s)" % str(self.key)
 
+
 class Multisig(DescriptorScript):
-    def __init__(self, sigs_required:int, keys:list, sort_keys:bool=True):
+    def __init__(self, sigs_required: int, keys: list, sort_keys: bool = True):
         if sigs_required > len(keys) or sigs_required <= 0:
-            raise ScriptError("Can't do %d of %d multisig" % (sigs_required, len(keys)))
+            raise ScriptError("Can't do %d of %d multisig" %
+                              (sigs_required, len(keys)))
         self.sigs_required = sigs_required
         self.sort_keys = sort_keys
         self.keys = keys
@@ -90,17 +95,20 @@ class Multisig(DescriptorScript):
         if len(derivation) != 2:
             raise ScriptError("Derivation should be of len 2")
         change, idx = derivation
-        if change not in [0,1] or idx < 0:
+        if change not in [0, 1] or idx < 0:
             raise ScriptError("Invalid change or index")
         # derive and get public keys
-        pubs = [key.derive([change, idx]).get_public_key() for key in self.keys]
+        pubs = [key.derive([change, idx]).get_public_key()
+                for key in self.keys]
         if self.sort_keys:
             pubs = sorted(pubs)
         return script.multisig(self.sigs_required, pubs)
 
     @property
     def policy(self):
-        return "segwit, %d of %d multisig" % (self.sigs_required, len(self.keys))
+        return "segwit, %d of %d multisig" % (
+            self.sigs_required, len(self.keys)
+        )
 
     def __str__(self):
         keystring = ",".join([str(key) for key in self.keys])
@@ -112,6 +120,7 @@ class Multisig(DescriptorScript):
 
 class DescriptorKey:
     """A key with derivation path in the form [fingerprint/derivation]xpub"""
+
     def __init__(self, xpub, fingerprint=None, derivation=None):
         if isinstance(xpub, str):
             self.key = bip32.HDKey.from_base58(xpub)
@@ -145,7 +154,7 @@ class DescriptorKey:
     @classmethod
     def parse(cls, s):
         # remove spaces
-        s.strip().replace(" ","")
+        s.strip().replace(" ", "")
         fingerprint = None
         derivation = None
         # ok we probably have at least derivation
@@ -170,7 +179,8 @@ class DescriptorKey:
         if self.derivation is not None:
             prefix = "[%s]" % bip32.path_to_str(self.derivation)
             if self.fingerprint is not None:
-                prefix = prefix.replace("m", hexlify(self.fingerprint).decode())
+                prefix = prefix.replace(
+                    "m", hexlify(self.fingerprint).decode())
         return prefix+xpub
 
     def __repr__(self):

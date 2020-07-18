@@ -6,11 +6,12 @@ from micropython import const
 import gc
 from .components import QRCode, styles
 
-PADDING    = const(20)
+PADDING = const(20)
 BTN_HEIGHT = const(70)
-HOR_RES    = const(480)
-VER_RES    = const(800)
+HOR_RES = const(480)
+VER_RES = const(800)
 QR_PADDING = const(40)
+
 
 def init_styles(dark=True):
     if dark:
@@ -107,6 +108,7 @@ def init_styles(dark=True):
     lv.style_copy(styles["hint"], th.style.label.sec)
     styles["hint"].text.font = lv.font_roboto_16
 
+
 def add_label(text, y=PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""
     if width is None:
@@ -124,14 +126,15 @@ def add_label(text, y=PADDING, scr=None, style=None, width=None):
     lbl.set_y(y)
     return lbl
 
+
 def add_button(text=None, callback=None, scr=None, y=700):
     """Helper function that creates a button with a text label"""
     if scr is None:
         scr = lv.scr_act()
     btn = lv.btn(scr)
-    btn.set_width(HOR_RES-2*PADDING);
-    btn.set_height(BTN_HEIGHT);
-    
+    btn.set_width(HOR_RES-2*PADDING)
+    btn.set_height(BTN_HEIGHT)
+
     if text is not None:
         lbl = lv.label(btn)
         lbl.set_text(text)
@@ -145,6 +148,7 @@ def add_button(text=None, callback=None, scr=None, y=700):
 
     return btn
 
+
 def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     """Helper function that creates a button with a text label"""
     btn1 = add_button(text1, callback1, scr=scr, y=y)
@@ -152,12 +156,14 @@ def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
     align_button_pair(btn1, btn2)
     return btn1, btn2
 
+
 def align_button_pair(btn1, btn2):
     """Aligns two buttons in a row"""
     w = (HOR_RES-3*PADDING)//2
     btn1.set_width(w)
     btn2.set_width(w)
     btn2.set_x(HOR_RES//2+PADDING//2)
+
 
 def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""
@@ -174,16 +180,21 @@ def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
     qr.align(scr, lv.ALIGN.IN_TOP_MID, 0, y)
     return qr
 
+
 def separate(addr, letters=6, separator=" "):
     extra = ""
     if len(addr) % letters > 0:
         extra = " "*(letters-(len(addr) % letters))
-    return separator.join([addr[i:i+letters] for i in range(0, len(addr), letters)])+extra
+    return separator.join([
+        addr[i:i+letters]
+        for i in range(0, len(addr), letters)
+    ])+extra
+
 
 def format_addr(addr, letters=6, words=3):
     return separate(
         separate(
             addr, letters=letters, separator=" "
-        ), 
+        ),
         letters=(words*(letters+1)), separator="\n"
     )
