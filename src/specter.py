@@ -219,7 +219,6 @@ class Specter:
         # for every button we use an ID
         # to avoid mistakes when editing strings
         # If ID is None - it is a section title, not a button
-        net = NETWORKS[self.network]["name"]
         buttons = [
             # id, text
             (None, "Applications"),
@@ -228,8 +227,7 @@ class Specter:
         ] + host_buttons + [
             (None, "More"),  # delimiter
             (2, "Lock device"),
-            (3, "Switch network (%s)" % net),
-            (4, "Settings"),
+            (3, "Settings"),
         ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons)
@@ -241,8 +239,6 @@ class Specter:
             # go to the unlock screen
             await self.unlock()
         elif menuitem == 3:
-            await self.select_network()
-        elif menuitem == 4:
             return await self.settingsmenu()
         elif isinstance(menuitem, BaseApp) and hasattr(menuitem, 'menu'):
             app = menuitem
@@ -263,28 +259,48 @@ class Specter:
             print(menuitem)
             raise SpecterError("Not implemented")
 
-    async def process_host_request(self, stream, popup=True):
-        """
-        This method is called whenever we got data from the host.
-        It tries to find a proper app and pass the stream with data to it.
-        """
-        matching_apps = []
-        for app in self.apps:
-            stream.seek(0)
-            # check if the app can process this stream
-            if app.can_process(stream):
-                matching_apps.append(app)
-        if len(matching_apps) == 0:
-            raise HostError("Host command is not recognized")
-        # TODO: if more than one - ask which one to use
-        if len(matching_apps) > 1:
-            raise HostError(
-                "Not sure what app to use... "
-                "There are %d" % len(matching_apps))
-        stream.seek(0)
-        app = matching_apps[0]
-        return await app.process_host_command(stream,
-                                              self.gui.show_screen(popup))
+    async def settingsmenu(self):
+        net = NETWORKS[self.network]["name"]
+        buttons = [
+            # id, text
+            (None, "Network"),
+            (5, "Switch network (%s)" % net),
+            (None, "Key management"),
+            (0, "Reckless"),
+            (2, "Enter password"),
+            (None, "Security"),  # delimiter
+            (3, "Change PIN code"),
+            (4, "Developer & USB"),
+        ]
+        # wait for menu selection
+        menuitem = await self.gui.menu(buttons, last=(255, None))
+
+        # process the menu button:
+        # back button
+        if menuitem == 255:
+            return self.mainmenu
+        elif menuitem == 0:
+            return await self.recklessmenu()
+        elif menuitem == 2:
+            pwd = await self.gui.get_input()
+            if pwd is None:
+                return self.mainmenu
+            self.keystore.set_mnemonic(password=pwd)
+            for app in self.apps:
+                app.init(self.keystore, self.network)
+        elif menuitem == 3:
+            await self.change_pin()
+            await self.gui.alert("Success!",
+                                 "PIN code is sucessfully changed!")
+            return self.mainmenu
+        elif menuitem == 4:
+            await self.update_devsettings()
+        elif menuitem == 5:
+            await self.select_network()
+            return self.mainmenu
+        else:
+            print(menuitem)
+            raise SpecterError("Not implemented")
 
     async def select_network(self):
         # dict is unordered unfortunately, so we need to use hardcoded arr
@@ -317,43 +333,6 @@ class Specter:
         except:
             pass
         self.set_network(network)
-
-    async def settingsmenu(self):
-        buttons = [
-            # id, text
-            (None, "Key management"),
-            (0, "Reckless"),
-            (2, "Enter password"),
-            (None, "Security"),  # delimiter
-            (3, "Change PIN code"),
-            (4, "Developer & USB"),
-        ]
-        # wait for menu selection
-        menuitem = await self.gui.menu(buttons, last=(255, None))
-
-        # process the menu button:
-        # back button
-        if menuitem == 255:
-            return self.mainmenu
-        elif menuitem == 0:
-            return await self.recklessmenu()
-        elif menuitem == 2:
-            pwd = await self.gui.get_input()
-            if pwd is None:
-                return self.mainmenu
-            self.keystore.set_mnemonic(password=pwd)
-            for app in self.apps:
-                app.init(self.keystore, self.network)
-        elif menuitem == 3:
-            await self.change_pin()
-            await self.gui.alert("Success!",
-                                 "PIN code is sucessfully changed!")
-            return self.mainmenu
-        elif menuitem == 4:
-            await self.update_devsettings()
-        else:
-            print(menuitem)
-            raise SpecterError("Not implemented")
 
     async def update_devsettings(self):
         res = await self.gui.devscreen(dev=self.dev, usb=self.usb)
@@ -458,3 +437,26 @@ class Specter:
         self.usb = usb
         self.dev = dev
         set_usb_mode(usb=self.usb, dev=self.dev)
+
+    async def process_host_request(self, stream, popup=True):
+        """
+        This method is called whenever we got data from the host.
+        It tries to find a proper app and pass the stream with data to it.
+        """
+        matching_apps = []
+        for app in self.apps:
+            stream.seek(0)
+            # check if the app can process this stream
+            if app.can_process(stream):
+                matching_apps.append(app)
+        if len(matching_apps) == 0:
+            raise HostError("Host command is not recognized")
+        # TODO: if more than one - ask which one to use
+        if len(matching_apps) > 1:
+            raise HostError(
+                "Not sure what app to use... "
+                "There are %d" % len(matching_apps))
+        stream.seek(0)
+        app = matching_apps[0]
+        return await app.process_host_command(stream,
+                                              self.gui.show_screen(popup))

@@ -16,12 +16,12 @@ Specter tries to derive an address for descriptors of all existing wallets and d
 
 For example, if Specter has two wallets:
 
-- Simple with descriptor `wpkh([b317ec86/84h/1h/0h]vpub5YHLPnkkpPW1ecL7Di7Gv2wDHDtBNqRdt17gMULpxJ27ZA1MmW7xbZjdg1S7d5JKaJ8CiZEmRUHrEB6CGuLomA6ioVa1Pcke6fEb5CzDBU1/_)`
+- Simple with descriptor `wpkh([b317ec86/84h/1h/0h]vpub5YHLPnkkpPW1ecL7Di7Gv2wDHDtBNqRdt17gMULpxJ27ZA1MmW7xbZjdg1S7d5JKaJ8CiZEmRUHrEB6CGuLomA6ioVa1Pcke6fEb5CzDBU1)`
 - Multisig with descriptor `wsh(sortedmulti(2,[b317ec86/48h/1h/0h/2h]tpubDEToKMGFhyuP6kfwvjtYaf56khzS1cUcwc47C6aMH6bQ8sNVLMcCK6jr21YDCkU2QhTK5CAnddhfgZ8dD4EL1wGCaAKZaGFeVVdXHaJMTMn,[f04828fe/48h/1h/0h/2h]tpubDFekS5zvPSdW6WWjH2p7vPRkxmeeNGnirmj36AUyoAYbJvfKBj6UARWR5gQ6FRrr98dzT1XFTi6rfGo9AAAeutY1S6SoWijQ8BKxDhYQzDR,[d3c05b2e/48h/1h/0h/2h]tpubDFnAczXQTHxuBh7FxrpLDHBidkC1Di54pTPSPMu4AQjKziFQQTTEFXEVugqm8ucKQhJfLGesBjRZWtLpqAkAmecoXtvaPwCzf4teqrY7Uu5))`
 
 and it scanned QR code with data `bitcoin:bcrt1qd3mtrhysk3k4w6fmu7ayjvwk6q98c2dpf0p4x87zauu8rcgq5dzq73tyrx?index=2`
 
-it will try to derive receiving addresses for both wallets replacing `/_` with `/0/2`. In this case for Multisig wallet the address will match, therefore it will display to the user this address with a title `Address #3 from wallet "Multisig"`. It uses `index+1` in the title as normal people start counting from 1, not from 0.
+it will try to derive receiving addresses for both wallets appending `/0/2` to every descriptor key. In this case for Multisig wallet the address will match, therefore it will display to the user this address with a title `Address #2 from wallet "Multisig"`.
 
 *Note that wallets are defined for particular network, so if you have a multisig wallet on regtest doesn't mean that it exists on testnet as well, and Specter only checks wallets in currently selected network.*
 
@@ -35,7 +35,7 @@ To import the wallet using QR codes user needs to get to the **Wallets** menu an
 <wallet_name>&<wallet_descriptor>
 ```
 
-Descriptors used in Specter are almost the same as in [Bitcoin Core](https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md) with one exception - we use suffix `/_` to denote derivation paths `/0/*` for receiving and `/1/*` for change addresses.
+Descriptors used in Specter are almost the same as in [Bitcoin Core](https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md) with one exception - we remove suffix `/0/*` and `/1/*` to avoid duplications in the QR code and append it afterwards internally.
 
 Example of the multisig wallet import code:
 
