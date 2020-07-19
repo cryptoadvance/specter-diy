@@ -280,11 +280,11 @@ class Specter:
         if menuitem == 255:
             return self.mainmenu
         elif menuitem == 0:
-            return await self.recklessmenu()
+            await self.recklessmenu()
         elif menuitem == 2:
             pwd = await self.gui.get_input()
             if pwd is None:
-                return self.mainmenu
+                return self.settingsmenu
             self.keystore.set_mnemonic(password=pwd)
             for app in self.apps:
                 app.init(self.keystore, self.network)
@@ -297,10 +297,10 @@ class Specter:
             await self.update_devsettings()
         elif menuitem == 5:
             await self.select_network()
-            return self.mainmenu
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
+        return self.settingsmenu
 
     async def select_network(self):
         # dict is unordered unfortunately, so we need to use hardcoded arr
