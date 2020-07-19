@@ -4,6 +4,7 @@ import hmac
 from ucryptolib import aes
 from io import BytesIO
 import rng
+import platform
 
 AES_BLOCK = 16
 IV_SIZE = 16
@@ -89,3 +90,21 @@ def aead_decrypt(ciphertext: bytes, key: bytes)->tuple:
     if len(ct) == 0:
         return adata, b""
     return adata, decrypt(ct, aes_key)
+
+def load_apps(module='apps', whitelist=None, blacklist=None):
+    mod = __import__(module)
+    mods = mod.__all__
+    apps = []
+    if blacklist is not None:
+        mods = [mod for mod in mods if mod not in blacklist]
+    if whitelist is not None:
+        mods = [mod for mod in mods if mod in whitelist]
+    for modname in mods:
+        appmod = __import__('%s.%s' % (module, modname))
+        mod = getattr(appmod, modname)
+        if hasattr(mod, 'App'):
+            app = mod.App(platform.fpath("/qspi/%s" % modname))
+            apps.append(app)
+        else:
+            print("Failed loading app:", modname)
+    return apps

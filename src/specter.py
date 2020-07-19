@@ -6,13 +6,14 @@ from io import BytesIO
 import asyncio
 
 from keystore import FlashKeyStore
-from platform import CriticalErrorWipeImmediately, set_usb_mode, reboot
+from platform import (CriticalErrorWipeImmediately, set_usb_mode,
+                      reboot, fpath, maybe_mkdir)
 from hosts import Host, HostError
 from app import BaseApp
 from bitcoin import bip39
 from bitcoin.networks import NETWORKS
 # small helper functions
-from helpers import gen_mnemonic
+from helpers import gen_mnemonic, load_apps
 from errors import BaseError
 
 
@@ -425,6 +426,17 @@ class Specter:
                                     key=self.keystore.enc_secret)
         self.dev = config["dev"]
         self.usb = config["usb"]
+        # add apps in dev mode
+        if self.dev:
+            try:
+                qspi = fpath("/qspi/extensions")
+                maybe_mkdir(qspi)
+                maybe_mkdir(qspi+"/extra_apps")
+                if qspi not in sys.path:
+                    sys.path.append(qspi)
+                    self.apps += load_apps('extra_apps')
+            except Exception as e:
+                print(e)
 
     def update_config(self, usb=False, dev=False):
         config = {
