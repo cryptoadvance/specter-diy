@@ -14,6 +14,6 @@ class QRAlert(Alert):
         if qr_message is None:
             qr_message = message
         super().__init__(title, message, button_text, note=note)
-        self.qr = add_qrcode(qr_message, scr=self.page, width=qr_width)
+        self.qr = add_qrcode(qr_message, scr=self, width=qr_width)
         self.qr.align(self.page, lv.ALIGN.IN_TOP_MID, 0, 20)
         self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)

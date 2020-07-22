@@ -15,7 +15,7 @@ qr_style.text.letter_space = 0
 
 
 class QRCode(lv.obj):
-    RATE = 200  # ms
+    RATE = 300  # ms
     FRAME_SIZE = 300
     MIN_SIZE = 300
     MAX_SIZE = 850
@@ -26,6 +26,9 @@ class QRCode(lv.obj):
         self._text = "Text"
         self.label.set_long_mode(lv.label.LONG.BREAK)
         self.label.set_align(lv.label.ALIGN.CENTER)
+
+        self._original_size = None
+        self._press_start = None
 
         self.note = lv.label(self)
         style = lv.style_t()
@@ -48,12 +51,27 @@ class QRCode(lv.obj):
             await asyncio.sleep_ms(self.RATE)
 
     def cb(self, obj, event):
+        # check event
         if event == lv.EVENT.DELETE:
             self.task.cancel()
-        if event == lv.EVENT.RELEASED:
-            # nothing to do here
+        elif event == lv.EVENT.PRESSED:
+            # get coords
+            point = lv.point_t()
+            indev = lv.indev_get_act()
+            lv.indev_get_point(indev, point)
+            self._press_start = point
+        elif event == lv.EVENT.RELEASED:
             if (len(self._text) <= self.MIN_SIZE
                     or len(self._text) > self.MAX_SIZE):
+                self.toggle_fullscreen()
+                return
+            point = lv.point_t()
+            indev = lv.indev_get_act()
+            lv.indev_get_point(indev, point)
+            # if swipe
+            if (abs(self._press_start.x - point.x)
+                + abs(self._press_start.y - point.y) > 100):
+                self.toggle_fullscreen()
                 return
             if self.idx is None:
                 self.idx = 0
@@ -61,8 +79,43 @@ class QRCode(lv.obj):
             else:
                 self.idx = None
                 self._set_text(self._text)
-                self.note.set_text("Click to animate")
-                self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+            self.updata_note()
+
+    def toggle_fullscreen(self):
+        if self._original_size is None:
+            self._original_size = (
+                self.get_x(), self.get_y(),
+                self.get_width(), self.get_height()
+            )
+        if self.is_fullscreen:
+            x, y, width, height = self._original_size
+        else:
+            x, y, width, height = 0, 0, 480, 800
+        self.move_foreground()
+        self.set_pos(x,y)
+        super().set_size(width, height)
+        self.label.align(self, lv.ALIGN.CENTER, 0, 0)
+        self.updata_note()
+
+    @property
+    def is_fullscreen(self):
+        if self._original_size is None:
+            return False
+        # check height is original
+        return self._original_size[3] != self.get_height()
+
+    def updata_note(self):
+        if self.is_fullscreen:
+            if len(self._text) > self.MIN_SIZE and len(self._text) <= self.MAX_SIZE:
+                self.note.set_text("Click to animate, swipe to shrink.")
+            else:
+                self.note.set_text("Click to shrink.")
+        else:
+            if len(self._text) > self.MIN_SIZE and len(self._text) <= self.MAX_SIZE:
+                self.note.set_text("Click to animate, swipe to expand.")
+            else:
+                self.note.set_text("Click to expand")
+        self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
     def set_text(self, text="Text"):
         if self._text != text:
@@ -77,11 +130,7 @@ class QRCode(lv.obj):
             self.set_frame()
         else:
             self._set_text(text)
-        if len(text) > self.MIN_SIZE and len(text) <= self.MAX_SIZE:
-            self.note.set_text("Click to animate")
-            self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
-        else:
-            self.note.set_text("")
+        self.updata_note()
 
     def set_frame(self):
         prefix = "p%dof%d " % (self.idx+1, self.frame_num)
@@ -93,8 +142,8 @@ class QRCode(lv.obj):
 
     def _set_text(self, text):
         qr = qrcode.encode_to_string(text).strip()
-        size = int(math.sqrt(len(qr)))  # + 4 clear space on every side
-        width = self.get_width()
+        size = int(math.sqrt(len(qr)))+1 # to make sure round up
+        width = self.label.get_width()
         scale = width//size
         sizes = range(1, 10)
         fontsize = [s for s in sizes if s < scale or s == 1][-1]
