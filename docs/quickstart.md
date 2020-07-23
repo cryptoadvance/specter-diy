@@ -1,5 +1,6 @@
 # Installing the compiled code
 
+* Make sure your power jumper is at STLK position
 * Connect the DISCO board to your computer via the **miniUSB** cable on the top of the board.
     * The board should appear as a removable disk named DIS_F469NI.
 * Go the Releases section of this github repo.

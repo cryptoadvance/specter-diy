@@ -10,9 +10,9 @@ On MacOS install it using brew: `brew install arm-none-eabi-gcc`
 
 On Linux: `sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
 
-Run `./build.sh` script, it may work. Or not. If not - please open an issue and we will try to figure out.
+Run `make disco` to get the binary or `make unix` to compile the simulator. They will be in the `bin` folder.
 
-At the end you should get a `specter-diy.bin` file in the root that you can copy to the device.
+`specter-diy.bin` file is the firmware that you need to copy to the device.
 
 The easiest way to start developing is to use a [simulator](./simulator.md), and when you are done - try it on a real hardware.
 

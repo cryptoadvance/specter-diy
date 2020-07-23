@@ -44,6 +44,10 @@ All the docs are stored in the [`docs/`](./docs) folder:
 
 Supported networks: Mainnet, Testnet, Regtest, Signet.
 
+## Build
+
+`make disco` creates firmware, `make unix` creates a simulator, `make simulate` runs the simulator.
+
 ## Video and screenshots
 
 Check out [this Twitter thread](https://twitter.com/StepanSnigirev/status/1168923849699876881) to get an idea how it works.
