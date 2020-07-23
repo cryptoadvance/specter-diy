@@ -8,9 +8,9 @@ class DevSettings(Prompt):
     def __init__(self, dev=False, usb=False):
         super().__init__("Developer and USB", "")
         usb_label = add_label("USB communication", 120, scr=self.page)
-        usb_hint = add_label("If USB is enabled the device will be able"
-                             "to talk to your computer. This increases"
-                             "attack surface but sometimes makes it"
+        usb_hint = add_label("If USB is enabled the device will be able "
+                             "to talk to your computer. This increases "
+                             "attack surface but sometimes makes it "
                              "more convenient to use.",
                              160, scr=self.page, style="hint")
         self.usb_switch = lv.sw(self.page)
@@ -22,9 +22,9 @@ class DevSettings(Prompt):
             self.usb_switch.on(lv.ANIM.OFF)
 
         dev_label = add_label("Developer mode", 320, scr=self.page)
-        dev_hint = add_label("In developer mode internal flash will"
-                             "be mounted to your computer so you could"
-                             "edit files, but your secrets will be visible as well."
+        dev_hint = add_label("In developer mode internal flash will "
+                             "be mounted to your computer so you could "
+                             "edit files, but your secrets will be visible as well. "
                              "Also enables interactive shell through miniUSB port.",
                              360, scr=self.page, style="hint")
         self.dev_switch = lv.sw(self.page)
