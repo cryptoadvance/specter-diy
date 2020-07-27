@@ -371,9 +371,23 @@ if __name__ == '__main__':
             print("Meh... Screw you.")
             sys.exit()
     dev = SpecterClient(devices[inp]["path"])
-    mfp = dev.get_master_fingerprint_hex()
-    derivation = "m/84h/0h/0h"
-    xpub = dev.get_pubkey_at_path(derivation)["xpub"]
-    print(f"Device fingerprint: {mfp}")
-    print(f"Segwit xpub: {xpub}")
-    print(f"Full key: [{mfp}{derivation[1:]}]{xpub}")
+    if len(sys.argv) == 1:
+        mfp = dev.get_master_fingerprint_hex()
+        derivation = "m/84h/0h/0h"
+        xpub = dev.get_pubkey_at_path(derivation)["xpub"]
+        print(f"Device fingerprint: {mfp}")
+        print(f"Segwit xpub: {xpub}")
+        print(f"Full key: [{mfp}{derivation[1:]}]{xpub}")
+    else:
+        if "-i" not in sys.argv:
+            cmd = (" ".join(sys.argv[1:]))
+            print("Running command:", cmd)
+            print(dev.query(cmd))
+        else:
+            cmd = ""
+            print("Interactive mode! Enter `quit` to exit.")
+            while inp != "quit":
+                cmd = input("Enter command to run: ")
+                if cmd == "quit":
+                    sys.exit(0)
+                print(dev.query(cmd))
