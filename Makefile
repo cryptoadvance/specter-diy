@@ -24,7 +24,7 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
 		USER_C_MODULES=$(USER_C_MODULES) \
-		FROZEN_MANIFEST=$(FROZEN_MANIFEST_FIRMWARE) && \
+		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) && \
 	arm-none-eabi-objcopy -O binary \
 		$(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
 		$(TARGET_DIR)/specter-diy.bin
