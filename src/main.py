@@ -6,7 +6,7 @@ import platform
 import sys
 from helpers import load_apps
 
-def main(apps=None, network='test'):
+def main(apps=None, network='test', keystore_cls=None):
     # create virtual file system /sdram
     # for temp untrusted data storage
     rampath = platform.mount_sdram()
@@ -23,7 +23,10 @@ def main(apps=None, network='test'):
     # folder where keystore will store it's data
     keystore_path = platform.fpath("/flash/keystore")
     # define KeyStore
-    keystore = FlashKeyStore(keystore_path)
+    if keystore_cls is None:
+        keystore = FlashKeyStore(keystore_path)
+    else:
+        keystore = keystore_cls(keystore_path)
 
     # loading apps
     if apps is None:

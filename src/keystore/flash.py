@@ -12,6 +12,7 @@ import platform
 from helpers import encrypt, decrypt, aead_encrypt, aead_decrypt, tagged_hash
 import sys
 import secp256k1
+from gui.screens import Alert, PinScreen
 
 
 class FlashKeyStore(KeyStore):
@@ -31,6 +32,8 @@ class FlashKeyStore(KeyStore):
         self._pin_attempts_left = 10
         self.pin_secret = None
         self.enc_secret = None
+        self.initialized = False
+        self.show = None
 
     def set_mnemonic(self, mnemonic=None, password=""):
         """Load mnemonic and password and create root key"""
@@ -93,12 +96,6 @@ class FlashKeyStore(KeyStore):
         if key.derivation is None:
             return key.key == self.root.to_public()
         return key.key == self.root.derive(key.derivation).to_public()
-
-    def init(self):
-        """Load internal secret and PIN state"""
-        platform.maybe_mkdir(self.path)
-        self.load_secret(self.path)
-        self.load_state()
 
     def wipe(self, path):
         """Delete everything in path"""
@@ -170,7 +167,7 @@ class FlashKeyStore(KeyStore):
                (not self.is_locked) and \
                (self.fingerprint is not None)
 
-    def unlock(self, pin):
+    def _unlock(self, pin):
         """
         Unlock the keystore, raises PinError if PIN is invalid.
         Raises CriticalErrorWipeImmediately if no attempts left.
@@ -213,9 +210,9 @@ class FlashKeyStore(KeyStore):
         self._is_locked = True
         return self.is_locked
 
-    def change_pin(self, old_pin, new_pin):
-        self.unlock(old_pin)
-        self.set_pin(new_pin)
+    def _change_pin(self, old_pin, new_pin):
+        self._unlock(old_pin)
+        self._set_pin(new_pin)
 
     def get_auth_word(self, pin_part):
         """
@@ -242,7 +239,7 @@ class FlashKeyStore(KeyStore):
         # check it loads
         self.load_state()
 
-    def set_pin(self, pin):
+    def _set_pin(self, pin):
         """Saves hmac of the PIN code for verification later"""
         # set up pin
         key = tagged_hash("pin", self.secret)
@@ -256,7 +253,7 @@ class FlashKeyStore(KeyStore):
         self.save_aead(self.path+"/enc_secret",
                        plaintext=self.enc_secret, key=self.pin_secret)
         # call unlock now
-        self.unlock(pin)
+        self._unlock(pin)
 
     def save_mnemonic(self):
         if self.is_locked:
@@ -268,6 +265,10 @@ class FlashKeyStore(KeyStore):
                        key=self.pin_secret)
         # check it's ok
         self.load_mnemonic()
+
+    @property
+    def is_key_saved(self):
+        return platform.file_exists(self.path+"/reckless")
 
     def load_mnemonic(self):
         if self.is_locked:
@@ -285,3 +286,81 @@ class FlashKeyStore(KeyStore):
             os.remove(self.path+"/reckless")
         except:
             raise KeyStoreError("Failed to delete from memory")
+
+    async def init(self, show_fn):
+        """
+        Waits for keystore media 
+        and loads internal secret and PIN state
+        """
+        self.show = show_fn
+        platform.maybe_mkdir(self.path)
+        self.load_secret(self.path)
+        self.load_state()
+        # check if init is called for the first time
+        # and we have less than max PIN attempts
+        if (not self.initialized 
+            and self.pin_attempts_left != self.pin_attempts_max):
+            scr = Alert("Warning!",
+                        "You only have %d of %d attempts\n"
+                        "to enter correct PIN code!" % (
+                        self.pin_attempts_left, self.pin_attempts_max),
+                        button_text="OK")
+            await self.show(scr)
+        self.initialized = True
+
+    async def unlock(self):
+        # pin is not set - choose one
+        if not self.is_pin_set:
+            pin = await self.setup_pin()
+            self._set_pin(pin)
+
+        # if keystore is locked - ask for PIN code
+        while self.is_locked:
+            pin = await self.get_pin()
+            self._unlock(pin)
+
+    async def get_pin(self, title="Enter your PIN code"):
+        """
+        Async version of the PIN screen.
+        Waits for an event that is set in the callback.
+        """
+        scr = PinScreen(title=title,
+                        note="Do you recognize these words?",
+                        get_word=self.get_auth_word)
+        return await self.show(scr)
+
+    async def setup_pin(self, get_word=None):
+        """
+        PIN setup screen - first choose, then confirm
+        If PIN codes are the same -> return the PIN
+        If not -> try again
+        """
+        scr = PinScreen(title="Choose your PIN code",
+                        note="Remember these words,"
+                             "they will stay the same on this device.",
+                        get_word=self.get_auth_word)
+        pin1 = await self.show(scr)
+
+        scr = PinScreen(title="Confirm your PIN code",
+                        note="Remember these words,"
+                             "they will stay the same on this device.",
+                        get_word=self.get_auth_word)
+        pin2 = await self.show(scr)
+
+        # check if PIN is the same
+        if pin1 == pin2:
+            return pin1
+        # if not - show an error
+        await self.show(Alert("Error!", "PIN codes are different!"))
+        return await self.setup_pin(get_word)
+
+    async def change_pin(self):
+        # get_auth_word function can generate words from part of the PIN
+        old_pin = await self.get_pin(title="First enter your old PIN code")
+        # check pin - will raise if not valid
+        self._unlock(old_pin)
+        new_pin = await self.setup_pin()
+        self._change_pin(old_pin, new_pin)
+        await self.show(Alert("Success!",
+                              "PIN code is sucessfully changed!",
+                              button_text="OK"))

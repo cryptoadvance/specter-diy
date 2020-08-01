@@ -35,7 +35,6 @@ class Specter:
         self.path = settings_path
         self.load_network(self.path, network)
         self.current_menu = self.initmenu
-        self.just_booted = True
         self.usb = False
         self.dev = False
         self.apps = apps
@@ -83,20 +82,8 @@ class Specter:
     async def setup(self):
         try:
             # load secrets
-            self.keystore.init()
-            # unlock with the PIN code
-            # check if we just booted and have less than max attempts
-            pin_left = self.keystore.pin_attempts_left
-            pin_max = self.keystore.pin_attempts_max
-            if (self.just_booted and pin_left != pin_max):
-                await self.gui.alert("Warning!",
-                                     "You only have %d of %d attempts\n"
-                                     "to enter correct PIN code!" % (
-                                         pin_left, pin_max
-                                     ))
-            # no need to show the warning every time
-            self.just_booted = False
-            # or set up the PIN code
+            await self.keystore.init(self.gui.show_screen())
+            # unlock with PIN or set up the PIN code
             await self.unlock()
         except Exception as e:
             next_fn = await self.handle_exception(e, self.setup)
@@ -140,7 +127,10 @@ class Specter:
             (None, "Key management"),
             (0, "Generate new key"),
             (1, "Enter recovery phrase"),
-            (2, "Load key from flash"),
+        ]
+        if self.keystore.is_key_saved:
+            buttons.append((2, "Use the key saved on the device"))
+        buttons += [
             (None, "Settings"),
             (3, "Developer & USB settings"),
             (4, "Change PIN code"),
@@ -179,9 +169,7 @@ class Specter:
             await self.update_devsettings()
         # change pin code
         elif menuitem == 4:
-            await self.change_pin()
-            await self.gui.alert("Success!",
-                                 "PIN code is sucessfully changed!")
+            await self.keystore.change_pin()
         # lock device
         elif menuitem == 5:
             await self.lock()
@@ -190,16 +178,6 @@ class Specter:
         else:
             print(menuitem, "menu is not implemented yet")
             raise SpecterError("Not implemented")
-
-    async def change_pin(self):
-        # get_auth_word function can generate words from part of the PIN
-        get_auth_word = self.keystore.get_auth_word
-        old_pin = await self.gui.get_pin(get_word=get_auth_word,
-                                         title="First enter your old PIN code")
-        # check pin - will raise if not valid
-        self.keystore.unlock(old_pin)
-        new_pin = await self.gui.setup_pin(get_word=get_auth_word)
-        self.keystore.change_pin(old_pin, new_pin)
 
     async def mainmenu(self):
         for host in self.hosts:
@@ -290,9 +268,7 @@ class Specter:
             for app in self.apps:
                 app.init(self.keystore, self.network)
         elif menuitem == 3:
-            await self.change_pin()
-            await self.gui.alert("Success!",
-                                 "PIN code is sucessfully changed!")
+            await self.keystore.change_pin()
             return self.mainmenu
         elif menuitem == 4:
             await self.update_devsettings()
@@ -395,19 +371,7 @@ class Specter:
         - setup PIN if not set
         - enter PIN if set
         """
-        # get_auth_word function can
-        # generate words from part of the PIN
-        get_auth_word = self.keystore.get_auth_word
-        # pin is not set - choose one
-        if not self.keystore.is_pin_set:
-            pin = await self.gui.setup_pin(get_word=get_auth_word)
-            self.keystore.set_pin(pin)
-
-        # if keystore is locked - ask for PIN code
-        while self.keystore.is_locked:
-            pin = await self.gui.get_pin(get_word=get_auth_word)
-            self.keystore.unlock(pin)
-
+        await self.keystore.unlock()
         # now keystore is unlocked - we can proceed
         # load configuration
         self.load_config()
