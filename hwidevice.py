@@ -64,8 +64,14 @@ class SpecterClient(HardwareWalletClient):
         Return {"psbt": <base64 psbt string>}.
         """
         # this one can hang for quite some time
-        signed_tx = self.query("sign %s" % psbt.serialize())
-        return {'psbt': signed_tx}
+        response = self.query("sign %s" % psbt.serialize())
+        signed_psbt = PSBT()
+        signed_psbt.deserialize(response)
+        # adding partial sigs to initial tx
+        for i in range(len(psbt.inputs)):
+            for k in signed_psbt.inputs[i].partial_sigs:
+                psbt.inputs[i].partial_sigs[k] = signed_psbt.inputs[i].partial_sigs[k]
+        return {'psbt': psbt.serialize()}
 
     def sign_message(self, message: str, bip32_path: str) -> Dict[str, str]:
         """Sign a message (bitcoin message signing).
@@ -107,100 +113,10 @@ class SpecterClient(HardwareWalletClient):
         address = self.query(request)
         return {'address': address}
 
-    def wipe_device(self) -> Dict[str, Union[bool, str, int]]:
-        """Wipe the HID device.
-
-        Must return a dictionary with the "success" key,
-        possibly including also "error" and "code", e.g.:
-        {"success": bool, "error": srt, "code": int}.
-
-        Raise UnavailableActionError if appropriate for the device.
-        """
-        raise NotImplementedError("The SpecterClient class "
-                                  "does not implement this method")
-
-    def setup_device(
-        self, label: str = "", passphrase: str = ""
-    ) -> Dict[str, Union[bool, str, int]]:
-        """Setup the HID device.
-
-        Must return a dictionary with the "success" key,
-        possibly including also "error" and "code", e.g.:
-        {"success": bool, "error": str, "code": int}.
-
-        Raise UnavailableActionError if appropriate for the device.
-        """
-        raise NotImplementedError("The SpecterClient class "
-                                  "does not implement this method")
-
-    def restore_device(
-        self, label: str = "", word_count: int = 24
-    ) -> Dict[str, Union[bool, str, int]]:
-        """Restore the HID device from mnemonic.
-
-        Must return a dictionary with the "success" key,
-        possibly including also "error" and "code", e.g.:
-        {"success": bool, "error": srt, "code": int}.
-
-        Raise UnavailableActionError if appropriate for the device.
-        """
-        raise NotImplementedError("The SpecterClient class "
-                                  "does not implement this method")
-
-    def backup_device(
-        self, label: str = "", passphrase: str = ""
-    ) -> Dict[str, Union[bool, str, int]]:
-        """Backup the HID device.
-
-        Must return a dictionary with the "success" key,
-        possibly including also "error" and "code", e.g.:
-        {"success": bool, "error": srt, "code": int}.
-
-        Raise UnavailableActionError if appropriate for the device.
-        """
-        raise NotImplementedError("The SpecterClient class "
-                                  "does not implement this method")
-
     def close(self) -> None:
         """Close the device."""
         # nothing to do here - we close on every query
         pass
-
-    def prompt_pin(self) -> Dict[str, Union[bool, str, int]]:
-        """Prompt for PIN.
-
-        Must return a dictionary with the "success" key,
-        possibly including also "error" and "code", e.g.:
-        {"success": bool, "error": srt, "code": int}.
-
-        Raise UnavailableActionError if appropriate for the device.
-        """
-        raise NotImplementedError("The SpecterClient class "
-                                  "does not implement this method")
-
-    def send_pin(self) -> Dict[str, Union[bool, str, int]]:
-        """Send PIN.
-
-        Must return a dictionary with the "success" key,
-        possibly including also "error" and "code", e.g.:
-        {"success": bool, "error": srt, "code": int}.
-
-        Raise UnavailableActionError if appropriate for the device.
-        """
-        raise NotImplementedError("The SpecterClient class "
-                                  "does not implement this method")
-
-    def toggle_passphrase(self) -> Dict[str, Union[bool, str, int]]:
-        """Toggle passphrase.
-
-        Must return a dictionary with the "success" key,
-        possibly including also "error" and "code", e.g.:
-        {"success": bool, "error": srt, "code": int}.
-
-        Raise UnavailableActionError if appropriate for the device.
-        """
-        raise NotImplementedError("The SpecterClient class "
-                                  "does not implement this method")
 
     ############ extra functions Specter supports ############
 
