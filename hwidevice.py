@@ -184,7 +184,7 @@ class SpecterBase:
     """Class with common constants and command encoding"""
     EOL = b"\r\n"
     ACK = b"ACK"
-    ACK_TIMOUT = 1
+    ACK_TIMOUT = 3
     def prepare_cmd(self, data):
         """
         Prepends command with 2*EOL and appends EOL at the end.
