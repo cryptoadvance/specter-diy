@@ -6,7 +6,7 @@ from gui.screens import Prompt
 
 from bitcoin import ec, bip32, script, compact
 from hashlib import sha256
-from binascii import b2a_base64, unhexlify
+from binascii import b2a_base64, unhexlify, a2b_base64, hexlify
 import secp256k1
 from io import BytesIO
 
@@ -33,12 +33,12 @@ class MessageApp(BaseApp):
         # data format: message to sign<space>derivation_path
         # read all and delete all crap at the end (if any)
         # also message should be utf-8 decodable
-        data = stream.read().strip().decode()
-        if " " not in data:
+        data = stream.read().strip()
+        if b" " not in data:
             raise AppError("Invalid data encoding")
-        arr = data.split(" ")
-        derivation_path = arr[-1]
-        message = " ".join(arr[:-1])
+        arr = data.split(b" ")
+        derivation_path = arr[0].decode()
+        message = b" ".join(arr[1:])
         # if we have fingerprint
         if not derivation_path.startswith("m/"):
             fingerprint = unhexlify(derivation_path[:8])
@@ -46,14 +46,29 @@ class MessageApp(BaseApp):
                 raise AppError("Not my fingerprint")
             derivation_path = "m"+derivation_path[8:]
         derivation_path = bip32.parse_path(derivation_path)
-        # ask the user if he really wants to sign this message
+
+        if message.startswith(b"ascii:"):
+            message = message[len(b"ascii:"):]
+        elif message.startswith(b"base64:"):
+            message = a2b_base64(message[len(b"base64:"):])
+        else:
+            raise AppError("Invalid message encoding!")
+        # try to decode with ascii characters
+        try:
+            msg = "Message:\n\n"
+            msg += "__________________________________\n"
+            msg += message.decode('ascii')
+            msg += "\n__________________________________"
+            # ask the user if he really wants to sign this message
+        except:
+            msg = "Hex message:\n\n%s" % hexlify(message).decode()
         scr = Prompt("Sign message with private key at %s?" %
                      bip32.path_to_str(derivation_path),
-                     "Message:\n%s" % message)
+                     msg)
         res = await show_screen(scr)
         if res is False:
             return None
-        sig = self.sign_message(derivation_path, message.encode())
+        sig = self.sign_message(derivation_path, message)
         # for GUI we can also return an object with helpful data
         xpub = self.keystore.get_xpub(derivation_path)
         address = script.p2pkh(xpub.key).address()
