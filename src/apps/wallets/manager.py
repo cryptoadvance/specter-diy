@@ -11,6 +11,7 @@ from bitcoin import script, bip32
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
+from bcur import bcur_encode, bcur_decode
 
 SIGN_PSBT = 0x01
 ADD_WALLET = 0x02
@@ -155,8 +156,17 @@ class WalletManager(BaseApp):
                 }
                 return res, obj
         if cmd == SIGN_BCUR:
-            print(stream.read())
-            return None
+            data = stream.read().split(b"/")[-1].decode()
+            b64_psbt = b2a_base64(bcur_decode(data)).strip()
+            res = await self.sign_psbt(BytesIO(b64_psbt), show_screen)
+            if res is not None:
+                data, hsh = bcur_encode(a2b_base64(res.read()))
+                bcur_res = b"UR:BYTES/"+hsh.encode().upper()+"/"+data.encode().upper()
+                obj = {
+                    "title": "Transaction is signed!",
+                    "message": "Scan it with your wallet"
+                }
+                return BytesIO(bcur_res), obj
         elif cmd == ADD_WALLET:
             # read content, it's small
             desc = stream.read().decode()

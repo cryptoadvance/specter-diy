@@ -122,8 +122,12 @@ class QRCode(lv.obj):
             print("QR on screen:", text)
         self._text = text
         self.idx = None
-        self.frame_num = math.ceil(len(self._text)/self.FRAME_SIZE)
-        self.frame_size = math.ceil(len(self._text) / self.frame_num)
+        if text.startswith("UR:BYTES/"):
+            payload = text.split("/")[-1]
+        else:
+            payload = text
+        self.frame_num = math.ceil(len(payload) / self.FRAME_SIZE)
+        self.frame_size = math.ceil(len(payload) / self.frame_num)
         # if too large - we have to animate -> set first frame
         if len(self._text) > self.MAX_SIZE:
             self.idx = 0
@@ -133,14 +137,24 @@ class QRCode(lv.obj):
         self.updata_note()
 
     def set_frame(self):
-        prefix = "p%dof%d " % (self.idx+1, self.frame_num)
+        if self._text.startswith("UR:BYTES/"):
+            arr = self._text.split("/")
+            payload = arr[-1]
+            prefix = arr[0]+"/%dof%d/" % (self.idx+1, self.frame_num)
+            prefix += arr[1]+"/"
+        else:
+            payload = self._text
+            prefix = "p%dof%d " % (self.idx+1, self.frame_num)
         offset = self.frame_size*self.idx
-        self._set_text(prefix+self._text[offset:offset+self.frame_size])
+        self._set_text(prefix+payload[offset:offset+self.frame_size])
         self.note.set_text("Part %d of %d. Click to stop." %
                            (self.idx+1, self.frame_num))
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
     def _set_text(self, text):
+        # one bcur frame doesn't require checksum
+        if text.startswith("UR:BYTES/") and text.count("/") == 2:
+            text = "UR:BYTES/"+text.split("/")[-1]
         qr = qrcode.encode_to_string(text).strip()
         size = int(math.sqrt(len(qr)))+1 # to make sure round up
         width = self.label.get_width()
