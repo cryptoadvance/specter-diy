@@ -20,6 +20,8 @@ VERIFY_ADDRESS = 0x03
 # show address with certain
 # derivation path or descriptor
 DERIVE_ADDRESS = 0x04
+# sign psbt transaction encoded in bc-ur format
+SIGN_BCUR = 0x05
 
 
 class WalletManager(BaseApp):
@@ -113,6 +115,10 @@ class WalletManager(BaseApp):
         # trying to detect type:
         # probably base64-encoded PSBT
         data = stream.read(40)
+        if data[:9] == b"UR:BYTES/":
+            # rewind
+            stream.seek(0)
+            return SIGN_BCUR, stream
         if data[:4] == b"cHNi":
             try:
                 psbt = a2b_base64(data)
@@ -148,6 +154,9 @@ class WalletManager(BaseApp):
                     "message": "Scan it with your wallet"
                 }
                 return res, obj
+        if cmd == SIGN_BCUR:
+            print(stream.read())
+            return None
         elif cmd == ADD_WALLET:
             # read content, it's small
             desc = stream.read().decode()
