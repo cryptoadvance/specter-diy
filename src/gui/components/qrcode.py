@@ -15,7 +15,7 @@ qr_style.text.letter_space = 0
 
 
 class QRCode(lv.obj):
-    RATE = 300  # ms
+    RATE = 500  # ms
     FRAME_SIZE = 300
     MIN_SIZE = 300
     MAX_SIZE = 850
@@ -140,7 +140,7 @@ class QRCode(lv.obj):
         if self._text.startswith("UR:BYTES/"):
             arr = self._text.split("/")
             payload = arr[-1]
-            prefix = arr[0]+"/%dof%d/" % (self.idx+1, self.frame_num)
+            prefix = arr[0]+"/%dOF%d/" % (self.idx+1, self.frame_num)
             prefix += arr[1]+"/"
         else:
             payload = self._text
