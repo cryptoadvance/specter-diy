@@ -58,7 +58,8 @@ class TransactionScreen(Prompt):
                 warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
                 obj = warning
 
-        fee_percent = meta["fee"]*100/(send_amount-meta["fee"])
+        fee_percent = meta["fee"]*100/send_amount
+        # print(meta["fee"], send_amount, send_amount-meta["fee"], fee_percent)
         fee = add_label("Fee: %d satoshi (%.2f%%)" % (
             meta["fee"], fee_percent), scr=self.page)
         fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)

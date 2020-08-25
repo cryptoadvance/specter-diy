@@ -205,6 +205,8 @@ class QRHost(Host):
         self.data = b""
         self.scanning = True
         self.animated = False
+        self.bcur = False
+        self.bcur_hash = b""
         while self.scanning:
             await asyncio.sleep_ms(10)
             # we will exit this loop from update()
@@ -244,6 +246,58 @@ class QRHost(Host):
         # should not be there if trigger mode or simulator
         if chunk.startswith(SUCCESS):
             chunk = chunk[len(SUCCESS):]
+        # check if it's bcur encoding
+        if chunk[:9].upper() == b"UR:BYTES/":
+            self.bcur = True
+            return self.process_bcur(chunk)
+        else:
+            return self.process_normal(chunk)
+
+    def process_bcur(self, chunk):
+        # check if it starts with pMofN
+        arr = chunk.upper().split(b"/")
+        # ur:bytes/MofN/hash/data
+        if len(arr) < 4:
+            if not self.animated:
+                self.data = chunk
+                return True
+            else:
+                self.stop_scanning()
+                raise HostError("Ivalid QR code part encoding: %r" % chunk)
+        # converting to pMofN to reuse parser
+        prefix = b"p"+arr[1].lower()
+        hsh = arr[2]
+        data = arr[3]
+        if not self.animated:
+            try:
+                m, n = self.parse_prefix(prefix)
+                # if succeed - first animated frame,
+                # allocate stuff
+                self.animated = True
+                self.parts = [b""]*n
+                self.parts[m-1] = data
+                self.bcur_hash = hsh
+                self.data = b""
+                return False
+            # failed - not animated, just unfortunately similar data
+            except:
+                raise HostError("Ivalid QR code part encoding: %r" % chunk)
+        # expecting animated frame
+        m, n = self.parse_prefix(prefix)
+        if n != len(self.parts):
+            raise HostError("Invalid prefix")
+        if hsh != self.bcur_hash:
+            print(hsh, self.bcur_hash)
+            raise HostError("Checksum mismatch")
+        self.parts[m-1] = data
+        # all have non-zero len
+        if min([len(part) for part in self.parts]) > 0:
+            self.data = b"UR:BYTES/"+self.bcur_hash+b"/"+b"".join(self.parts)
+            return True
+        else:
+            return False
+
+    def process_normal(self, chunk):
         # check if it starts with pMofN
         if b" " not in chunk:
             if not self.animated:

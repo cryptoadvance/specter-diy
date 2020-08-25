@@ -11,6 +11,7 @@ from bitcoin import script, bip32
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
+from bcur import bcur_encode, bcur_decode
 
 SIGN_PSBT = 0x01
 ADD_WALLET = 0x02
@@ -20,6 +21,8 @@ VERIFY_ADDRESS = 0x03
 # show address with certain
 # derivation path or descriptor
 DERIVE_ADDRESS = 0x04
+# sign psbt transaction encoded in bc-ur format
+SIGN_BCUR = 0x05
 
 
 class WalletManager(BaseApp):
@@ -113,6 +116,10 @@ class WalletManager(BaseApp):
         # trying to detect type:
         # probably base64-encoded PSBT
         data = stream.read(40)
+        if data[:9] == b"UR:BYTES/":
+            # rewind
+            stream.seek(0)
+            return SIGN_BCUR, stream
         if data[:4] == b"cHNi":
             try:
                 psbt = a2b_base64(data)
@@ -148,6 +155,18 @@ class WalletManager(BaseApp):
                     "message": "Scan it with your wallet"
                 }
                 return res, obj
+        if cmd == SIGN_BCUR:
+            data = stream.read().split(b"/")[-1].decode()
+            b64_psbt = b2a_base64(bcur_decode(data)).strip()
+            res = await self.sign_psbt(BytesIO(b64_psbt), show_screen)
+            if res is not None:
+                data, hsh = bcur_encode(a2b_base64(res.read()))
+                bcur_res = b"UR:BYTES/"+hsh.encode().upper()+"/"+data.encode().upper()
+                obj = {
+                    "title": "Transaction is signed!",
+                    "message": "Scan it with your wallet"
+                }
+                return BytesIO(bcur_res), obj
         elif cmd == ADD_WALLET:
             # read content, it's small
             desc = stream.read().decode()
