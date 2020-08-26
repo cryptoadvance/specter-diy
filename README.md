@@ -46,7 +46,9 @@ Supported networks: Mainnet, Testnet, Regtest, Signet.
 
 ## Build
 
-`make disco` creates firmware, `make unix` creates a simulator, `make simulate` runs the simulator.
+1. Clone the repository recursively `git clone https://github.com/cryptoadvance/specter-diy.git --recursive`
+2. Install [dependencies](https://github.com/diybitcoinhardware/f469-disco#build)
+3. Run `make` with appropriate target (`make disco` creates firmware, `make unix` creates a simulator, `make simulate` runs the simulator)
 
 ## Video and screenshots
 
