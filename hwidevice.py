@@ -14,6 +14,8 @@ import serial
 import serial.tools.list_ports
 import socket, time
 
+py_enumerate = enumerate
+
 class SpecterClient(HardwareWalletClient):
     """Create a client for a HID device that has already been opened.
 
@@ -300,12 +302,15 @@ if __name__ == '__main__':
     inp = 0;
     if len(devices) > 1:
         print("Found %d devices." % len(devices))
-        for i, dev in enumerate(devices):
-            print("[%d]" % i, dev)
-        inp = int(raw_input("Enter the device number to use:"))
-        if inp > len(devices):
-            print("Meh... Screw you.")
-            sys.exit()
+        for i, dev in py_enumerate(devices):
+            print(f"[{i}] {dev['path']} - {dev['fingerprint']}")
+        inp = -1
+        while True:
+            inp = int(input("Enter the device number to use: "))
+            if inp >= len(devices) or inp < 0:
+                print("Meh... Try again.")
+                continue
+            break
     dev = SpecterClient(devices[inp]["path"])
     if len(sys.argv) == 1:
         mfp = dev.get_master_fingerprint_hex()
@@ -326,4 +331,7 @@ if __name__ == '__main__':
                 cmd = input("Enter command to run: ")
                 if cmd == "quit":
                     sys.exit(0)
-                print(dev.query(cmd))
+                try:
+                    print(dev.query(cmd))
+                except Exception as e:
+                    print("Error:", e)
