@@ -4,6 +4,9 @@ from binascii import hexlify
 class ISOException(Exception):
     pass
 
+class AppletException(Exception):
+    pass
+
 class Applet:
     SELECT = b"\x00\xA4\x04\x00" # select command
     def __init__(self, connection, aid):

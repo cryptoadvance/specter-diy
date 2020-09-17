@@ -170,7 +170,7 @@ class SecureChannel:
         """
         # if counter reached maximum - reestablish channel
         if self.iv >= 2**16 or not self.is_open:
-            self.establish_secure_channel()
+            self.open()
         ct = self.encrypt(data)
         res = self.applet.request(self.SECURE_MSG+encode(ct))
         plaintext = self.decrypt(res)
