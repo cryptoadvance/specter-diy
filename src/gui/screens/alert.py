@@ -19,8 +19,9 @@ class Alert(Screen):
         self.message = add_label(message, scr=self.page)
         self.page.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
 
-        self.close_button = add_button(scr=self,
-                                       callback=on_release(self.release))
+        if button_text is not None:
+            self.close_button = add_button(scr=self,
+                                           callback=on_release(self.release))
 
-        self.close_label = lv.label(self.close_button)
-        self.close_label.set_text(button_text)
+            self.close_label = lv.label(self.close_button)
+            self.close_label.set_text(button_text)
