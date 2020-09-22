@@ -11,7 +11,7 @@ IV_SIZE = 16
 MAC_SIZE = 15
 AES_CBC = 2
 
-class SecureChannelError(Exception):
+class SecureError(Exception):
     """
     Raised when something went wrong with the
     secure channel (i.e. signature is invalid etc)

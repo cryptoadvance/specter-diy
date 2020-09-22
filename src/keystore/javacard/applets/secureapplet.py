@@ -1,16 +1,9 @@
 from .applet import Applet, ISOException, AppletException
-from .securechannel import SecureChannel
+from .securechannel import SecureChannel, SecureError
 import hashlib
 
 def encode(data):
     return bytes([len(data)])+data
-
-class SecureException(Exception):
-    """
-    Raised when exception was on the card, 
-    but not due to the secure channel
-    """
-    pass
 
 class SecureApplet(Applet):
     SECURE_RANDOM = b"\x01\x00"
@@ -47,7 +40,7 @@ class SecureApplet(Applet):
         status = self.sc.request(self.PIN_STATUS)
         (self._pin_attempts_left, 
          self._pin_attempts_max, 
-         self.pin_status) = list(status)
+         self._pin_status) = list(status)
         return tuple(status)
 
     def get_random(self):
@@ -101,6 +94,7 @@ class SecureApplet(Applet):
         if not self.is_locked:
             return
         try:
+            # we always set sha256(pin) so it's constant length
             h = hashlib.sha256(pin.encode()).digest()
             self.sc.request(self.UNLOCK+h)
         finally:

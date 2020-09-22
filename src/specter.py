@@ -1,11 +1,9 @@
 import sys
 import gc
 import json
-from binascii import hexlify, unhexlify
 from io import BytesIO
 import asyncio
 
-from keystore import FlashKeyStore
 from platform import (CriticalErrorWipeImmediately, set_usb_mode,
                       reboot, fpath, maybe_mkdir)
 from hosts import Host, HostError
@@ -245,12 +243,15 @@ class Specter:
             (None, "Network"),
             (5, "Switch network (%s)" % net),
             (None, "Key management"),
-            (0, "Reckless"),
+        ]
+        if self.keystore.storage_button is not None:
+            buttons.append((0, self.keystore.storage_button))
+        buttons.extend([
             (2, "Enter password"),
             (None, "Security"),  # delimiter
             (3, "Change PIN code"),
             (4, "Developer & USB"),
-        ]
+        ])
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
 
@@ -259,7 +260,7 @@ class Specter:
         if menuitem == 255:
             return self.mainmenu
         elif menuitem == 0:
-            await self.recklessmenu()
+            await self.keystore.storage_menu()
         elif menuitem == 2:
             pwd = await self.gui.get_input()
             if pwd is None:
@@ -319,43 +320,6 @@ class Specter:
                                      "Changing USB mode requires to "
                                      "reboot the device. Proceed?"):
                 reboot()
-
-    async def recklessmenu(self):
-        """Manage storage and display of the recovery phrase"""
-        buttons = [
-            # id, text
-            (None, "Key management"),
-            (0, "Save key to flash"),
-            (1, "Load key from flash"),
-            (2, "Delete key from flash"),
-            (3, "Show recovery phrase"),
-        ]
-        # wait for menu selection
-        menuitem = await self.gui.menu(buttons, last=(255, None))
-
-        # process the menu button:
-        # back button
-        if menuitem == 255:
-            return self.settingsmenu
-        elif menuitem == 0:
-            self.keystore.save_mnemonic()
-            await self.gui.alert("Success!",
-                                 "Your key is stored in flash now.")
-            return self.settingsmenu
-        elif menuitem == 1:
-            self.keystore.load_mnemonic()
-            await self.gui.alert("Success!",
-                                 "Your key is loaded.")
-            return self.mainmenu
-        elif menuitem == 2:
-            self.keystore.delete_mnemonic()
-            await self.gui.alert("Success!",
-                                 "Your key is deleted from flash.")
-            return self.mainmenu
-        elif menuitem == 3:
-            await self.gui.show_mnemonic(self.keystore.mnemonic)
-        else:
-            raise SpecterError("Invalid menu")
 
     async def lock(self):
         # lock the keystore
