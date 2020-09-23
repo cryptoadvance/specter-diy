@@ -186,8 +186,8 @@ class MemoryCard(RAMKeyStore):
 
         if not self.connection.isCardInserted():
             # wait for card
-            scr = Progress("Card is not inserted",
-                           "Please insert the card...",
+            scr = Progress("Smartcard is not inserted",
+                           "Please insert the smartcard...",
                            button_text=None) # no button
             asyncio.create_task(self.wait_for_card(scr))
             await show_fn(scr)

@@ -32,6 +32,9 @@ def fpath(fname):
     return "%s%s" % (config.storage_root, fname)
 
 
+sdcard = None # SD card instance
+sdled = None # LED to show we are working with SD card
+
 # path to store #reckless entropy
 if simulator:
     # create folders for simulator
@@ -41,7 +44,37 @@ if simulator:
     maybe_mkdir(fpath("/sd"))
 else:
     storage_root = ""
+    sdcard = pyb.SDCard()
+    sdled = pyb.LED(4)
+    sdled.off()
 
+
+def is_sd_present() -> bool:
+    """
+    Checks if SD card is inserted
+    """
+    # simulator
+    if sdcard is None:
+        return True
+    return sdcard.present()
+
+def mount_sdcard() -> bool:
+    """Mounts SD card"""
+    if not is_sd_present():
+        raise RuntimeError("SD card is not present")
+    if sdcard is not None:
+        sdled.on()
+        os.mount(sdcard, "/sd")
+
+def unmount_sdcard() -> bool:
+    """Unmounts SD card"""
+    # sync file system before unmounting
+    if not is_sd_present():
+        raise RuntimeError("SD card is not present")
+    if sdcard is not None:
+        os.sync()
+        os.umount("/sd")
+        sdled.off()
 
 def mount_sdram():
     path = fpath("/ramdisk")
