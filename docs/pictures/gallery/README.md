@@ -4,7 +4,7 @@ Here are a few pictures from people who assembled their own Specter.
 
 If you did it as well we will be happy to put it here.
 
-### Anonymous
+### @Thomas1378
 
 ![thomas](./thomas.jpg)
 
