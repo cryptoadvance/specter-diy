@@ -176,7 +176,7 @@ class FlashKeyStore(RAMKeyStore):
             raise KeyStoreError("Recovery phrase is not loaded")
         self.save_aead(self.path+"/reckless",
                        plaintext=self.mnemonic.encode(),
-                       key=self.pin_secret)
+                       key=self.enc_secret)
         # check it's ok
         self.load_mnemonic()
 
@@ -189,7 +189,7 @@ class FlashKeyStore(RAMKeyStore):
             raise KeyStoreError("Keystore is locked")
         if not platform.file_exists(self.path+"/reckless"):
             raise KeyStoreError("Key is not saved")
-        _, data = self.load_aead(self.path+"/reckless", self.pin_secret)
+        _, data = self.load_aead(self.path+"/reckless", self.enc_secret)
         self.set_mnemonic(data.decode(), "")
 
     def delete_mnemonic(self):
