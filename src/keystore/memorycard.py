@@ -9,7 +9,7 @@ from bitcoin import bip39
 from gui.screens import Alert, Progress, Menu, MnemonicScreen
 import asyncio
 from io import BytesIO
-
+from uscard import SmartcardException
 
 class MemoryCard(RAMKeyStore):
     """
@@ -40,6 +40,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         # applet
         self.applet = MemoryCardApplet(self.connection)
         self._is_key_saved = False
+        self.connected = False
 
     @property
     def is_pin_set(self):
@@ -194,13 +195,16 @@ In this mode device can only operate when the smartcard is inserted!"""
                            button_text=None) # no button
             asyncio.create_task(self.wait_for_card(scr))
             await show_fn(scr)
-        # connect and select applet
-        self.connection.connect(self.connection.T1_protocol)
-        try:
-            self.applet.select()
-        except:
-            raise KeyStoreError("Failed to select MemoryCardApplet")
-        self.applet.open_secure_channel()
+        # only required if not connected yet
+        if not self.connected:
+            # connect and select applet
+            self.connection.connect(self.connection.T1_protocol)
+            try:
+                self.applet.select()
+            except:
+                raise KeyStoreError("Failed to select MemoryCardApplet")
+            self.applet.open_secure_channel()
+            self.connected = True
         # the rest can be done with parent
         await super().init(show_fn)
 
