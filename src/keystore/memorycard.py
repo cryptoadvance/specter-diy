@@ -20,6 +20,9 @@ class MemoryCard(RAMKeyStore):
     RAM of the MCU.
     ColdCard's security model.
     """
+    NAME = "Smartcard"
+    NOTE = """Saves encryption key and Bitcoin key on a PIN-protected external smartcard (requires devkit).
+In this mode device can only operate when the smartcard is inserted!"""
     # constants for secret storage
     MAGIC = b"sdiy\x00" # specter-DIY version 0
     KEYS = {
@@ -30,8 +33,8 @@ class MemoryCard(RAMKeyStore):
     # Menu should be implemented in async storage_menu function
     # Here we only have a single option - to show mnemonic
     storage_button = "Smartcard storage"
-    def __init__(self, path):
-        super().__init__(path)
+    def __init__(self):
+        super().__init__()
         # javacard connection
         self.connection = get_connection()
         # applet

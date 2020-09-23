@@ -1,12 +1,22 @@
 from specter import Specter
 from gui.specter import SpecterGUI
-from keystore import FlashKeyStore
+
+from keystore.core import KeyStore
+from keystore.flash import FlashKeyStore
+from keystore.sdcard import SDKeyStore
+from keystore.memorycard import MemoryCard
+
 from hosts import SDHost, QRHost, USBHost
 import platform
 import sys
 from helpers import load_apps
 
-def main(apps=None, network='test', keystore_cls=FlashKeyStore):
+def main(apps=None, network='test', keystore_cls=None):
+    """
+    apps: list of apps to load
+    network: default network to operate
+    keystores: list of KeyStore classes that can be used
+    """
     # create virtual file system /sdram
     # for temp untrusted data storage
     rampath = platform.mount_sdram()
@@ -20,9 +30,17 @@ def main(apps=None, network='test', keystore_cls=FlashKeyStore):
     # define GUI
     gui = SpecterGUI()
 
-    # folder where keystore will store it's data
-    keystore_path = platform.fpath("/flash/keystore")
-    keystore = keystore_cls(keystore_path)
+    # inject the folder where keystore stores it's data
+    KeyStore.path = platform.fpath("/flash/keystore")
+    # detect keystore to use
+    if keystore_cls is not None:
+        keystores = [keystore_cls]
+    else:
+        keystores = [
+            FlashKeyStore,
+            SDKeyStore,
+            MemoryCard,
+        ]
 
     # loading apps
     if apps is None:
@@ -31,7 +49,7 @@ def main(apps=None, network='test', keystore_cls=FlashKeyStore):
     # make Specter instance
     settings_path = platform.fpath("/flash")
     specter = Specter(gui=gui,
-                      keystore=keystore,
+                      keystores=keystores,
                       hosts=hosts,
                       apps=apps,
                       settings_path=settings_path,

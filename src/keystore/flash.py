@@ -25,12 +25,14 @@ class FlashKeyStore(RAMKeyStore):
     At most one mnemonic can be stored.
     Trezor's security model.
     """
+    NAME = "Internal storage"
+    NOTE = "Uses internal memory of the microcontroller for all keys."
     # Button to go to storage menu
     # Menu should be implemented in async storage_menu function
     # Here we only have a single option - to show mnemonic
     storage_button = "Reckless"
-    def __init__(self, path):
-        super().__init__(path)
+    def __init__(self):
+        super().__init__()
         self._is_locked = True
         # PIN is not the user PIN itself
         # but a hmac of internal secret with user's PIN

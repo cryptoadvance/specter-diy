@@ -21,6 +21,8 @@ class SDKeyStore(FlashKeyStore):
     When correct PIN is entered the key can be loaded
     from SD card to the RAM of the MCU.
     """
+    NAME = "External SD card"
+    NOTE = """Recovery phrase can be stored ecnrypted on the external SD card. Only this device will be able to read it."""
     # Button to go to storage menu
     # Menu should be implemented in async storage_menu function
     # Here we only have a single option - to show mnemonic

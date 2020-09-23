@@ -21,8 +21,7 @@ class RAMKeyStore(KeyStore):
     # Menu should be implemented in async storage_menu function
     # Here we only have a single option - to show mnemonic
     storage_button = "Show mnemonic"
-    def __init__(self, path):
-        self.path = path
+    def __init__(self):
         # bip39 mnemonic
         self.mnemonic = None
         # root xprv (derived from mnemonic, password)

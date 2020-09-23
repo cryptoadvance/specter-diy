@@ -5,7 +5,8 @@ from io import BytesIO
 import asyncio
 
 from platform import (CriticalErrorWipeImmediately, set_usb_mode,
-                      reboot, fpath, maybe_mkdir)
+                      reboot, fpath, maybe_mkdir, file_exists,
+                      delete_recursively)
 from hosts import Host, HostError
 from app import BaseApp
 from bitcoin import bip39
@@ -25,13 +26,17 @@ class Specter:
     It will then call the .setup() and .main() functions to display the GUI
     """
 
-    def __init__(self, gui, keystore, hosts, apps,
+    def __init__(self, gui, keystores, hosts, apps,
                  settings_path, network='test'):
         self.hosts = hosts
-        self.keystore = keystore
+        self.keystores = keystores
+        self.keystore = None
+        if len(keystores) == 1:
+            # instantiate the keystore class
+            self.keystore = keystores[0]()
+        self.network = network
         self.gui = gui
         self.path = settings_path
-        self.load_network(self.path, network)
         self.current_menu = self.initmenu
         self.usb = False
         self.dev = False
@@ -54,8 +59,7 @@ class Specter:
             raise exception
         except CriticalErrorWipeImmediately as e:
             # wipe all apps
-            for app in self.apps:
-                app.wipe()
+            self.wipe()
             # show error
             await self.gui.error("%s" % e)
             # TODO: actual reboot here
@@ -77,10 +81,41 @@ class Specter:
             # restart
             return next_fn
 
+    async def select_keystore(self, path):
+        if file_exists(path):
+            with open(path) as f:
+                name = f.read()
+            for k in self.keystores:
+                if k.NAME == name:
+                    self.keystore = k()
+                    return
+            raise SpecterError("Didn't find a matching keystore class")
+        buttons = [(None, " ")]
+        for k in self.keystores:
+            buttons.extend([
+                (k, k.NAME),
+                (None, " ")
+            ])
+        # wait for menu selection
+        keystore_cls = await self.gui.menu(buttons,
+                                    title="Select key storage type",
+                                    note="Where do you want to store your key?\nBy default Specter-DIY is amnesic and doesn't save the key, but you can use one of the options below if you don't want to remember your recovery phrase.")
+        self.keystore = keystore_cls()
+
     async def setup(self):
         try:
+            path = fpath("/flash/KEYSTORECLS")
+            # check if the user already selected the keystore class
+            if self.keystore is None:
+                await self.select_keystore(path)
+                self.load_network(self.path, self.network)
+
             # load secrets
             await self.keystore.init(self.gui.show_screen())
+            if not file_exists(path):
+                # save selected keystore
+                with open(path, "w") as f:
+                    f.write(self.keystore.NAME)
             # unlock with PIN or set up the PIN code
             await self.unlock()
         except Exception as e:
@@ -315,11 +350,24 @@ class Specter:
     async def update_devsettings(self):
         res = await self.gui.devscreen(dev=self.dev, usb=self.usb)
         if res is not None:
+            if res["wipe"]:
+                if await self.gui.prompt("Wiping the device will erase everything in the internal storage!",
+                                     "This includes multisig wallet files, keys, apps data etc.\n\n"
+                                     "But it doesn't include files stored on SD card or smartcard.\n\n"
+                                     "Are you sure?"):
+                    self.wipe()
+                    reboot()
+                return
             self.update_config(**res)
             if await self.gui.prompt("Reboot required!",
                                      "Changing USB mode requires to "
                                      "reboot the device. Proceed?"):
                 reboot()
+
+    def wipe(self):
+        # TODO: wipe the smartcard as well?
+        delete_recursively(fpath("/flash"))
+        delete_recursively(fpath("/qspi"))
 
     async def lock(self):
         # lock the keystore
@@ -366,7 +414,7 @@ class Specter:
             except Exception as e:
                 print(e)
 
-    def update_config(self, usb=False, dev=False):
+    def update_config(self, usb=False, dev=False, **kwargs):
         config = {
             "usb": usb,
             "dev": dev,

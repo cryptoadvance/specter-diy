@@ -7,8 +7,7 @@ from ..decorators import on_release, cb_with_args
 class Menu(Screen):
     def __init__(self, buttons=[],
                  title="What do you want to do?", note=None,
-                 y0=80, last=None
-                 ):
+                 y0=80, last=None):
         super().__init__()
         y = y0
         self.title = add_label(title, style="title", scr=self)
