@@ -35,6 +35,8 @@ In this mode device can only operate when the smartcard is inserted!"""
     # Menu should be implemented in async storage_menu function
     # Here we only have a single option - to show mnemonic
     storage_button = "Smartcard storage"
+    load_button = "Load key from smartcard"
+
     def __init__(self):
         super().__init__()
         # javacard connection
@@ -53,10 +55,9 @@ In this mode device can only operate when the smartcard is inserted!"""
         The user should stop entering the PIN if he sees wrong words.
         It can happen if the device or the card is different.
         """
-        # check if we are connected,
-        # meaning that secure channel is already open
+        # check if secure channel is already open
         # so the card can't lie about it's pubkey
-        if not self.connected:
+        if not self.applet.is_secure_channel_open:
             raise KeyStoreError("Secure channel is closed.")
         # use both internal secret and card's key to generate
         # anti-phishing words
@@ -168,7 +169,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         # call unlock now
         self._unlock(pin)
 
-    def save_mnemonic(self):
+    async def save_mnemonic(self):
         d = self.serialize_data({
             "enc": self.enc_secret,
             "entropy": bip39.mnemonic_to_bytes(self.mnemonic)
@@ -176,21 +177,22 @@ In this mode device can only operate when the smartcard is inserted!"""
         self.applet.save_secret(d)
         self._is_key_saved = True
         # check it's ok
-        self.load_mnemonic()
+        await self.load_mnemonic()
 
     @property
     def is_key_saved(self):
         return self._is_key_saved
 
-    def load_mnemonic(self):
+    async def load_mnemonic(self):
         if not self._is_key_saved:
             raise KeyStoreError("Key is not saved")
         data = self.applet.get_secret()
         entropy = self.parse_data(data)["entropy"]
         mnemonic = bip39.mnemonic_from_bytes(entropy)
         self.set_mnemonic(mnemonic, "")
+        return True
 
-    def delete_mnemonic(self):
+    async def delete_mnemonic(self):
         d = self.serialize_data({
             "enc": self.enc_secret
         })
@@ -253,17 +255,17 @@ In this mode device can only operate when the smartcard is inserted!"""
             if menuitem == 255:
                 return
             elif menuitem == 0:
-                self.save_mnemonic()
+                await self.save_mnemonic()
                 await self.show(Alert("Success!",
                                      "Your key is stored on the smartcard now.",
                                      button_text="OK"))
             elif menuitem == 1:
-                self.load_mnemonic()
+                await self.load_mnemonic()
                 await self.show(Alert("Success!",
                                      "Your key is loaded.",
                                      button_text="OK"))
             elif menuitem == 2:
-                self.delete_mnemonic()
+                await self.delete_mnemonic()
                 await self.show(Alert("Success!",
                                      "Your key is deleted from the smartcard.",
                                      button_text="OK"))

@@ -28,9 +28,10 @@ class FlashKeyStore(RAMKeyStore):
     NAME = "Internal storage"
     NOTE = "Uses internal memory of the microcontroller for all keys."
     # Button to go to storage menu
-    # Menu should be implemented in async storage_menu function
-    # Here we only have a single option - to show mnemonic
+    # Menu is implemented in async storage_menu function
     storage_button = "Reckless"
+    load_button = "Load key from internal memory"
+
     def __init__(self):
         super().__init__()
         self._is_locked = True
@@ -171,35 +172,41 @@ class FlashKeyStore(RAMKeyStore):
         # call unlock now
         self._unlock(pin)
 
-    def save_mnemonic(self):
+    async def save_mnemonic(self):
         if self.is_locked:
             raise KeyStoreError("Keystore is locked")
         if self.mnemonic is None:
             raise KeyStoreError("Recovery phrase is not loaded")
-        self.save_aead(self.path+"/reckless",
+        self.save_aead(self.flashpath,
                        plaintext=self.mnemonic.encode(),
                        key=self.enc_secret)
         # check it's ok
-        self.load_mnemonic()
+        await self.load_mnemonic()
+
+    @property
+    def flashpath(self):
+        """Path to store bitcoin key"""
+        return self.path+"/reckless"
 
     @property
     def is_key_saved(self):
-        return platform.file_exists(self.path+"/reckless")
+        return platform.file_exists(self.flashpath)
 
-    def load_mnemonic(self):
+    async def load_mnemonic(self):
         if self.is_locked:
             raise KeyStoreError("Keystore is locked")
-        if not platform.file_exists(self.path+"/reckless"):
+        if not platform.file_exists(self.flashpath):
             raise KeyStoreError("Key is not saved")
-        _, data = self.load_aead(self.path+"/reckless", self.enc_secret)
+        _, data = self.load_aead(self.flashpath, self.enc_secret)
         self.set_mnemonic(data.decode(), "")
+        return True
 
-    def delete_mnemonic(self):
-        if not platform.file_exists(self.path+"/reckless"):
+    async def delete_mnemonic(self):
+        if not platform.file_exists(self.flashpath):
             raise KeyStoreError(
                 "Secret is not saved. No need to delete anything.")
         try:
-            os.remove(self.path+"/reckless")
+            os.remove(self.flashpath)
         except:
             raise KeyStoreError("Failed to delete from memory")
 
@@ -235,17 +242,17 @@ class FlashKeyStore(RAMKeyStore):
             if menuitem == 255:
                 return
             elif menuitem == 0:
-                self.save_mnemonic()
+                await self.save_mnemonic()
                 await self.show(Alert("Success!",
                                      "Your key is stored in flash now.",
                                      button_text="OK"))
             elif menuitem == 1:
-                self.load_mnemonic()
+                await self.load_mnemonic()
                 await self.show(Alert("Success!",
                                      "Your key is loaded.",
                                      button_text="OK"))
             elif menuitem == 2:
-                self.delete_mnemonic()
+                await self.delete_mnemonic()
                 await self.show(Alert("Success!",
                                      "Your key is deleted from flash.",
                                      button_text="OK"))

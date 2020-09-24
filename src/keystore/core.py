@@ -14,3 +14,4 @@ class KeyStore:
     NAME = "Generic Keystore"
     NOTE = "Base class"
     path = None
+    load_button = None

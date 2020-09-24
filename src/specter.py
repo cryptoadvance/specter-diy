@@ -86,7 +86,7 @@ class Specter:
             with open(path) as f:
                 name = f.read()
             for k in self.keystores:
-                if k.NAME == name:
+                if k.__class__.__name__ == name:
                     self.keystore = k()
                     return
             raise SpecterError("Didn't find a matching keystore class")
@@ -99,7 +99,11 @@ class Specter:
         # wait for menu selection
         keystore_cls = await self.gui.menu(buttons,
                                     title="Select key storage type",
-                                    note="Where do you want to store your key?\nBy default Specter-DIY is amnesic and doesn't save the key, but you can use one of the options below if you don't want to remember your recovery phrase.")
+                                    note="\n\nWhere do you want to store your key?\n\n"
+                                    "By default Specter-DIY is amnesic and doesn't save the key.\n"
+                                    "But you can use one of the options below if you don't want "
+                                    "to remember your recovery phrase.\n\n"
+                                    "Note: Smartcard requires a special extension board.")
         self.keystore = keystore_cls()
 
     async def setup(self):
@@ -115,7 +119,7 @@ class Specter:
             if not file_exists(path):
                 # save selected keystore
                 with open(path, "w") as f:
-                    f.write(self.keystore.NAME)
+                    f.write(self.keystore.__class__.__name__)
             # unlock with PIN or set up the PIN code
             await self.unlock()
         except Exception as e:
@@ -162,7 +166,7 @@ class Specter:
             (1, "Enter recovery phrase"),
         ]
         if self.keystore.is_key_saved:
-            buttons.append((2, "Use the key saved on the device"))
+            buttons.append((2, self.keystore.load_button))
         buttons += [
             (None, "Settings"),
             (3, "Developer & USB settings"),
@@ -193,7 +197,10 @@ class Specter:
                 self.current_menu = self.mainmenu
                 return self.mainmenu
         elif menuitem == 2:
-            self.keystore.load_mnemonic()
+            # try to load key, if user cancels -> return
+            res = await self.keystore.load_mnemonic()
+            if not res:
+                return
             # await self.gui.alert("Success!", "Key is loaded from flash!")
             for app in self.apps:
                 app.init(self.keystore, self.network)

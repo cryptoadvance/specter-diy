@@ -327,15 +327,15 @@ class RAMKeyStore(KeyStore):
         if menuitem == 255:
             pass
         elif menuitem == 0:
-            self.save_mnemonic()
+            await self.save_mnemonic()
             await self.show(Alert("Success!",
                                  "Your key is stored in flash now."))
         elif menuitem == 1:
-            self.load_mnemonic()
+            await self.load_mnemonic()
             await self.show(Alert("Success!",
                                  "Your key is loaded."))
         elif menuitem == 2:
-            self.delete_mnemonic()
+            await self.delete_mnemonic()
             await self.show(Alert("Success!",
                                  "Your key is deleted from flash."))
         elif menuitem == 3:

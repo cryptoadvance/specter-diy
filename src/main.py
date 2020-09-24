@@ -37,7 +37,6 @@ def main(apps=None, network='test', keystore_cls=None):
         keystores = [keystore_cls]
     else:
         keystores = [
-            FlashKeyStore,
             SDKeyStore,
             MemoryCard,
         ]
