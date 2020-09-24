@@ -6,7 +6,7 @@ from platform import CriticalErrorWipeImmediately
 import platform
 from rng import get_random_bytes
 from bitcoin import bip39
-from helpers import tagged_hash
+from helpers import tagged_hash, aead_encrypt, aead_decrypt
 import hmac
 from gui.screens import Alert, Progress, Menu, MnemonicScreen
 import asyncio
@@ -124,17 +124,31 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     def serialize_data(self, obj):
         """Serialize secrets for storage on the card"""
-        r = self.MAGIC
+        r = b""
         for k in self.KEYS:
             v = self.KEYS[k]
             if v in obj:
                 r += k + bytes([len(obj[v])]) + obj[v]
-        return r
+        # smartcard encryption key
+        key = tagged_hash("scenc", self.secret)
+        # smartcard id to understand it's our data
+        fingerprint = tagged_hash("scid", self.secret)[:4]
+        res = aead_encrypt(key, self.MAGIC+fingerprint, r)
+        print(res)
+        return res
 
     def parse_data(self, data):
         """Parse data stored on the card"""
         s = BytesIO(data)
-        assert s.read(len(self.MAGIC)) == self.MAGIC
+        # smartcard id to understand it's our data
+        fingerprint = tagged_hash("scid", self.secret)[:4]
+        l = len(self.MAGIC)+4
+        if s.read(l+1) != bytes([l])+self.MAGIC+fingerprint:
+            raise KeyStoreError("Looks like stored data is created on a different device.")
+        # smartcard encryption key
+        key = tagged_hash("scenc", self.secret)
+        adata, plaintext = aead_decrypt(data, key=key)
+        s = BytesIO(plaintext)
         o = {}
         while True:
             k = s.read(1)

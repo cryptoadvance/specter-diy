@@ -86,7 +86,7 @@ class Specter:
             with open(path) as f:
                 name = f.read()
             for k in self.keystores:
-                if k.__class__.__name__ == name:
+                if k.__name__ == name:
                     self.keystore = k()
                     return
             raise SpecterError("Didn't find a matching keystore class")
