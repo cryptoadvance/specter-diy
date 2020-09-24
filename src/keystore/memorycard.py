@@ -6,6 +6,8 @@ from platform import CriticalErrorWipeImmediately
 import platform
 from rng import get_random_bytes
 from bitcoin import bip39
+from helpers import tagged_hash
+import hmac
 from gui.screens import Alert, Progress, Menu, MnemonicScreen
 import asyncio
 from io import BytesIO
@@ -41,6 +43,29 @@ In this mode device can only operate when the smartcard is inserted!"""
         self.applet = MemoryCardApplet(self.connection)
         self._is_key_saved = False
         self.connected = False
+
+    def get_auth_word(self, pin_part):
+        """
+        Get anti-phishing word to check
+        integrity of the device and the card.
+        Internal secret, verified card's pubkey and PIN part
+        are used to generate the words.
+        The user should stop entering the PIN if he sees wrong words.
+        It can happen if the device or the card is different.
+        """
+        # check if we are connected,
+        # meaning that secure channel is already open
+        # so the card can't lie about it's pubkey
+        if not self.connected:
+            raise KeyStoreError("Secure channel is closed.")
+        # use both internal secret and card's key to generate
+        # anti-phishing words
+        key = tagged_hash("auth", self.secret+self.applet.card_pubkey)
+        h = hmac.new(key, pin_part, digestmod="sha256").digest()
+        # wordlist is 2048 long (11 bits) so
+        # this modulo doesn't create an offset
+        word_number = int.from_bytes(h[:2], 'big') % len(bip39.WORDLIST)
+        return bip39.WORDLIST[word_number]
 
     @property
     def is_pin_set(self):

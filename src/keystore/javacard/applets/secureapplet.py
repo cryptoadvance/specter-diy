@@ -26,6 +26,12 @@ class SecureApplet(Applet):
         self._pin_attempts_max = None
         self._pin_status = None
 
+    @property
+    def card_pubkey(self):
+        """Public key of the card,
+        in secp256k1 representation"""
+        return self.sc.card_pubkey
+
     def open_secure_channel(self):
         self.sc.open()
 
