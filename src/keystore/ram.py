@@ -1,0 +1,343 @@
+from .core import KeyStore, KeyStoreError, PinError
+from platform import CriticalErrorWipeImmediately
+import platform
+from rng import get_random_bytes
+import hashlib
+import hmac
+from bitcoin import ec, bip39, bip32
+from helpers import aead_encrypt, aead_decrypt, tagged_hash
+import secp256k1
+from gui.screens import Alert, PinScreen, MnemonicScreen
+
+
+class RAMKeyStore(KeyStore):
+    """
+    KeyStore that doesn't store your keys.
+    Don't use directly. It's a parent class for inheritance.
+    For PIN verifiction implement
+    _set_pin, _unlock, _change_pin and other pin-related methods.
+    """
+    # Button to go to storage menu
+    # Menu should be implemented in async storage_menu function
+    # Here we only have a single option - to show mnemonic
+    storage_button = "Show mnemonic"
+    def __init__(self):
+        # bip39 mnemonic
+        self.mnemonic = None
+        # root xprv (derived from mnemonic, password)
+        self.root = None
+        # root fingerprint
+        self.fingerprint = None
+        # private key at path m/0x1D'
+        # used to encrypt & authenticate data
+        # specific to this root key
+        self.idkey = None
+        # unique secret for a device
+        # used to show anti-phishing words
+        self.secret = None
+        # encryption secret for untrusted data storage
+        # stored encrypted with PIN secret
+        # if PIN changed we only need to re-encrypt
+        # this secret, all the data remains the same
+        self.enc_secret = None
+        self.initialized = False
+        # show function for menus and stuff
+        self.show = None
+
+    def set_mnemonic(self, mnemonic=None, password=""):
+        """Load mnemonic and password and create root key"""
+        if mnemonic is not None:
+            self.mnemonic = mnemonic.strip()
+            if not bip39.mnemonic_is_valid(self.mnemonic):
+                raise KeyStoreError("Invalid mnemonic")
+        seed = bip39.mnemonic_to_seed(self.mnemonic, password)
+        self.root = bip32.HDKey.from_seed(seed)
+        self.fingerprint = self.root.child(0).fingerprint
+        # id key to sign and encrypt wallet files
+        # stored on untrusted external chip
+        self.idkey = self.root.child(0x1D, hardened=True).key.serialize()
+
+    def sign_psbt(self, psbt):
+        psbt.sign_with(self.root)
+
+    def sign_hash(self, derivation, msghash: bytes):
+        return self.root.derive(derivation).key.sign(msghash)
+
+    def sign_recoverable(self, derivation, msghash: bytes):
+        """Returns a signature and a recovery flag"""
+        prv = self.root.derive(derivation).key
+        sig = secp256k1.ecdsa_sign_recoverable(msghash, prv._secret)
+        flag = sig[64]
+        return ec.Signature(sig[:64]), flag
+
+    def save_aead(self, path, adata=b"", plaintext=b"", key=None):
+        """Encrypts and saves plaintext and associated data to file"""
+        if key is None:
+            key = self.idkey
+        if key is None:
+            raise KeyStoreError("Pass the key please")
+        d = aead_encrypt(key, adata, plaintext)
+        with open(path, "wb") as f:
+            f.write(d)
+        platform.sync()
+
+    def load_aead(self, path, key=None):
+        """
+        Loads data saved with save_aead,
+        returns a tuple (associated data, plaintext)
+        """
+        if key is None:
+            key = self.idkey
+        if key is None:
+            raise KeyStoreError("Pass the key please")
+        with open(path, "rb") as f:
+            data = f.read()
+        return aead_decrypt(data, key)
+
+    def get_xpub(self, path):
+        if self.is_locked or self.root is None:
+            raise KeyStoreError("Keystore is not ready")
+        return self.root.derive(path).to_public()
+
+    def owns(self, key):
+        if key.fingerprint is not None and key.fingerprint != self.fingerprint:
+            return False
+        if key.derivation is None:
+            return key.key == self.root.to_public()
+        return key.key == self.root.derive(key.derivation).to_public()
+
+    def wipe(self, path):
+        """Delete everything in path"""
+        platform.delete_recursively(path)
+
+    def load_secret(self, path):
+        """Try to load a secret from file,
+        create new if doesn't exist"""
+        try:
+            # try to load secret
+            with open(path+"/secret", "rb") as f:
+                self.secret = f.read()
+        except:
+            self.secret = self.create_new_secret(path)
+
+    def create_new_secret(self, path):
+        """Generate new secret and default PIN config"""
+        # generate new and save
+        secret = get_random_bytes(32)
+        # save secret
+        with open(path+"/secret", "wb") as f:
+            f.write(secret)
+        self.secret = secret
+        return secret
+
+    def get_auth_word(self, pin_part):
+        """
+        Get anti-phishing word to check internal secret
+        from part of the PIN so user can stop when he sees wrong words
+        """
+        key = tagged_hash("auth", self.secret)
+        h = hmac.new(key, pin_part, digestmod="sha256").digest()
+        # wordlist is 2048 long (11 bits) so
+        # this modulo doesn't create an offset
+        word_number = int.from_bytes(h[:2], 'big') % len(bip39.WORDLIST)
+        return bip39.WORDLIST[word_number]
+
+    @property
+    def is_ready(self):
+        return (self.enc_secret is not None) and \
+               (not self.is_locked) and \
+               (self.fingerprint is not None)
+
+    @property
+    def is_locked(self):
+        """
+        Override this method!!!
+        with your locking check function
+        """
+        # hack: we don't support PIN but
+        # we need enc_secret, so let's do it here.
+        # DONT USE THIS IF YOU HAVE PIN SUPPORT!
+        if self.enc_secret is None:
+            self.enc_secret = tagged_hash("enc", self.secret)
+        return False
+
+    @property
+    def is_key_saved(self):
+        """
+        Override this method
+        to detect if the key is stored
+        """
+        return False
+
+    @property
+    def pin_attempts_left(self):
+        """
+        Override this property
+        with a function to get number of attempts left.
+        """
+        return self.pin_attempts_max
+    
+    @property
+    def pin_attempts_max(self):
+        """
+        Override this property
+        with a function to get max number of attempts.
+        """
+        return 10
+
+    @property
+    def is_pin_set(self):
+        """
+        Override this property
+        with a function to get PIN state.
+        """
+        return True
+
+    def lock(self):
+        """Locks the keystore"""
+        pass
+
+    def _unlock(self, pin):
+        """
+        Implement this.
+        Unlock the keystore, raises PinError if PIN is invalid.
+        Raises CriticalErrorWipeImmediately if no attempts left.
+        """
+        # check we have attempts
+        if self.pin_attempts_left <= 0:
+            self.wipe(self.path)
+            raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
+        # check PIN code somehow, raise PinError if it's incorrect
+        # for reference - first decrease PIN counter, then check PIN
+        # raise PIN Error if it's invalid like this:
+        # if pin == "INVALID PIN":
+        #     raise PinError("Invalid PIN!\n%d of %d attempts left..." % (
+        #         self._pin_attempts_left, self._pin_attempts_max)
+        #     )
+        # reset PIN counter here and unlock
+
+        # set encryption secret somehow mb save it
+        # don't use this approach, it's just for reference
+        self.enc_secret = tagged_hash("enc", self.secret)
+
+    def _change_pin(self, old_pin, new_pin):
+        """Implement PIN change function"""
+        self._unlock(old_pin)
+
+    def _set_pin(self, pin):
+        """Implement PIN set function"""
+        self._unlock(pin)
+
+    async def init(self, show_fn):
+        """
+        Waits for keystore media 
+        and loads internal secret and PIN state
+        """
+        self.show = show_fn
+        platform.maybe_mkdir(self.path)
+        self.load_secret(self.path)
+        # check if init is called for the first time
+        # and we have less than max PIN attempts
+        if (not self.initialized 
+            and self.pin_attempts_left != self.pin_attempts_max):
+            scr = Alert("Warning!",
+                        "You only have %d of %d attempts\n"
+                        "to enter correct PIN code!" % (
+                        self.pin_attempts_left, self.pin_attempts_max),
+                        button_text="OK")
+            await self.show(scr)
+        self.initialized = True
+
+    async def unlock(self):
+        # pin is not set - choose one
+        if not self.is_pin_set:
+            pin = await self.setup_pin()
+            self._set_pin(pin)
+
+        # if keystore is locked - ask for PIN code
+        while self.is_locked:
+            pin = await self.get_pin()
+            self._unlock(pin)
+
+    async def get_pin(self, title="Enter your PIN code"):
+        """
+        Async version of the PIN screen.
+        Waits for an event that is set in the callback.
+        """
+        scr = PinScreen(title=title,
+                        note="Do you recognize these words?",
+                        get_word=self.get_auth_word)
+        return await self.show(scr)
+
+    async def setup_pin(self, get_word=None):
+        """
+        PIN setup screen - first choose, then confirm
+        If PIN codes are the same -> return the PIN
+        If not -> try again
+        """
+        scr = PinScreen(title="Choose your PIN code",
+                        note="Remember these words,"
+                             "they will stay the same on this device.",
+                        get_word=self.get_auth_word)
+        pin1 = await self.show(scr)
+
+        scr = PinScreen(title="Confirm your PIN code",
+                        note="Remember these words,"
+                             "they will stay the same on this device.",
+                        get_word=self.get_auth_word)
+        pin2 = await self.show(scr)
+
+        # check if PIN is the same
+        if pin1 == pin2:
+            return pin1
+        # if not - show an error
+        await self.show(Alert("Error!", "PIN codes are different!"))
+        return await self.setup_pin(get_word)
+
+    async def change_pin(self):
+        # get_auth_word function can generate words from part of the PIN
+        old_pin = await self.get_pin(title="First enter your old PIN code")
+        # check pin - will raise if not valid
+        self._unlock(old_pin)
+        new_pin = await self.setup_pin()
+        self._change_pin(old_pin, new_pin)
+        await self.show(Alert("Success!",
+                              "PIN code is sucessfully changed!",
+                              button_text="OK"))
+
+    async def storage_menu(self):
+        """Manage storage and display of the recovery phrase"""
+        # This class can only show mnemonic, can't save
+        await self.show(MnemonicScreen(self.mnemonic))
+        """
+        # Example:
+        buttons = [
+            # id, text
+            (None, "Key management"),
+            (0, "Save key to flash"),
+            (1, "Load key from flash"),
+            (2, "Delete key from flash"),
+            (3, "Show recovery phrase"),
+        ]
+        # wait for menu selection
+        menuitem = await self.show(Menu(buttons, last=(255, None)))
+
+        # process the menu button:
+        # back button
+        if menuitem == 255:
+            pass
+        elif menuitem == 0:
+            await self.save_mnemonic()
+            await self.show(Alert("Success!",
+                                 "Your key is stored in flash now."))
+        elif menuitem == 1:
+            await self.load_mnemonic()
+            await self.show(Alert("Success!",
+                                 "Your key is loaded."))
+        elif menuitem == 2:
+            await self.delete_mnemonic()
+            await self.show(Alert("Success!",
+                                 "Your key is deleted from flash."))
+        elif menuitem == 3:
+            await self.show(MnemonicScreen(self.mnemonic))
+        """

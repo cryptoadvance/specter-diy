@@ -11,4 +11,7 @@ class PinError(KeyStoreError):
 
 
 class KeyStore:
-    pass
+    NAME = "Generic Keystore"
+    NOTE = "Base class"
+    path = None
+    load_button = None

@@ -8,10 +8,10 @@ from binascii import hexlify
 
 AES_BLOCK = 16
 IV_SIZE = 16
-MAC_SIZE = 15
+MAC_SIZE = 14
 AES_CBC = 2
 
-class SecureChannelError(Exception):
+class SecureError(Exception):
     """
     Raised when something went wrong with the
     secure channel (i.e. signature is invalid etc)

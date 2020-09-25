@@ -1,5 +1,6 @@
 from ..util import encode
 from binascii import hexlify
+from uscard import SmartcardException
 
 class ISOException(Exception):
     pass
@@ -16,9 +17,14 @@ class Applet:
     def select(self):
         self.request(self.SELECT + encode(self.aid))
 
-    def request(self, apdu):
+    def request(self, apdu, retry=True):
+        if not self.conn.isCardInserted():
+            raise AppletException("Card is not present")
         data = self.conn.transmit(apdu)
-        sw = data[-2:]
+        sw = bytes(data[-2:])
         if sw!=b"\x90\x00":
             raise ISOException(hexlify(sw).decode())
-        return data[:-2]
+        if isinstance(data[0],bytes):
+            return data[0]
+        else:
+            return data[:-2]
