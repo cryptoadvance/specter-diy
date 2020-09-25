@@ -40,11 +40,12 @@ class SDKeyStore(FlashKeyStore):
         # enable / disable buttons
         enable_flash = ((not only_if_exist) or
                         platform.file_exists(self.flashpath))
-        enable_sd = (platform.is_sd_present() and 
-                    (
-                        (not only_if_exist) or
+        enable_sd = False
+        if platform.is_sd_present():
+            platform.mount_sdcard()
+            enable_sd = ((not only_if_exist) or
                         platform.file_exists(self.sdpath))
-                    )
+            platform.unmount_sdcard()
         buttons = [
             (None, "Make your choice"),
             (self.flashpath, "Internal flash", enable_flash),

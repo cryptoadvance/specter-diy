@@ -64,6 +64,7 @@ def mount_sdcard() -> bool:
         raise RuntimeError("SD card is not present")
     if sdcard is not None:
         sdled.on()
+        sdcard.power(True)
         os.mount(sdcard, "/sd")
 
 def unmount_sdcard() -> bool:
@@ -74,6 +75,7 @@ def unmount_sdcard() -> bool:
     if sdcard is not None:
         os.sync()
         os.umount("/sd")
+        sdcard.power(False)
         sdled.off()
 
 def mount_sdram():
