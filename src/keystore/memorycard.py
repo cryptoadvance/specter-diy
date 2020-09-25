@@ -116,10 +116,18 @@ In this mode device can only operate when the smartcard is inserted!"""
             self.applet.save_secret(d)
             self._is_key_saved = False
         else:
-            d = self.parse_data(data)
-            secret = d["enc"]
-            if "entropy" in d:
-                self._is_key_saved = True
+            try:
+                d = self.parse_data(data)
+                secret = d["enc"]
+                if "entropy" in d:
+                    self._is_key_saved = True
+            except KeyStoreError as e:
+                # wrong data on the card - not a big deal
+                # just generate a new key
+                self.enc_secret = get_random_bytes(32)
+                self._is_key_saved = False
+                # notify the user about the error
+                raise e
         self.enc_secret = secret
 
     def serialize_data(self, obj):
@@ -184,6 +192,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         self._unlock(pin)
 
     async def save_mnemonic(self):
+        await self.check_card(check_pin=True)
         d = self.serialize_data({
             "enc": self.enc_secret,
             "entropy": bip39.mnemonic_to_bytes(self.mnemonic)
@@ -198,6 +207,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         return self._is_key_saved
 
     async def load_mnemonic(self):
+        await self.check_card(check_pin=True)
         if not self._is_key_saved:
             raise KeyStoreError("Key is not saved")
         data = self.applet.get_secret()
@@ -207,11 +217,40 @@ In this mode device can only operate when the smartcard is inserted!"""
         return True
 
     async def delete_mnemonic(self):
+        await self.check_card(check_pin=True)
         d = self.serialize_data({
             "enc": self.enc_secret
         })
         self.applet.save_secret(d)
         self._is_key_saved = False
+
+    async def check_card(self, check_pin=False):
+        if not self.connection.isCardInserted():
+            # wait for card
+            scr = Progress("Smartcard is not inserted",
+                           "Please insert the smartcard...",
+                           button_text=None) # no button
+            asyncio.create_task(self.wait_for_card(scr))
+            await self.show(scr)
+        try:
+            self.applet.ping()
+        except Exception as e:
+            print(e)
+            self.connected = False
+        # only required if not connected yet
+        if not self.connected:
+            # connect and select applet
+            self.connection.connect(self.connection.T1_protocol)
+            try:
+                self.applet.select()
+            except:
+                raise KeyStoreError("Failed to select MemoryCardApplet")
+            self.applet.open_secure_channel()
+            self.connected = True
+        self.applet.get_pin_status()
+        if check_pin and self.is_locked:
+            pin = await self.get_pin()
+            self._unlock(pin)
 
     async def wait_for_card(self, scr):
         while not self.connection.isCardInserted():
@@ -229,34 +268,19 @@ In this mode device can only operate when the smartcard is inserted!"""
         platform.maybe_mkdir(self.path)
         self.load_secret(self.path)
 
-        if not self.connection.isCardInserted():
-            # wait for card
-            scr = Progress("Smartcard is not inserted",
-                           "Please insert the smartcard...",
-                           button_text=None) # no button
-            asyncio.create_task(self.wait_for_card(scr))
-            await show_fn(scr)
-        # only required if not connected yet
-        if not self.connected:
-            # connect and select applet
-            self.connection.connect(self.connection.T1_protocol)
-            try:
-                self.applet.select()
-            except:
-                raise KeyStoreError("Failed to select MemoryCardApplet")
-            self.applet.open_secure_channel()
-            self.connected = True
+        await self.check_card()
         # the rest can be done with parent
         await super().init(show_fn)
 
     async def storage_menu(self):
         """Manage storage and display of the recovery phrase"""
+        enabled = self.connection.isCardInserted()
         buttons = [
             # id, text
             (None, "Smartcard storage"),
-            (0, "Save key to the card"),
-            (1, "Load key from the card"),
-            (2, "Delete key from the card"),
+            (0, "Save key to the card", enabled),
+            (1, "Load key from the card", enabled),
+            (2, "Delete key from the card", enabled),
             (3, "Show recovery phrase"),
         ]
 

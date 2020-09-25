@@ -14,9 +14,9 @@ QR scanning functionality is on a separate microcontroller so all image processi
 
 During the first boot a unique secret is generated on the main MCU. This secret allows you to verify that the device was not replaced by a malicious one - when you enter the PIN code you see a list of words that will remain the same while the secret is there.
 
-Your PIN code together with this unique secret are used to generate a decryption key for your entropy. So if the attacker would be able to bypass PIN screen, decryption will still fail.
+Your PIN code together with this unique secret are used to generate a decryption key for your Bitcoin keys (if you store them). So if the attacker would be able to bypass PIN screen, decryption will still fail.
 
-If you have locked the firmware (add instructions link here) it will effectively lock the secret as well, so if the attacker flashes different firmware to the board the secret gets erased and you will be able to recognize it when you start entering PIN code - words sequence will be different.
+If you have locked the firmware (TODO: add instructions link here) it will effectively lock the secret as well, so if the attacker flashes different firmware to the board the secret gets erased and you will be able to recognize it when you start entering PIN code - words sequence will be different.
 
 ## Generation of the recovery phrase
 

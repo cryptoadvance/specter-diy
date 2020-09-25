@@ -3,7 +3,7 @@ from gui.specter import SpecterGUI
 
 from keystore.core import KeyStore
 from keystore.sdcard import SDKeyStore
-# from keystore.memorycard import MemoryCard
+from keystore.memorycard import MemoryCard
 
 from hosts import SDHost, QRHost, USBHost
 import platform
@@ -37,6 +37,8 @@ def main(apps=None, network='test', keystore_cls=None):
     else:
         keystores = [
             SDKeyStore,
+            # uncomment this if you want to
+            # enable smartcard support:
             # MemoryCard,
         ]
 

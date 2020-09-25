@@ -39,4 +39,5 @@ if os.statvfs('/flash')==os.statvfs('/qspi'):
         os.VfsFat.mkfs(pyb.Flash(start=start))
         os.mount(pyb.Flash(start=start), '/flash')
 
-pyb.main("debug.py")
+# uncomment to run some custom main:
+# pyb.main("debug.py")
