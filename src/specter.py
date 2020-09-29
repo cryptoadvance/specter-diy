@@ -82,6 +82,12 @@ class Specter:
             return next_fn
 
     async def select_keystore(self, path):
+        # if we have fixed keystore - just use it
+        if len(self.keystores) == 1:
+            self.keystore = self.keystores[0]()
+            return
+        # otherwise check if the file exists
+        # that determines what class to use
         if file_exists(path):
             with open(path) as f:
                 name = f.read()
@@ -90,6 +96,7 @@ class Specter:
                     self.keystore = k()
                     return
             raise SpecterError("Didn't find a matching keystore class")
+        # if not -> ask the user
         buttons = [(None, " ")]
         for k in self.keystores:
             buttons.extend([
@@ -112,6 +119,8 @@ class Specter:
             # check if the user already selected the keystore class
             if self.keystore is None:
                 await self.select_keystore(path)
+
+            if self.keystore is not None:
                 self.load_network(self.path, self.network)
 
             # load secrets
