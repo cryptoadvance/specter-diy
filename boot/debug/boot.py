@@ -40,4 +40,4 @@ if os.statvfs('/flash')==os.statvfs('/qspi'):
         os.mount(pyb.Flash(start=start), '/flash')
 
 # uncomment to run some custom main:
-# pyb.main("debug.py")
+pyb.main("hardwaretest.py")
