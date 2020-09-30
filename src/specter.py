@@ -308,7 +308,12 @@ class Specter:
         buttons.extend([
             (2, "Enter password"),
             (None, "Security"),  # delimiter
-            (3, "Change PIN code"),
+        ])
+        if hasattr(self.keystore, "lock"):
+            buttons.extend([
+                (3, "Change PIN code"),
+            ])
+        buttons.extend([
             (4, "Developer & USB"),
         ])
         # wait for menu selection
