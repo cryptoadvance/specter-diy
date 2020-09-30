@@ -71,8 +71,8 @@ class AsyncGUI:
         await self.load_screen(scr)
         return await scr.result()
 
-    def start(self, rate: int = 30):
-        init()
+    def start(self, rate: int = 30, dark=True):
+        init(dark=dark)
         asyncio.create_task(self.update_loop(rate))
 
     async def update_loop(self, dt):

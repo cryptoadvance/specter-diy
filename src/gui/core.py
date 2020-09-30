@@ -6,11 +6,11 @@ import display
 from .common import init_styles
 
 
-def init(blocking=True):
+def init(blocking=True, dark=True):
     display.init(not blocking)
 
     # Initialize the styles
-    init_styles()
+    init_styles(dark=dark)
 
     scr = lv.obj()
     lv.scr_load(scr)
