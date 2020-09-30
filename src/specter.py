@@ -174,14 +174,17 @@ class Specter:
             (0, "Generate new key"),
             (1, "Enter recovery phrase"),
         ]
-        if self.keystore.is_key_saved:
+        if self.keystore.is_key_saved and self.keystore.load_button:
             buttons.append((2, self.keystore.load_button))
         buttons += [
             (None, "Settings"),
             (3, "Developer & USB settings"),
-            (4, "Change PIN code"),
-            (5, "Lock device"),
         ]
+        if hasattr(self.keystore, "lock"):
+            buttons += [
+                (4, "Change PIN code"),
+                (5, "Lock device"),
+            ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons)
 
@@ -254,7 +257,12 @@ class Specter:
             (None, "Communication"),
         ] + host_buttons + [
             (None, "More"),  # delimiter
-            (2, "Lock device"),
+        ]
+        if hasattr(self.keystore, "lock"):
+            buttons += [
+                (2, "Lock device"),
+            ]
+        buttons += [
             (3, "Settings"),
         ]
         # wait for menu selection
@@ -262,7 +270,7 @@ class Specter:
 
         # process the menu button:
         # lock device
-        if menuitem == 2:
+        if menuitem == 2 and hasattr(self.keystore, "lock"):
             await self.lock()
             # go to the unlock screen
             await self.unlock()
@@ -387,7 +395,8 @@ class Specter:
 
     async def lock(self):
         # lock the keystore
-        self.keystore.lock()
+        if hasattr(self.keystore, "lock"):
+            self.keystore.lock()
         # disable hosts
         for host in self.hosts:
             await host.disable()
