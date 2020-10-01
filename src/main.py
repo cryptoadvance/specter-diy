@@ -10,7 +10,8 @@ import platform
 import sys
 from helpers import load_apps
 
-def main(apps=None, network='test', keystore_cls=None):
+
+def main(apps=None, network="test", keystore_cls=None):
     """
     apps: list of apps to load
     network: default network to operate
@@ -22,8 +23,8 @@ def main(apps=None, network='test', keystore_cls=None):
     # define hosts - USB, QR, SDCard
     # each hosts gets it's own RAM folder for data
     hosts = [
-        QRHost(rampath+"/qr"),
-        USBHost(rampath+"/usb"),
+        QRHost(rampath + "/qr"),
+        USBHost(rampath + "/usb"),
         # SDHost(rampath+"/sd"), # not implemented yet
     ]
     # define GUI
@@ -48,14 +49,16 @@ def main(apps=None, network='test', keystore_cls=None):
 
     # make Specter instance
     settings_path = platform.fpath("/flash")
-    specter = Specter(gui=gui,
-                      keystores=keystores,
-                      hosts=hosts,
-                      apps=apps,
-                      settings_path=settings_path,
-                      network=network)
+    specter = Specter(
+        gui=gui,
+        keystores=keystores,
+        hosts=hosts,
+        apps=apps,
+        settings_path=settings_path,
+        network=network,
+    )
     specter.start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

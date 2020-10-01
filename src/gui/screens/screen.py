@@ -4,12 +4,12 @@ from ..common import styles, HOR_RES
 
 
 class Screen(lv.obj):
-    network = 'test'
+    network = "test"
     COLORS = {
-        'main': lv.color_hex(0xFF9A00),
-        'test': lv.color_hex(0x00F100),
-        'regtest': lv.color_hex(0x00CAF1),
-        'signet': lv.color_hex(0xBD10E0),
+        "main": lv.color_hex(0xFF9A00),
+        "test": lv.color_hex(0x00F100),
+        "regtest": lv.color_hex(0x00CAF1),
+        "signet": lv.color_hex(0xBD10E0),
     }
 
     def __init__(self):

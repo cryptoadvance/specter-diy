@@ -2,14 +2,17 @@
 # if os.urandom is available - entropy goes from hardware TRNG
 # in simulator just use /dev/urandom
 import hashlib
-entropy_pool = b'7'*64
+
+entropy_pool = b"7" * 64
 
 try:
     from os import urandom as get_trng_bytes
 except:
+
     def get_trng_bytes(nbytes):
         with open("/dev/urandom", "rb") as f:
             return f.read(nbytes)
+
 
 # assuming that entropy_pool has some real entropy
 # we can generate bytes using it as well
@@ -28,6 +31,7 @@ def get_random_bytes(nbytes):
         h = hashlib.sha512(entropy_pool)
         h.update(d)
         return h.digest()[:nbytes]
+
 
 # we hash together entropy pool and data we got
 

@@ -4,13 +4,20 @@ import json
 from io import BytesIO
 import asyncio
 
-from platform import (CriticalErrorWipeImmediately, set_usb_mode,
-                      reboot, fpath, maybe_mkdir, file_exists,
-                      delete_recursively)
+from platform import (
+    CriticalErrorWipeImmediately,
+    set_usb_mode,
+    reboot,
+    fpath,
+    maybe_mkdir,
+    file_exists,
+    delete_recursively,
+)
 from hosts import Host, HostError
 from app import BaseApp
 from bitcoin import bip39
 from bitcoin.networks import NETWORKS
+
 # small helper functions
 from helpers import gen_mnemonic, load_apps
 from errors import BaseError
@@ -26,8 +33,7 @@ class Specter:
     It will then call the .setup() and .main() functions to display the GUI
     """
 
-    def __init__(self, gui, keystores, hosts, apps,
-                 settings_path, network='test'):
+    def __init__(self, gui, keystores, hosts, apps, settings_path, network="test"):
         self.hosts = hosts
         self.keystores = keystores
         self.keystore = None
@@ -99,18 +105,17 @@ class Specter:
         # if not -> ask the user
         buttons = [(None, " ")]
         for k in self.keystores:
-            buttons.extend([
-                (k, k.NAME),
-                (None, " ")
-            ])
+            buttons.extend([(k, k.NAME), (None, " ")])
         # wait for menu selection
-        keystore_cls = await self.gui.menu(buttons,
-                                    title="Select key storage type",
-                                    note="\n\nWhere do you want to store your key?\n\n"
-                                    "By default Specter-DIY is amnesic and doesn't save the key.\n"
-                                    "But you can use one of the options below if you don't want "
-                                    "to remember your recovery phrase.\n\n"
-                                    "Note: Smartcard requires a special extension board.")
+        keystore_cls = await self.gui.menu(
+            buttons,
+            title="Select key storage type",
+            note="\n\nWhere do you want to store your key?\n\n"
+            "By default Specter-DIY is amnesic and doesn't save the key.\n"
+            "But you can use one of the options below if you don't want "
+            "to remember your recovery phrase.\n\n"
+            "Note: Smartcard requires a special extension board.",
+        )
         self.keystore = keystore_cls()
 
     async def setup(self):
@@ -199,8 +204,9 @@ class Specter:
                 return self.mainmenu
         # recover
         elif menuitem == 1:
-            mnemonic = await self.gui.recover(bip39.mnemonic_is_valid,
-                                              bip39.find_candidates)
+            mnemonic = await self.gui.recover(
+                bip39.mnemonic_is_valid, bip39.find_candidates
+            )
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic, "")
@@ -237,27 +243,27 @@ class Specter:
         # buttons defined by host classes
         # only added if there is a GUI-triggered communication
         host_buttons = [
-            (host, host.button)
-            for host in self.hosts
-            if host.button is not None
+            (host, host.button) for host in self.hosts if host.button is not None
         ]
         # buttons defined by app classes
-        app_buttons = [
-            (app, app.button)
-            for app in self.apps
-            if app.button is not None
-        ]
+        app_buttons = [(app, app.button) for app in self.apps if app.button is not None]
         # for every button we use an ID
         # to avoid mistakes when editing strings
         # If ID is None - it is a section title, not a button
-        buttons = [
-            # id, text
-            (None, "Applications"),
-        ] + app_buttons + [
-            (None, "Communication"),
-        ] + host_buttons + [
-            (None, "More"),  # delimiter
-        ]
+        buttons = (
+            [
+                # id, text
+                (None, "Applications"),
+            ]
+            + app_buttons
+            + [
+                (None, "Communication"),
+            ]
+            + host_buttons
+            + [
+                (None, "More"),  # delimiter
+            ]
+        )
         if hasattr(self.keystore, "lock"):
             buttons += [
                 (2, "Lock device"),
@@ -276,13 +282,13 @@ class Specter:
             await self.unlock()
         elif menuitem == 3:
             return await self.settingsmenu()
-        elif isinstance(menuitem, BaseApp) and hasattr(menuitem, 'menu'):
+        elif isinstance(menuitem, BaseApp) and hasattr(menuitem, "menu"):
             app = menuitem
             # stay in this menu while something is returned
             while await app.menu(self.gui.show_screen()):
                 pass
         # if it's a host
-        elif isinstance(menuitem, Host) and hasattr(menuitem, 'get_data'):
+        elif isinstance(menuitem, Host) and hasattr(menuitem, "get_data"):
             host = menuitem
             stream = await host.get_data()
             # probably user cancelled
@@ -305,17 +311,23 @@ class Specter:
         ]
         if self.keystore.storage_button is not None:
             buttons.append((0, self.keystore.storage_button))
-        buttons.extend([
-            (2, "Enter password"),
-            (None, "Security"),  # delimiter
-        ])
+        buttons.extend(
+            [
+                (2, "Enter password"),
+                (None, "Security"),  # delimiter
+            ]
+        )
         if hasattr(self.keystore, "lock"):
-            buttons.extend([
-                (3, "Change PIN code"),
-            ])
-        buttons.extend([
-            (4, "Developer & USB"),
-        ])
+            buttons.extend(
+                [
+                    (3, "Change PIN code"),
+                ]
+            )
+        buttons.extend(
+            [
+                (4, "Developer & USB"),
+            ]
+        )
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
 
@@ -359,16 +371,16 @@ class Specter:
         self.network = net
         self.gui.set_network(net)
         # save
-        with open(self.path+"/network", "w") as f:
+        with open(self.path + "/network", "w") as f:
             f.write(net)
         if self.keystore.is_ready:
             # load wallets for this network
             for app in self.apps:
                 app.init(self.keystore, self.network)
 
-    def load_network(self, path, network='test'):
+    def load_network(self, path, network="test"):
         try:
-            with open(path+"/network", "r") as f:
+            with open(path + "/network", "r") as f:
                 network = f.read()
                 if network not in NETWORKS:
                     raise SpecterError("Invalid network")
@@ -380,17 +392,20 @@ class Specter:
         res = await self.gui.devscreen(dev=self.dev, usb=self.usb)
         if res is not None:
             if res["wipe"]:
-                if await self.gui.prompt("Wiping the device will erase everything in the internal storage!",
-                                     "This includes multisig wallet files, keys, apps data etc.\n\n"
-                                     "But it doesn't include files stored on SD card or smartcard.\n\n"
-                                     "Are you sure?"):
+                if await self.gui.prompt(
+                    "Wiping the device will erase everything in the internal storage!",
+                    "This includes multisig wallet files, keys, apps data etc.\n\n"
+                    "But it doesn't include files stored on SD card or smartcard.\n\n"
+                    "Are you sure?",
+                ):
                     self.wipe()
                     reboot()
                 return
             self.update_config(**res)
-            if await self.gui.prompt("Reboot required!",
-                                     "Changing USB mode requires to "
-                                     "reboot the device. Proceed?"):
+            if await self.gui.prompt(
+                "Reboot required!",
+                "Changing USB mode requires to " "reboot the device. Proceed?",
+            ):
                 reboot()
 
     def wipe(self):
@@ -421,15 +436,18 @@ class Specter:
 
     def load_config(self):
         try:
-            config, _ = self.keystore.load_aead(self.path+"/settings",
-                                                self.keystore.enc_secret)
+            config, _ = self.keystore.load_aead(
+                self.path + "/settings", self.keystore.enc_secret
+            )
             config = json.loads(config.decode())
         except Exception as e:
             print(e)
             config = {"dev": self.dev, "usb": self.usb}
-            self.keystore.save_aead(self.path+"/settings",
-                                    adata=json.dumps(config).encode(),
-                                    key=self.keystore.enc_secret)
+            self.keystore.save_aead(
+                self.path + "/settings",
+                adata=json.dumps(config).encode(),
+                key=self.keystore.enc_secret,
+            )
         self.dev = config["dev"]
         self.usb = config["usb"]
         # add apps in dev mode
@@ -437,10 +455,10 @@ class Specter:
             try:
                 qspi = fpath("/qspi/extensions")
                 maybe_mkdir(qspi)
-                maybe_mkdir(qspi+"/extra_apps")
+                maybe_mkdir(qspi + "/extra_apps")
                 if qspi not in sys.path:
                     sys.path.append(qspi)
-                    self.apps += load_apps('extra_apps')
+                    self.apps += load_apps("extra_apps")
             except Exception as e:
                 print(e)
 
@@ -449,9 +467,11 @@ class Specter:
             "usb": usb,
             "dev": dev,
         }
-        self.keystore.save_aead(self.path+"/settings",
-                                adata=json.dumps(config).encode(),
-                                key=self.keystore.enc_secret)
+        self.keystore.save_aead(
+            self.path + "/settings",
+            adata=json.dumps(config).encode(),
+            key=self.keystore.enc_secret,
+        )
         self.usb = usb
         self.dev = dev
         set_usb_mode(usb=self.usb, dev=self.dev)
@@ -472,9 +492,8 @@ class Specter:
         # TODO: if more than one - ask which one to use
         if len(matching_apps) > 1:
             raise HostError(
-                "Not sure what app to use... "
-                "There are %d" % len(matching_apps))
+                "Not sure what app to use... " "There are %d" % len(matching_apps)
+            )
         stream.seek(0)
         app = matching_apps[0]
-        return await app.process_host_command(stream,
-                                              self.gui.show_screen(popup))
+        return await app.process_host_command(stream, self.gui.show_screen(popup))

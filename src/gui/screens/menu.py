@@ -5,9 +5,9 @@ from ..decorators import on_release, cb_with_args
 
 
 class Menu(Screen):
-    def __init__(self, buttons=[],
-                 title="What do you want to do?", note=None,
-                 y0=80, last=None):
+    def __init__(
+        self, buttons=[], title="What do you want to do?", note=None, y0=80, last=None
+    ):
         super().__init__()
         y = y0
         self.title = add_label(title, style="title", scr=self)
@@ -24,7 +24,7 @@ class Menu(Screen):
         for value, text, *args in buttons:
             if text is not None:
                 if value is not None:
-                    enable = (len(args)==0 or args[0])
+                    enable = len(args) == 0 or args[0]
                     if enable:
                         cb = on_release(cb_with_args(self.set_value, value))
                     else:
@@ -35,19 +35,15 @@ class Menu(Screen):
                     self.buttons.append(btn)
                     y += 85
                 else:
-                    add_label(text.upper(), y=y+10,
-                              style="hint", scr=self.page)
+                    add_label(text.upper(), y=y + 10, style="hint", scr=self.page)
                     y += 50
             else:
                 y += 40
         if last is not None:
             self.add_back_button(*last)
-            self.page.set_height(h-100)
+            self.page.set_height(h - 100)
 
     def add_back_button(self, value, text=None):
         if text is None:
-            text = lv.SYMBOL.LEFT+" Back"
-        add_button(text,
-                   on_release(
-                       cb_with_args(self.set_value, value)
-                   ), scr=self)
+            text = lv.SYMBOL.LEFT + " Back"
+        add_button(text, on_release(cb_with_args(self.set_value, value)), scr=self)

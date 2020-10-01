@@ -23,16 +23,16 @@ class Progress(Alert):
         self.progress.set_recolor(True)
 
     def tick(self, d: int = 10):
-        self.start = (self.start-2*d) % 360
-        self.end = (self.end-d) % 360
+        self.start = (self.start - 2 * d) % 360
+        self.end = (self.end - d) % 360
         self.arc.set_angles(self.start, self.end)
 
     def set_progress(self, val):
         txt = ""
         if isinstance(val, list):
-            ok = "#00F100 "+lv.SYMBOL.OK+" # "
-            no = "#FF9A00 "+lv.SYMBOL.CLOSE+" # "
+            ok = "#00F100 " + lv.SYMBOL.OK + " # "
+            no = "#FF9A00 " + lv.SYMBOL.CLOSE + " # "
             txt = " ".join([ok if e else no for e in val])
         elif val > 0:
-            txt = "%d%%" % int(val*100)
+            txt = "%d%%" % int(val * 100)
         self.progress.set_text(txt)

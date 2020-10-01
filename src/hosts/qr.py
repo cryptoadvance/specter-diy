@@ -46,6 +46,7 @@ class QRHost(Host):
     - scan unsigned transaction and authentications
     - trigger display of the signed transaction
     """
+
     # time to wait after init
     RECOVERY_TIME = 30
 
@@ -79,21 +80,21 @@ class QRHost(Host):
         while self.uart.any() < 7:
             time.sleep_ms(10)
             t = time.time()
-            if t > t0+timeout/1000:
+            if t > t0 + timeout / 1000:
                 return None
         res = self.uart.read(7)
         return res
 
     def get_setting(self, addr):
         # only for 1 byte settings
-        res = self.query(b"\x7E\x00\x07\x01"+addr+b"\x01\xAB\xCD")
+        res = self.query(b"\x7E\x00\x07\x01" + addr + b"\x01\xAB\xCD")
         if res is None or len(res) != 7:
             return None
         return res[-3]
 
     def set_setting(self, addr, value):
         # only for 1 byte settings
-        res = self.query(b"\x7E\x00\x08\x01"+addr+bytes([value])+b"\xAB\xCD")
+        res = self.query(b"\x7E\x00\x08\x01" + addr + bytes([value]) + b"\xAB\xCD")
         if res is None:
             return False
         return res == SUCCESS
@@ -139,8 +140,7 @@ class QRHost(Host):
         if val is None:
             return False
         if val != DELAY_OF_SAME_BARCODES:
-            self.set_setting(DELAY_OF_SAME_BARCODES_ADDR,
-                             DELAY_OF_SAME_BARCODES)
+            self.set_setting(DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES)
             save_required = True
 
         if save_required:
@@ -149,8 +149,7 @@ class QRHost(Host):
                 return False
 
         # Set 115200 bps: this query is special - it has a payload of 2 bytes
-        ret = self.query(b"\x7E\x00\x08\x02" +
-                         BAUD_RATE_ADDR+BAUD_RATE+b"\xAB\xCD")
+        ret = self.query(b"\x7E\x00\x08\x02" + BAUD_RATE_ADDR + BAUD_RATE + b"\xAB\xCD")
         if ret != SUCCESS:
             return False
         self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
@@ -245,7 +244,7 @@ class QRHost(Host):
         """Returns true when scanning complete"""
         # should not be there if trigger mode or simulator
         if chunk.startswith(SUCCESS):
-            chunk = chunk[len(SUCCESS):]
+            chunk = chunk[len(SUCCESS) :]
         # check if it's bcur encoding
         if chunk[:9].upper() == b"UR:BYTES/":
             self.bcur = True
@@ -265,7 +264,7 @@ class QRHost(Host):
                 self.stop_scanning()
                 raise HostError("Ivalid QR code part encoding: %r" % chunk)
         # converting to pMofN to reuse parser
-        prefix = b"p"+arr[1].lower()
+        prefix = b"p" + arr[1].lower()
         hsh = arr[2]
         data = arr[3]
         if not self.animated:
@@ -274,8 +273,8 @@ class QRHost(Host):
                 # if succeed - first animated frame,
                 # allocate stuff
                 self.animated = True
-                self.parts = [b""]*n
-                self.parts[m-1] = data
+                self.parts = [b""] * n
+                self.parts[m - 1] = data
                 self.bcur_hash = hsh
                 self.data = b""
                 return False
@@ -289,10 +288,10 @@ class QRHost(Host):
         if hsh != self.bcur_hash:
             print(hsh, self.bcur_hash)
             raise HostError("Checksum mismatch")
-        self.parts[m-1] = data
+        self.parts[m - 1] = data
         # all have non-zero len
         if min([len(part) for part in self.parts]) > 0:
-            self.data = b"UR:BYTES/"+self.bcur_hash+b"/"+b"".join(self.parts)
+            self.data = b"UR:BYTES/" + self.bcur_hash + b"/" + b"".join(self.parts)
             return True
         else:
             return False
@@ -315,8 +314,8 @@ class QRHost(Host):
                     # if succeed - first animated frame,
                     # allocate stuff
                     self.animated = True
-                    self.parts = [b""]*n
-                    self.parts[m-1] = b" ".join(args)
+                    self.parts = [b""] * n
+                    self.parts[m - 1] = b" ".join(args)
                     self.data = b""
                     return False
                 # failed - not animated, just unfortunately similar data
@@ -330,7 +329,7 @@ class QRHost(Host):
         m, n = self.parse_prefix(prefix)
         if n != len(self.parts):
             raise HostError("Invalid prefix")
-        self.parts[m-1] = b" ".join(args)
+        self.parts[m - 1] = b" ".join(args)
         # all have non-zero len
         if min([len(part) for part in self.parts]) > 0:
             self.data = b"".join(self.parts)
@@ -351,9 +350,9 @@ class QRHost(Host):
     async def get_data(self):
         if self.manager is not None:
             # pass self so user can abort
-            await self.manager.gui.show_progress(self,
-                                                 "Scanning...",
-                                                 "Point scanner to the QR code")
+            await self.manager.gui.show_progress(
+                self, "Scanning...", "Point scanner to the QR code"
+            )
         data = await self.scan()
         if data is not None:
             return BytesIO(data)
@@ -369,8 +368,7 @@ class QRHost(Host):
         msg = response
         if "message" in meta:
             msg = meta["message"]
-        await self.manager.gui.qr_alert(title, msg, response,
-                                        note=note, qr_width=480)
+        await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
 
     @property
     def in_progress(self):

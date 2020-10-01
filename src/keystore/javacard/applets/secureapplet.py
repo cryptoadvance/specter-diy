@@ -2,22 +2,24 @@ from .applet import Applet, ISOException, AppletException
 from .securechannel import SecureChannel, SecureError
 import hashlib
 
+
 def encode(data):
-    return bytes([len(data)])+data
+    return bytes([len(data)]) + data
+
 
 class SecureApplet(Applet):
     SECURE_RANDOM = b"\x01\x00"
-    PIN_STATUS    = b"\x03\x00"
-    UNLOCK        = b"\x03\x01"
-    LOCK          = b"\x03\x02"
-    CHANGE_PIN    = b'\x03\x03'
-    SET_PIN       = b"\x03\x04"
-    ECHO          = b"\x00\x00"
+    PIN_STATUS = b"\x03\x00"
+    UNLOCK = b"\x03\x01"
+    LOCK = b"\x03\x02"
+    CHANGE_PIN = b"\x03\x03"
+    SET_PIN = b"\x03\x04"
+    ECHO = b"\x00\x00"
     # PIN status codes
-    PIN_UNSET    = 0
-    PIN_LOCKED   = 1
+    PIN_UNSET = 0
+    PIN_LOCKED = 1
     PIN_UNLOCKED = 2
-    PIN_BRICKED  = 3
+    PIN_BRICKED = 3
 
     def __init__(self, connection, aid):
         super().__init__(connection, aid)
@@ -45,9 +47,9 @@ class SecureApplet(Applet):
 
     def get_pin_status(self):
         status = self.sc.request(self.PIN_STATUS)
-        (self._pin_attempts_left, 
-         self._pin_attempts_max, 
-         self._pin_status) = list(status)
+        (self._pin_attempts_left, self._pin_attempts_max, self._pin_status) = list(
+            status
+        )
         return tuple(status)
 
     def get_random(self):
@@ -82,7 +84,7 @@ class SecureApplet(Applet):
             raise AppletException("PIN is already set")
         # we always set sha256(pin) so it's constant length
         h = hashlib.sha256(pin.encode()).digest()
-        self.sc.request(self.SET_PIN+h)
+        self.sc.request(self.SET_PIN + h)
         # update status
         self.get_pin_status()
 
@@ -93,12 +95,12 @@ class SecureApplet(Applet):
             raise AppletException("Unlock the card first")
         h1 = hashlib.sha256(old_pin.encode()).digest()
         h2 = hashlib.sha256(new_pin.encode()).digest()
-        self.sc.request(self.CHANGE_PIN+encode(h1)+encode(h2))
+        self.sc.request(self.CHANGE_PIN + encode(h1) + encode(h2))
         # update status
         self.get_pin_status()
 
     def ping(self):
-        assert self.sc.request(self.ECHO+b"ping") == b"ping"
+        assert self.sc.request(self.ECHO + b"ping") == b"ping"
 
     def unlock(self, pin):
         if not self.is_locked:
@@ -106,7 +108,7 @@ class SecureApplet(Applet):
         try:
             # we always set sha256(pin) so it's constant length
             h = hashlib.sha256(pin.encode()).digest()
-            self.sc.request(self.UNLOCK+h)
+            self.sc.request(self.UNLOCK + h)
         finally:
             # update status
             self.get_pin_status()

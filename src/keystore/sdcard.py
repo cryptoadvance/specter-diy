@@ -22,6 +22,7 @@ class SDKeyStore(FlashKeyStore):
     When correct PIN is entered the key can be loaded
     from SD card to the RAM of the MCU.
     """
+
     NAME = "Flash & SD card"
     NOTE = """Recovery phrase can be stored ecnrypted on the external SD card. Only this device will be able to read it."""
     # Button to go to storage menu
@@ -34,17 +35,13 @@ class SDKeyStore(FlashKeyStore):
         hexid = hexlify(tagged_hash("sdid", self.secret)[:4]).decode()
         return platform.fpath("/sd/specterdiy%s" % hexid)
 
-    async def get_keypath(self, title="Select media",
-                          only_if_exist=True,
-                          **kwargs):
+    async def get_keypath(self, title="Select media", only_if_exist=True, **kwargs):
         # enable / disable buttons
-        enable_flash = ((not only_if_exist) or
-                        platform.file_exists(self.flashpath))
+        enable_flash = (not only_if_exist) or platform.file_exists(self.flashpath)
         enable_sd = False
         if platform.is_sd_present():
             platform.mount_sdcard()
-            enable_sd = ((not only_if_exist) or
-                        platform.file_exists(self.sdpath))
+            enable_sd = (not only_if_exist) or platform.file_exists(self.sdpath)
             platform.unmount_sdcard()
         buttons = [
             (None, "Make your choice"),
@@ -61,18 +58,16 @@ class SDKeyStore(FlashKeyStore):
         if self.mnemonic is None:
             raise KeyStoreError("Recovery phrase is not loaded")
         if path is None:
-            path = await self.get_keypath(title="Where to save?",
-                                          only_if_exist=False,
-                                          note="Select media")
+            path = await self.get_keypath(
+                title="Where to save?", only_if_exist=False, note="Select media"
+            )
             if path is None:
                 return False
         if path == self.sdpath:
             if not platform.is_sd_present():
                 raise KeyStoreError("SD card is not present")
             platform.mount_sdcard()
-        self.save_aead(path,
-                       plaintext=self.mnemonic.encode(),
-                       key=self.enc_secret)
+        self.save_aead(path, plaintext=self.mnemonic.encode(), key=self.enc_secret)
         if path == self.sdpath:
             platform.unmount_sdcard()
         # check it's ok
@@ -93,19 +88,20 @@ class SDKeyStore(FlashKeyStore):
         if self.is_locked:
             raise KeyStoreError("Keystore is locked")
         if path is None:
-            path = await self.get_keypath(title="From where to load?",
-                                          note="Select media")
+            path = await self.get_keypath(
+                title="From where to load?", note="Select media"
+            )
             if path is None:
                 return False
         if path == self.sdpath:
             if not platform.is_sd_present():
                 raise KeyStoreError("SD card is not present")
             platform.mount_sdcard()
-        
+
         if not platform.file_exists(path):
             raise KeyStoreError("Key is not saved")
         _, data = self.load_aead(path, self.enc_secret)
-        
+
         if path == self.sdpath:
             platform.unmount_sdcard()
         self.set_mnemonic(data.decode(), "")
@@ -121,13 +117,12 @@ class SDKeyStore(FlashKeyStore):
                 raise KeyStoreError("SD card is not present")
             platform.mount_sdcard()
         if not platform.file_exists(path):
-            raise KeyStoreError(
-                "Secret is not saved. No need to delete anything.")
+            raise KeyStoreError("Secret is not saved. No need to delete anything.")
         try:
             os.remove(path)
         except Exception as e:
             print(e)
-            raise KeyStoreError("Failed to delete file at "+path)
+            raise KeyStoreError("Failed to delete file at " + path)
         finally:
             if path == self.sdpath:
                 platform.unmount_sdcard()
@@ -155,18 +150,18 @@ class SDKeyStore(FlashKeyStore):
                 return
             elif menuitem == 0:
                 if await self.save_mnemonic():
-                    await self.show(Alert("Success!",
-                                         "Your key is stored now.",
-                                         button_text="OK"))
+                    await self.show(
+                        Alert("Success!", "Your key is stored now.", button_text="OK")
+                    )
             elif menuitem == 1:
                 if await self.load_mnemonic():
-                    await self.show(Alert("Success!",
-                                         "Your key is loaded.",
-                                         button_text="OK"))
+                    await self.show(
+                        Alert("Success!", "Your key is loaded.", button_text="OK")
+                    )
             elif menuitem == 2:
                 if await self.delete_mnemonic():
-                    await self.show(Alert("Success!",
-                                          "Your key is deleted.",
-                                          button_text="OK"))
+                    await self.show(
+                        Alert("Success!", "Your key is deleted.", button_text="OK")
+                    )
             elif menuitem == 3:
                 await self.show(MnemonicScreen(self.mnemonic))

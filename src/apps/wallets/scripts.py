@@ -29,7 +29,7 @@ class SingleKey(DescriptorScript):
     def parse(cls, desc):
         if not desc.startswith("wpkh(") or not desc.endswith(")"):
             raise ScriptError("Invalid script format: %s" % desc)
-        key = DescriptorKey.parse(desc[len("wpkh("):-1])
+        key = DescriptorKey.parse(desc[len("wpkh(") : -1])
         return cls(key)
 
     def scriptpubkey(self, derivation):
@@ -59,8 +59,7 @@ class SingleKey(DescriptorScript):
 class Multisig(DescriptorScript):
     def __init__(self, sigs_required: int, keys: list, sort_keys: bool = True):
         if sigs_required > len(keys) or sigs_required <= 0:
-            raise ScriptError("Can't do %d of %d multisig" %
-                              (sigs_required, len(keys)))
+            raise ScriptError("Can't do %d of %d multisig" % (sigs_required, len(keys)))
         self.sigs_required = sigs_required
         self.sort_keys = sort_keys
         self.keys = keys
@@ -73,7 +72,7 @@ class Multisig(DescriptorScript):
         # removing two trailing brackets because there is multi( as well
         if not desc.startswith("wsh(") or not desc.endswith("))"):
             raise ScriptError("Invalid script format: %s" % desc)
-        desc = desc[len("wsh("):-2]
+        desc = desc[len("wsh(") : -2]
         multi, args = desc.split("(")
         if multi == "sortedmulti":
             sort_keys = True
@@ -98,23 +97,20 @@ class Multisig(DescriptorScript):
         if change not in [0, 1] or idx < 0:
             raise ScriptError("Invalid change or index")
         # derive and get public keys
-        pubs = [key.derive([change, idx]).get_public_key()
-                for key in self.keys]
+        pubs = [key.derive([change, idx]).get_public_key() for key in self.keys]
         if self.sort_keys:
             pubs = sorted(pubs)
         return script.multisig(self.sigs_required, pubs)
 
     @property
     def policy(self):
-        return "segwit, %d of %d multisig" % (
-            self.sigs_required, len(self.keys)
-        )
+        return "segwit, %d of %d multisig" % (self.sigs_required, len(self.keys))
 
     def __str__(self):
         keystring = ",".join([str(key) for key in self.keys])
         desc = "multi(%d,%s)" % (self.sigs_required, keystring)
         if self.sort_keys:
-            desc = "sorted"+desc
+            desc = "sorted" + desc
         return "wsh(%s)" % desc
 
 
@@ -167,7 +163,7 @@ class DescriptorKey:
                 derivation = bip32.parse_path(der)
             else:
                 fingerprint = unhexlify(der[:8])
-                derivation = bip32.parse_path("m"+der[8:])
+                derivation = bip32.parse_path("m" + der[8:])
         else:
             xpub = s
         key = bip32.HDKey.from_base58(xpub)
@@ -179,9 +175,8 @@ class DescriptorKey:
         if self.derivation is not None:
             prefix = "[%s]" % bip32.path_to_str(self.derivation)
             if self.fingerprint is not None:
-                prefix = prefix.replace(
-                    "m", hexlify(self.fingerprint).decode())
-        return prefix+xpub
+                prefix = prefix.replace("m", hexlify(self.fingerprint).decode())
+        return prefix + xpub
 
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, str(self))

@@ -21,7 +21,7 @@ def init_styles(dark=True):
         # background color
         cbg = lv.color_hex(0x192432)
         # ctxt = lv.color_hex(0x7f8fa4)
-        ctxt = lv.color_hex(0xffffff)
+        ctxt = lv.color_hex(0xFFFFFF)
         cbtnrel = lv.color_hex(0x506072)
         cbtnpr = lv.color_hex(0x405062)
         chl = lv.color_hex(0x313E50)
@@ -31,7 +31,7 @@ def init_styles(dark=True):
         th = lv.theme_material_init(210, lv.font_roboto_22)
         # adjusting theme
         # background color
-        cbg = lv.color_hex(0xeeeeee)
+        cbg = lv.color_hex(0xEEEEEE)
         # ctxt = lv.color_hex(0x7f8fa4)
         ctxt = lv.color_hex(0)
         cbtnrel = lv.color_hex(0x506072)
@@ -112,7 +112,7 @@ def init_styles(dark=True):
 def add_label(text, y=PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""
     if width is None:
-        width = HOR_RES-2*PADDING
+        width = HOR_RES - 2 * PADDING
     if scr is None:
         scr = lv.scr_act()
     lbl = lv.label(scr)
@@ -121,7 +121,7 @@ def add_label(text, y=PADDING, scr=None, style=None, width=None):
         lbl.set_style(0, styles[style])
     lbl.set_long_mode(lv.label.LONG.BREAK)
     lbl.set_width(width)
-    lbl.set_x((HOR_RES-width)//2)
+    lbl.set_x((HOR_RES - width) // 2)
     lbl.set_align(lv.label.ALIGN.CENTER)
     lbl.set_y(y)
     return lbl
@@ -132,7 +132,7 @@ def add_button(text=None, callback=None, scr=None, y=700):
     if scr is None:
         scr = lv.scr_act()
     btn = lv.btn(scr)
-    btn.set_width(HOR_RES-2*PADDING)
+    btn.set_width(HOR_RES - 2 * PADDING)
     btn.set_height(BTN_HEIGHT)
 
     if text is not None:
@@ -159,10 +159,10 @@ def add_button_pair(text1, callback1, text2, callback2, scr=None, y=700):
 
 def align_button_pair(btn1, btn2):
     """Aligns two buttons in a row"""
-    w = (HOR_RES-3*PADDING)//2
+    w = (HOR_RES - 3 * PADDING) // 2
     btn1.set_width(w)
     btn2.set_width(w)
-    btn2.set_x(HOR_RES//2+PADDING//2)
+    btn2.set_x(HOR_RES // 2 + PADDING // 2)
 
 
 def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
@@ -184,17 +184,16 @@ def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
 def separate(addr, letters=6, separator=" "):
     extra = ""
     if len(addr) % letters > 0:
-        extra = " "*(letters-(len(addr) % letters))
-    return separator.join([
-        addr[i:i+letters]
-        for i in range(0, len(addr), letters)
-    ])+extra
+        extra = " " * (letters - (len(addr) % letters))
+    return (
+        separator.join([addr[i : i + letters] for i in range(0, len(addr), letters)])
+        + extra
+    )
 
 
 def format_addr(addr, letters=6, words=3):
     return separate(
-        separate(
-            addr, letters=letters, separator=" "
-        ),
-        letters=(words*(letters+1)), separator="\n"
+        separate(addr, letters=letters, separator=" "),
+        letters=(words * (letters + 1)),
+        separator="\n",
     )

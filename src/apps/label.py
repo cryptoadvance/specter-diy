@@ -11,14 +11,15 @@ from io import BytesIO
 
 class App(BaseApp):
     """Allows to set a label for the device."""
+
     prefixes = [b"getlabel", b"setlabel"]
 
     async def process_host_command(self, stream, show_screen):
         """
         If command with one of the prefixes is received
         it will be passed to this method.
-        Should return a tuple: 
-        - stream (file, BytesIO etc) 
+        Should return a tuple:
+        - stream (file, BytesIO etc)
         - meta object with title and note
         """
         # reads prefix from the stream (until first space)
@@ -31,12 +32,12 @@ class App(BaseApp):
             stream = BytesIO(label.encode())
             return stream, obj
         elif prefix == b"setlabel":
-            label = stream.read().strip().decode('ascii')
+            label = stream.read().strip().decode("ascii")
             if not label:
-                raise AppError('Device label cannot be empty')
+                raise AppError("Device label cannot be empty")
             scr = Prompt(
                 "\n\nSet device label to: %s\n" % label,
-                "Current device label: %s" % self.get_label()
+                "Current device label: %s" % self.get_label(),
             )
             res = await show_screen(scr)
             if res is False:
@@ -51,7 +52,7 @@ class App(BaseApp):
 
     def get_label(self):
         try:
-            with open(self.path+"/label") as f:
+            with open(self.path + "/label") as f:
                 label = f.read()
             return label
         except Exception:
@@ -59,7 +60,7 @@ class App(BaseApp):
 
     def set_label(self, label):
         try:
-            with open(self.path+"/label", "w") as f:
+            with open(self.path + "/label", "w") as f:
                 f.write(label)
         except Exception:
             return AppError("Failed to save new label")

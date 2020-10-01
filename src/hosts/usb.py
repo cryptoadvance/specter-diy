@@ -12,6 +12,7 @@ class USBHost(Host):
     USBHost class.
     Manages USB communication with the host.
     """
+
     ACK = b"ACK\r\n"
     RECOVERY_TIME = 10
 
@@ -54,7 +55,7 @@ class USBHost(Host):
         # res should be a stream as well
         res = await self.manager.process_host_request(stream)
         if res is None:
-            self.respond(b'error: User cancelled')
+            self.respond(b"error: User cancelled")
         else:
             stream, meta = res
             # loop until we read everything
@@ -82,7 +83,7 @@ class USBHost(Host):
         # check if we already have something
         # if not - create new file on the ramdisk
         if self.f is None:
-            self.f = open(self.path+"/data", "wb")
+            self.f = open(self.path + "/data", "wb")
         # check if we dont have EOL in the data
         if b"\n" not in res and b"\r" not in res:
             self.f.write(res)
@@ -93,11 +94,11 @@ class USBHost(Host):
             # check if we have two EOL at once
             # this means the host wants to start over
             # like \n\n or \r\n\r\n or \r\r
-            if eol*2 in res:
-                arr = res.split(eol*2)
+            if eol * 2 in res:
+                arr = res.split(eol * 2)
                 # cleanup and start over
                 self.cleanup()
-                self.f = open(self.path+"/data", "wb")
+                self.f = open(self.path + "/data", "wb")
                 # this is the part we care about
                 res = arr[-1]
                 # if command is not complete yet
@@ -114,7 +115,7 @@ class USBHost(Host):
         # close file
         self.f.close()
         self.f = None
-        return self.path+"/data"
+        return self.path + "/data"
 
     async def update(self):
         if self.manager == None:
@@ -130,7 +131,7 @@ class USBHost(Host):
             self.usb.write(self.ACK)
             # open again for reading and try to process content
             try:
-                with open(self.path+"/data", "rb") as f:
+                with open(self.path + "/data", "rb") as f:
                     await self.process_command(f)
             # if we fail with our own error type
             # tell the host why we failed

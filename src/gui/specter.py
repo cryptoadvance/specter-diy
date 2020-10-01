@@ -1,16 +1,19 @@
 from .async_gui import AsyncGUI
-from .screens import (Screen,
-                      Progress,
-                      MnemonicScreen,
-                      NewMnemonicScreen,
-                      RecoverMnemonicScreen,
-                      DevSettings)
+from .screens import (
+    Screen,
+    Progress,
+    MnemonicScreen,
+    NewMnemonicScreen,
+    RecoverMnemonicScreen,
+    DevSettings,
+)
 import rng
 import asyncio
 
 
 class SpecterGUI(AsyncGUI):
     """Specter-related GUI"""
+
     async def show_mnemonic(self, mnemonic: str):
         """
         Shows mnemonic on the screen
@@ -31,7 +34,7 @@ class SpecterGUI(AsyncGUI):
         """
         Asks the user for his recovery phrase.
         checker(mnemonic) - a function that validates recovery phrase
-        lookup(word, num_candidates) - a function that 
+        lookup(word, num_candidates) - a function that
                 returns num_candidates words starting with word
         """
         scr = RecoverMnemonicScreen(checker, lookup)
@@ -44,7 +47,7 @@ class SpecterGUI(AsyncGUI):
 
     async def show_progress(self, host, title, message):
         """
-        Shows progress screen and cancel button 
+        Shows progress screen and cancel button
         to cancel communication with the host
         """
         scr = Progress(title, message, button_text="Cancel")

@@ -15,14 +15,15 @@ class MessageApp(BaseApp):
     """
     This app can sign a text message with a private key.
     """
+
     prefixes = [b"signmessage"]
 
     async def process_host_command(self, stream, show_screen):
         """
         If command with one of the prefixes is received
         it will be passed to this method.
-        Should return a tuple: 
-        - stream (file, BytesIO etc) 
+        Should return a tuple:
+        - stream (file, BytesIO etc)
         - meta object with title and note
         """
         # reads prefix from the stream (until first space)
@@ -44,27 +45,28 @@ class MessageApp(BaseApp):
             fingerprint = unhexlify(derivation_path[:8])
             if fingerprint != self.keystore.fingerprint:
                 raise AppError("Not my fingerprint")
-            derivation_path = "m"+derivation_path[8:]
+            derivation_path = "m" + derivation_path[8:]
         derivation_path = bip32.parse_path(derivation_path)
 
         if message.startswith(b"ascii:"):
-            message = message[len(b"ascii:"):]
+            message = message[len(b"ascii:") :]
         elif message.startswith(b"base64:"):
-            message = a2b_base64(message[len(b"base64:"):])
+            message = a2b_base64(message[len(b"base64:") :])
         else:
             raise AppError("Invalid message encoding!")
         # try to decode with ascii characters
         try:
             msg = "Message:\n\n"
             msg += "__________________________________\n"
-            msg += message.decode('ascii')
+            msg += message.decode("ascii")
             msg += "\n__________________________________"
             # ask the user if he really wants to sign this message
         except:
             msg = "Hex message:\n\n%s" % hexlify(message).decode()
-        scr = Prompt("Sign message with private key at %s?" %
-                     bip32.path_to_str(derivation_path),
-                     msg)
+        scr = Prompt(
+            "Sign message with private key at %s?" % bip32.path_to_str(derivation_path),
+            msg,
+        )
         res = await show_screen(scr)
         if res is False:
             return None
@@ -74,21 +76,19 @@ class MessageApp(BaseApp):
         address = script.p2pkh(xpub.key).address()
         obj = {
             "title": "Signature for the message:",
-            "note": "using address %s" % address
+            "note": "using address %s" % address,
         }
         return BytesIO(sig), obj
 
-    def sign_message(self, derivation, msg: bytes,
-                     compressed: bool = True) -> bytes:
+    def sign_message(self, derivation, msg: bytes, compressed: bool = True) -> bytes:
         """Sign message with private key"""
         msghash = sha256(
             sha256(
-                b'\x18Bitcoin Signed Message:\n' +
-                compact.to_bytes(len(msg)) + msg
+                b"\x18Bitcoin Signed Message:\n" + compact.to_bytes(len(msg)) + msg
             ).digest()
         ).digest()
         sig, flag = self.keystore.sign_recoverable(derivation, msghash)
         c = 4 if compressed else 0
-        flag = bytes([27+flag+c])
+        flag = bytes([27 + flag + c])
         ser = flag + secp256k1.ecdsa_signature_serialize_compact(sig._sig)
         return b2a_base64(ser).strip().decode()

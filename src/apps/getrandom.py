@@ -12,14 +12,15 @@ from rng import get_random_bytes
 
 class App(BaseApp):
     """Allows to query random bytes from on-board TRNG."""
+
     prefixes = [b"getrandom"]
 
     async def process_host_command(self, stream, show_fn):
         """
         If command with one of the prefixes is received
         it will be passed to this method.
-        Should return a tuple: 
-        - stream (file, BytesIO etc) 
+        Should return a tuple:
+        - stream (file, BytesIO etc)
         - meta object with title and note
         """
         # reads prefix from the stream (until first space)
@@ -37,8 +38,5 @@ class App(BaseApp):
             raise AppError("Seriously? %d bytes? No..." % num_bytes)
         if num_bytes > 1000:
             raise AppError("Sorry, 1k bytes max.")
-        obj = {
-            "title": "Here is your entropy",
-            "note": "%d bytes" % num_bytes
-        }
+        obj = {"title": "Here is your entropy", "note": "%d bytes" % num_bytes}
         return BytesIO(hexlify(get_random_bytes(num_bytes))), obj

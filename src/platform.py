@@ -2,7 +2,8 @@
 import sys
 import os
 import pyb
-simulator = (sys.platform != 'pyboard')
+
+simulator = sys.platform != "pyboard"
 
 try:
     import config
@@ -15,6 +16,7 @@ class CriticalErrorWipeImmediately(Exception):
     This exception should be raised when device needs to be wiped
     because something terrible happened
     """
+
     pass
 
 
@@ -32,8 +34,8 @@ def fpath(fname):
     return "%s%s" % (config.storage_root, fname)
 
 
-sdcard = None # SD card instance
-sdled = None # LED to show we are working with SD card
+sdcard = None  # SD card instance
+sdled = None  # LED to show we are working with SD card
 
 # path to store #reckless entropy
 if simulator:
@@ -58,6 +60,7 @@ def is_sd_present() -> bool:
         return True
     return sdcard.present()
 
+
 def mount_sdcard() -> bool:
     """Mounts SD card"""
     if not is_sd_present():
@@ -66,6 +69,7 @@ def mount_sdcard() -> bool:
         sdled.on()
         sdcard.power(True)
         os.mount(sdcard, "/sd")
+
 
 def unmount_sdcard() -> bool:
     """Unmounts SD card"""
@@ -78,6 +82,7 @@ def unmount_sdcard() -> bool:
         sdcard.power(False)
         sdled.off()
 
+
 def mount_sdram():
     path = fpath("/ramdisk")
     if simulator:
@@ -87,6 +92,7 @@ def mount_sdram():
         delete_recursively(path)
     else:
         import sdram
+
         sdram.init()
         bdev = sdram.RAMDevice(512)
         os.VfsFat.mkfs(bdev)
@@ -101,7 +107,7 @@ def sync():
         pass
 
 
-def file_exists(fname: str)->bool:
+def file_exists(fname: str) -> bool:
     try:
         with open(fname, "rb") as f:
             pass
@@ -141,7 +147,7 @@ def delete_recursively(path, include_self=False):
 
 
 if not simulator:
-    stlk = pyb.UART('YB', 9600)
+    stlk = pyb.UART("YB", 9600)
 
 
 def set_usb_mode(dev=False, usb=False):

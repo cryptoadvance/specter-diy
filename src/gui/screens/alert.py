@@ -5,8 +5,9 @@ from ..decorators import on_release
 
 
 class Alert(Screen):
-    def __init__(self, title, message,
-                 button_text=(lv.SYMBOL.LEFT+" Back"), note=None):
+    def __init__(
+        self, title, message, button_text=(lv.SYMBOL.LEFT + " Back"), note=None
+    ):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         obj = self.title
@@ -20,8 +21,7 @@ class Alert(Screen):
         self.page.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
 
         if button_text is not None:
-            self.close_button = add_button(scr=self,
-                                           callback=on_release(self.release))
+            self.close_button = add_button(scr=self, callback=on_release(self.release))
 
             self.close_label = lv.label(self.close_button)
             self.close_label.set_text(button_text)

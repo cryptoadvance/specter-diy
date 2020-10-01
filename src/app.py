@@ -31,12 +31,12 @@ class BaseApp:
                 return prefix
             stream.seek(0)
             return None
-        prefix = prefix.split(b' ')[0]
+        prefix = prefix.split(b" ")[0]
         # point to the beginning of the data
-        stream.seek(len(prefix)+1)
+        stream.seek(len(prefix) + 1)
         return prefix
 
-    def init(self, keystore, network: str = 'test'):
+    def init(self, keystore, network: str = "test"):
         """
         This method is called when new key is loaded
         or a different network is selected.

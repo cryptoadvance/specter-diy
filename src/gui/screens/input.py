@@ -13,20 +13,91 @@ import rng
 
 class InputScreen(Screen):
     CHARSET = [
-        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
-        "#@", "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
-        lv.SYMBOL.UP, "z", "x", "c", "v", "b", "n", "m", lv.SYMBOL.LEFT, "\n",
-        lv.SYMBOL.LEFT+" Back", " ", lv.SYMBOL.OK+" Done", ""
+        "q",
+        "w",
+        "e",
+        "r",
+        "t",
+        "y",
+        "u",
+        "i",
+        "o",
+        "p",
+        "\n",
+        "#@",
+        "a",
+        "s",
+        "d",
+        "f",
+        "g",
+        "h",
+        "j",
+        "k",
+        "l",
+        "\n",
+        lv.SYMBOL.UP,
+        "z",
+        "x",
+        "c",
+        "v",
+        "b",
+        "n",
+        "m",
+        lv.SYMBOL.LEFT,
+        "\n",
+        lv.SYMBOL.LEFT + " Back",
+        " ",
+        lv.SYMBOL.OK + " Done",
+        "",
     ]
     CHARSET_EXTRA = [
-        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
-        "aA", "@", "#", "$", "_", "&", "-", "+", "(", ")", "/", "\n",
-        "[", "]", "*", "\"", "'", ":", ";", "!", "?", "\\", lv.SYMBOL.LEFT, "\n",
-        lv.SYMBOL.LEFT+" Back", " ", lv.SYMBOL.OK+" Done", ""
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "0",
+        "\n",
+        "aA",
+        "@",
+        "#",
+        "$",
+        "_",
+        "&",
+        "-",
+        "+",
+        "(",
+        ")",
+        "/",
+        "\n",
+        "[",
+        "]",
+        "*",
+        '"',
+        "'",
+        ":",
+        ";",
+        "!",
+        "?",
+        "\\",
+        lv.SYMBOL.LEFT,
+        "\n",
+        lv.SYMBOL.LEFT + " Back",
+        " ",
+        lv.SYMBOL.OK + " Done",
+        "",
     ]
 
-    def __init__(self, title="Enter your bip-39 password:",
-                 note="It is never stored on the device", suggestion=""):
+    def __init__(
+        self,
+        title="Enter your bip-39 password:",
+        note="It is never stored on the device",
+        suggestion="",
+    ):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
@@ -36,16 +107,16 @@ class InputScreen(Screen):
         self.kb = HintKeyboard(self)
         self.kb.set_map(type(self).CHARSET)
         self.kb.set_width(HOR_RES)
-        self.kb.set_height(VER_RES//3)
+        self.kb.set_height(VER_RES // 3)
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
         self.ta = lv.ta(self)
         self.ta.set_text(suggestion)
         # self.ta.set_pwd_mode(True)
-        self.ta.set_width(HOR_RES-2*PADDING)
+        self.ta.set_width(HOR_RES - 2 * PADDING)
         self.ta.set_x(PADDING)
         self.ta.set_text_align(lv.label.ALIGN.CENTER)
-        self.ta.set_y(PADDING+150)
+        self.ta.set_y(PADDING + 150)
         # self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
         self.ta.set_one_line(True)
         # self.ta.set_pwd_show_time(0)
@@ -63,11 +134,9 @@ class InputScreen(Screen):
                 for i, ch in enumerate(type(self).CHARSET):
                     if ch.isalpha():
                         if c == lv.SYMBOL.UP:
-                            type(self).CHARSET[i] = type(
-                                self).CHARSET[i].upper()
+                            type(self).CHARSET[i] = type(self).CHARSET[i].upper()
                         else:
-                            type(self).CHARSET[i] = type(
-                                self).CHARSET[i].lower()
+                            type(self).CHARSET[i] = type(self).CHARSET[i].lower()
                     elif ch == lv.SYMBOL.UP:
                         type(self).CHARSET[i] = lv.SYMBOL.DOWN
                     elif ch == lv.SYMBOL.DOWN:
@@ -83,7 +152,7 @@ class InputScreen(Screen):
                 text = self.ta.get_text()
                 self.ta.set_text("")
                 self.set_value(text)
-            elif c == lv.SYMBOL.LEFT+" Back":
+            elif c == lv.SYMBOL.LEFT + " Back":
                 self.ta.set_text("")
                 self.set_value(None)
             else:
@@ -113,14 +182,13 @@ class PinScreen(Screen):
                 v = rng.get_random_bytes(1)[0] % len(buttons)
                 btnmap.append(buttons.pop(v))
             btnmap.append("\n")
-        btnmap = btnmap+[lv.SYMBOL.CLOSE, buttons.pop(), lv.SYMBOL.OK, ""]
+        btnmap = btnmap + [lv.SYMBOL.CLOSE, buttons.pop(), lv.SYMBOL.OK, ""]
         btnm.set_map(btnmap)
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
         btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
         # remove feedback on press to avoid sidechannels
-        btnm.set_style(lv.btnm.STYLE.BTN_PR,
-                       btnm.get_style(lv.btnm.STYLE.BTN_REL))
+        btnm.set_style(lv.btnm.STYLE.BTN_PR, btnm.get_style(lv.btnm.STYLE.BTN_REL))
 
         self.pin = lv.ta(self)
         self.pin.set_text("")
@@ -131,9 +199,9 @@ class PinScreen(Screen):
         style.text.color = styles["theme"].style.scr.text.color
         style.text.letter_space = 15
         self.pin.set_style(lv.label.STYLE.MAIN, style)
-        self.pin.set_width(HOR_RES-2*PADDING)
+        self.pin.set_width(HOR_RES - 2 * PADDING)
         self.pin.set_x(PADDING)
-        self.pin.set_y(PADDING+50)
+        self.pin.set_y(PADDING + 50)
         self.pin.set_cursor_type(lv.CURSOR.HIDDEN)
         self.pin.set_one_line(True)
         self.pin.set_text_align(lv.label.ALIGN.CENTER)
@@ -161,7 +229,7 @@ class PinScreen(Screen):
                 # add new anti-phishing word
                 if self.get_word is not None:
                     cur_words = self.words.get_text()
-                    cur_words += " "+self.get_word(self.pin.get_text())
+                    cur_words += " " + self.get_word(self.pin.get_text())
                     self.words.set_text(cur_words)
 
     def get_value(self):
@@ -170,10 +238,26 @@ class PinScreen(Screen):
 
 class DerivationScreen(Screen):
     PATH_CHARSET = [
-        "1", "2", "3", lv.SYMBOL.LEFT, "\n",
-        "4", "5", "6", "h", "\n",
-        "7", "8", "9", "/", "\n",
-        "Back", "0", lv.SYMBOL.CLOSE, lv.SYMBOL.OK, ""
+        "1",
+        "2",
+        "3",
+        lv.SYMBOL.LEFT,
+        "\n",
+        "4",
+        "5",
+        "6",
+        "h",
+        "\n",
+        "7",
+        "8",
+        "9",
+        "/",
+        "\n",
+        "Back",
+        "0",
+        lv.SYMBOL.CLOSE,
+        lv.SYMBOL.OK,
+        "",
     ]
 
     def __init__(self, title="Enter derivation path"):
@@ -182,19 +266,19 @@ class DerivationScreen(Screen):
         self.kb = lv.btnm(self)
         self.kb.set_map(type(self).PATH_CHARSET)
         self.kb.set_width(HOR_RES)
-        self.kb.set_height(VER_RES//2)
+        self.kb.set_height(VER_RES // 2)
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
         lbl = add_label("m/", style="title", scr=self)
-        lbl.set_y(PADDING+150)
+        lbl.set_y(PADDING + 150)
         lbl.set_width(40)
         lbl.set_x(PADDING)
 
         self.ta = lv.ta(self)
         self.ta.set_text("")
-        self.ta.set_width(HOR_RES-2*PADDING-40)
-        self.ta.set_x(PADDING+40)
-        self.ta.set_y(PADDING+150)
+        self.ta.set_width(HOR_RES - 2 * PADDING - 40)
+        self.ta.set_x(PADDING + 40)
+        self.ta.set_y(PADDING + 150)
         self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
         self.ta.set_one_line(True)
 
@@ -219,7 +303,7 @@ class DerivationScreen(Screen):
         elif c[0] == lv.SYMBOL.CLOSE:
             self.ta.set_text("")
         elif c[0] == lv.SYMBOL.OK:
-            self.set_value("m/"+self.ta.get_text())
+            self.set_value("m/" + self.ta.get_text())
             self.ta.set_text("")
         elif c[0] == "h":
             if last.isdigit():

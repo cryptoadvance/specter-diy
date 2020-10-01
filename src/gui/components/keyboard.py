@@ -33,7 +33,7 @@ class HintKeyboard(lv.btnm):
                 point = lv.point_t()
                 indev = lv.indev_get_act()
                 lv.indev_get_point(indev, point)
-                self.hint.set_pos(point.x-25, point.y-130)
+                self.hint.set_pos(point.x - 25, point.y - 130)
 
         elif event == lv.EVENT.RELEASED:
             self.hint.set_hidden(True)

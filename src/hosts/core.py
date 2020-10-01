@@ -14,6 +14,7 @@ class Host:
     Can be unidirectional like QRHost
     or bidirectional like USBHost or SDHost
     """
+
     # time to wait after init
     RECOVERY_TIME = 1
     # set the button on the main screen

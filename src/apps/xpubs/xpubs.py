@@ -14,10 +14,11 @@ class XpubApp(BaseApp):
     It stores public information about the wallets
     in the folder and signs it with keystore's id key
     """
+
     button = "Master public keys"
     prefixes = [
-        b'fingerprint',
-        b'xpub',
+        b"fingerprint",
+        b"xpub",
     ]
 
     def __init__(self, path):
@@ -35,20 +36,19 @@ class XpubApp(BaseApp):
         if show_all:
             coin = net["bip32"]
             buttons += [
-                ("m/84h/%dh/0h" % coin,
-                 "Single Native Segwit\nm/84h/%dh/0h" % coin),
-                ("m/49h/%dh/0h" % coin,
-                 "Single Nested Segwit\nm/49h/%dh/0h" % coin),
-                ("m/48h/%dh/0h/2h" % coin,
-                 "Multisig Native Segwit\nm/48h/%dh/0h/2h" % coin),
-                ("m/48h/%dh/0h/1h" % coin,
-                 "Multisig Nested Segwit\nm/48h/%dh/0h/1h" % coin),
+                ("m/84h/%dh/0h" % coin, "Single Native Segwit\nm/84h/%dh/0h" % coin),
+                ("m/49h/%dh/0h" % coin, "Single Nested Segwit\nm/49h/%dh/0h" % coin),
+                (
+                    "m/48h/%dh/0h/2h" % coin,
+                    "Multisig Native Segwit\nm/48h/%dh/0h/2h" % coin,
+                ),
+                (
+                    "m/48h/%dh/0h/1h" % coin,
+                    "Multisig Nested Segwit\nm/48h/%dh/0h/1h" % coin,
+                ),
             ]
         else:
-            buttons += [
-                (0, "Show more keys"),
-                (1, "Enter custom derivation")
-            ]
+            buttons += [(0, "Show more keys"), (1, "Enter custom derivation")]
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None)))
 
@@ -84,7 +84,7 @@ class XpubApp(BaseApp):
                 # convert to list of indexes
                 path = bip32.parse_path(path.decode())
             except:
-                raise AppError("Invalid path: \"%s\"" % path.decode())
+                raise AppError('Invalid path: "%s"' % path.decode())
             # get xpub
             xpub = self.keystore.get_xpub(bip32.path_to_str(path))
             # send back as base58
@@ -95,19 +95,16 @@ class XpubApp(BaseApp):
         derivation = derivation.rstrip("/")
         net = NETWORKS[self.network]
         xpub = self.keystore.get_xpub(derivation)
-        ver = bip32.detect_version(derivation, default="xpub",
-                                   network=net)
+        ver = bip32.detect_version(derivation, default="xpub", network=net)
         canonical = xpub.to_base58(net["xpub"])
         slip132 = xpub.to_base58(ver)
         if slip132 == canonical:
             slip132 = None
         prefix = "[%s%s]" % (
             hexlify(self.keystore.fingerprint).decode(),
-            derivation[1:]
+            derivation[1:],
         )
-        await show_screen(XPubScreen(xpub=canonical,
-                                     slip132=slip132,
-                                     prefix=prefix))
+        await show_screen(XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix))
 
     def wipe(self):
         # nothing to delete

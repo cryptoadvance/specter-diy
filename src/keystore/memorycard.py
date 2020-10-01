@@ -13,6 +13,7 @@ import asyncio
 from io import BytesIO
 from uscard import SmartcardException
 
+
 class MemoryCard(RAMKeyStore):
     """
     KeyStore that stores secrets on a smartcard
@@ -22,11 +23,12 @@ class MemoryCard(RAMKeyStore):
     RAM of the MCU.
     ColdCard's security model.
     """
+
     NAME = "Smartcard"
     NOTE = """Saves encryption key and Bitcoin key on a PIN-protected external smartcard (requires devkit).
 In this mode device can only operate when the smartcard is inserted!"""
     # constants for secret storage
-    MAGIC = b"sdiy\x00" # specter-DIY version 0
+    MAGIC = b"sdiy\x00"  # specter-DIY version 0
     KEYS = {
         b"\x01": "enc",
         b"\x02": "entropy",
@@ -61,11 +63,11 @@ In this mode device can only operate when the smartcard is inserted!"""
             raise KeyStoreError("Secure channel is closed.")
         # use both internal secret and card's key to generate
         # anti-phishing words
-        key = tagged_hash("auth", self.secret+self.applet.card_pubkey)
+        key = tagged_hash("auth", self.secret + self.applet.card_pubkey)
         h = hmac.new(key, pin_part, digestmod="sha256").digest()
         # wordlist is 2048 long (11 bits) so
         # this modulo doesn't create an offset
-        word_number = int.from_bytes(h[:2], 'big') % len(bip39.WORDLIST)
+        word_number = int.from_bytes(h[:2], "big") % len(bip39.WORDLIST)
         return bip39.WORDLIST[word_number]
 
     @property
@@ -92,11 +94,12 @@ In this mode device can only operate when the smartcard is inserted!"""
         try:
             self.applet.unlock(pin)
         except SecureError as e:
-            if str(e) == "0502": # wrong PIN
-                raise PinError("Invalid PIN!\n%d of %d attempts left..." % (
-                    self.pin_attempts_left, self.pin_attempts_max)
+            if str(e) == "0502":  # wrong PIN
+                raise PinError(
+                    "Invalid PIN!\n%d of %d attempts left..."
+                    % (self.pin_attempts_left, self.pin_attempts_max)
                 )
-            elif str(e) == "0503": # bricked
+            elif str(e) == "0503":  # bricked
                 self.wipe(self.path)
                 raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
             else:
@@ -110,9 +113,7 @@ In this mode device can only operate when the smartcard is inserted!"""
             # create new key if it doesn't exist
             secret = get_random_bytes(32)
             # format: magic, 01 len enc_secret, 02 len entropy
-            d = self.serialize_data({
-                "enc": secret
-            })
+            d = self.serialize_data({"enc": secret})
             self.applet.save_secret(d)
             self._is_key_saved = False
         else:
@@ -141,7 +142,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         key = tagged_hash("scenc", self.secret)
         # smartcard id to understand it's our data
         fingerprint = tagged_hash("scid", self.secret)[:4]
-        res = aead_encrypt(key, self.MAGIC+fingerprint, r)
+        res = aead_encrypt(key, self.MAGIC + fingerprint, r)
         print(res)
         return res
 
@@ -150,9 +151,11 @@ In this mode device can only operate when the smartcard is inserted!"""
         s = BytesIO(data)
         # smartcard id to understand it's our data
         fingerprint = tagged_hash("scid", self.secret)[:4]
-        l = len(self.MAGIC)+4
-        if s.read(l+1) != bytes([l])+self.MAGIC+fingerprint:
-            raise KeyStoreError("Looks like stored data is created on a different device.")
+        l = len(self.MAGIC) + 4
+        if s.read(l + 1) != bytes([l]) + self.MAGIC + fingerprint:
+            raise KeyStoreError(
+                "Looks like stored data is created on a different device."
+            )
         # smartcard encryption key
         key = tagged_hash("scenc", self.secret)
         adata, plaintext = aead_decrypt(data, key=key)
@@ -193,10 +196,9 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def save_mnemonic(self):
         await self.check_card(check_pin=True)
-        d = self.serialize_data({
-            "enc": self.enc_secret,
-            "entropy": bip39.mnemonic_to_bytes(self.mnemonic)
-        })
+        d = self.serialize_data(
+            {"enc": self.enc_secret, "entropy": bip39.mnemonic_to_bytes(self.mnemonic)}
+        )
         self.applet.save_secret(d)
         self._is_key_saved = True
         # check it's ok
@@ -218,18 +220,18 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def delete_mnemonic(self):
         await self.check_card(check_pin=True)
-        d = self.serialize_data({
-            "enc": self.enc_secret
-        })
+        d = self.serialize_data({"enc": self.enc_secret})
         self.applet.save_secret(d)
         self._is_key_saved = False
 
     async def check_card(self, check_pin=False):
         if not self.connection.isCardInserted():
             # wait for card
-            scr = Progress("Smartcard is not inserted",
-                           "Please insert the smartcard...",
-                           button_text=None) # no button
+            scr = Progress(
+                "Smartcard is not inserted",
+                "Please insert the smartcard...",
+                button_text=None,
+            )  # no button
             asyncio.create_task(self.wait_for_card(scr))
             await self.show(scr)
         try:
@@ -261,7 +263,7 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def init(self, show_fn):
         """
-        Waits for keystore media 
+        Waits for keystore media
         and loads internal secret and PIN state
         """
         self.show = show_fn
@@ -294,18 +296,26 @@ In this mode device can only operate when the smartcard is inserted!"""
                 return
             elif menuitem == 0:
                 await self.save_mnemonic()
-                await self.show(Alert("Success!",
-                                     "Your key is stored on the smartcard now.",
-                                     button_text="OK"))
+                await self.show(
+                    Alert(
+                        "Success!",
+                        "Your key is stored on the smartcard now.",
+                        button_text="OK",
+                    )
+                )
             elif menuitem == 1:
                 await self.load_mnemonic()
-                await self.show(Alert("Success!",
-                                     "Your key is loaded.",
-                                     button_text="OK"))
+                await self.show(
+                    Alert("Success!", "Your key is loaded.", button_text="OK")
+                )
             elif menuitem == 2:
                 await self.delete_mnemonic()
-                await self.show(Alert("Success!",
-                                     "Your key is deleted from the smartcard.",
-                                     button_text="OK"))
+                await self.show(
+                    Alert(
+                        "Success!",
+                        "Your key is deleted from the smartcard.",
+                        button_text="OK",
+                    )
+                )
             elif menuitem == 3:
                 await self.show(MnemonicScreen(self.mnemonic))

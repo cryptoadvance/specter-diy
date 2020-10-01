@@ -5,7 +5,6 @@ import lvgl as lv
 
 
 class AsyncGUI:
-
     def __init__(self):
         # unlock event for host signalling
         # to avoid spamming GUI
@@ -49,6 +48,7 @@ class AsyncGUI:
         Return a function to show a new screen
         as a popup or not
         """
+
         async def fn(scr):
             if popup:
                 await self.open_popup(scr)
@@ -58,12 +58,15 @@ class AsyncGUI:
             if popup:
                 await self.close_popup()
             return res
+
         return fn
 
-    async def get_input(self,
-                        title="Enter your bip-39 password:",
-                        note="It is never stored on the device",
-                        suggestion=""):
+    async def get_input(
+        self,
+        title="Enter your bip-39 password:",
+        note="It is never stored on the device",
+        suggestion="",
+    ):
         """
         Asks the user for a password
         """
@@ -80,13 +83,15 @@ class AsyncGUI:
             update(dt)
             await asyncio.sleep_ms(dt)
 
-    async def menu(self,
-                   buttons: list = [],
-                   title: str = "What do you want to do?",
-                   note = None,
-                   last=None):
+    async def menu(
+        self,
+        buttons: list = [],
+        title: str = "What do you want to do?",
+        note=None,
+        last=None,
+    ):
         """
-        Creates a menu with buttons. 
+        Creates a menu with buttons.
         buttons argument should be a list of tuples:
         (value, text)
         value is retured when the button is pressed
@@ -106,11 +111,13 @@ class AsyncGUI:
         await self.load_screen(alert)
         await alert.result()
 
-    async def qr_alert(self, title, msg, qr_msg,
-                       qr_width=None, button_text="OK", note=None):
+    async def qr_alert(
+        self, title, msg, qr_msg, qr_width=None, button_text="OK", note=None
+    ):
         """Shows an alert with QR code"""
-        alert = QRAlert(title, msg, qr_msg, qr_width=qr_width,
-                        button_text=button_text, note=note)
+        alert = QRAlert(
+            title, msg, qr_msg, qr_width=qr_width, button_text=button_text, note=note
+        )
         await self.load_screen(alert)
         return await alert.result()
 

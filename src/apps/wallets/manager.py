@@ -31,6 +31,7 @@ class WalletManager(BaseApp):
     It stores public information about the wallets
     in the folder and signs it with keystore's id key
     """
+
     button = "Wallets"
     WALLETS = [
         Wallet,
@@ -42,22 +43,22 @@ class WalletManager(BaseApp):
         self.path = None
         self.wallets = []
 
-    def init(self, keystore, network='test'):
+    def init(self, keystore, network="test"):
         """Loads or creates default wallets for new keystore or network"""
         self.keystore = keystore
         # add fingerprint dir
-        path = self.root_path+"/"+hexlify(self.keystore.fingerprint).decode()
+        path = self.root_path + "/" + hexlify(self.keystore.fingerprint).decode()
         platform.maybe_mkdir(path)
         if network not in NETWORKS:
             raise WalletError("Invalid network")
         self.network = network
         # add network dir
-        path += "/"+network
+        path += "/" + network
         platform.maybe_mkdir(path)
         self.path = path
         self.wallets = self.load_wallets()
         if self.wallets is None or len(self.wallets) == 0:
-            w = self.create_default_wallet(path=self.path+"/0")
+            w = self.create_default_wallet(path=self.path + "/0")
             self.wallets = [w]
 
     @classmethod
@@ -81,15 +82,18 @@ class WalletManager(BaseApp):
             scr = WalletScreen(w, self.network, idx=w.unused_recv)
             cmd = await show_screen(scr)
             if cmd == DELETE:
-                scr = Prompt("Delete wallet?",
-                             "You are deleting wallet \"%s\".\n"
-                             "Are you sure you want to do it?" % w.name)
+                scr = Prompt(
+                    "Delete wallet?",
+                    'You are deleting wallet "%s".\n'
+                    "Are you sure you want to do it?" % w.name,
+                )
                 conf = await show_screen(scr)
                 if conf:
                     self.delete_wallet(w)
             elif cmd == EDIT:
-                scr = InputScreen(title="Enter new wallet name",
-                                  note="", suggestion=w.name)
+                scr = InputScreen(
+                    title="Enter new wallet name", note="", suggestion=w.name
+                )
                 name = await show_screen(scr)
                 if name is not None and name != w.name and name != "":
                     w.name = name
@@ -98,7 +102,7 @@ class WalletManager(BaseApp):
 
     def can_process(self, stream):
         cmd, stream = self.parse_stream(stream)
-        return (cmd is not None)
+        return cmd is not None
 
     def parse_stream(self, stream):
         prefix = self.get_prefix(stream)
@@ -152,7 +156,7 @@ class WalletManager(BaseApp):
             if res is not None:
                 obj = {
                     "title": "Transaction is signed!",
-                    "message": "Scan it with your wallet"
+                    "message": "Scan it with your wallet",
                 }
                 return res, obj
         if cmd == SIGN_BCUR:
@@ -161,10 +165,12 @@ class WalletManager(BaseApp):
             res = await self.sign_psbt(BytesIO(b64_psbt), show_screen)
             if res is not None:
                 data, hsh = bcur_encode(a2b_base64(res.read()))
-                bcur_res = b"UR:BYTES/"+hsh.encode().upper()+"/"+data.encode().upper()
+                bcur_res = (
+                    b"UR:BYTES/" + hsh.encode().upper() + "/" + data.encode().upper()
+                )
                 obj = {
                     "title": "Transaction is signed!",
-                    "message": "Scan it with your wallet"
+                    "message": "Scan it with your wallet",
                 }
                 return BytesIO(bcur_res), obj
         elif cmd == ADD_WALLET:
@@ -190,7 +196,7 @@ class WalletManager(BaseApp):
             w = self.find_wallet_from_address(addr, idx)
             await show_screen(WalletScreen(w, self.network, idx))
         elif cmd == DERIVE_ADDRESS:
-            arr = stream.read().split(b' ')
+            arr = stream.read().split(b" ")
             redeem_script = None
             if len(arr) == 2:
                 script_type, path = arr
@@ -201,8 +207,9 @@ class WalletManager(BaseApp):
             paths = path.split(b",")
             if len(paths) == 0:
                 raise WalletError("Invalid path argument")
-            res = await self.showaddr(paths, script_type, redeem_script,
-                                      show_screen=show_screen)
+            res = await self.showaddr(
+                paths, script_type, redeem_script, show_screen=show_screen
+            )
             return BytesIO(res), {}
         else:
             raise WalletError("Unknown command")
@@ -217,9 +224,7 @@ class WalletManager(BaseApp):
                 name = "Unkown wallet"
             else:
                 name = w.name
-            spends.append("%.8f BTC\nfrom \"%s\"" % (
-                amount/1e8, name
-            ))
+            spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
         title = "Spending:\n" + "\n".join(spends)
         res = await show_screen(TransactionScreen(title, meta))
         if res:
@@ -239,14 +244,14 @@ class WalletManager(BaseApp):
             return BytesIO(txt)
 
     async def confirm_new_wallet(self, w, show_screen):
-        keys = [{"key": k, "mine": self.keystore.owns(
-            k)} for k in w.get_keys()]
+        keys = [{"key": k, "mine": self.keystore.owns(k)} for k in w.get_keys()]
         if not any([k["mine"] for k in keys]):
             raise WalletError("None of the keys belong to the device")
         return await show_screen(ConfirmWalletScreen(w.name, w.policy, keys))
 
-    async def showaddr(self, paths: list, script_type: str,
-                       redeem_script=None, show_screen=None) -> str:
+    async def showaddr(
+        self, paths: list, script_type: str, redeem_script=None, show_screen=None
+    ) -> str:
         if redeem_script is not None:
             redeem_script = script.Script(unhexlify(redeem_script))
         # first check if we have corresponding wallet:
@@ -255,19 +260,18 @@ class WalletManager(BaseApp):
         address = None
         if redeem_script is not None:
             if script_type == b"wsh":
-                address = script.p2wsh(redeem_script).address(
-                    NETWORKS[self.network])
+                address = script.p2wsh(redeem_script).address(NETWORKS[self.network])
             elif script_type == b"sh-wsh":
-                address = script.p2sh(
-                    script.p2wsh(redeem_script)
-                ).address(NETWORKS[self.network])
+                address = script.p2sh(script.p2wsh(redeem_script)).address(
+                    NETWORKS[self.network]
+                )
             else:
                 raise HostError("Unsupported script type: %s" % script_type)
         # in our wallets every key
         # has the same two last indexes for derivation
         path = paths[0]
         if not path.startswith(b"m/"):
-            path = b"m"+path[8:]
+            path = b"m" + path[8:]
         derivation = bip32.parse_path(path.decode())
 
         # if not multisig:
@@ -290,13 +294,13 @@ class WalletManager(BaseApp):
             raise WalletError("Can't derive address. Provide redeem script.")
         try:
             change = bool(derivation[0])
-            w = self.find_wallet_from_address(
-                address, derivation[1], change=change)
+            w = self.find_wallet_from_address(address, derivation[1], change=change)
         except Exception as e:
             raise WalletError("%s" % e)
         if show_screen is not None:
-            await show_screen(WalletScreen(w, self.network,
-                                           derivation[1], change=change))
+            await show_screen(
+                WalletScreen(w, self.network, derivation[1], change=change)
+            )
         return address
 
     def load_wallets(self):
@@ -305,10 +309,14 @@ class WalletManager(BaseApp):
             platform.maybe_mkdir(self.path)
             # Get ids of the wallets.
             # Every wallet is stored in a numeric folder
-            wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path)
-                                 if f[0].isdigit() and f[1] == 0x4000])
-            return [self.load_wallet(self.path+("/%d" % wid))
-                    for wid in wallet_ids]
+            wallet_ids = sorted(
+                [
+                    int(f[0])
+                    for f in os.ilistdir(self.path)
+                    if f[0].isdigit() and f[1] == 0x4000
+                ]
+            )
+            return [self.load_wallet(self.path + ("/%d" % wid)) for wid in wallet_ids]
         except:
             return []
 
@@ -338,7 +346,7 @@ class WalletManager(BaseApp):
         desc = "Default&wpkh([%s%s]%s)" % (
             hexlify(self.keystore.fingerprint).decode(),
             der[1:],
-            xpub.to_base58(NETWORKS[self.network]["xpub"])
+            xpub.to_base58(NETWORKS[self.network]["xpub"]),
         )
         w = Wallet.parse(desc, path)
         # pass keystore to encrypt data
@@ -364,9 +372,14 @@ class WalletManager(BaseApp):
 
     def add_wallet(self, w):
         self.wallets.append(w)
-        wallet_ids = sorted([int(f[0]) for f in os.ilistdir(self.path)
-                             if f[0].isdigit() and f[1] == 0x4000])
-        newpath = self.path+("/%d" % (max(wallet_ids)+1))
+        wallet_ids = sorted(
+            [
+                int(f[0])
+                for f in os.ilistdir(self.path)
+                if f[0].isdigit() and f[1] == 0x4000
+            ]
+        )
+        newpath = self.path + ("/%d" % (max(wallet_ids) + 1))
         platform.maybe_mkdir(newpath)
         w.save(self.keystore, path=newpath)
 
@@ -397,11 +410,14 @@ class WalletManager(BaseApp):
 
         # metadata for GUI
         meta = {
-            "outputs": [{
-                "address": out.script_pubkey.address(NETWORKS[self.network]),
-                "value": out.value,
-                "change": False,
-            } for out in psbt.tx.vout],
+            "outputs": [
+                {
+                    "address": out.script_pubkey.address(NETWORKS[self.network]),
+                    "value": out.value,
+                    "change": False,
+                }
+                for out in psbt.tx.vout
+            ],
             "fee": fee,
             "warnings": [],
         }
@@ -443,7 +459,7 @@ class WalletManager(BaseApp):
                         meta["outputs"][i]["label"] = w.name
                     break
         # check gap limits
-        gaps = [[]+w.gaps if w is not None else [0,0] for w in wallets]
+        gaps = [[] + w.gaps if w is not None else [0, 0] for w in wallets]
         # update gaps according to all inputs
         # because if input and output use the same branch (recv / change)
         # it's ok if both are larger than gap limit
@@ -455,8 +471,8 @@ class WalletManager(BaseApp):
                     continue
                 if w.owns(inp):
                     change, idx = w.get_derivation(inp)
-                    if gaps[i][change] < idx+type(w).GAP_LIMIT:
-                        gaps[i][change] = idx+type(w).GAP_LIMIT
+                    if gaps[i][change] < idx + type(w).GAP_LIMIT:
+                        gaps[i][change] = idx + type(w).GAP_LIMIT
         # check all outputs if index is ok
         for i, out in enumerate(psbt.outputs):
             if not meta["outputs"][i]["change"]:
@@ -467,7 +483,8 @@ class WalletManager(BaseApp):
                     # add warning if idx beyond gap
                     if idx > gaps[j][change]:
                         meta["warnings"].append(
-                            "Change index %d is beyond the gap limit!" % idx)
+                            "Change index %d is beyond the gap limit!" % idx
+                        )
                         # one warning of this type is enough
                         break
         wallets = [(wallets[i], amounts[i]) for i in range(len(wallets))]

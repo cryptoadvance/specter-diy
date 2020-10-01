@@ -20,11 +20,12 @@ class FlashKeyStore(RAMKeyStore):
     KeyStore that stores secrets in Flash of the MCU.
     By default the bitcoin secret is not stored in Flash,
     so the device operates in amnesic mode.
-    To save the key on the flash 
+    To save the key on the flash
     you need to call `save_mnemonic` method.
     At most one mnemonic can be stored.
     Trezor's security model.
     """
+
     NAME = "Internal storage"
     NOTE = "Uses internal memory of the microcontroller for all keys."
     # Button to go to storage menu
@@ -49,11 +50,10 @@ class FlashKeyStore(RAMKeyStore):
         """Verify file and load PIN state from it"""
         try:
             # verify that the pin file is ok
-            _, data = self.load_aead(self.path+"/pin", self.secret)
+            _, data = self.load_aead(self.path + "/pin", self.secret)
             # load pin object
             data = json.loads(data.decode())
-            self.pin = unhexlify(
-                data["pin"]) if data["pin"] is not None else None
+            self.pin = unhexlify(data["pin"]) if data["pin"] is not None else None
             self._pin_attempts_max = data["pin_attempts_max"]
             self._pin_attempts_left = data["pin_attempts_left"]
         except Exception as e:
@@ -87,14 +87,16 @@ class FlashKeyStore(RAMKeyStore):
 
     @property
     def is_locked(self):
-        return (self.is_pin_set and self._is_locked)
+        return self.is_pin_set and self._is_locked
 
     @property
     def is_ready(self):
-        return (self.pin_secret is not None) and \
-               (self.enc_secret is not None) and \
-               (not self.is_locked) and \
-               (self.fingerprint is not None)
+        return (
+            (self.pin_secret is not None)
+            and (self.enc_secret is not None)
+            and (not self.is_locked)
+            and (self.fingerprint is not None)
+        )
 
     def _unlock(self, pin):
         """
@@ -110,22 +112,22 @@ class FlashKeyStore(RAMKeyStore):
             raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
         # calculate hmac with entered PIN
         key = tagged_hash("pin", self.secret)
-        pin_hmac = hmac.new(key=key,
-                            msg=pin.encode(), digestmod="sha256").digest()
+        pin_hmac = hmac.new(key=key, msg=pin.encode(), digestmod="sha256").digest()
         # check hmac is the same
         if pin_hmac != self.pin:
-            raise PinError("Invalid PIN!\n%d of %d attempts left..." % (
-                self._pin_attempts_left, self._pin_attempts_max)
+            raise PinError(
+                "Invalid PIN!\n%d of %d attempts left..."
+                % (self._pin_attempts_left, self._pin_attempts_max)
             )
         self._pin_attempts_left = self._pin_attempts_max
         self._is_locked = False
         self.save_state()
         # derive PIN keys for reckless storage
-        self.pin_secret = tagged_hash("pin", self.secret+pin.encode())
+        self.pin_secret = tagged_hash("pin", self.secret + pin.encode())
         self.load_enc_secret()
 
     def load_enc_secret(self):
-        fpath = self.path+"/enc_secret"
+        fpath = self.path + "/enc_secret"
         if platform.file_exists(fpath):
             _, secret = self.load_aead(fpath, self.pin_secret)
         else:
@@ -148,11 +150,11 @@ class FlashKeyStore(RAMKeyStore):
         pin = hexlify(self.pin).decode() if self.pin is not None else None
         obj = {
             "pin": pin,
-            "pin_attempts_max":  self._pin_attempts_max,
+            "pin_attempts_max": self._pin_attempts_max,
             "pin_attempts_left": self._pin_attempts_left,
         }
         data = json.dumps(obj).encode()
-        self.save_aead(self.path+"/pin", plaintext=data, key=self.secret)
+        self.save_aead(self.path + "/pin", plaintext=data, key=self.secret)
         # check it loads
         self.load_state()
 
@@ -160,15 +162,15 @@ class FlashKeyStore(RAMKeyStore):
         """Saves hmac of the PIN code for verification later"""
         # set up pin
         key = tagged_hash("pin", self.secret)
-        self.pin = hmac.new(key=key,
-                            msg=pin, digestmod="sha256").digest()
-        self.pin_secret = tagged_hash("pin", self.secret+pin.encode())
+        self.pin = hmac.new(key=key, msg=pin, digestmod="sha256").digest()
+        self.pin_secret = tagged_hash("pin", self.secret + pin.encode())
         self.save_state()
         # update encryption secret
         if self.enc_secret is None:
             self.enc_secret = get_random_bytes(32)
-        self.save_aead(self.path+"/enc_secret",
-                       plaintext=self.enc_secret, key=self.pin_secret)
+        self.save_aead(
+            self.path + "/enc_secret", plaintext=self.enc_secret, key=self.pin_secret
+        )
         # call unlock now
         self._unlock(pin)
 
@@ -177,16 +179,16 @@ class FlashKeyStore(RAMKeyStore):
             raise KeyStoreError("Keystore is locked")
         if self.mnemonic is None:
             raise KeyStoreError("Recovery phrase is not loaded")
-        self.save_aead(self.flashpath,
-                       plaintext=self.mnemonic.encode(),
-                       key=self.enc_secret)
+        self.save_aead(
+            self.flashpath, plaintext=self.mnemonic.encode(), key=self.enc_secret
+        )
         # check it's ok
         await self.load_mnemonic()
 
     @property
     def flashpath(self):
         """Path to store bitcoin key"""
-        return self.path+"/reckless"
+        return self.path + "/reckless"
 
     @property
     def is_key_saved(self):
@@ -203,8 +205,7 @@ class FlashKeyStore(RAMKeyStore):
 
     async def delete_mnemonic(self):
         if not platform.file_exists(self.flashpath):
-            raise KeyStoreError(
-                "Secret is not saved. No need to delete anything.")
+            raise KeyStoreError("Secret is not saved. No need to delete anything.")
         try:
             os.remove(self.flashpath)
         except:
@@ -212,7 +213,7 @@ class FlashKeyStore(RAMKeyStore):
 
     async def init(self, show_fn):
         """
-        Waits for keystore media 
+        Waits for keystore media
         and loads internal secret and PIN state
         """
         self.show = show_fn
@@ -243,18 +244,22 @@ class FlashKeyStore(RAMKeyStore):
                 return
             elif menuitem == 0:
                 await self.save_mnemonic()
-                await self.show(Alert("Success!",
-                                     "Your key is stored in flash now.",
-                                     button_text="OK"))
+                await self.show(
+                    Alert(
+                        "Success!", "Your key is stored in flash now.", button_text="OK"
+                    )
+                )
             elif menuitem == 1:
                 await self.load_mnemonic()
-                await self.show(Alert("Success!",
-                                     "Your key is loaded.",
-                                     button_text="OK"))
+                await self.show(
+                    Alert("Success!", "Your key is loaded.", button_text="OK")
+                )
             elif menuitem == 2:
                 await self.delete_mnemonic()
-                await self.show(Alert("Success!",
-                                     "Your key is deleted from flash.",
-                                     button_text="OK"))
+                await self.show(
+                    Alert(
+                        "Success!", "Your key is deleted from flash.", button_text="OK"
+                    )
+                )
             elif menuitem == 3:
                 await self.show(MnemonicScreen(self.mnemonic))

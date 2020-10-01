@@ -28,8 +28,8 @@ class MnemonicTable(lv.table):
         self.set_style(lv.table.STYLE.CELL2, num_style)
 
         for i in range(12):
-            self.set_cell_value(i, 0, "%d" % (i+1))
-            self.set_cell_value(i, 2, "%d" % (i+13))
+            self.set_cell_value(i, 0, "%d" % (i + 1))
+            self.set_cell_value(i, 2, "%d" % (i + 13))
             self.set_cell_type(i, 0, lv.table.STYLE.CELL2)
             self.set_cell_type(i, 2, lv.table.STYLE.CELL2)
 
@@ -40,7 +40,7 @@ class MnemonicTable(lv.table):
     def update(self):
         for i in range(24):
             row = i % 12
-            col = 1+2*(i//12)
+            col = 1 + 2 * (i // 12)
             if i < len(self.words):
                 self.set_cell_value(row, col, self.words[i])
             else:

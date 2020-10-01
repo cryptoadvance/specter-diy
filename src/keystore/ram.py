@@ -17,10 +17,12 @@ class RAMKeyStore(KeyStore):
     For PIN verifiction implement
     _set_pin, _unlock, _change_pin and other pin-related methods.
     """
+
     # Button to go to storage menu
     # Menu should be implemented in async storage_menu function
     # Here we only have a single option - to show mnemonic
     storage_button = "Show mnemonic"
+
     def __init__(self):
         # bip39 mnemonic
         self.mnemonic = None
@@ -115,7 +117,7 @@ class RAMKeyStore(KeyStore):
         create new if doesn't exist"""
         try:
             # try to load secret
-            with open(path+"/secret", "rb") as f:
+            with open(path + "/secret", "rb") as f:
                 self.secret = f.read()
         except:
             self.secret = self.create_new_secret(path)
@@ -125,7 +127,7 @@ class RAMKeyStore(KeyStore):
         # generate new and save
         secret = get_random_bytes(32)
         # save secret
-        with open(path+"/secret", "wb") as f:
+        with open(path + "/secret", "wb") as f:
             f.write(secret)
         self.secret = secret
         return secret
@@ -139,14 +141,16 @@ class RAMKeyStore(KeyStore):
         h = hmac.new(key, pin_part, digestmod="sha256").digest()
         # wordlist is 2048 long (11 bits) so
         # this modulo doesn't create an offset
-        word_number = int.from_bytes(h[:2], 'big') % len(bip39.WORDLIST)
+        word_number = int.from_bytes(h[:2], "big") % len(bip39.WORDLIST)
         return bip39.WORDLIST[word_number]
 
     @property
     def is_ready(self):
-        return (self.enc_secret is not None) and \
-               (not self.is_locked) and \
-               (self.fingerprint is not None)
+        return (
+            (self.enc_secret is not None)
+            and (not self.is_locked)
+            and (self.fingerprint is not None)
+        )
 
     @property
     def is_locked(self):
@@ -176,7 +180,7 @@ class RAMKeyStore(KeyStore):
         with a function to get number of attempts left.
         """
         return self.pin_attempts_max
-    
+
     @property
     def pin_attempts_max(self):
         """
@@ -230,7 +234,7 @@ class RAMKeyStore(KeyStore):
 
     async def init(self, show_fn):
         """
-        Waits for keystore media 
+        Waits for keystore media
         and loads internal secret and PIN state
         """
         self.show = show_fn
@@ -238,13 +242,14 @@ class RAMKeyStore(KeyStore):
         self.load_secret(self.path)
         # check if init is called for the first time
         # and we have less than max PIN attempts
-        if (not self.initialized 
-            and self.pin_attempts_left != self.pin_attempts_max):
-            scr = Alert("Warning!",
-                        "You only have %d of %d attempts\n"
-                        "to enter correct PIN code!" % (
-                        self.pin_attempts_left, self.pin_attempts_max),
-                        button_text="OK")
+        if not self.initialized and self.pin_attempts_left != self.pin_attempts_max:
+            scr = Alert(
+                "Warning!",
+                "You only have %d of %d attempts\n"
+                "to enter correct PIN code!"
+                % (self.pin_attempts_left, self.pin_attempts_max),
+                button_text="OK",
+            )
             await self.show(scr)
         self.initialized = True
 
@@ -264,9 +269,11 @@ class RAMKeyStore(KeyStore):
         Async version of the PIN screen.
         Waits for an event that is set in the callback.
         """
-        scr = PinScreen(title=title,
-                        note="Do you recognize these words?",
-                        get_word=self.get_auth_word)
+        scr = PinScreen(
+            title=title,
+            note="Do you recognize these words?",
+            get_word=self.get_auth_word,
+        )
         return await self.show(scr)
 
     async def setup_pin(self, get_word=None):
@@ -275,16 +282,18 @@ class RAMKeyStore(KeyStore):
         If PIN codes are the same -> return the PIN
         If not -> try again
         """
-        scr = PinScreen(title="Choose your PIN code",
-                        note="Remember these words,"
-                             "they will stay the same on this device.",
-                        get_word=self.get_auth_word)
+        scr = PinScreen(
+            title="Choose your PIN code",
+            note="Remember these words," "they will stay the same on this device.",
+            get_word=self.get_auth_word,
+        )
         pin1 = await self.show(scr)
 
-        scr = PinScreen(title="Confirm your PIN code",
-                        note="Remember these words,"
-                             "they will stay the same on this device.",
-                        get_word=self.get_auth_word)
+        scr = PinScreen(
+            title="Confirm your PIN code",
+            note="Remember these words," "they will stay the same on this device.",
+            get_word=self.get_auth_word,
+        )
         pin2 = await self.show(scr)
 
         # check if PIN is the same
@@ -301,9 +310,9 @@ class RAMKeyStore(KeyStore):
         self._unlock(old_pin)
         new_pin = await self.setup_pin()
         self._change_pin(old_pin, new_pin)
-        await self.show(Alert("Success!",
-                              "PIN code is sucessfully changed!",
-                              button_text="OK"))
+        await self.show(
+            Alert("Success!", "PIN code is sucessfully changed!", button_text="OK")
+        )
 
     async def storage_menu(self):
         """Manage storage and display of the recovery phrase"""

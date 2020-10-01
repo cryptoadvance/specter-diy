@@ -14,10 +14,11 @@ class WalletError(AppError):
 
 class Wallet:
     """
-    Wallet class, 
-    wrapped=False - native segwit, 
+    Wallet class,
+    wrapped=False - native segwit,
     wrapped=True - nested segwit
     """
+
     SCRIPTS = [
         SingleKey,
         Multisig,
@@ -31,8 +32,7 @@ class Wallet:
             self.path = self.path.rstrip("/")
             maybe_mkdir(self.path)
         if type(script) not in type(self).SCRIPTS:
-            raise WalletError("%s not in %s" %
-                              (type(script), type(self).SCRIPTS))
+            raise WalletError("%s not in %s" % (type(script), type(self).SCRIPTS))
         self.script = script
         self.wrapped = wrapped
         # receive and change gap limits
@@ -47,14 +47,10 @@ class Wallet:
             raise WalletError("Path is not defined")
         maybe_mkdir(self.path)
         desc = self.descriptor()
-        keystore.save_aead(self.path+"/descriptor", plaintext=desc.encode())
-        obj = {
-            "gaps": self.gaps,
-            "name": self.name,
-            "unused_recv": self.unused_recv
-        }
+        keystore.save_aead(self.path + "/descriptor", plaintext=desc.encode())
+        obj = {"gaps": self.gaps, "name": self.name, "unused_recv": self.unused_recv}
         meta = json.dumps(obj).encode()
-        keystore.save_aead(self.path+"/meta", plaintext=meta)
+        keystore.save_aead(self.path + "/meta", plaintext=meta)
 
     def wipe(self):
         if self.path is None:
@@ -70,8 +66,7 @@ class Wallet:
         # derivation can be only two elements
         change, idx = derivation
         if change not in [0, 1]:
-            raise WalletError(
-                "Invalid change index %d - can be 0 or 1" % change)
+            raise WalletError("Invalid change index %d - can be 0 or 1" % change)
         if idx < 0:
             raise WalletError("Invalid index %d - can't be negative" % idx)
         sc = self.script.scriptpubkey(derivation)
@@ -103,18 +98,18 @@ class Wallet:
             return False
         # check that scriptpubkey matches
         sc, _ = self.scriptpubkey(derivation)
-        return (sc == output.script_pubkey)
+        return sc == output.script_pubkey
 
     def get_derivation(self, scope):
         # check if wallet derivation is there (custom psbt field)
         derivation = None
-        wallet_key = b"\xfc\xca\x01"+self.fingerprint
+        wallet_key = b"\xfc\xca\x01" + self.fingerprint
         # only 2-index derivations are allowed
         if wallet_key in scope.unknown and len(scope.unknown[wallet_key]) == 8:
             der = scope.unknown[wallet_key]
             derivation = []
-            for i in range(len(der)//4):
-                idx = int.from_bytes(der[4*i:4*i+4], 'little')
+            for i in range(len(der) // 4):
+                idx = int.from_bytes(der[4 * i : 4 * i + 4], "little")
                 derivation.append(idx)
             return derivation
         # otherwise we need standard derivation
@@ -139,28 +134,27 @@ class Wallet:
                 res = self.get_derivation(scope)
                 if res is not None:
                     change, idx = res
-                    if idx+self.GAP_LIMIT > gaps[change]:
-                        gaps[change] = idx+self.GAP_LIMIT+1
+                    if idx + self.GAP_LIMIT > gaps[change]:
+                        gaps[change] = idx + self.GAP_LIMIT + 1
         # update from gaps arg
         if known_idxs is not None:
             for i, gap in enumerate(gaps):
-                if (known_idxs[i] is not None
-                        and known_idxs[i] + self.GAP_LIMIT > gap):
-                    gaps[i] = known_idxs[i]+self.GAP_LIMIT
-        self.unused_recv = gaps[0]-self.GAP_LIMIT
+                if known_idxs[i] is not None and known_idxs[i] + self.GAP_LIMIT > gap:
+                    gaps[i] = known_idxs[i] + self.GAP_LIMIT
+        self.unused_recv = gaps[0] - self.GAP_LIMIT
         self.gaps = gaps
 
     def fill_psbt(self, psbt, fingerprint):
         """Fills derivation paths in inputs"""
         for scope in psbt.inputs:
             # fill derivation paths
-            wallet_key = b"\xfc\xca\x01"+self.fingerprint
+            wallet_key = b"\xfc\xca\x01" + self.fingerprint
             if wallet_key not in scope.unknown:
                 continue
             der = scope.unknown[wallet_key]
             wallet_derivation = []
-            for i in range(len(der)//4):
-                idx = int.from_bytes(der[4*i:4*i+4], 'little')
+            for i in range(len(der) // 4):
+                idx = int.from_bytes(der[4 * i : 4 * i + 4], "little")
                 wallet_derivation.append(idx)
             # find keys with our fingerprint
             for key in self.script.get_keys():
@@ -168,13 +162,12 @@ class Wallet:
                     pub = key.derive(wallet_derivation).get_public_key()
                     # fill our derivations
                     scope.bip32_derivations[pub] = DerivationPath(
-                        fingerprint, key.derivation + wallet_derivation)
+                        fingerprint, key.derivation + wallet_derivation
+                    )
             # fill script
-            scope.witness_script = self.script.witness_script(
-                wallet_derivation)
+            scope.witness_script = self.script.witness_script(wallet_derivation)
             if self.wrapped:
-                scope.redeem_script = self.script.scriptpubkey(
-                    wallet_derivation)
+                scope.redeem_script = self.script.scriptpubkey(wallet_derivation)
         return psbt
 
     def get_keys(self):
@@ -199,7 +192,7 @@ class Wallet:
             if not desc.endswith(")"):
                 raise WalletError("Failed parsing descriptor %s" % desc)
             wrapped = True
-            desc = desc[len("sh("):-1]
+            desc = desc[len("sh(") : -1]
         script = None
         for scriptcls in cls.SCRIPTS:
             # for every script class try to parse it
@@ -217,9 +210,9 @@ class Wallet:
     def from_path(cls, path, keystore):
         """Loads wallet from the folder"""
         path = path.rstrip("/")
-        _, desc = keystore.load_aead(path+"/descriptor")
+        _, desc = keystore.load_aead(path + "/descriptor")
         w = cls.from_descriptor(desc.decode(), path)
-        _, meta = keystore.load_aead(path+"/meta")
+        _, meta = keystore.load_aead(path + "/meta")
         obj = json.loads(meta.decode())
         if "gaps" in obj:
             w.gaps = obj["gaps"]

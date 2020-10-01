@@ -5,8 +5,8 @@ import gc
 import asyncio
 
 qr_style = lv.style_t()
-qr_style.body.main_color = lv.color_hex(0xffffff)
-qr_style.body.grad_color = lv.color_hex(0xffffff)
+qr_style.body.main_color = lv.color_hex(0xFFFFFF)
+qr_style.body.grad_color = lv.color_hex(0xFFFFFF)
 qr_style.body.opa = 255
 qr_style.text.opa = 255
 qr_style.text.color = lv.color_hex(0)
@@ -47,7 +47,7 @@ class QRCode(lv.obj):
         while True:
             if self.idx is not None:
                 self.set_frame()
-                self.idx = (self.idx+1) % self.frame_num
+                self.idx = (self.idx + 1) % self.frame_num
             await asyncio.sleep_ms(self.RATE)
 
     def cb(self, obj, event):
@@ -61,16 +61,17 @@ class QRCode(lv.obj):
             lv.indev_get_point(indev, point)
             self._press_start = point
         elif event == lv.EVENT.RELEASED:
-            if (len(self._text) <= self.MIN_SIZE
-                    or len(self._text) > self.MAX_SIZE):
+            if len(self._text) <= self.MIN_SIZE or len(self._text) > self.MAX_SIZE:
                 self.toggle_fullscreen()
                 return
             point = lv.point_t()
             indev = lv.indev_get_act()
             lv.indev_get_point(indev, point)
             # if swipe
-            if (abs(self._press_start.x - point.x)
-                + abs(self._press_start.y - point.y) > 100):
+            if (
+                abs(self._press_start.x - point.x) + abs(self._press_start.y - point.y)
+                > 100
+            ):
                 self.toggle_fullscreen()
                 return
             if self.idx is None:
@@ -84,15 +85,17 @@ class QRCode(lv.obj):
     def toggle_fullscreen(self):
         if self._original_size is None:
             self._original_size = (
-                self.get_x(), self.get_y(),
-                self.get_width(), self.get_height()
+                self.get_x(),
+                self.get_y(),
+                self.get_width(),
+                self.get_height(),
             )
         if self.is_fullscreen:
             x, y, width, height = self._original_size
         else:
             x, y, width, height = 0, 0, 480, 800
         self.move_foreground()
-        self.set_pos(x,y)
+        self.set_pos(x, y)
         super().set_size(width, height)
         self.label.align(self, lv.ALIGN.CENTER, 0, 0)
         self.updata_note()
@@ -140,25 +143,26 @@ class QRCode(lv.obj):
         if self._text.startswith("UR:BYTES/"):
             arr = self._text.split("/")
             payload = arr[-1]
-            prefix = arr[0]+"/%dOF%d/" % (self.idx+1, self.frame_num)
-            prefix += arr[1]+"/"
+            prefix = arr[0] + "/%dOF%d/" % (self.idx + 1, self.frame_num)
+            prefix += arr[1] + "/"
         else:
             payload = self._text
-            prefix = "p%dof%d " % (self.idx+1, self.frame_num)
-        offset = self.frame_size*self.idx
-        self._set_text(prefix+payload[offset:offset+self.frame_size])
-        self.note.set_text("Part %d of %d. Click to stop." %
-                           (self.idx+1, self.frame_num))
+            prefix = "p%dof%d " % (self.idx + 1, self.frame_num)
+        offset = self.frame_size * self.idx
+        self._set_text(prefix + payload[offset : offset + self.frame_size])
+        self.note.set_text(
+            "Part %d of %d. Click to stop." % (self.idx + 1, self.frame_num)
+        )
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
         if text.startswith("UR:BYTES/") and text.count("/") == 2:
-            text = "UR:BYTES/"+text.split("/")[-1]
+            text = "UR:BYTES/" + text.split("/")[-1]
         qr = qrcode.encode_to_string(text).strip()
-        size = int(math.sqrt(len(qr)))+1 # to make sure round up
+        size = int(math.sqrt(len(qr))) + 1  # to make sure round up
         width = self.label.get_width()
-        scale = width//size
+        scale = width // size
         sizes = range(1, 10)
         fontsize = [s for s in sizes if s < scale or s == 1][-1]
         font = getattr(lv, "square%d" % fontsize)
