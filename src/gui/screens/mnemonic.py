@@ -61,7 +61,13 @@ class NewMnemonicScreen(MnemonicScreen):
 
 
 class RecoverMnemonicScreen(MnemonicScreen):
-    def __init__(self, checker=None, lookup=None, title="Enter your recovery phrase"):
+    # button indexes
+    BTN_NEXT = 28
+    BTN_DONE = 29
+
+    def __init__(
+        self, checker=None, lookup=None, fixer=None, title="Enter your recovery phrase"
+    ):
         super().__init__("", title)
         self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         self.checker = checker
@@ -115,14 +121,21 @@ class RecoverMnemonicScreen(MnemonicScreen):
 
         if lookup is not None:
             # Next word button inactive
-            self.kb.set_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
         if checker is not None:
             # Done inactive
-            self.kb.set_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
         self.kb.set_width(HOR_RES)
-        self.kb.set_height(VER_RES // 3)
+        self.kb.set_height(260)
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
         self.kb.set_event_cb(self.callback)
+
+        self.fixer = fixer
+        if fixer is not None:
+            self.fix_button = add_button("fix", on_release(self.fix_cb), self)
+            self.fix_button.set_size(55, 30)
+            # position it out of the screen but on correct y
+            self.fix_button.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38)
 
         if lookup is not None:
             self.autocomplete.set_width(HOR_RES)
@@ -131,6 +144,10 @@ class RecoverMnemonicScreen(MnemonicScreen):
             words = lookup("", 4) + [""]
             self.autocomplete.set_map(words)
             self.autocomplete.set_event_cb(self.select_word)
+
+    def fix_cb(self):
+        self.table.set_mnemonic(self.fixer(self.table.get_mnemonic()))
+        self.check_buttons()
 
     def select_word(self, obj, event):
         if event != lv.EVENT.RELEASED:
@@ -150,12 +167,12 @@ class RecoverMnemonicScreen(MnemonicScreen):
         mnemonic = self.table.get_mnemonic()
         # check if we can autocomplete the last word
         if self.lookup is not None:
-            self.kb.set_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
             word = self.table.get_last_word()
             candidates = self.lookup(word, 4)
             self.autocomplete.set_map(candidates + [""])
             if len(candidates) == 1 or word in candidates:
-                self.kb.clear_btn_ctrl(28, lv.btnm.CTRL.INACTIVE)
+                self.kb.clear_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
                 if len(candidates) == 1:
                     mnemonic = " ".join(self.table.words[:-1])
                     mnemonic += " " + candidates[0]
@@ -163,9 +180,30 @@ class RecoverMnemonicScreen(MnemonicScreen):
         # check if mnemonic is valid
         if self.checker is not None and mnemonic is not None:
             if self.checker(mnemonic):
-                self.kb.clear_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
+                self.kb.clear_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
             else:
-                self.kb.set_btn_ctrl(29, lv.btnm.CTRL.INACTIVE)
+                self.kb.set_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+            # check if we are at 12, 18 or 24 words
+            # offer to fix mnemonic if it's invalid
+            num_words = len(mnemonic.split())
+            if (
+                self.fixer is not None
+                and num_words in [12, 18, 24]
+                and self.kb.get_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+            ):
+                # set correct button coordinates
+                y = -33 - self.table.get_height() // 2 if num_words == 18 else -38
+                x = -40 if num_words == 12 else -40 + self.table.get_width() // 2
+                # check if we can fix the mnemonic
+                try:
+                    self.fixer(mnemonic)
+                    self.fix_button.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, x, y)
+                except:
+                    self.fix_button.align(
+                        self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38
+                    )
+            else:
+                self.fix_button.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38)
 
     def callback(self, obj, event):
         if event != lv.EVENT.RELEASED:

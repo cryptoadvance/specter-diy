@@ -18,10 +18,10 @@ class MnemonicTable(lv.table):
 
         self.set_col_cnt(4)
         self.set_row_cnt(12)
-        self.set_col_width(0, 50)
-        self.set_col_width(2, 50)
-        self.set_col_width(1, 150)
-        self.set_col_width(3, 150)
+        self.set_col_width(0, 40)
+        self.set_col_width(2, 40)
+        self.set_col_width(1, 180)
+        self.set_col_width(3, 180)
 
         self.set_style(lv.page.STYLE.BG, cell_style)
         self.set_style(lv.table.STYLE.CELL1, cell_style)
@@ -65,14 +65,19 @@ class MnemonicTable(lv.table):
         self.update()
 
     def autocomplete_word(self, word):
+        if len(self.words) > 24:
+            return
         if len(self.words) == 0:
             self.words.append(word)
         else:
             self.words[-1] = word
-        self.words.append("")
+        if len(self.words) < 24:
+            self.words.append("")
         self.update()
 
     def add_char(self, c):
+        if len(self.words) > 24:
+            return
         if len(self.words) == 0:
             self.words.append(c)
         else:

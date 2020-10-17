@@ -29,10 +29,7 @@ class MemoryCard(RAMKeyStore):
 In this mode device can only operate when the smartcard is inserted!"""
     # constants for secret storage
     MAGIC = b"sdiy\x00"  # specter-DIY version 0
-    KEYS = {
-        b"\x01": "enc",
-        b"\x02": "entropy",
-    }
+    KEYS = {b"\x01": "enc", b"\x02": "entropy"}
     # Button to go to storage menu
     # Menu should be implemented in async storage_menu function
     # Here we only have a single option - to show mnemonic

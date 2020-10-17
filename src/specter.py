@@ -181,15 +181,9 @@ class Specter:
         ]
         if self.keystore.is_key_saved and self.keystore.load_button:
             buttons.append((2, self.keystore.load_button))
-        buttons += [
-            (None, "Settings"),
-            (3, "Developer & USB settings"),
-        ]
+        buttons += [(None, "Settings"), (3, "Developer & USB settings")]
         if hasattr(self.keystore, "lock"):
-            buttons += [
-                (4, "Change PIN code"),
-                (5, "Lock device"),
-            ]
+            buttons += [(4, "Change PIN code"), (5, "Lock device")]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons)
 
@@ -204,8 +198,13 @@ class Specter:
                 return self.mainmenu
         # recover
         elif menuitem == 1:
+            # a small function that fixes checksum of invalid mnemonic
+            def fix_mnemonic(phrase):
+                entropy = bip39.mnemonic_to_bytes(phrase, ignore_checksum=True)
+                return bip39.mnemonic_from_bytes(entropy)
+
             mnemonic = await self.gui.recover(
-                bip39.mnemonic_is_valid, bip39.find_candidates
+                bip39.mnemonic_is_valid, bip39.find_candidates, fix_mnemonic
             )
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
@@ -253,24 +252,16 @@ class Specter:
         buttons = (
             [
                 # id, text
-                (None, "Applications"),
+                (None, "Applications")
             ]
             + app_buttons
-            + [
-                (None, "Communication"),
-            ]
+            + [(None, "Communication")]
             + host_buttons
-            + [
-                (None, "More"),  # delimiter
-            ]
+            + [(None, "More")]  # delimiter
         )
         if hasattr(self.keystore, "lock"):
-            buttons += [
-                (2, "Lock device"),
-            ]
-        buttons += [
-            (3, "Settings"),
-        ]
+            buttons += [(2, "Lock device")]
+        buttons += [(3, "Settings")]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons)
 
@@ -311,23 +302,10 @@ class Specter:
         ]
         if self.keystore.storage_button is not None:
             buttons.append((0, self.keystore.storage_button))
-        buttons.extend(
-            [
-                (2, "Enter password"),
-                (None, "Security"),  # delimiter
-            ]
-        )
+        buttons.extend([(2, "Enter password"), (None, "Security")])  # delimiter
         if hasattr(self.keystore, "lock"):
-            buttons.extend(
-                [
-                    (3, "Change PIN code"),
-                ]
-            )
-        buttons.extend(
-            [
-                (4, "Developer & USB"),
-            ]
-        )
+            buttons.extend([(3, "Change PIN code")])
+        buttons.extend([(4, "Developer & USB")])
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
 
@@ -463,10 +441,7 @@ class Specter:
                 print(e)
 
     def update_config(self, usb=False, dev=False, **kwargs):
-        config = {
-            "usb": usb,
-            "dev": dev,
-        }
+        config = {"usb": usb, "dev": dev}
         self.keystore.save_aead(
             self.path + "/settings",
             adata=json.dumps(config).encode(),

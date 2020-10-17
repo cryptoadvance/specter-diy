@@ -33,9 +33,7 @@ class WalletManager(BaseApp):
     """
 
     button = "Wallets"
-    WALLETS = [
-        Wallet,
-    ]
+    WALLETS = [Wallet]
 
     def __init__(self, path):
         self.root_path = path
