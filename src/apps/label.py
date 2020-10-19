@@ -26,9 +26,7 @@ class App(BaseApp):
         prefix = self.get_prefix(stream)
         if prefix == b"getlabel":
             label = self.get_label()
-            obj = {
-                "title": "Device's label is: %s" % label,
-            }
+            obj = {"title": "Device's label is: %s" % label}
             stream = BytesIO(label.encode())
             return stream, obj
         elif prefix == b"setlabel":
@@ -43,9 +41,7 @@ class App(BaseApp):
             if res is False:
                 return None
             self.set_label(label)
-            obj = {
-                "title": "New device label: %s" % label,
-            }
+            obj = {"title": "New device label: %s" % label}
             return BytesIO(label.encode()), obj
         else:
             raise AppError("Invalid command")

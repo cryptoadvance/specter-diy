@@ -16,10 +16,7 @@ class XpubApp(BaseApp):
     """
 
     button = "Master public keys"
-    prefixes = [
-        b"fingerprint",
-        b"xpub",
-    ]
+    prefixes = [b"fingerprint", b"xpub"]
 
     def __init__(self, path):
         # we don't need to store anything

@@ -19,10 +19,7 @@ class Wallet:
     wrapped=True - nested segwit
     """
 
-    SCRIPTS = [
-        SingleKey,
-        Multisig,
-    ]
+    SCRIPTS = [SingleKey, Multisig]
     GAP_LIMIT = 20
 
     def __init__(self, script, wrapped=False, path=None, name="Untitled"):

@@ -30,14 +30,14 @@ class SpecterGUI(AsyncGUI):
         await self.load_screen(scr)
         return await scr.result()
 
-    async def recover(self, checker=None, lookup=None):
+    async def recover(self, checker=None, lookup=None, fix=None):
         """
         Asks the user for his recovery phrase.
         checker(mnemonic) - a function that validates recovery phrase
         lookup(word, num_candidates) - a function that
                 returns num_candidates words starting with word
         """
-        scr = RecoverMnemonicScreen(checker, lookup)
+        scr = RecoverMnemonicScreen(checker, lookup, fix)
         await self.load_screen(scr)
         return await scr.result()
 
