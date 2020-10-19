@@ -12,9 +12,11 @@ If you did it as well we will be happy to put it here.
 
 ![thomas](./thomas.jpg)
 
-### @bitcoinhero
+### @bitcoinheiro
 
 ![bitcoinhero](./bitcoinhero.jpg)
+
+Created 3d printed storage box for this setup with small battery attached and waveshare scanner on the side. Available at https://www.tinkercad.com/things/46xyXAhv0Fy
 
 ### @kkdao
 
