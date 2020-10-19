@@ -52,7 +52,7 @@ Supported networks: Mainnet, Testnet, Regtest, Signet.
 
 ## Video and screenshots
 
-Check out [this Twitter thread](https://twitter.com/StepanSnigirev/status/1168923849699876881) to get an idea how it works.
+Check out [this video](https://www.youtube.com/watch?v=1H7FqG_FmCw) to get an idea how to assemble it and how it works.
 
 Here is a [Gallery](./docs/pictures/gallery/README.md) with devices assembled by the community.
 
