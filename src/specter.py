@@ -19,7 +19,7 @@ from bitcoin import bip39
 from bitcoin.networks import NETWORKS
 
 # small helper functions
-from helpers import gen_mnemonic, load_apps
+from helpers import gen_mnemonic, fix_mnemonic, load_apps
 from errors import BaseError
 
 
@@ -189,7 +189,7 @@ class Specter:
 
         # process the menu button:
         if menuitem == 0:
-            mnemonic = await self.gui.new_mnemonic(gen_mnemonic)
+            mnemonic = await self.gui.new_mnemonic(gen_mnemonic, bip39.WORDLIST, fix_mnemonic)
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic.strip(), "")
@@ -198,11 +198,6 @@ class Specter:
                 return self.mainmenu
         # recover
         elif menuitem == 1:
-            # a small function that fixes checksum of invalid mnemonic
-            def fix_mnemonic(phrase):
-                entropy = bip39.mnemonic_to_bytes(phrase, ignore_checksum=True)
-                return bip39.mnemonic_from_bytes(entropy)
-
             mnemonic = await self.gui.recover(
                 bip39.mnemonic_is_valid, bip39.find_candidates, fix_mnemonic
             )
