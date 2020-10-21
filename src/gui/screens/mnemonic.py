@@ -27,12 +27,19 @@ class NewMnemonicScreen(MnemonicScreen):
     def __init__(
         self,
         generator,
+        wordlist,
+        fixer,
         title="Your recovery phrase:",
-        note="Write it down and never show to anybody",
+        note="Write it down and never show to anybody.",
     ):
+        self.fixer = fixer
+        self.wordlist = wordlist
         mnemonic = generator(12)
         super().__init__(mnemonic, title, note)
         self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        self.table.set_event_cb(self.on_word_click)
+        # enable callbacks
+        self.table.set_click(True)
 
         self.close_label.set_text(lv.SYMBOL.LEFT + " Back")
         self.next_button = add_button(scr=self, callback=on_release(self.confirm))
@@ -41,10 +48,12 @@ class NewMnemonicScreen(MnemonicScreen):
         self.next_label.set_text("Next " + lv.SYMBOL.RIGHT)
         align_button_pair(self.close_button, self.next_button)
 
+        # toggle switch 12-24 words
         lbl = lv.label(self)
         lbl.set_text("Use 24 words")
-        lbl.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 60)
+        lbl.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 40)
         lbl.set_x(120)
+        self.switch_lbl = lbl
 
         self.switch = lv.sw(self)
         self.switch.off(lv.ANIM.OFF)
@@ -55,6 +64,78 @@ class NewMnemonicScreen(MnemonicScreen):
             self.table.set_mnemonic(generator(wordcount))
 
         self.switch.set_event_cb(on_release(cb))
+
+        # fix mnemonic components
+        self.kb = lv.btnm(self)
+        self.kb.set_map(["1", "2", "4", "8", "16", "32", "\n",
+                         "64", "128", "256", "512", "1024", ""])
+        self.kb.set_ctrl_map([lv.btnm.CTRL.TGL_ENABLE for i in range(11)])
+        self.kb.set_width(HOR_RES)
+        self.kb.set_height(100)
+        self.kb.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+        self.kb.set_hidden(True)
+
+        self.instruction = add_label("Hint: click on any word above to edit it.", scr=self, style="hint")
+        self.instruction.align(self.kb, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+
+
+    def on_word_click(self, obj, evt):
+        if evt != lv.EVENT.RELEASED:
+            return
+        # get coordinates
+        point = lv.point_t()
+        indev = lv.indev_get_act()
+        lv.indev_get_point(indev, point)
+        # get offsets
+        dx = point.x - obj.get_x()
+        dy = point.y - obj.get_y()
+        # get index
+        idx = 12*int(dx > obj.get_width()//2) + int(12*dy/obj.get_height())
+        self.change_word(idx)
+
+    def change_word(self, idx):
+        if idx >= len(self.table.words):
+            return
+        word = self.table.words[idx]
+        self.instruction.set_text(
+            "Changing word number %d:\n%s (%d in wordlist)"
+            % (idx+1, word.upper(), self.wordlist.index(word))
+        )
+        # hide switch
+        if not self.switch.get_hidden():
+            self.switch.set_hidden(True)
+            self.switch_lbl.set_hidden(True)
+        self.kb.set_hidden(False)
+        word_idx = self.wordlist.index(word)
+        self.kb.set_ctrl_map([
+            lv.btnm.CTRL.TGL_ENABLE | (lv.btnm.CTRL.TGL_STATE if ((word_idx>>i)&1) else 0)
+            for i in range(11)
+        ])
+        # callback on toggle
+        def cb(obj, event):
+            if event != lv.EVENT.RELEASED:
+                return
+            c = obj.get_active_btn_text()
+            if c is None:
+                return
+            bits = [obj.get_btn_ctrl(i, lv.btnm.CTRL.TGL_STATE) for i in range(11)]
+            num = 0
+            for i, bit in enumerate(reversed(bits)):
+                num = num << 1
+                if bit:
+                    num += 1
+            # change word
+            word = self.wordlist[num]
+            self.table.words[idx] = word
+            # fix mnemonic
+            mnemonic = " ".join(self.table.words)
+            self.table.set_mnemonic(self.fixer(mnemonic))
+            self.instruction.set_text(
+                "Changing word number %d:\n%s (%d in wordlist)"
+                % (idx+1, word.upper(), self.wordlist.index(word))
+            )
+        self.kb.set_event_cb(cb)
+
 
     def confirm(self):
         self.set_value(self.table.get_mnemonic())

@@ -105,7 +105,7 @@ class InputScreen(Screen):
             self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
 
         self.kb = HintKeyboard(self)
-        self.kb.set_map(type(self).CHARSET)
+        self.kb.set_map(self.CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 3)
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
@@ -131,21 +131,21 @@ class InputScreen(Screen):
             if c == lv.SYMBOL.LEFT:
                 self.ta.del_char()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
-                for i, ch in enumerate(type(self).CHARSET):
+                for i, ch in enumerate(self.CHARSET):
                     if ch.isalpha():
                         if c == lv.SYMBOL.UP:
-                            type(self).CHARSET[i] = type(self).CHARSET[i].upper()
+                            self.CHARSET[i] = self.CHARSET[i].upper()
                         else:
-                            type(self).CHARSET[i] = type(self).CHARSET[i].lower()
+                            self.CHARSET[i] = self.CHARSET[i].lower()
                     elif ch == lv.SYMBOL.UP:
-                        type(self).CHARSET[i] = lv.SYMBOL.DOWN
+                        self.CHARSET[i] = lv.SYMBOL.DOWN
                     elif ch == lv.SYMBOL.DOWN:
-                        type(self).CHARSET[i] = lv.SYMBOL.UP
-                self.kb.set_map(type(self).CHARSET)
+                        self.CHARSET[i] = lv.SYMBOL.UP
+                self.kb.set_map(self.CHARSET)
             elif c == "#@":
-                self.kb.set_map(type(self).CHARSET_EXTRA)
+                self.kb.set_map(self.CHARSET_EXTRA)
             elif c == "aA":
-                self.kb.set_map(type(self).CHARSET)
+                self.kb.set_map(self.CHARSET)
             elif c[0] == lv.SYMBOL.CLOSE:
                 self.ta.set_text("")
             elif c[0] == lv.SYMBOL.OK:
@@ -264,7 +264,7 @@ class DerivationScreen(Screen):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
         self.kb = lv.btnm(self)
-        self.kb.set_map(type(self).PATH_CHARSET)
+        self.kb.set_map(self.PATH_CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 2)
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)

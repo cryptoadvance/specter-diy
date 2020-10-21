@@ -64,6 +64,9 @@ def init_styles(dark=True):
     lv.style_copy(th.style.btnm.btn.pr, th.style.btnm.btn.rel)
     th.style.btnm.btn.pr.body.main_color = chl
     th.style.btnm.btn.pr.body.grad_color = chl
+    # button map toggled
+    lv.style_copy(th.style.btnm.btn.tgl_pr, th.style.btnm.btn.pr)
+    lv.style_copy(th.style.btnm.btn.tgl_rel, th.style.btnm.btn.pr)
     # button map inactive
     lv.style_copy(th.style.btnm.btn.ina, th.style.btnm.btn.rel)
     th.style.btnm.btn.ina.text.opa = 80

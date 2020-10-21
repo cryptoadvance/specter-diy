@@ -10,12 +10,16 @@ AES_BLOCK = 16
 IV_SIZE = 16
 AES_CBC = 2
 
-
 def gen_mnemonic(num_words: int) -> str:
     """Generates a mnemonic with num_words"""
     if num_words < 12 or num_words > 24 or num_words % 3 != 0:
         raise RuntimeError("Invalid word count")
     return bip39.mnemonic_from_bytes(rng.get_random_bytes(num_words * 4 // 3))
+
+def fix_mnemonic(phrase):
+    """Fixes checksum of invalid mnemonic"""
+    entropy = bip39.mnemonic_to_bytes(phrase, ignore_checksum=True)
+    return bip39.mnemonic_from_bytes(entropy)
 
 
 def tagged_hash(tag: str, data: bytes) -> bytes:

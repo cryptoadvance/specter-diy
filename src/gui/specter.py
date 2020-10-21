@@ -22,11 +22,11 @@ class SpecterGUI(AsyncGUI):
         await self.load_screen(scr)
         return await scr.result()
 
-    async def new_mnemonic(self, generator):
+    async def new_mnemonic(self, generator, wordlist, fix):
         """
         Generates a new mnemonic and shows it on the screen
         """
-        scr = NewMnemonicScreen(generator)
+        scr = NewMnemonicScreen(generator, wordlist, fix)
         await self.load_screen(scr)
         return await scr.result()
 
