@@ -53,7 +53,9 @@ class XpubApp(BaseApp):
         else:
             buttons += [(0, "Show more keys"), (2, "Change account number"), (1, "Enter custom derivation")]
         # wait for menu selection
-        menuitem = await show_screen(Menu(buttons, last=(255, None), title="Select the key"))
+        menuitem = await show_screen(Menu(buttons, last=(255, None),
+                                          title="Select the key",
+                                          note="Current account number: %d" % self.account))
 
         # process the menu button:
         # back button
