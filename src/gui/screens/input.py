@@ -313,3 +313,73 @@ class DerivationScreen(Screen):
                 self.ta.add_text(c)
         else:
             self.ta.add_text(c)
+
+class NumericScreen(Screen):
+    NUMERIC_CHARSET = [
+        "1",
+        "2",
+        "3",
+        "\n",
+        "4",
+        "5",
+        "6",
+        "\n",
+        "7",
+        "8",
+        "9",
+        "\n",
+        lv.SYMBOL.LEFT,
+        "0",
+        lv.SYMBOL.OK,
+        "",
+    ]
+
+    def __init__(
+        self,
+        title="Enter account number",
+        current_val='0'
+    ):
+        super().__init__()
+        self.title = add_label(title, scr=self, y=PADDING, style="title")
+
+        self.note = add_label("Current account number: %s" % current_val, scr=self, style="hint")
+        self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+
+        self.kb = lv.btnm(self)
+        self.kb.set_map(self.NUMERIC_CHARSET)
+        self.kb.set_width(HOR_RES)
+        self.kb.set_height(VER_RES // 2)
+        self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+
+        lbl = add_label('', style="title", scr=self)
+        lbl.set_y(PADDING + 150)
+        lbl.set_width(40)
+        lbl.set_x(PADDING)
+
+        self.ta = lv.ta(self)
+        self.ta.set_text("")
+        self.ta.set_width(HOR_RES - 2 * PADDING - 40)
+        self.ta.set_x(PADDING + 40)
+        self.ta.set_y(PADDING + 150)
+        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        self.ta.set_one_line(True)
+        self.kb.set_event_cb(self.cb)
+
+    def cb(self, obj, event):
+        if event != lv.EVENT.RELEASED:
+            return
+        c = obj.get_active_btn_text()
+        if c is None:
+            return
+        account = self.ta.get_text()
+        if len(account) == 0:
+            last = '0'
+        else:
+            last = account[-1]
+        if c[0] == lv.SYMBOL.LEFT:
+            self.ta.del_char()
+        elif c[0] == lv.SYMBOL.OK:
+            self.set_value(self.ta.get_text())
+            self.ta.set_text("")
+        else:
+            self.ta.add_text(c)
