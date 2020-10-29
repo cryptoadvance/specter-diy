@@ -337,14 +337,13 @@ class NumericScreen(Screen):
     def __init__(
         self,
         title="Enter account number",
-        note="Default account is 0",
         current_val='0'
     ):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
-        if note is not None:
-            self.note = add_label(note, scr=self, style="hint")
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+
+        self.note = add_label("Current account number: %s" % current_val, scr=self, style="hint")
+        self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
 
         self.kb = lv.btnm(self)
         self.kb.set_map(self.NUMERIC_CHARSET)
@@ -364,10 +363,6 @@ class NumericScreen(Screen):
         self.ta.set_y(PADDING + 150)
         self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
         self.ta.set_one_line(True)
-
-        if current_val and current_val != "0":
-            self.ta.add_text(current_val)
-
         self.kb.set_event_cb(self.cb)
 
     def cb(self, obj, event):

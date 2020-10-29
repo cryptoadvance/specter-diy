@@ -51,9 +51,9 @@ class XpubApp(BaseApp):
                 ),
             ]
         else:
-            buttons += [(0, "Show more keys"), (2, "Specify BIP44 account"), (1, "Enter custom derivation")]
+            buttons += [(0, "Show more keys"), (2, "Change account number"), (1, "Enter custom derivation")]
         # wait for menu selection
-        menuitem = await show_screen(Menu(buttons, last=(255, None)))
+        menuitem = await show_screen(Menu(buttons, last=(255, None), title="Select the key"))
 
         # process the menu button:
         # back button
@@ -68,6 +68,8 @@ class XpubApp(BaseApp):
                 return True
         elif menuitem == 2:
             account = await show_screen(NumericScreen(current_val=str(self.account)))
+            if account and int(account) > 0x80000000:
+                    raise AppError('Account number too large')
             try:
                 self.account = int(account)
             except:
