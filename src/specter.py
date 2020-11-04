@@ -11,7 +11,7 @@ from platform import (
     fpath,
     maybe_mkdir,
     file_exists,
-    delete_recursively,
+    wipe,
 )
 from hosts import Host, HostError
 from app import BaseApp
@@ -65,12 +65,10 @@ class Specter:
         try:
             raise exception
         except CriticalErrorWipeImmediately as e:
-            # wipe all apps
-            self.wipe()
             # show error
-            await self.gui.error("%s" % e)
-            # TODO: actual reboot here
-            return self.setup
+            await self.gui.error("Critical error, the device will be wiped.\n\n%s" % e)
+            # wipe everything and reboot
+            self.wipe()
         # catch an expected error
         except BaseError as e:
             # show error
@@ -373,7 +371,6 @@ class Specter:
                     "Are you sure?",
                 ):
                     self.wipe()
-                    reboot()
                 return
             self.update_config(**res)
             if await self.gui.prompt(
@@ -384,8 +381,8 @@ class Specter:
 
     def wipe(self):
         # TODO: wipe the smartcard as well?
-        delete_recursively(fpath("/flash"))
-        delete_recursively(fpath("/qspi"))
+        # platform.wipe
+        wipe()
 
     async def lock(self):
         # lock the keystore

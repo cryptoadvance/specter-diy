@@ -2,6 +2,7 @@
 import sys
 import os
 import pyb
+import gc
 
 simulator = sys.platform != "pyboard"
 
@@ -187,8 +188,28 @@ def reboot():
 
 
 def wipe():
+    """
+    Blocks map in disco board
+    0: MBR
+    1   - 255:   reserved
+    256 - 447:   internal flash
+    448 - 33215: QSPI
+    """
     delete_recursively(fpath("/flash"))
     delete_recursively(fpath("/qspi"))
+    if not simulator:
+        os.umount("/flash")
+        os.umount("/qspi")
+        f = pyb.Flash()
+        block_size = f.ioctl(5, None)
+        # wipe internal flash with random bytes
+        for i in range(256, 450):
+            b = os.urandom(block_size)
+            f.writeblocks(i, b)
+            del b
+            gc.collect()
+    # mpy will reformat fs on reboot
+    reboot()
 
 
 def usb_connected():
