@@ -6,6 +6,11 @@ import pyb, os
 pwr = pyb.Pin("B15", pyb.Pin.OUT)
 pwr.on()
 
+# v1.4.0-rc2 - use odd rc for main firmware and even for debug
+# so it's possible to upgrade from debug to main firmware.
+# (rc99 is final version for production)
+version = "<version:tag10>0100400002</version:tag10>"
+
 # poweroff on button press
 pwrcb = lambda e: pwr.off()
 pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
