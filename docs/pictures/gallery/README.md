@@ -46,4 +46,10 @@ Created 3d printed storage box for this setup with small battery attached and wa
 
 ![stepansnigirev](./stepansnigirev.jpg)
 
+### @davewhiiite
+
+![davewhiiite](./davewhiiite1.jpg)
+![davewhiiite](./davewhiiite2.jpg)
+![davewhiiite](./davewhiiite3.jpg)
+
 ### @you?
