@@ -10,7 +10,13 @@ Main part of the device is the developer board:
 - **Mini**USB cable
 - Standard MicroUSB cable to communicate over USB
 
-For the rest of the components we are currently working on [a devkit](../devkit) that includes a smartcard slot, QR code scanner, battery and a 3d printed case, but it doesn't include the main part — discovery board that you need to order separately. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
+Optional but recommended:
+- [Waveshare QR code scanner](https://www.waveshare.com/barcode-scanner-module.htm)
+- Long-ish pin headers like [these](https://eu.mouser.com/ProductDetail/Samtec/DW-02-10-T-S-571?qs=sGAEpiMZZMvlX3nhDDO4AE5PKXAQeC6NPk%2FcLBS9yKI%3D) to connect the scanner to the board
+
+Check out the assembly video [on youtube](https://youtu.be/1H7FqG_FmCw)
+
+We are currently working on [a devkit](../devkit) that includes a smartcard slot, QR code scanner, battery and a 3d printed case, but it doesn't include the main part — discovery board that you need to order separately. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
 
 You can start using Specter even without any extra components, but you will be able to communicate with it only over USB. In this case it's not airgapped so you lose an important security property.
 
