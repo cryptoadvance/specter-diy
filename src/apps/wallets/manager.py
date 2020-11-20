@@ -452,9 +452,7 @@ class WalletManager(BaseApp):
                     continue
                 if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
                     meta["outputs"][i]["change"] = True
-                    # if mixed inputs - we show all outputs
-                    if len(wallets) > 1:
-                        meta["outputs"][i]["label"] = w.name
+                    meta["outputs"][i]["label"] = w.name
                     break
         # check gap limits
         gaps = [[] + w.gaps if w is not None else [0, 0] for w in wallets]
@@ -478,6 +476,7 @@ class WalletManager(BaseApp):
             for j, w in enumerate(wallets):
                 if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
                     change, idx = w.get_derivation(out)
+                    meta["outputs"][i]["label"] += " m/%d/%d" % (change, idx)
                     # add warning if idx beyond gap
                     if idx > gaps[j][change]:
                         meta["warnings"].append(
