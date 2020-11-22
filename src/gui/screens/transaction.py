@@ -44,7 +44,8 @@ class TransactionScreen(Prompt):
             fee = add_label("Fee: %d satoshi" % (meta["fee"]), scr=self.page)
         fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        obj = add_label("Change outputs", scr=self.page)
+        obj = add_label("Change outputs:", scr=self.page)
+        obj.set_style(0, self.style)
         obj.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         for out in meta["outputs"]:
             # now show change

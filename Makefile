@@ -54,7 +54,7 @@ unix: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/unix
 	cp $(MPY_DIR)/ports/unix/micropython $(TARGET_DIR)/micropython_unix
 
 simulate: unix
-	$(TARGET_DIR)/micropython_unix -c "import main; main.main()"
+	$(TARGET_DIR)/micropython_unix simulate.py
 
 test: unix
 	$(TARGET_DIR)/micropython_unix tests/run_tests.py

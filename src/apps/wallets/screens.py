@@ -88,6 +88,7 @@ class WalletScreen(QRAlert):
         self.update_address()
 
     def update_address(self):
+        self.show_loader(title="Deriving address...")
         if self.idx > 0:
             self.prv.set_state(lv.btn.STATE.REL)
         else:
@@ -114,6 +115,7 @@ class WalletScreen(QRAlert):
             )
         else:
             self.warning.set_text("")
+        self.hide_loader()
 
 
 class ConfirmWalletScreen(Prompt):

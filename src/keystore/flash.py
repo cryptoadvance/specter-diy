@@ -211,17 +211,18 @@ class FlashKeyStore(RAMKeyStore):
         except:
             raise KeyStoreError("Failed to delete from memory")
 
-    async def init(self, show_fn):
+    async def init(self, show_fn, show_loader):
         """
         Waits for keystore media
         and loads internal secret and PIN state
         """
         self.show = show_fn
+        self.show_loader = show_loader
         platform.maybe_mkdir(self.path)
         self.load_secret(self.path)
         self.load_state()
         # the rest we can get from parent
-        await super().init(show_fn)
+        await super().init(show_fn, show_loader)
 
     async def storage_menu(self):
         """Manage storage and display of the recovery phrase"""

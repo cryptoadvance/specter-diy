@@ -61,6 +61,7 @@ class Specter:
         Handle exception, show proper error message
         and return next function to call and await
         """
+        self.gui.hide_loader()
         try:
             raise exception
         except CriticalErrorWipeImmediately as e:
@@ -129,7 +130,7 @@ class Specter:
                 self.load_network(self.path, self.network)
 
             # load secrets
-            await self.keystore.init(self.gui.show_screen())
+            await self.keystore.init(self.gui.show_screen(), self.gui.show_loader)
             if not file_exists(path):
                 # save selected keystore
                 with open(path, "w") as f:
@@ -194,7 +195,7 @@ class Specter:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic.strip(), "")
                 for app in self.apps:
-                    app.init(self.keystore, self.network)
+                    app.init(self.keystore, self.network, self.gui.show_loader)
                 return self.mainmenu
         # recover
         elif menuitem == 1:
@@ -205,7 +206,7 @@ class Specter:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic, "")
                 for app in self.apps:
-                    app.init(self.keystore, self.network)
+                    app.init(self.keystore, self.network, self.gui.show_loader)
                 self.current_menu = self.mainmenu
                 return self.mainmenu
         elif menuitem == 2:
@@ -215,7 +216,7 @@ class Specter:
                 return
             # await self.gui.alert("Success!", "Key is loaded from flash!")
             for app in self.apps:
-                app.init(self.keystore, self.network)
+                app.init(self.keystore, self.network, self.gui.show_loader)
             return self.mainmenu
         elif menuitem == 3:
             await self.update_devsettings()
@@ -316,7 +317,7 @@ class Specter:
                 return self.settingsmenu
             self.keystore.set_mnemonic(password=pwd)
             for app in self.apps:
-                app.init(self.keystore, self.network)
+                app.init(self.keystore, self.network, self.gui.show_loader)
         elif menuitem == 3:
             await self.keystore.change_pin()
             return self.mainmenu
@@ -349,7 +350,7 @@ class Specter:
         if self.keystore.is_ready:
             # load wallets for this network
             for app in self.apps:
-                app.init(self.keystore, self.network)
+                app.init(self.keystore, self.network, self.gui.show_loader)
 
     def load_network(self, path, network="test"):
         try:
@@ -451,19 +452,25 @@ class Specter:
         This method is called whenever we got data from the host.
         It tries to find a proper app and pass the stream with data to it.
         """
-        matching_apps = []
-        for app in self.apps:
+        self.gui.show_loader(title="Processing host data...")
+        res = None
+        try:
+            matching_apps = []
+            for app in self.apps:
+                stream.seek(0)
+                # check if the app can process this stream
+                if app.can_process(stream):
+                    matching_apps.append(app)
+            if len(matching_apps) == 0:
+                raise HostError("Host command is not recognized")
+            # TODO: if more than one - ask which one to use
+            if len(matching_apps) > 1:
+                raise HostError(
+                    "Not sure what app to use... " "There are %d" % len(matching_apps)
+                )
             stream.seek(0)
-            # check if the app can process this stream
-            if app.can_process(stream):
-                matching_apps.append(app)
-        if len(matching_apps) == 0:
-            raise HostError("Host command is not recognized")
-        # TODO: if more than one - ask which one to use
-        if len(matching_apps) > 1:
-            raise HostError(
-                "Not sure what app to use... " "There are %d" % len(matching_apps)
-            )
-        stream.seek(0)
-        app = matching_apps[0]
-        return await app.process_host_command(stream, self.gui.show_screen(popup))
+            app = matching_apps[0]
+            res = await app.process_host_command(stream, self.gui.show_screen(popup))
+        finally:
+            self.gui.hide_loader()
+        return res

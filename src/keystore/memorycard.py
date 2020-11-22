@@ -258,18 +258,19 @@ In this mode device can only operate when the smartcard is inserted!"""
         if scr.waiting:
             scr.waiting = False
 
-    async def init(self, show_fn):
+    async def init(self, show_fn, show_loader):
         """
         Waits for keystore media
         and loads internal secret and PIN state
         """
+        self.show_loader = show_loader
         self.show = show_fn
         platform.maybe_mkdir(self.path)
         self.load_secret(self.path)
 
         await self.check_card()
         # the rest can be done with parent
-        await super().init(show_fn)
+        await super().init(show_fn, show_loader)
 
     async def storage_menu(self):
         """Manage storage and display of the recovery phrase"""

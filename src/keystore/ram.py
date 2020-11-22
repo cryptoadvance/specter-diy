@@ -47,6 +47,11 @@ class RAMKeyStore(KeyStore):
         self.show = None
 
     def set_mnemonic(self, mnemonic=None, password=""):
+        if mnemonic == self.mnemonic and password != "":
+            # probably checking mnemonic after saving
+            self.show_loader()
+        else:
+            self.show_loader(title="Generating keys...")
         """Load mnemonic and password and create root key"""
         if mnemonic is not None:
             self.mnemonic = mnemonic.strip()
@@ -232,11 +237,12 @@ class RAMKeyStore(KeyStore):
         """Implement PIN set function"""
         self._unlock(pin)
 
-    async def init(self, show_fn):
+    async def init(self, show_fn, show_loader):
         """
         Waits for keystore media
         and loads internal secret and PIN state
         """
+        self.show_loader = show_loader
         self.show = show_fn
         platform.maybe_mkdir(self.path)
         self.load_secret(self.path)

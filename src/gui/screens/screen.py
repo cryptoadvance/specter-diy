@@ -1,7 +1,8 @@
 import lvgl as lv
 import asyncio
 from ..common import styles, HOR_RES
-
+from ..core import update
+from ..components.modal import Modal
 
 class Screen(lv.obj):
     network = "test"
@@ -11,7 +12,7 @@ class Screen(lv.obj):
         "regtest": lv.color_hex(0x00CAF1),
         "signet": lv.color_hex(0xBD10E0),
     }
-
+    mbox = None
     def __init__(self):
         super().__init__()
         self.waiting = True
@@ -48,3 +49,22 @@ class Screen(lv.obj):
         while self.waiting:
             await asyncio.sleep_ms(10)
         return self.get_value()
+
+    def show_loader(self,
+                    text="Please wait until the process is complete.",
+                    title="Processing..."):
+        if self.mbox is None:
+            self.mbox = Modal(self)
+        self.mbox.set_text("\n\n"+title+"\n\n"+text+"\n\n")
+        # double update because might be del_async somewhere
+        update()
+        update()
+        return self.mbox
+
+    def hide_loader(self):
+        if self.mbox is None:
+            return
+        self.mbox.del_async()
+        self.mbox = None
+        update()
+        update()

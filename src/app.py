@@ -36,13 +36,14 @@ class BaseApp:
         stream.seek(len(prefix) + 1)
         return prefix
 
-    def init(self, keystore, network: str = "test"):
+    def init(self, keystore, network, show_loader):
         """
         This method is called when new key is loaded
         or a different network is selected.
         """
         self.keystore = keystore
         self.network = network
+        self.show_loader = show_loader
 
     def wipe(self):
         """
