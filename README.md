@@ -44,6 +44,10 @@ All the docs are stored in the [`docs/`](./docs) folder:
 
 Supported networks: Mainnet, Testnet, Regtest, Signet.
 
+## USB communication on Linux
+
+You may need to set up udev rules and add yourself to `dialout` group. Read more in [`udev`](./udev/README.md) folder.
+
 ## Build
 
 1. Clone the repository recursively `git clone https://github.com/cryptoadvance/specter-diy.git --recursive`
