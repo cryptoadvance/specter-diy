@@ -106,6 +106,7 @@ class XpubApp(BaseApp):
         raise AppError("Unknown command")
 
     async def show_xpub(self, derivation, show_screen):
+        self.show_loader(title="Deriving the key...")
         derivation = derivation.rstrip("/")
         net = NETWORKS[self.network]
         xpub = self.keystore.get_xpub(derivation)

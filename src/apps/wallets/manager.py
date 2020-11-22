@@ -41,8 +41,9 @@ class WalletManager(BaseApp):
         self.path = None
         self.wallets = []
 
-    def init(self, keystore, network="test"):
+    def init(self, keystore, network, *args, **kwargs):
         """Loads or creates default wallets for new keystore or network"""
+        super().init(keystore, network, *args, **kwargs)
         self.keystore = keystore
         # add fingerprint dir
         path = self.root_path + "/" + hexlify(self.keystore.fingerprint).decode()
@@ -77,6 +78,7 @@ class WalletManager(BaseApp):
         else:
             w = menuitem
             # pass wallet and network
+            self.show_loader(title="Loading wallet...")
             scr = WalletScreen(w, self.network, idx=w.unused_recv)
             cmd = await show_screen(scr)
             if cmd == DELETE:
@@ -226,6 +228,7 @@ class WalletManager(BaseApp):
         title = "Spending:\n" + "\n".join(spends)
         res = await show_screen(TransactionScreen(title, meta))
         if res:
+            self.show_loader(title="Signing transaction...")
             for w, _ in wallets:
                 if w is None:
                     continue
@@ -279,8 +282,8 @@ class WalletManager(BaseApp):
                 address = script.p2wpkh(pub).address(NETWORKS[self.network])
             elif script_type == b"sh-wpkh":
                 address = script.p2sh(
-                    script.p2wpkh(pub).address(NETWORKS[self.network])
-                )
+                    script.p2wpkh(pub)
+                ).address(NETWORKS[self.network])
             else:
                 raise WalletError("Unsupported script type: %s" % script_type)
 

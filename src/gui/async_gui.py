@@ -1,6 +1,7 @@
 import asyncio
 from .core import init, update
 from .screens import Menu, Alert, QRAlert, Prompt, InputScreen
+from .components.modal import Modal
 import lvgl as lv
 
 
@@ -21,6 +22,16 @@ class AsyncGUI:
         self.args = args
         self.kwargs = kwargs
         self.waiting = True
+
+    def show_loader(self,
+                    text="Please wait until the process is complete.",
+                    title="Processing..."):
+        return self.scr.show_loader(text, title)
+
+    def hide_loader(self):
+        self.scr.hide_loader()
+        if self.background is not None:
+            self.background.hide_loader()
 
     async def load_screen(self, scr):
         while self.background is not None:
