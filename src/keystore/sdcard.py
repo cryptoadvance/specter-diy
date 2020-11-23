@@ -23,7 +23,7 @@ class SDKeyStore(FlashKeyStore):
     from SD card to the RAM of the MCU.
     """
 
-    NAME = "Flash & SD card"
+    NAME = "Internal storage"
     NOTE = """Recovery phrase can be stored ecnrypted on the external SD card. Only this device will be able to read it."""
     # Button to go to storage menu
     # Menu is implemented in async storage_menu function

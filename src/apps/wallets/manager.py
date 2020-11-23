@@ -159,6 +159,7 @@ class WalletManager(BaseApp):
                     "message": "Scan it with your wallet",
                 }
                 return res, obj
+            return
         if cmd == SIGN_BCUR:
             data = stream.read().split(b"/")[-1].decode()
             b64_psbt = b2a_base64(bcur_decode(data)).strip()
@@ -173,6 +174,7 @@ class WalletManager(BaseApp):
                     "message": "Scan it with your wallet",
                 }
                 return BytesIO(bcur_res), obj
+            return
         elif cmd == ADD_WALLET:
             # read content, it's small
             desc = stream.read().decode()
@@ -180,7 +182,7 @@ class WalletManager(BaseApp):
             res = await self.confirm_new_wallet(w, show_screen)
             if res:
                 self.add_wallet(w)
-                return
+            return
         elif cmd == VERIFY_ADDRESS:
             data = stream.read().decode().replace("bitcoin:", "")
             # should be of the form addr?index=N or similar
@@ -195,6 +197,7 @@ class WalletManager(BaseApp):
                     break
             w = self.find_wallet_from_address(addr, idx)
             await show_screen(WalletScreen(w, self.network, idx))
+            return
         elif cmd == DERIVE_ADDRESS:
             arr = stream.read().split(b" ")
             redeem_script = None
@@ -221,7 +224,7 @@ class WalletManager(BaseApp):
         spends = []
         for w, amount in wallets:
             if w is None:
-                name = "Unkown wallet"
+                name = "Unknown wallet"
             else:
                 name = w.name
             spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
@@ -236,11 +239,18 @@ class WalletManager(BaseApp):
                 w.update_gaps(psbt=psbt)
                 w.save(self.keystore)
                 psbt = w.fill_psbt(psbt, self.keystore.fingerprint)
+            sigsStart = 0
+            for i, inp in enumerate(psbt.inputs):
+                sigsStart += len(list(inp.partial_sigs.keys()))
             self.keystore.sign_psbt(psbt)
             # remove unnecessary stuff:
             out_psbt = PSBT(psbt.tx)
+            sigsEnd = 0
             for i, inp in enumerate(psbt.inputs):
+                sigsEnd += len(list(inp.partial_sigs.keys()))
                 out_psbt.inputs[i].partial_sigs = inp.partial_sigs
+            if sigsEnd == sigsStart:
+                raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
             txt = b2a_base64(out_psbt.serialize()).decode().strip()
             return BytesIO(txt)
 
@@ -479,11 +489,14 @@ class WalletManager(BaseApp):
             for j, w in enumerate(wallets):
                 if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
                     change, idx = w.get_derivation(out)
-                    meta["outputs"][i]["label"] += " m/%d/%d" % (change, idx)
+                    if change:
+                        meta["outputs"][i]["label"] += " (change %d)" % idx
+                    else:
+                        meta["outputs"][i]["label"] += " (address %d)" % idx
                     # add warning if idx beyond gap
                     if idx > gaps[j][change]:
                         meta["warnings"].append(
-                            "Change index %d is beyond the gap limit!" % idx
+                            "Address index %d is beyond the gap limit!" % idx
                         )
                         # one warning of this type is enough
                         break

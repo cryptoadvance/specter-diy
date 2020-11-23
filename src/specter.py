@@ -67,6 +67,7 @@ class Specter:
         except CriticalErrorWipeImmediately as e:
             # show error
             await self.gui.error("Critical error, the device will be wiped.\n\n%s" % e)
+            self.gui.show_loader(title="Wiping the device...")
             # wipe everything and reboot
             self.wipe()
         # catch an expected error
@@ -86,53 +87,35 @@ class Specter:
             # restart
             return next_fn
 
-    async def select_keystore(self, path):
+    async def select_keystore(self):
         # if we have fixed keystore - just use it
         if len(self.keystores) == 1:
             self.keystore = self.keystores[0]()
             return
-        # otherwise check if the file exists
-        # that determines what class to use
-        if file_exists(path):
-            with open(path) as f:
-                name = f.read()
-            for k in self.keystores:
-                if k.__name__ == name:
-                    self.keystore = k()
-                    return
-            raise SpecterError("Didn't find a matching keystore class")
-        # if not -> ask the user
-        buttons = [(None, " ")]
-        for k in self.keystores:
-            buttons.extend([(k, k.NAME), (None, " ")])
-        # wait for menu selection
-        keystore_cls = await self.gui.menu(
-            buttons,
-            title="Select key storage type",
-            note="\n\nWhere do you want to store your key?\n\n"
-            "By default Specter-DIY is amnesic and doesn't save the key.\n"
-            "But you can use one of the options below if you don't want "
-            "to remember your recovery phrase.\n\n"
-            "Note: Smartcard requires a special extension board.",
-        )
+        # checking the first available keystore
+        keystore_cls = None
+        # TODO: show some screen here if none are available
+        while keystore_cls is None:
+            for keystore in self.keystores:
+                if keystore.is_available():
+                    keystore_cls = keystore
+                    break
+            # if none are available just wait for it
+            # if keystore_cls is None:
+            #     await asyncio.sleep_ms(50)
         self.keystore = keystore_cls()
 
     async def setup(self):
         try:
-            path = fpath("/flash/KEYSTORECLS")
             # check if the user already selected the keystore class
             if self.keystore is None:
-                await self.select_keystore(path)
+                await self.select_keystore()
 
             if self.keystore is not None:
                 self.load_network(self.path, self.network)
 
             # load secrets
             await self.keystore.init(self.gui.show_screen(), self.gui.show_loader)
-            if not file_exists(path):
-                # save selected keystore
-                with open(path, "w") as f:
-                    f.write(self.keystore.__class__.__name__)
             # unlock with PIN or set up the PIN code
             await self.unlock()
         except Exception as e:
@@ -180,7 +163,7 @@ class Specter:
         ]
         if self.keystore.is_key_saved and self.keystore.load_button:
             buttons.append((2, self.keystore.load_button))
-        buttons += [(None, "Settings"), (3, "Developer & USB settings")]
+        buttons += [(None, "Settings"), (3, "Device settings")]
         if hasattr(self.keystore, "lock"):
             buttons += [(4, "Change PIN code"), (5, "Lock device")]
         # wait for menu selection
@@ -299,7 +282,7 @@ class Specter:
         buttons.extend([(2, "Enter password"), (None, "Security")])  # delimiter
         if hasattr(self.keystore, "lock"):
             buttons.extend([(3, "Change PIN code")])
-        buttons.extend([(4, "Developer & USB")])
+        buttons.extend([(4, "Device settings")])
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
 
@@ -413,25 +396,28 @@ class Specter:
             config = json.loads(config.decode())
         except Exception as e:
             print(e)
-            config = {"dev": self.dev, "usb": self.usb}
+            config = {
+                "dev": False, # self.dev,
+                "usb": self.usb
+            }
             self.keystore.save_aead(
                 self.path + "/settings",
                 adata=json.dumps(config).encode(),
                 key=self.keystore.enc_secret,
             )
-        self.dev = config["dev"]
+        self.dev = False # config["dev"]
         self.usb = config["usb"]
         # add apps in dev mode
-        if self.dev:
-            try:
-                qspi = fpath("/qspi/extensions")
-                maybe_mkdir(qspi)
-                maybe_mkdir(qspi + "/extra_apps")
-                if qspi not in sys.path:
-                    sys.path.append(qspi)
-                    self.apps += load_apps("extra_apps")
-            except Exception as e:
-                print(e)
+        # if self.dev:
+        #     try:
+        #         qspi = fpath("/qspi/extensions")
+        #         maybe_mkdir(qspi)
+        #         maybe_mkdir(qspi + "/extra_apps")
+        #         if qspi not in sys.path:
+        #             sys.path.append(qspi)
+        #             self.apps += load_apps("extra_apps")
+        #     except Exception as e:
+        #         print(e)
 
     def update_config(self, usb=False, dev=False, **kwargs):
         config = {"usb": usb, "dev": dev}
@@ -468,6 +454,8 @@ class Specter:
             stream.seek(0)
             app = matching_apps[0]
             res = await app.process_host_command(stream, self.gui.show_screen(popup))
+        except BaseError as e:
+            raise HostError(str(e))
         finally:
             self.gui.hide_loader()
         return res

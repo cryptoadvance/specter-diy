@@ -26,9 +26,12 @@ class AsyncGUI:
     def show_loader(self,
                     text="Please wait until the process is complete.",
                     title="Processing..."):
-        return self.scr.show_loader(text, title)
+        if self.scr is not None:
+            return self.scr.show_loader(text, title)
 
     def hide_loader(self):
+        if self.scr is None:
+            return
         self.scr.hide_loader()
         if self.background is not None:
             self.background.hide_loader()

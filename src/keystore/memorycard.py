@@ -25,6 +25,7 @@ class MemoryCard(RAMKeyStore):
     """
 
     NAME = "Smartcard"
+    COLOR = "00CAF1"
     NOTE = """Saves encryption key and Bitcoin key on a PIN-protected external smartcard (requires devkit).
 In this mode device can only operate when the smartcard is inserted!"""
     # constants for secret storage
@@ -35,15 +36,21 @@ In this mode device can only operate when the smartcard is inserted!"""
     # Here we only have a single option - to show mnemonic
     storage_button = "Smartcard storage"
     load_button = "Load key from smartcard"
+    # javacard connection
+    connection = get_connection()
 
     def __init__(self):
         super().__init__()
-        # javacard connection
-        self.connection = get_connection()
         # applet
         self.applet = MemoryCardApplet(self.connection)
         self._is_key_saved = False
         self.connected = False
+
+
+    @classmethod
+    def is_available(cls):
+        return cls.connection.isCardInserted()
+
 
     def get_auth_word(self, pin_part):
         """
@@ -193,6 +200,7 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def save_mnemonic(self):
         await self.check_card(check_pin=True)
+        self.show_loader("Saving secret to the card...")
         d = self.serialize_data(
             {"enc": self.enc_secret, "entropy": bip39.mnemonic_to_bytes(self.mnemonic)}
         )
@@ -209,6 +217,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         await self.check_card(check_pin=True)
         if not self._is_key_saved:
             raise KeyStoreError("Key is not saved")
+        self.show_loader("Loading secret to the card...")
         data = self.applet.get_secret()
         entropy = self.parse_data(data)["entropy"]
         mnemonic = bip39.mnemonic_from_bytes(entropy)
@@ -217,6 +226,7 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def delete_mnemonic(self):
         await self.check_card(check_pin=True)
+        self.show_loader("Deleting secret from the card...")
         d = self.serialize_data({"enc": self.enc_secret})
         self.applet.save_secret(d)
         self._is_key_saved = False
@@ -238,12 +248,13 @@ In this mode device can only operate when the smartcard is inserted!"""
             self.connected = False
         # only required if not connected yet
         if not self.connected:
+            self.show_loader(title="Connecting to the card...")
             # connect and select applet
             self.connection.connect(self.connection.T1_protocol)
             try:
                 self.applet.select()
             except:
-                raise KeyStoreError("Failed to select MemoryCardApplet")
+                raise KeyStoreError("Failed to select the applet")
             self.applet.open_secure_channel()
             self.connected = True
         self.applet.get_pin_status()

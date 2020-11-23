@@ -162,9 +162,13 @@ class InputScreen(Screen):
 class PinScreen(Screen):
     network = None
 
-    def __init__(self, title="Enter your PIN code", note=None, get_word=None):
+    def __init__(self, title="Enter your PIN code", note=None, get_word=None, subtitle=None):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
+        if subtitle is not None:
+            lbl = add_label(subtitle, scr=self, style="hint")
+            lbl.set_recolor(True)
+            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
             lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 180)
