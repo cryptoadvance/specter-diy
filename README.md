@@ -36,6 +36,7 @@ All the docs are stored in the [`docs/`](./docs) folder:
 - [`shopping.md`](./docs/shopping.md) explains what to buy
 - [`assembly.md`](./docs/assembly.md) shows how to put everything together.
 - [`quickstart.md`](./docs/quickstart.md) guides you through the initial steps how to get firmware on the board
+- [`build.md`](./docs/build.md) describes how to build the firmware and the simulator yourself
 - [`security.md`](./docs/security.md) explains possible attack vectors and security model of the project
 - [`development.md`](./docs/development.md) explains how to start developing on Specter
 - [`simulator.md`](./docs/simulator.md) shows how to run a simulator on unix/macOS
@@ -47,12 +48,6 @@ Supported networks: Mainnet, Testnet, Regtest, Signet.
 ## USB communication on Linux
 
 You may need to set up udev rules and add yourself to `dialout` group. Read more in [`udev`](./udev/README.md) folder.
-
-## Build
-
-1. Clone the repository recursively `git clone https://github.com/cryptoadvance/specter-diy.git --recursive`
-2. Install [dependencies](https://github.com/diybitcoinhardware/f469-disco#build)
-3. Run `make` with appropriate target (`make disco` creates firmware, `make unix` creates a simulator, `make simulate` runs the simulator)
 
 ## Video and screenshots
 
