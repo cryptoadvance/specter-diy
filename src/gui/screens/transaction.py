@@ -44,8 +44,7 @@ class TransactionScreen(Prompt):
             fee = add_label("Fee: %d satoshi" % (meta["fee"]), scr=self.page)
         fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        obj = add_label("Change outputs:", scr=self.page)
-        obj.set_style(0, self.style)
+        obj = add_label("Change outputs:", scr=self.page, style="title")
         obj.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         for out in meta["outputs"]:
             # now show change
@@ -71,7 +70,7 @@ class TransactionScreen(Prompt):
         if "label" not in out and out["change"]:
             out["label"] = "Change"
         if "label" in out:
-            lbl = add_label("wallet "+out["label"], style="title", scr=self.page)
+            lbl = add_label(out["label"], style="title", scr=self.page)
             lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
             obj = lbl
         if "label" in out:

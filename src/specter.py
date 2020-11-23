@@ -67,6 +67,7 @@ class Specter:
         except CriticalErrorWipeImmediately as e:
             # show error
             await self.gui.error("Critical error, the device will be wiped.\n\n%s" % e)
+            self.gui.show_loader(title="Wiping the device...")
             # wipe everything and reboot
             self.wipe()
         # catch an expected error
@@ -450,6 +451,8 @@ class Specter:
             stream.seek(0)
             app = matching_apps[0]
             res = await app.process_host_command(stream, self.gui.show_screen(popup))
+        except BaseError as e:
+            raise HostError(str(e))
         finally:
             self.gui.hide_loader()
         return res
