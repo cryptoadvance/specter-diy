@@ -224,7 +224,7 @@ class WalletManager(BaseApp):
         spends = []
         for w, amount in wallets:
             if w is None:
-                name = "Unkown wallet"
+                name = "Unknown wallet"
             else:
                 name = w.name
             spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
@@ -239,11 +239,18 @@ class WalletManager(BaseApp):
                 w.update_gaps(psbt=psbt)
                 w.save(self.keystore)
                 psbt = w.fill_psbt(psbt, self.keystore.fingerprint)
+            sigsStart = 0
+            for i, inp in enumerate(psbt.inputs):
+                sigsStart += len(list(inp.partial_sigs.keys()))
             self.keystore.sign_psbt(psbt)
             # remove unnecessary stuff:
             out_psbt = PSBT(psbt.tx)
+            sigsEnd = 0
             for i, inp in enumerate(psbt.inputs):
+                sigsEnd += len(list(inp.partial_sigs.keys()))
                 out_psbt.inputs[i].partial_sigs = inp.partial_sigs
+            if sigsEnd == sigsStart:
+                raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
             txt = b2a_base64(out_psbt.serialize()).decode().strip()
             return BytesIO(txt)
 

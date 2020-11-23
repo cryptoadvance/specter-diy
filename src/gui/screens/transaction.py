@@ -28,9 +28,11 @@ class TransactionScreen(Prompt):
         self.style_warning = style_warning
 
         obj = self.message
+        num_change_outputs = 0
         for out in meta["outputs"]:
             # first only show destination addresses
             if out["change"]:
+                num_change_outputs += 1
                 continue
             obj = self.show_output(out, obj)
 
@@ -44,20 +46,23 @@ class TransactionScreen(Prompt):
             fee = add_label("Fee: %d satoshi" % (meta["fee"]), scr=self.page)
         fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        obj = add_label("Change outputs:", scr=self.page, style="title")
-        obj.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        for out in meta["outputs"]:
-            # now show change
-            if not out["change"]:
-                continue
-            obj = self.show_output(out, obj)
+        obj = fee
+
+        if num_change_outputs > 0:
+            obj = add_label("Change outputs:", scr=self.page, style="title")
+            obj.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+            for out in meta["outputs"]:
+                # now show change
+                if not out["change"]:
+                    continue
+                obj = self.show_output(out, obj)
 
         # warning label for address gap limit
         if "warnings" in meta and len(meta["warnings"]) > 0:
             text = "WARNING!\n" + "\n".join(meta["warnings"])
             self.warning = add_label(text, scr=self.page)
             self.warning.set_style(0, style_warning)
-            self.warning.align(fee, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+            self.warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
     def show_output(self, out, obj):
         # show output
