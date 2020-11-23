@@ -6,6 +6,7 @@ FROZEN_MANIFEST_DISCO ?= ../../../../manifests/disco.py
 FROZEN_MANIFEST_DEBUG ?= ../../../../manifests/debug.py
 FROZEN_MANIFEST_UNIX ?= ../../../../manifests/unix.py
 DEBUG ?= 0
+USE_DBOOT ?= 0
 
 $(TARGET_DIR):
 	mkdir -p $(TARGET_DIR)
@@ -26,24 +27,31 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
+		USE_DBOOT=$(USE_DBOOT) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) \
 		DEBUG=$(DEBUG) && \
 	arm-none-eabi-objcopy -O binary \
 		$(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
-		$(TARGET_DIR)/specter-diy.bin
+		$(TARGET_DIR)/specter-diy.bin && \
+	cp $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.hex \
+		$(TARGET_DIR)/specter-diy.hex
 
 # disco board with bitcoin library
 debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
+		USE_DBOOT=$(USE_DBOOT) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DEBUG) \
 		DEBUG=$(DEBUG) && \
 	arm-none-eabi-objcopy -O binary \
 		$(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
-		$(TARGET_DIR)/debug.bin
+		$(TARGET_DIR)/debug.bin && \
+	cp $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.hex \
+		$(TARGET_DIR)/debug.hex
+
 
 # unixport (simulator)
 unix: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/unix
