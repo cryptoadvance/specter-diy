@@ -263,11 +263,13 @@ class RAMKeyStore(KeyStore):
         # pin is not set - choose one
         if not self.is_pin_set:
             pin = await self.setup_pin()
+            self.show_loader("Setting up PIN code...")
             self._set_pin(pin)
 
         # if keystore is locked - ask for PIN code
         while self.is_locked:
             pin = await self.get_pin()
+            self.show_loader("Verifying PIN code...")
             self._unlock(pin)
 
     async def get_pin(self, title="Enter your PIN code"):
@@ -279,8 +281,14 @@ class RAMKeyStore(KeyStore):
             title=title,
             note="Do you recognize these words?",
             get_word=self.get_auth_word,
+            subtitle=self.pin_subtitle,
         )
         return await self.show(scr)
+
+    @property
+    def pin_subtitle(self):
+        return "using #%s %s #" % (type(self).COLOR, type(self).NAME.lower())
+
 
     async def setup_pin(self, get_word=None):
         """
@@ -292,6 +300,7 @@ class RAMKeyStore(KeyStore):
             title="Choose your PIN code",
             note="Remember these words," "they will stay the same on this device.",
             get_word=self.get_auth_word,
+            subtitle=self.pin_subtitle,
         )
         pin1 = await self.show(scr)
 
@@ -299,6 +308,7 @@ class RAMKeyStore(KeyStore):
             title="Confirm your PIN code",
             note="Remember these words," "they will stay the same on this device.",
             get_word=self.get_auth_word,
+            subtitle=self.pin_subtitle,
         )
         pin2 = await self.show(scr)
 
@@ -313,8 +323,10 @@ class RAMKeyStore(KeyStore):
         # get_auth_word function can generate words from part of the PIN
         old_pin = await self.get_pin(title="First enter your old PIN code")
         # check pin - will raise if not valid
+        self.show_loader("Verifying PIN code...")
         self._unlock(old_pin)
         new_pin = await self.setup_pin()
+        self.show_loader("Setting new PIN code...")
         self._change_pin(old_pin, new_pin)
         await self.show(
             Alert("Success!", "PIN code is sucessfully changed!", button_text="OK")

@@ -37,10 +37,8 @@ def main(apps=None, network="test", keystore_cls=None):
         keystores = [keystore_cls]
     else:
         keystores = [
+            MemoryCard,
             SDKeyStore,
-            # uncomment this if you want to
-            # enable smartcard support:
-            # MemoryCard,
         ]
 
     # loading apps

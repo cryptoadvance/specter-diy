@@ -86,53 +86,35 @@ class Specter:
             # restart
             return next_fn
 
-    async def select_keystore(self, path):
+    async def select_keystore(self):
         # if we have fixed keystore - just use it
         if len(self.keystores) == 1:
             self.keystore = self.keystores[0]()
             return
-        # otherwise check if the file exists
-        # that determines what class to use
-        if file_exists(path):
-            with open(path) as f:
-                name = f.read()
-            for k in self.keystores:
-                if k.__name__ == name:
-                    self.keystore = k()
-                    return
-            raise SpecterError("Didn't find a matching keystore class")
-        # if not -> ask the user
-        buttons = [(None, " ")]
-        for k in self.keystores:
-            buttons.extend([(k, k.NAME), (None, " ")])
-        # wait for menu selection
-        keystore_cls = await self.gui.menu(
-            buttons,
-            title="Select key storage type",
-            note="\n\nWhere do you want to store your key?\n\n"
-            "By default Specter-DIY is amnesic and doesn't save the key.\n"
-            "But you can use one of the options below if you don't want "
-            "to remember your recovery phrase.\n\n"
-            "Note: Smartcard requires a special extension board.",
-        )
+        # checking the first available keystore
+        keystore_cls = None
+        # TODO: show some screen here if none are available
+        while keystore_cls is None:
+            for keystore in self.keystores:
+                if keystore.is_available():
+                    keystore_cls = keystore
+                    break
+            # if none are available just wait for it
+            # if keystore_cls is None:
+            #     await asyncio.sleep_ms(50)
         self.keystore = keystore_cls()
 
     async def setup(self):
         try:
-            path = fpath("/flash/KEYSTORECLS")
             # check if the user already selected the keystore class
             if self.keystore is None:
-                await self.select_keystore(path)
+                await self.select_keystore()
 
             if self.keystore is not None:
                 self.load_network(self.path, self.network)
 
             # load secrets
             await self.keystore.init(self.gui.show_screen(), self.gui.show_loader)
-            if not file_exists(path):
-                # save selected keystore
-                with open(path, "w") as f:
-                    f.write(self.keystore.__class__.__name__)
             # unlock with PIN or set up the PIN code
             await self.unlock()
         except Exception as e:
