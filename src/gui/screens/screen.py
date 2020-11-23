@@ -56,8 +56,7 @@ class Screen(lv.obj):
         if self.mbox is None:
             self.mbox = Modal(self)
         self.mbox.set_text("\n\n"+title+"\n\n"+text+"\n\n")
-        # double update because might be del_async somewhere
-        update()
+        # trigger update of the screen
         update()
         return self.mbox
 
@@ -66,5 +65,3 @@ class Screen(lv.obj):
             return
         self.mbox.del_async()
         self.mbox = None
-        update()
-        update()
