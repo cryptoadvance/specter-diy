@@ -6,9 +6,9 @@ With the secure bootloader initial installation of the firmware is slightly diff
 
 **Note** If you don't want to use binaries from the releases check out the [bootloader documentation](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/selfsigned.md) that explains how to compile and configure it to use your public keys instead of ours.
 
-- Download the `bootloader.bin` and `bootloader.sha256.txt` files from the latest release of [cryptoadvance/specter-bootloader](https://github.com/cryptoadvance/specter-bootloader/releases) repository.
-	- Verify the signature of the `bootloader.sha256.txt` file against [Stepan's PGP key](https://stepansnigirev.com/ss-specter-release.asc)
-	- Verify the hash of the `bootloader.bin` against the hash stored in the `bootloader.sha256.txt`
+- Download the `bootloader.bin` and `bootloader.sha256.signed.txt` files from the latest release of [cryptoadvance/specter-bootloader](https://github.com/cryptoadvance/specter-bootloader/releases) repository.
+	- Verify the signature of the `bootloader.sha256.signed.txt` file against [Stepan's PGP key](https://stepansnigirev.com/ss-specter-release.asc)
+	- Verify the hash of the `bootloader.bin` against the hash stored in the `bootloader.sha256.signed.txt`
 - Make sure the [power jumper](./assembly.md) of your discovery board is at STLK position
 - Connect the discovery board to your computer via the **miniUSB** cable on the top of the board.
     - The board should appear as a removable disk named `DIS_F469NI`.
