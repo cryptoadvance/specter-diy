@@ -163,7 +163,7 @@ class Specter:
         ]
         if self.keystore.is_key_saved and self.keystore.load_button:
             buttons.append((2, self.keystore.load_button))
-        buttons += [(None, "Settings"), (3, "Developer & USB settings")]
+        buttons += [(None, "Settings"), (3, "Device settings")]
         if hasattr(self.keystore, "lock"):
             buttons += [(4, "Change PIN code"), (5, "Lock device")]
         # wait for menu selection
@@ -282,7 +282,7 @@ class Specter:
         buttons.extend([(2, "Enter password"), (None, "Security")])  # delimiter
         if hasattr(self.keystore, "lock"):
             buttons.extend([(3, "Change PIN code")])
-        buttons.extend([(4, "Developer & USB")])
+        buttons.extend([(4, "Device settings")])
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
 
@@ -396,25 +396,28 @@ class Specter:
             config = json.loads(config.decode())
         except Exception as e:
             print(e)
-            config = {"dev": self.dev, "usb": self.usb}
+            config = {
+                "dev": False, # self.dev,
+                "usb": self.usb
+            }
             self.keystore.save_aead(
                 self.path + "/settings",
                 adata=json.dumps(config).encode(),
                 key=self.keystore.enc_secret,
             )
-        self.dev = config["dev"]
+        self.dev = False # config["dev"]
         self.usb = config["usb"]
         # add apps in dev mode
-        if self.dev:
-            try:
-                qspi = fpath("/qspi/extensions")
-                maybe_mkdir(qspi)
-                maybe_mkdir(qspi + "/extra_apps")
-                if qspi not in sys.path:
-                    sys.path.append(qspi)
-                    self.apps += load_apps("extra_apps")
-            except Exception as e:
-                print(e)
+        # if self.dev:
+        #     try:
+        #         qspi = fpath("/qspi/extensions")
+        #         maybe_mkdir(qspi)
+        #         maybe_mkdir(qspi + "/extra_apps")
+        #         if qspi not in sys.path:
+        #             sys.path.append(qspi)
+        #             self.apps += load_apps("extra_apps")
+        #     except Exception as e:
+        #         print(e)
 
     def update_config(self, usb=False, dev=False, **kwargs):
         config = {"usb": usb, "dev": dev}
