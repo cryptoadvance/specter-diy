@@ -49,7 +49,18 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     @classmethod
     def is_available(cls):
-        return cls.connection.isCardInserted()
+        if not cls.connection.isCardInserted():
+            return False
+        try:
+            cls.connection.connect(cls.connection.T1_protocol)
+            applet = MemoryCardApplet(cls.connection)
+            applet.select()
+            applet.open_secure_channel()
+            cls.connection.disconnect()
+            return True
+        except Exception as e:
+            print(e)
+            return False
 
 
     def get_auth_word(self, pin_part):
@@ -250,7 +261,10 @@ In this mode device can only operate when the smartcard is inserted!"""
         if not self.connected:
             self.show_loader(title="Connecting to the card...")
             # connect and select applet
-            self.connection.connect(self.connection.T1_protocol)
+            try:
+                self.connection.connect(self.connection.T1_protocol)
+            except:
+                raise KeyStoreError("Failed to communicate with the card.")
             try:
                 self.applet.select()
             except:

@@ -58,10 +58,11 @@ class Screen(lv.obj):
         self.mbox.set_text("\n\n"+title+"\n\n"+text+"\n\n")
         # trigger update of the screen
         update()
-        return self.mbox
+        update()
 
     def hide_loader(self):
         if self.mbox is None:
             return
         self.mbox.del_async()
         self.mbox = None
+        update()
