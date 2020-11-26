@@ -16,7 +16,7 @@ Optional but recommended:
 
 Check out the assembly video [on youtube](https://youtu.be/1H7FqG_FmCw)
 
-We are currently working on [a devkit](../devkit) that includes a smartcard slot, QR code scanner, battery and a 3d printed case, but it doesn't include the main part — discovery board that you need to order separately. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
+We are currently working on [an extension board](../shield) that includes a smartcard slot, QR code scanner, battery and a 3d printed case, but it doesn't include the main part — discovery board that you need to order separately. This way supply chain attack is still not an issue as the security-critical components are bought from random electronic store.
 
 You can start using Specter even without any extra components, but you will be able to communicate with it only over USB. In this case it's not airgapped so you lose an important security property.
 

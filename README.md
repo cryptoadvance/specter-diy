@@ -9,7 +9,7 @@
 ![](./docs/pictures/kit.jpg)
 
 The idea of the project is to build a hardware wallet from off-the-shelf components.
-Even though we have [a devkit](./devkit) that puts everything in a nice form-factor and helps you to avoid any soldering, we will continue supporting and maintaining compatibility with standard components.
+Even though we have [an extension board](./shield) that puts everything in a nice form-factor and helps you to avoid any soldering, we will continue supporting and maintaining compatibility with standard components.
 
 We also want to keep the project flexible such that it can work on any other set of components with minimal changes. Maybe you want to make a hardware wallet on a different architecture (RISC-V?), with an audio modem as a communication channel - you should be able to do it. It should be easy to add or change functionality of Specter and we try to abstract logical modules as much as we can.
 
