@@ -8,10 +8,6 @@ Structure diagram, pinout and schematics are available in this folder. To manufa
 
 For the QR scanner we use GROW GM65-S scanner.
 
-Assembled kit look like this:
+Available in [our shop](https://specter.solutions/shop/specter-shield/). Assembled kit look like this:
 
-![](../docs/pictures/kit.jpg)
-
-3D case is in progress. Should look like this:
-
-![](../docs/pictures/kit_with_case.jpg)
+![](./3dshield.jpg)
