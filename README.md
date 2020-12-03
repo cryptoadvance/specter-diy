@@ -43,6 +43,11 @@ All the docs are stored in the [`docs/`](./docs) folder:
 - [`communication.md`](./docs/communication.md) defines communication protocol with the host over QR codes and USB
 - [`roadmap.md`](./docs/roadmap.md) explains what we need to implement before we can consider the wallet be ready to use with real funds.
 
+Specter-Shield documentation and all the files are available in the [`shield/`](./shield) folder:
+
+- [What it looks like](./shield/README.md)
+- [How to print a 3d case](./shield/3dprinting.md)
+
 Supported networks: Mainnet, Testnet, Regtest, Signet.
 
 ## USB communication on Linux
