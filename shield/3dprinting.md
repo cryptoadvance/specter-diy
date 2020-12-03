@@ -12,13 +12,13 @@ The Prusa Gcode files include a high temperature and low temperature version, we
 
 ![Print 1](./3d_case/Specter_Print_1.jpg)
 
-![Print 2](./3d_case/Specter_Print_1.jpg)
+![Print 2](./3d_case/Specter_Print_2.jpg)
 
-![Print 3](./3d_case/Specter_Print_1.jpg)
+![Print 3](./3d_case/Specter_Print_3.jpg)
 
-![Print 4](./3d_case/Specter_Print_1.jpg)
+![Print 4](./3d_case/Specter_Print_4.jpg)
 
-![Print 5](./3d_case/Specter_Print_1.jpg)
+![Print 5](./3d_case/Specter_Print_5.jpg)
 
 ## Post 3D Printing
 
