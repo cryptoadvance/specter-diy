@@ -11,3 +11,7 @@ For the QR scanner we use GROW GM65-S scanner.
 Available in [our shop](https://specter.solutions/shop/specter-shield/). Assembled kit look like this:
 
 ![](./3dshield.jpg)
+
+## Print the case yourself
+
+Check out the [`3dprinting.md`](3dprinting.md) for instructions and links to 3d files.
