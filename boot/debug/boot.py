@@ -9,7 +9,7 @@ pwr.on()
 # v1.4.1-rc1 - use odd rc for main firmware and even for debug
 # so it's possible to upgrade from debug to main firmware.
 # (rc99 is final version for production)
-version = "<version:tag10>0100400101</version:tag10>"
+version = "<version:tag10>0100400201</version:tag10>"
 
 # poweroff on button press
 pwrcb = lambda e: pwr.off()
