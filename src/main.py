@@ -11,7 +11,7 @@ import sys
 from helpers import load_apps
 
 
-def main(apps=None, network="test", keystore_cls=None):
+def main(apps=None, network="main", keystore_cls=None):
     """
     apps: list of apps to load
     network: default network to operate
