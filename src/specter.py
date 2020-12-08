@@ -322,7 +322,7 @@ class Specter:
 
     def set_network(self, net):
         if net not in NETWORKS:
-            raise SpecterError("Invalid network")
+            net = 'main'
         self.network = net
         self.gui.set_network(net)
         # save
@@ -333,12 +333,10 @@ class Specter:
             for app in self.apps:
                 app.init(self.keystore, self.network, self.gui.show_loader)
 
-    def load_network(self, path, network="test"):
+    def load_network(self, path, network="main"):
         try:
             with open(path + "/network", "r") as f:
                 network = f.read()
-                if network not in NETWORKS:
-                    raise SpecterError("Invalid network")
         except:
             pass
         self.set_network(network)
