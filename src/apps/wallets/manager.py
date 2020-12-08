@@ -221,6 +221,19 @@ class WalletManager(BaseApp):
         data = a2b_base64(stream.read())
         psbt = PSBT.parse(data)
         wallets, meta = self.parse_psbt(psbt=psbt)
+        # there is an unknown wallet
+        # wallet is a list of tuples: (wallet, amount)
+        if None in [w[0] for w in wallets]:
+            scr = Prompt(
+                "Warning!",
+                "\nUnknown wallet in inputs!\n\n\n"
+                "Wallet for some inpunts is unknown! This means we can't verify change addresses.\n\n\n"
+                "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
+                "Proceed to the transaction confirmation?",
+            )
+            proceed = await show_screen(scr)
+            if not proceed:
+                return None
         spends = []
         for w, amount in wallets:
             if w is None:
