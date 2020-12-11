@@ -194,9 +194,9 @@ def separate(addr, letters=6, separator=" "):
     )
 
 
-def format_addr(addr, letters=6, words=3):
+def format_addr(addr, letters=6, words=3, eol="\n", space=" "):
     return separate(
-        separate(addr, letters=letters, separator=" "),
+        separate(addr, letters=letters, separator=space),
         letters=(words * (letters + 1)),
-        separator="\n",
+        separator=eol,
     )
