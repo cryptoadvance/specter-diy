@@ -4,6 +4,7 @@ import lvgl as lv
 import asyncio
 from platform import delete_recursively, fpath, mount_sdram
 from hosts import QRHost
+from keystore.javacard.applets.memorycard import MemoryCardApplet
 from keystore.javacard.util import get_connection
 
 class HardwareTest:
@@ -64,14 +65,16 @@ class HardwareTest:
                     except:
                         pass
                     try:
-                        res = conn.transmit(b"\x00\xA4\x04\x00\x06\xB0\x0B\x51\x11\xCB\x01")
-                        if len(res)>0:
-                            await self.gui.alert("Smartcard works!", "We got something from the card!")
+                        app = MemoryCardApplet(conn)
+                        app.open_secure_channel()
+                        print(app.get_pin_status())
+                        if app.is_pin_set:
+                            await self.gui.alert("Smartcard works!", "Pin is set")
                         else:
-                            await self.gui.alert("Fail...", "We didn't get any data from the card :(")
+                            await self.gui.alert("Smartcard works!", "Pin is not set")
                     except Exception as e:
                         await self.gui.alert("Something went wrong...",
-                            "We got an exception:" + str(e))
+                            "We got an exception: %r" % e)
             await asyncio.sleep_ms(30)
 
     async def host_exception_handler(self, e):
