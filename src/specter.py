@@ -12,6 +12,7 @@ from platform import (
     maybe_mkdir,
     file_exists,
     wipe,
+    get_version,
 )
 from hosts import Host, HostError
 from app import BaseApp
@@ -284,7 +285,7 @@ class Specter:
             buttons.extend([(3, "Change PIN code")])
         buttons.extend([(4, "Device settings")])
         # wait for menu selection
-        menuitem = await self.gui.menu(buttons, last=(255, None))
+        menuitem = await self.gui.menu(buttons, last=(255, None), note="Firmware version %s" % get_version())
 
         # process the menu button:
         # back button
@@ -342,7 +343,8 @@ class Specter:
         self.set_network(network)
 
     async def update_devsettings(self):
-        res = await self.gui.devscreen(dev=self.dev, usb=self.usb)
+        res = await self.gui.devscreen(dev=self.dev, usb=self.usb,
+                                       note="Firmware version %s" % get_version())
         if res is not None:
             if res["wipe"]:
                 if await self.gui.prompt(

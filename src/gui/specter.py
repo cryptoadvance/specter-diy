@@ -71,7 +71,7 @@ class SpecterGUI(AsyncGUI):
             scr.waiting = False
         await self.close_popup()
 
-    async def devscreen(self, dev=False, usb=False):
-        scr = DevSettings(dev=dev, usb=usb)
+    async def devscreen(self, dev=False, usb=False, note=None):
+        scr = DevSettings(dev=dev, usb=usb, note=note)
         await self.load_screen(scr)
         return await scr.result()

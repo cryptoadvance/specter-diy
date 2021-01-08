@@ -51,6 +51,20 @@ else:
     sdled = pyb.LED(4)
     sdled.off()
 
+def get_version() -> str:
+    # version is coming from boot.py if running on the hardware
+    try:
+        ver = version.split(">")[1].split("</")[0]
+        major = int(ver[:2])
+        minor = int(ver[2:5])
+        patch = int(ver[5:8])
+        rc = int(ver[8:])
+        ver = "%d.%d.%d" % (major, minor, patch)
+        if rc != 99:
+            ver += "-rc%d" % rc
+        return ver
+    except:
+        return "unknown"
 
 def is_sd_present() -> bool:
     """

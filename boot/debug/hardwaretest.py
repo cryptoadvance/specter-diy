@@ -2,7 +2,7 @@ from gui.specter import SpecterGUI
 from gui.screens.screen import Screen
 import lvgl as lv
 import asyncio
-from platform import delete_recursively, fpath, mount_sdram
+from platform import delete_recursively, fpath, mount_sdram, get_version
 from hosts import QRHost
 from keystore.javacard.applets.memorycard import MemoryCardApplet
 from keystore.javacard.util import get_connection
@@ -28,7 +28,7 @@ class HardwareTest:
         ]
         while True:
             res = await self.gui.menu(buttons,
-                        title="Factory test",
+                        title="Factory test, version %s" % get_version(),
                         note="This firmware is used to test electrical connections between the discovery board and other components.\nIt can also erase the content of the internal storage\n(factory reset).")
             if res == 1:
                 conf = await self.gui.prompt("Wipe the device?",

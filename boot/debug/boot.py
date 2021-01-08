@@ -23,5 +23,9 @@ pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 # os.dupterm(None,0)
 # os.dupterm(None,1)
 
+# inject version to platform module
+import platform
+platform.version = version
+
 # uncomment to run some custom main:
 pyb.main("hardwaretest.py")

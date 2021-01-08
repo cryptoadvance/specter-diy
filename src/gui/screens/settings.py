@@ -5,8 +5,11 @@ from ..decorators import on_release
 
 
 class DevSettings(Prompt):
-    def __init__(self, dev=False, usb=False):
-        super().__init__("Developer and USB", "")
+    def __init__(self, dev=False, usb=False, note=None):
+        super().__init__("Device settings", "")
+        if note is not None:
+            self.note = add_label(note, style="hint", scr=self)
+            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
         y = 70
         usb_label = add_label("USB communication", y, scr=self.page)
         usb_hint = add_label(
