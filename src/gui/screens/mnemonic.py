@@ -227,7 +227,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.autocomplete.set_event_cb(self.select_word)
 
     def fix_cb(self):
-        self.table.set_mnemonic(self.fixer(self.table.get_mnemonic()))
+        self.table.set_mnemonic(self.fixer(self.get_mnemonic()))
         self.check_buttons()
 
     def select_word(self, obj, event):
@@ -240,11 +240,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
         self.autocomplete.set_map(self.lookup("", 4) + [""])
         self.check_buttons()
 
-    def check_buttons(self):
-        """
-        Checks current mnemonic state and
-        disables / enables Next word and Done buttons
-        """
+    def get_mnemonic(self):
         mnemonic = self.table.get_mnemonic()
         # check if we can autocomplete the last word
         if self.lookup is not None:
@@ -257,7 +253,14 @@ class RecoverMnemonicScreen(MnemonicScreen):
                 if len(candidates) == 1:
                     mnemonic = " ".join(self.table.words[:-1])
                     mnemonic += " " + candidates[0]
-        mnemonic = mnemonic.strip()
+        return mnemonic.strip()
+
+    def check_buttons(self):
+        """
+        Checks current mnemonic state and
+        disables / enables Next word and Done buttons
+        """
+        mnemonic = self.get_mnemonic()
         # check if mnemonic is valid
         if self.checker is not None and mnemonic is not None:
             if self.checker(mnemonic):
