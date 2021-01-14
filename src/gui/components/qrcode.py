@@ -99,6 +99,7 @@ class QRCode(lv.obj):
         self.move_foreground()
         self.set_pos(x, y)
         super().set_size(width, height)
+        self.qr.set_size(width-10)
         self.qr.align(self, lv.ALIGN.CENTER, 0, 0)
         self.updata_note()
 
@@ -179,7 +180,7 @@ class QRCode(lv.obj):
         return self._text
 
     def set_size(self, size):
-        self.qr.set_size(size-10)
+        self.qr.set_size(size)
         super().set_size(size, size)
         self.set_text(self._text)
         self.set_width(self.get_height())
