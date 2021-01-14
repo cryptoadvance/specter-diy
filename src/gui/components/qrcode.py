@@ -1,4 +1,5 @@
 import lvgl as lv
+import lvqr
 import qrcode
 import math
 import gc
@@ -12,6 +13,7 @@ qr_style.text.opa = 255
 qr_style.text.color = lv.color_hex(0)
 qr_style.text.line_space = 0
 qr_style.text.letter_space = 0
+qr_style.body.radius = 10
 
 
 class QRCode(lv.obj):
@@ -22,10 +24,10 @@ class QRCode(lv.obj):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.label = lv.label(self)
+        self.qr = lvqr.QRCode(self)
         self._text = "Text"
-        self.label.set_long_mode(lv.label.LONG.BREAK)
-        self.label.set_align(lv.label.ALIGN.CENTER)
+        # self.label.set_long_mode(lv.label.LONG.BREAK)
+        # self.label.set_align(lv.label.ALIGN.CENTER)
 
         self._original_size = None
         self._press_start = None
@@ -97,7 +99,7 @@ class QRCode(lv.obj):
         self.move_foreground()
         self.set_pos(x, y)
         super().set_size(width, height)
-        self.label.align(self, lv.ALIGN.CENTER, 0, 0)
+        self.qr.align(self, lv.ALIGN.CENTER, 0, 0)
         self.updata_note()
 
     @property
@@ -150,41 +152,34 @@ class QRCode(lv.obj):
             prefix = "p%dof%d " % (self.idx + 1, self.frame_num)
         offset = self.frame_size * self.idx
         self._set_text(prefix + payload[offset : offset + self.frame_size])
-        self.note.set_text(
-            "Part %d of %d. Click to stop." % (self.idx + 1, self.frame_num)
-        )
+        note = "Part %d of %d." % (self.idx + 1, self.frame_num)
+        if len(self._text) <= self.MAX_SIZE:
+            note += " Click to stop."
+        else:
+            if self.is_fullscreen:
+                note += " Click to shrink."
+            else:
+                note += " Click to expand."
+        self.note.set_text(note)
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
         if text.startswith("UR:BYTES/") and text.count("/") == 2:
             text = "UR:BYTES/" + text.split("/")[-1]
-        qr = qrcode.encode_to_string(text).strip()
-        size = int(math.sqrt(len(qr))) + 1  # to make sure round up
-        width = self.label.get_width()
-        scale = width // size
-        sizes = range(1, 10)
-        fontsize = [s for s in sizes if s < scale or s == 1][-1]
-        font = getattr(lv, "square%d" % fontsize)
-        style = lv.style_t()
-        lv.style_copy(style, qr_style)
-        style.text.font = font
-        style.body.radius = fontsize
-        self.set_style(style)
-        self.label.set_text(qr)
-        self.label.align(self, lv.ALIGN.CENTER, 0, 0)
+        self.set_style(qr_style)
+        self.qr.set_text(text)
+        self.qr.align(self, lv.ALIGN.CENTER, 0, 0)
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
-        del qr
-        gc.collect()
 
     def get_real_text(self):
-        return self.label.get_text()
+        return self.qr.get_text()
 
     def get_text(self):
         return self._text
 
     def set_size(self, size):
-        self.label.set_size(size, size)
+        self.qr.set_size(size-10)
         super().set_size(size, size)
         self.set_text(self._text)
         self.set_width(self.get_height())
