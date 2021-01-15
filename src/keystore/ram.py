@@ -7,7 +7,7 @@ import hmac
 from bitcoin import ec, bip39, bip32
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
-from gui.screens import Alert, PinScreen, MnemonicScreen
+from gui.screens import Alert, PinScreen, MnemonicScreen, Prompt
 
 
 class RAMKeyStore(KeyStore):
@@ -332,10 +332,19 @@ class RAMKeyStore(KeyStore):
             Alert("Success!", "PIN code is sucessfully changed!", button_text="OK")
         )
 
+    async def show_mnemonic(self):
+        if await self.show(Prompt("Warning",
+                                  "You need to confirm your PIN code "
+                                  "to display your recovery phrase.\n\n"
+                                  "Continue?")):
+            self.lock()
+            await self.unlock()
+            await self.show(MnemonicScreen(self.mnemonic))
+
     async def storage_menu(self):
         """Manage storage and display of the recovery phrase"""
         # This class can only show mnemonic, can't save
-        await self.show(MnemonicScreen(self.mnemonic))
+        await self.show_mnemonic()
         """
         # Example:
         buttons = [

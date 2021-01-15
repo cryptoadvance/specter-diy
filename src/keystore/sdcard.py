@@ -164,4 +164,4 @@ class SDKeyStore(FlashKeyStore):
                         Alert("Success!", "Your key is deleted.", button_text="OK")
                     )
             elif menuitem == 3:
-                await self.show(MnemonicScreen(self.mnemonic))
+                await self.show_mnemonic()

@@ -263,4 +263,4 @@ class FlashKeyStore(RAMKeyStore):
                     )
                 )
             elif menuitem == 3:
-                await self.show(MnemonicScreen(self.mnemonic))
+                await self.show_mnemonic()
