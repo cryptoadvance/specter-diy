@@ -9,6 +9,7 @@ from bitcoin.psbt import PSBT
 from bitcoin.networks import NETWORKS
 from bitcoin import script, bip32
 from .wallet import WalletError, Wallet
+from .scripts import SingleKey, Multisig
 from .commands import DELETE, EDIT
 from io import BytesIO
 from bcur import bcur_encode, bcur_decode
@@ -271,6 +272,20 @@ class WalletManager(BaseApp):
         keys = [{"key": k, "mine": self.keystore.owns(k)} for k in w.get_keys()]
         if not any([k["mine"] for k in keys]):
             raise WalletError("None of the keys belong to the device")
+        # get XYZ-pubs
+        slip132_ver = NETWORKS[self.network]["xpub"]
+        if type(w.script) == SingleKey:
+            if w.wrapped:
+                slip132_ver = NETWORKS[self.network]["ypub"]
+            else:
+                slip132_ver = NETWORKS[self.network]["zpub"]
+        elif type(w.script) == Multisig:
+            if w.wrapped:
+                slip132_ver = NETWORKS[self.network]["Ypub"]
+            else:
+                slip132_ver = NETWORKS[self.network]["Zpub"]
+        for k in keys:
+            k["slip132"] = k["key"].to_base58(slip132_ver)
         return await show_screen(ConfirmWalletScreen(w.name, w.policy, keys))
 
     async def showaddr(

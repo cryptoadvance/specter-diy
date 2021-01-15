@@ -122,13 +122,26 @@ class ConfirmWalletScreen(Prompt):
     def __init__(self, name, policy, keys):
         super().__init__('Add wallet "%s"?' % name, "")
         self.policy = add_label("Policy: " + policy, y=75, scr=self)
-        self.page.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+
+        lbl = lv.label(self)
+        lbl.set_text("Canonical xpub                     SLIP-132             ")
+        lbl.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        self.slip_switch = lv.sw(self)
+        self.slip_switch.align(lbl, lv.ALIGN.CENTER, 0, 0)
+        self.slip_switch.set_event_cb(on_release(self.fill_message))
+
+        self.page.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 70)
         self.message.set_recolor(True)
-        self.page.set_height(550)
+        self.page.set_height(500)
+        self.keys = keys
+        self.fill_message()
+
+    def fill_message(self):
         msg = ""
-        for k in keys:
+        arg = "slip132" if self.slip_switch.get_state() else "key"
+        for k in self.keys:
             if k["mine"]:
-                msg += "#7ED321 My key: # %s\n\n" % k["key"]
+                msg += "#7ED321 My key: # %s\n\n" % k[arg]
             else:
-                msg += "#F5A623 External key: # %s\n\n" % k["key"]
+                msg += "#F5A623 External key: # %s\n\n" % k[arg]
         self.message.set_text(msg)

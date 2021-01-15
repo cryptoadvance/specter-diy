@@ -169,14 +169,19 @@ class DescriptorKey:
         key = bip32.HDKey.from_base58(xpub)
         return cls(key, fingerprint, derivation)
 
-    def __str__(self):
-        xpub = self.key.to_base58()
+    def to_base58(self, version=None):
+        if version is None:
+            version = self.key.version
+        xpub = self.key.to_base58(version)
         prefix = ""
         if self.derivation is not None:
             prefix = "[%s]" % bip32.path_to_str(self.derivation)
             if self.fingerprint is not None:
                 prefix = prefix.replace("m", hexlify(self.fingerprint).decode())
         return prefix + xpub
+
+    def __str__(self):
+        return self.to_base58()
 
     def __repr__(self):
         return "%s(%s)" % (type(self).__name__, str(self))
