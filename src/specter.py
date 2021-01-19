@@ -391,7 +391,8 @@ class Specter:
     def load_config(self):
         try:
             config, _ = self.keystore.load_aead(
-                self.path + "/settings", self.keystore.enc_secret
+                self.path + "/settings",
+                self.keystore.app_secret("specter")
             )
             config = json.loads(config.decode())
         except Exception as e:
@@ -403,7 +404,7 @@ class Specter:
             self.keystore.save_aead(
                 self.path + "/settings",
                 adata=json.dumps(config).encode(),
-                key=self.keystore.enc_secret,
+                key=self.keystore.app_secret("specter"),
             )
         self.dev = False # config["dev"]
         self.usb = config["usb"]
@@ -424,7 +425,7 @@ class Specter:
         self.keystore.save_aead(
             self.path + "/settings",
             adata=json.dumps(config).encode(),
-            key=self.keystore.enc_secret,
+            key=self.keystore.app_secret("specter"),
         )
         self.usb = usb
         self.dev = dev

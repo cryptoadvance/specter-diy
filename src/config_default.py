@@ -17,4 +17,4 @@ else:
 
 # pin that triggers QR code
 # if command mode failed
-QRSCANNER_TRIGGER = "D5"
+QRSCANNER_TRIGGER = "D2"

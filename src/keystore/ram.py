@@ -149,6 +149,9 @@ class RAMKeyStore(KeyStore):
         word_number = int.from_bytes(h[:2], "big") % len(bip39.WORDLIST)
         return bip39.WORDLIST[word_number]
 
+    def app_secret(self, app):
+        return tagged_hash(app, self.secret)
+
     @property
     def is_ready(self):
         return (

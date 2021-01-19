@@ -5,7 +5,8 @@ from ..decorators import on_release, cb_with_args
 
 
 class Prompt(Screen):
-    def __init__(self, title="Are you sure?", message="Make a choice"):
+    def __init__(self, title="Are you sure?", message="Make a choice",
+                 confirm_text="Confirm", cancel_text="Cancel"):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         self.page = lv.page(self)
@@ -14,9 +15,9 @@ class Prompt(Screen):
         self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
 
         (self.cancel_button, self.confirm_button) = add_button_pair(
-            "Cancel",
+            cancel_text,
             on_release(cb_with_args(self.set_value, False)),
-            "Confirm",
+            confirm_text,
             on_release(cb_with_args(self.set_value, True)),
             scr=self,
         )

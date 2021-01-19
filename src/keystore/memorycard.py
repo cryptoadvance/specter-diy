@@ -8,7 +8,7 @@ from rng import get_random_bytes
 from bitcoin import bip39
 from helpers import tagged_hash, aead_encrypt, aead_decrypt
 import hmac
-from gui.screens import Alert, Progress, Menu, MnemonicScreen
+from gui.screens import Alert, Progress, Menu, MnemonicScreen, Prompt
 import asyncio
 from io import BytesIO
 from uscard import SmartcardException
@@ -119,60 +119,58 @@ In this mode device can only operate when the smartcard is inserted!"""
                 raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
             else:
                 raise e
-        self.load_enc_secret()
+        self.check_saved()
 
-    def load_enc_secret(self):
+    def check_saved(self):
         data = self.applet.get_secret()
         # no data yet
         if len(data) == 0:
-            # create new key if it doesn't exist
-            secret = get_random_bytes(32)
-            # format: magic, 01 len enc_secret, 02 len entropy
-            d = self.serialize_data({"enc": secret})
-            self.applet.save_secret(d)
             self._is_key_saved = False
         else:
             try:
                 d = self.parse_data(data)
-                secret = d["enc"]
                 if "entropy" in d:
                     self._is_key_saved = True
             except KeyStoreError as e:
                 # wrong data on the card - not a big deal
-                # just generate a new key
-                self.enc_secret = get_random_bytes(32)
                 self._is_key_saved = False
                 # notify the user about the error
                 raise e
-        self.enc_secret = secret
 
-    def serialize_data(self, obj):
+    def serialize_data(self, obj, encrypt=True):
         """Serialize secrets for storage on the card"""
         r = b""
         for k in self.KEYS:
             v = self.KEYS[k]
             if v in obj:
                 r += k + bytes([len(obj[v])]) + obj[v]
-        # smartcard encryption key
-        key = tagged_hash("scenc", self.secret)
-        # smartcard id to understand it's our data
-        fingerprint = tagged_hash("scid", self.secret)[:4]
-        res = aead_encrypt(key, self.MAGIC + fingerprint, r)
-        print(res)
+        if encrypt:
+            # smartcard encryption key
+            key = tagged_hash("scenc", self.secret)
+            # smartcard id to understand it's our data
+            fingerprint = tagged_hash("scid", self.secret)[:4]
+            res = aead_encrypt(key, self.MAGIC + fingerprint, r)
+        else:
+            # "unencrypted" data
+            fingerprint = b"\x00"*4
+            res = aead_encrypt(b"\xcc"*32, self.MAGIC + fingerprint, r)
         return res
 
     def parse_data(self, data):
         """Parse data stored on the card"""
-        s = BytesIO(data)
         # smartcard id to understand it's our data
         fingerprint = tagged_hash("scid", self.secret)[:4]
         l = len(self.MAGIC) + 4
-        if s.read(l + 1) != bytes([l]) + self.MAGIC + fingerprint:
+        prefix = data[:l+1]
+        if prefix == bytes([l]) + self.MAGIC + fingerprint:
+            # smartcard encryption key
+            key = tagged_hash("scenc", self.secret)
+        elif prefix == bytes([l]) + self.MAGIC + b"\x00"*4:
+            key = b"\xcc"*32
+        else:
             raise KeyStoreError(
                 "Looks like stored data is created on a different device."
             )
-        # smartcard encryption key
-        key = tagged_hash("scenc", self.secret)
         adata, plaintext = aead_decrypt(data, key=key)
         s = BytesIO(plaintext)
         o = {}
@@ -211,9 +209,19 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def save_mnemonic(self):
         await self.check_card(check_pin=True)
+        encrypt = await self.show(Prompt("Encrypt the secret?",
+                    "\nIf you encrypt the secret on the card "
+                    "it will only work with this device.\n\n"
+                    "Otherwise it will be readable on any device "
+                    "after you enter the PIN code.\n\n"
+                    "Keep in mind that with encryption enabled "
+                    "wiping the device makes the secret unusable!",
+                    confirm_text="Yes, encrypt",
+                    cancel_text="Keep as plain text"))
         self.show_loader("Saving secret to the card...")
         d = self.serialize_data(
-            {"enc": self.enc_secret, "entropy": bip39.mnemonic_to_bytes(self.mnemonic)}
+            {"entropy": bip39.mnemonic_to_bytes(self.mnemonic)},
+            encrypt=encrypt,
         )
         self.applet.save_secret(d)
         self._is_key_saved = True
@@ -238,8 +246,7 @@ In this mode device can only operate when the smartcard is inserted!"""
     async def delete_mnemonic(self):
         await self.check_card(check_pin=True)
         self.show_loader("Deleting secret from the card...")
-        d = self.serialize_data({"enc": self.enc_secret})
-        self.applet.save_secret(d)
+        self.applet.save_secret(b"")
         self._is_key_saved = False
 
     async def check_card(self, check_pin=False):
