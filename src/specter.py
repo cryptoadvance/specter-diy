@@ -280,7 +280,7 @@ class Specter:
         ]
         if self.keystore.storage_button is not None:
             buttons.append((0, self.keystore.storage_button))
-        buttons.extend([(2, "Enter password"), (None, "Security")])  # delimiter
+        buttons.extend([(2, "Enter BIP-39 password"), (None, "Security")])  # delimiter
         if hasattr(self.keystore, "lock"):
             buttons.extend([(3, "Change PIN code")])
         buttons.extend([(4, "Device settings")])

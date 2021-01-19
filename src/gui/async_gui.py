@@ -77,8 +77,9 @@ class AsyncGUI:
 
     async def get_input(
         self,
-        title="Enter your bip-39 password:",
-        note="It is never stored on the device",
+        title="Enter your BIP-39 password:",
+        note="This password creates a completely different set of keys\n"
+             "and it is never stored on the device. Don't forget it!",
         suggestion="",
     ):
         """
