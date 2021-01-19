@@ -48,6 +48,11 @@ class FlashKeyStore(RAMKeyStore):
 
     def load_state(self):
         """Verify file and load PIN state from it"""
+        # If PIN file doesn't exist - create it
+        # This can happen if the device was initialized with the smartcard
+        if not platform.file_exists(self.path + "/pin"):
+            self.create_empty_pin_file()
+            return
         try:
             # verify that the pin file is ok
             _, data = self.load_aead(self.path + "/pin", self.secret)
@@ -57,20 +62,24 @@ class FlashKeyStore(RAMKeyStore):
             self._pin_attempts_max = data["pin_attempts_max"]
             self._pin_attempts_left = data["pin_attempts_left"]
         except Exception as e:
+            # this happens if someone tries to change PIN file
             self.wipe(self.path)
             sys.print_exception(e)
             raise CriticalErrorWipeImmediately(
                 "Something went terribly wrong!\nDevice is wiped!\n%s" % e
             )
 
-    def create_new_secret(self, path):
-        """Generate new secret and default PIN config"""
-        super().create_new_secret(path)
-        # set pin object
+    def create_empty_pin_file(self):
         self.pin = None
         self._pin_attempts_max = 10
         self._pin_attempts_left = 10
         self.save_state()
+
+    def create_new_secret(self, path):
+        """Generate new secret and default PIN config"""
+        super().create_new_secret(path)
+        # set pin object
+        self.create_empty_pin_file()
         return self.secret
 
     @property
