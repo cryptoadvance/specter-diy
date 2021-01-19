@@ -154,7 +154,8 @@ class QRHost(Host):
         ret = self.query(b"\x7E\x00\x08\x02" + BAUD_RATE_ADDR + BAUD_RATE + b"\xAB\xCD")
         if ret != SUCCESS:
             return False
-        self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
+        self.uart.deinit()
+        self.uart.init(baudrate=115200, read_buf_len=2048)
         return True
 
     def init(self):
@@ -165,23 +166,23 @@ class QRHost(Host):
         self.clean_uart()
         self.is_configured = self.configure()
         if self.is_configured:
-            print("Scanner: automatic mode")
             return
 
         # Try one more time with different baudrate
-        self.uart = pyb.UART(self.uart_bus, 115200, read_buf_len=2048)
+        self.uart.deinit()
+        self.uart.init(baudrate=115200, read_buf_len=2048)
         self.clean_uart()
         self.is_configured = self.configure()
         if self.is_configured:
-            print("Scanner: automatic mode")
             return
 
         # PIN trigger mode
-        self.uart = pyb.UART(self.uart_bus, 9600, read_buf_len=2048)
+        self.uart.deinit()
+        self.uart.init(baudrate=9600, read_buf_len=2048)
         self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
         self.trigger.on()
         self.is_configured = True
-        print("Scanner: Pin trigger mode")
+        pyb.LED(3).on()
 
     def clean_uart(self):
         self.uart.read()
