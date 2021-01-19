@@ -4,6 +4,7 @@ import time
 import asyncio
 from platform import simulator, config
 from io import BytesIO
+import gc
 
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
@@ -72,6 +73,7 @@ class QRHost(Host):
             self.trigger.on()
             self.is_configured = True
         self.scanning = False
+        self.parts = None
 
     def query(self, data, timeout=100):
         """Blocking query"""
@@ -204,12 +206,19 @@ class QRHost(Host):
         self.data = b""
         self.scanning = True
         self.animated = False
+        self.parts = None
         self.bcur = False
         self.bcur_hash = b""
+        gc.collect()
         while self.scanning:
             await asyncio.sleep_ms(10)
             # we will exit this loop from update()
             # or manual cancel from GUI
+        self.animated = False
+        if self.parts is not None:
+            del self.parts
+            self.parts = None
+        gc.collect()
         return self.data
 
     async def update(self):

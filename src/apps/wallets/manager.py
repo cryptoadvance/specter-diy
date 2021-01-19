@@ -13,6 +13,7 @@ from .scripts import SingleKey, Multisig
 from .commands import DELETE, EDIT
 from io import BytesIO
 from bcur import bcur_encode, bcur_decode
+import gc
 
 SIGN_PSBT = 0x01
 ADD_WALLET = 0x02
@@ -25,6 +26,8 @@ DERIVE_ADDRESS = 0x04
 # sign psbt transaction encoded in bc-ur format
 SIGN_BCUR = 0x05
 
+BASE64_STREAM = 0x64
+RAW_STREAM = 0xFF
 
 class WalletManager(BaseApp):
     """
@@ -163,10 +166,12 @@ class WalletManager(BaseApp):
             return
         if cmd == SIGN_BCUR:
             data = stream.read().split(b"/")[-1].decode()
-            b64_psbt = b2a_base64(bcur_decode(data)).strip()
-            res = await self.sign_psbt(BytesIO(b64_psbt), show_screen)
+            raw_psbt = bcur_decode(data)
+            del data
+            gc.collect()
+            res = await self.sign_psbt(BytesIO(raw_psbt), show_screen, encoding=RAW_STREAM)
             if res is not None:
-                data, hsh = bcur_encode(a2b_base64(res.read()))
+                data, hsh = bcur_encode(res.read())
                 bcur_res = (
                     b"UR:BYTES/" + hsh.encode().upper() + "/" + data.encode().upper()
                 )
@@ -218,8 +223,11 @@ class WalletManager(BaseApp):
         else:
             raise WalletError("Unknown command")
 
-    async def sign_psbt(self, stream, show_screen):
-        data = a2b_base64(stream.read())
+    async def sign_psbt(self, stream, show_screen, encoding=BASE64_STREAM):
+        if encoding == BASE64_STREAM:
+            data = a2b_base64(stream.read())
+        else:
+            data = stream.read()
         psbt = PSBT.parse(data)
         wallets, meta = self.parse_psbt(psbt=psbt)
         # there is an unknown wallet
@@ -263,9 +271,14 @@ class WalletManager(BaseApp):
             for i, inp in enumerate(psbt.inputs):
                 sigsEnd += len(list(inp.partial_sigs.keys()))
                 out_psbt.inputs[i].partial_sigs = inp.partial_sigs
+            del psbt
+            gc.collect()
             if sigsEnd == sigsStart:
                 raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
-            txt = b2a_base64(out_psbt.serialize()).decode().strip()
+            if encoding == BASE64_STREAM:
+                txt = b2a_base64(out_psbt.serialize()).decode().strip()
+            else:
+                txt = out_psbt.serialize()
             return BytesIO(txt)
 
     async def confirm_new_wallet(self, w, show_screen):
