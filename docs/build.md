@@ -44,7 +44,7 @@ brew install sdl2
 
 ## Build
 
-To build custom bootloader and firmware that you will be able to sign check out the bootloader doc on [self-signed firmware](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/selfsigned.md).
+To build custom bootloader and firmware that you will be able to sign check out the bootloader doc on [self-signed firmware](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/selfsigned.md). To wipe flash and remove protections on the device with the secure bootloader check out [this doc](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/remove_protection.md).
 
 To build an open firmware (no bootloader and signature verifications) run `make disco`. The result is the `bin/specter-diy.bin` file that you can copy-paste to the board over miniUSB.
 
