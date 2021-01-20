@@ -101,6 +101,14 @@ In this mode device can only operate when the smartcard is inserted!"""
     def is_locked(self):
         return self.applet.is_locked
 
+    @property
+    def is_ready(self):
+        return (
+            self.connected
+            and (not self.is_locked)
+            and (self.fingerprint is not None)
+        )
+
     def _unlock(self, pin):
         """
         Unlock the keystore, raises PinError if PIN is invalid.

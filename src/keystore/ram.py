@@ -155,8 +155,7 @@ class RAMKeyStore(KeyStore):
     @property
     def is_ready(self):
         return (
-            (self.enc_secret is not None)
-            and (not self.is_locked)
+            (not self.is_locked)
             and (self.fingerprint is not None)
         )
 
