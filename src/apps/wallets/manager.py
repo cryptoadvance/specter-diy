@@ -229,6 +229,13 @@ class WalletManager(BaseApp):
         else:
             data = stream.read()
         psbt = PSBT.parse(data)
+        # check if all witness_utxos are there and fill if not
+        for i, inp in enumerate(psbt.inputs):
+            if inp.witness_utxo is None:
+                if inp.non_witness_utxo is None:
+                    raise WalletError("Invalid PSBT - missing previous transaction")
+                inp.witness_utxo = inp.non_witness_utxo.vout[psbt.tx.vin[i].vout]
+
         wallets, meta = self.parse_psbt(psbt=psbt)
         # there is an unknown wallet
         # wallet is a list of tuples: (wallet, amount)
