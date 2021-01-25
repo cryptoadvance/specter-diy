@@ -3,6 +3,7 @@ import asyncio
 from ..common import styles, HOR_RES
 from ..core import update
 from ..components.modal import Modal
+from ..components.battery import Battery
 
 class Screen(lv.obj):
     network = "test"
@@ -17,6 +18,8 @@ class Screen(lv.obj):
         super().__init__()
         self.waiting = True
         self._value = None
+        self.battery = Battery(self)
+        self.battery.align(self, lv.ALIGN.IN_TOP_RIGHT, -20, 10)
 
         if type(self).network in type(self).COLORS:
             self.topbar = lv.obj(self)

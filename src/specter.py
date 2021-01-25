@@ -13,6 +13,7 @@ from platform import (
     file_exists,
     wipe,
     get_version,
+    get_battery_status,
 )
 from hosts import Host, HostError
 from app import BaseApp
@@ -50,6 +51,8 @@ class Specter:
         self.apps = apps
 
     def start(self):
+        # register battery monitor (runs every 3 seconds)
+        self.gui.set_battery_callback(get_battery_status, 3000)
         # start the GUI
         self.gui.start()
         # register coroutines for all hosts

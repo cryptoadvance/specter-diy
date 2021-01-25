@@ -11,6 +11,12 @@ try:
 except:
     import config_default as config
 
+sdcard = None  # SD card instance
+sdled = None  # LED to show we are working with SD card
+
+# injected by the boot.py
+i2c = None # I2C to talk to the battery
+
 
 class CriticalErrorWipeImmediately(Exception):
     """
@@ -34,9 +40,6 @@ def fpath(fname):
     """A small function to avoid % storage_root everywhere"""
     return "%s%s" % (config.storage_root, fname)
 
-
-sdcard = None  # SD card instance
-sdled = None  # LED to show we are working with SD card
 
 # path to store #reckless entropy
 if simulator:
@@ -230,3 +233,37 @@ def usb_connected():
     if simulator:
         return True
     return bool(pyb.Pin.board.USB_VBUS.value())
+
+BATTERY_TABLE = [
+    (4.2,  100),
+    (4.0,  75),
+    (3.85, 50),
+    (3.75, 35),
+    (3.6,  0),
+]
+
+def get_battery_status():
+    # simulator or no i2c
+    if i2c is None:
+        return None, None
+    try:
+        # check if battery monitor exists
+        if 112 not in i2c.scan():
+            return None, None
+        voltage = int.from_bytes(i2c.mem_read(2, 112, 8),'little')*2.44e-3
+        level = 0
+        for i, (v, lvl) in enumerate(BATTERY_TABLE):
+            if voltage > v:
+                # max voltage
+                if i == 0:
+                    level = lvl
+                    break
+                # linear interpolation
+                prevV, prevLvl = BATTERY_TABLE[i-1]
+                level = int(lvl + (prevLvl-lvl)*(voltage-v)/(prevV-v))
+                break
+        charging = (int.from_bytes(i2c.mem_read(2, 112, 6),'little') < 8192)
+        return level, charging
+    except Exception as e:
+        print(e)
+        return None, None

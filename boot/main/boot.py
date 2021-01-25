@@ -11,6 +11,13 @@ pwr.on()
 # (rc99 is final version for production)
 version = "<version:tag10>0100400499</version:tag10>"
 
+# get i2c
+i2c = pyb.I2C(1)
+i2c.init()
+# start measurements
+if 112 in i2c.scan():
+    i2c.mem_write(0b00010000, 112, 0)
+
 leds = [pyb.LED(i) for i in range(1,5)]
 # poweroff on button press
 def pwrcb(e):
@@ -18,11 +25,19 @@ def pwrcb(e):
 
 # callback scheduled from the interrupt
 def poweroff(_):
-    for led in leds:
-        led.toggle()
-    os.sync()
-    time.sleep_ms(300)
-    pwr.off()
+    # make sure it disables power no matter what
+    try:
+        for led in leds:
+            led.toggle()
+        # stop battery manangement
+        if 112 in i2c.scan():
+            i2c.mem_write(0, 112, 0)
+        # sync filesystem
+        os.sync()
+        time.sleep_ms(300)
+    finally:
+        # disable power
+        pwr.off()
     time.sleep_ms(300)
     # will never reach here
     for led in leds:
@@ -39,6 +54,7 @@ pyb.usb_mode(None)
 os.dupterm(None,0)
 os.dupterm(None,1)
 
-# inject version to platform module
+# inject version and i2c to platform module
 import platform
 platform.version = version
+platform.i2c = i2c

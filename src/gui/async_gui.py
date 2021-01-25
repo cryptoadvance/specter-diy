@@ -2,6 +2,7 @@ import asyncio
 from .core import init, update
 from .screens import Menu, Alert, QRAlert, Prompt, InputScreen
 from .components.modal import Modal
+from .components.battery import Battery
 import lvgl as lv
 
 
@@ -14,6 +15,12 @@ class AsyncGUI:
         # another screen goes to the background
         self.background = None
         self.scr = None
+        self.battery_callback = None
+        self.battery_interval = 1000
+
+    def set_battery_callback(self, cb, dt=1000):
+        self.battery_callback = cb
+        self.battery_interval = dt
 
     def release(self, *args, **kwargs):
         """
@@ -92,6 +99,19 @@ class AsyncGUI:
     def start(self, rate: int = 30, dark=True):
         init(dark=dark)
         asyncio.create_task(self.update_loop(rate))
+        if self.battery_callback is not None and self.battery_interval is not None:
+            asyncio.create_task(self.update_battery(self.battery_interval))
+
+    async def update_battery(self, dt):
+        while True:
+            level, charging = self.battery_callback()
+            if level is None:
+                return
+            Battery.VALUE = level
+            Battery.CHARGING = charging
+            if self.scr is not None and hasattr(self.scr, "battery"):
+                self.scr.battery.update()
+            await asyncio.sleep_ms(dt)
 
     async def update_loop(self, dt):
         while True:
