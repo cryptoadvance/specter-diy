@@ -2,7 +2,7 @@ from .core import Host, HostError
 import pyb
 import time
 import asyncio
-from platform import simulator, config
+from platform import simulator, config, delete_recursively
 from io import BytesIO
 import gc
 
@@ -62,6 +62,7 @@ class QRHost(Host):
             self.EOL = b"\r"
 
         self.data = b""
+        self.f = None
         self.uart_bus = uart
         self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
         if simulator:
@@ -205,6 +206,9 @@ class QRHost(Host):
         else:
             self.set_setting(SETTINGS_ADDR, SETTINGS_CONT_MODE)
         self.data = b""
+        if self.f is not None:
+            self.f.close()
+            self.f = None
         self.scanning = True
         self.animated = False
         self.parts = None
@@ -220,7 +224,8 @@ class QRHost(Host):
             del self.parts
             self.parts = None
         gc.collect()
-        return self.data
+        self.f = open(self.path+"/data.txt", "rb")
+        return self.f
 
     async def update(self):
         if not self.scanning:
@@ -268,7 +273,9 @@ class QRHost(Host):
         # ur:bytes/MofN/hash/data
         if len(arr) < 4:
             if not self.animated:
-                self.data = chunk
+                fname = self.path + "/data.txt"
+                with open(fname, "wb") as f:
+                    f.write(chunk)
                 return True
             else:
                 self.stop_scanning()
@@ -283,10 +290,12 @@ class QRHost(Host):
                 # if succeed - first animated frame,
                 # allocate stuff
                 self.animated = True
-                self.parts = [b""] * n
-                self.parts[m - 1] = data
+                self.parts = [None] * n
+                fname = "%s/p%d.txt" % (self.path, m-1)
+                with open(fname, "wb") as f:
+                    f.write(data)
+                self.parts[m - 1] = fname
                 self.bcur_hash = hsh
-                self.data = b""
                 return False
             # failed - not animated, just unfortunately similar data
             except:
@@ -298,10 +307,20 @@ class QRHost(Host):
         if hsh != self.bcur_hash:
             print(hsh, self.bcur_hash)
             raise HostError("Checksum mismatch")
-        self.parts[m - 1] = data
+        fname = "%s/p%d.txt" % (self.path, m-1)
+        with open(fname, "wb") as f:
+            f.write(data)
+        self.parts[m - 1] = fname
         # all have non-zero len
-        if min([len(part) for part in self.parts]) > 0:
-            self.data = b"UR:BYTES/" + self.bcur_hash + b"/" + b"".join(self.parts)
+        if None not in self.parts:
+            fname = self.path + "/data.txt"
+            with open(fname, "wb") as f:
+                f.write(b"UR:BYTES/")
+                f.write(self.bcur_hash)
+                f.write(b"/")
+                for part in self.parts:
+                    with open(part, "rb") as fp:
+                        f.write(fp.read())
             return True
         else:
             return False
@@ -310,13 +329,15 @@ class QRHost(Host):
         # check if it starts with pMofN
         if b" " not in chunk:
             if not self.animated:
-                self.data = chunk
+                fname = self.path + "/data.txt"
+                with open(fname, "wb") as f:
+                    f.write(chunk)
                 return True
             else:
                 self.stop_scanning()
                 raise HostError("Ivalid QR code part encoding: %r" % chunk)
         # space is there
-        prefix, *args = chunk.split(b" ")
+        prefix, *_ = chunk.split(b" ")
         if not self.animated:
             if prefix.startswith(b"p") and b"of" in prefix:
                 try:
@@ -324,25 +345,38 @@ class QRHost(Host):
                     # if succeed - first animated frame,
                     # allocate stuff
                     self.animated = True
-                    self.parts = [b""] * n
-                    self.parts[m - 1] = b" ".join(args)
-                    self.data = b""
+                    self.parts = [None] * n
+                    fname = "%s/p%d.txt" % (self.path, m-1)
+                    with open(fname, "wb") as f:
+                        f.write(chunk[len(prefix)+1:])
+                    self.parts[m - 1] = fname
                     return False
                 # failed - not animated, just unfortunately similar data
                 except:
-                    self.data = chunk
+                    fname = self.path + "/data.txt"
+                    with open(fname, "wb") as f:
+                        f.write(chunk)
                     return True
             else:
-                self.data = chunk
+                fname = self.path + "/data.txt"
+                with open(fname, "wb") as f:
+                    f.write(chunk)
                 return True
         # expecting animated frame
         m, n = self.parse_prefix(prefix)
         if n != len(self.parts):
             raise HostError("Invalid prefix")
-        self.parts[m - 1] = b" ".join(args)
+        fname = "%s/p%d.txt" % (self.path, m-1)
+        with open(fname, "wb") as f:
+            f.write(chunk[len(prefix)+1:])
+        self.parts[m - 1] = fname
         # all have non-zero len
-        if min([len(part) for part in self.parts]) > 0:
-            self.data = b"".join(self.parts)
+        if None not in self.parts:
+            fname = self.path + "/data.txt"
+            with open(fname, "wb") as f:
+                for part in self.parts:
+                    with open(part, "rb") as fp:
+                        f.write(fp.read())
             return True
         else:
             return False
@@ -358,14 +392,15 @@ class QRHost(Host):
         return m, n
 
     async def get_data(self):
+        delete_recursively(self.path)
         if self.manager is not None:
             # pass self so user can abort
             await self.manager.gui.show_progress(
                 self, "Scanning...", "Point scanner to the QR code"
             )
-        data = await self.scan()
-        if data is not None:
-            return BytesIO(data)
+        stream = await self.scan()
+        if stream is not None:
+            return stream
 
     async def send_data(self, stream, meta):
         response = stream.read().decode()
@@ -395,4 +430,4 @@ class QRHost(Host):
             return 1
         if not self.animated:
             return 0
-        return [len(part) > 0 for part in self.parts]
+        return [part is not None for part in self.parts]
