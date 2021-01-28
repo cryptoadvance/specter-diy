@@ -136,6 +136,8 @@ def file_exists(fname: str) -> bool:
 
 def delete_recursively(path, include_self=False):
     # remove trailing slash
+    if path is None:
+        raise RuntimeError("Path is not specified")
     path = path.rstrip("/")
     files = os.ilistdir(path)
     for _file in files:

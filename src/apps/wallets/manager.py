@@ -12,7 +12,7 @@ from .wallet import WalletError, Wallet
 from .scripts import SingleKey, Multisig
 from .commands import DELETE, EDIT
 from io import BytesIO
-from bcur import bcur_encode, bcur_decode
+from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
 import gc
 
 SIGN_PSBT = 0x01
@@ -144,8 +144,8 @@ class WalletManager(BaseApp):
             stream.seek(0)
             return ADD_WALLET, stream
         # probably verifying address
-        if data.startswith(b"bitcoin:") or b"index=" in data:
-            if data.startswith(b"bitcoin:"):
+        if data.startswith(b"bitcoin:") or data.startswith(b"BITCOIN:") or b"index=" in data:
+            if data.startswith(b"bitcoin:") or data.startswith(b"BITCOIN:"):
                 stream.seek(8)
             else:
                 stream.seek(0)
@@ -154,6 +154,7 @@ class WalletManager(BaseApp):
         return None, None
 
     async def process_host_command(self, stream, show_screen):
+        platform.delete_recursively(self.tempdir)
         cmd, stream = self.parse_stream(stream)
         if cmd == SIGN_PSBT:
             res = await self.sign_psbt(stream, show_screen)
@@ -165,20 +166,29 @@ class WalletManager(BaseApp):
                 return res, obj
             return
         if cmd == SIGN_BCUR:
-            data = stream.read().split(b"/")[-1].decode()
-            raw_psbt = bcur_decode(data)
-            del data
+            # move to the end of UR:BYTES/
+            stream.seek(9, 1)
+            # move to the end of hash if it's there
+            d = stream.read(70)
+            if b"/" in d:
+                pos = d.index(b"/")
+                stream.seek(pos-len(d)+1, 1)
+            else:
+                stream.seek(-len(d), 1)
+            with open(self.tempdir+"/raw", "wb") as f:
+                bcur_decode_stream(stream, f)
             gc.collect()
-            res = await self.sign_psbt(BytesIO(raw_psbt), show_screen, encoding=RAW_STREAM)
+            with open(self.tempdir+"/raw", "rb") as f:
+                res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
+            platform.delete_recursively(self.tempdir)
             if res is not None:
-                data, hsh = bcur_encode(res.read())
-                bcur_res = (
-                    b"UR:BYTES/" + hsh.encode().upper() + "/" + data.encode().upper()
-                )
+                data, hsh = bcur_encode(res.read(), upper=True)
+                bcur_res = (b"UR:BYTES/" + hsh + "/" + data)
                 obj = {
                     "title": "Transaction is signed!",
                     "message": "Scan it with your wallet",
                 }
+                gc.collect()
                 return BytesIO(bcur_res), obj
             return
         elif cmd == ADD_WALLET:
@@ -226,9 +236,9 @@ class WalletManager(BaseApp):
     async def sign_psbt(self, stream, show_screen, encoding=BASE64_STREAM):
         if encoding == BASE64_STREAM:
             data = a2b_base64(stream.read())
+            psbt = PSBT.parse(data)
         else:
-            data = stream.read()
-        psbt = PSBT.parse(data)
+            psbt = PSBT.read_from(stream)
         # check if all witness_utxos are there and fill if not
         for i, inp in enumerate(psbt.inputs):
             if inp.witness_utxo is None:

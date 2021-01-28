@@ -9,6 +9,7 @@ from hosts import SDHost, QRHost, USBHost
 import platform
 import sys
 from helpers import load_apps
+from app import BaseApp
 
 
 def main(apps=None, network="main", keystore_cls=None):
@@ -27,6 +28,8 @@ def main(apps=None, network="main", keystore_cls=None):
         USBHost(rampath + "/usb"),
         # SDHost(rampath+"/sd"), # not implemented yet
     ]
+    # temp storage in RAM for host commands processing
+    BaseApp.TEMPDIR = rampath+"/tmp"
     # define GUI
     gui = SpecterGUI()
 

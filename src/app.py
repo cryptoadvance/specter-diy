@@ -13,6 +13,9 @@ class BaseApp:
     prefixes = []
     # button = ("My App menu item", callback name)
 
+    # temp storage for command processing:
+    TEMPDIR = None
+
     def __init__(self, path: str):
         """path is the folder where this app should store data"""
         maybe_mkdir(path)
@@ -51,6 +54,15 @@ class BaseApp:
         including the app folder itself.
         """
         delete_recursively(self.path, include_self=True)
+
+    @property
+    def tempdir(self):
+        if self.TEMPDIR is None:
+            return None
+        maybe_mkdir(self.TEMPDIR)
+        path = self.TEMPDIR+"/"+type(self).__name__
+        maybe_mkdir(path)
+        return path
 
 
 class AppError(BaseError):
