@@ -197,6 +197,7 @@ class QRHost(Host):
 
     def abort(self):
         self.data = None
+        self.cancelled = True
         self.stop_scanning()
 
     async def scan(self):
@@ -210,6 +211,7 @@ class QRHost(Host):
             self.f.close()
             self.f = None
         self.scanning = True
+        self.cancelled = False
         self.animated = False
         self.parts = None
         self.bcur = False
@@ -224,6 +226,8 @@ class QRHost(Host):
             del self.parts
             self.parts = None
         gc.collect()
+        if self.cancelled:
+            return None
         self.f = open(self.path+"/data.txt", "rb")
         return self.f
 
