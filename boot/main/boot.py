@@ -9,7 +9,7 @@ pwr.on()
 # v1.4.4-rc99 - use odd rc for main firmware and even for debug
 # so it's possible to upgrade from debug to main firmware.
 # (rc99 is final version for production)
-version = "<version:tag10>0100400499</version:tag10>"
+version = "<version:tag10>0100400599</version:tag10>"
 
 # get i2c
 i2c = pyb.I2C(1)
