@@ -17,13 +17,13 @@ QR codes are a default way for Specter to communicate with the host. QR codes ar
 
 For secret storage we support agnostic mode (wallet forgets all secrets when turned off), reckless mode (stores secrets in flash of the application microcontroller) and secure element integration is coming soon.
 
-Our main focus is multisignature setup with other hardware wallets, but wallet can also work as a single signer. We try to make it compatible with Bitcoin Core where we can - PSBT for unsigned transactions, wallet descriptors for importing/exporting multisig wallets. To communcate with Bitcoin Core easier we are also working on [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) - a small python flask server talking to your Bitcoin Core node.
+Our main focus is multisignature setup with other hardware wallets, but wallet can also work as a single signer. We try to make it compatible with Bitcoin Core where we can - PSBT for unsigned transactions, wallet descriptors for importing/exporting multisig wallets. To communicate with Bitcoin Core easier we are also working on [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) - a small python flask server talking to your Bitcoin Core node.
 
 Most of the firmware is written in MicroPython which makes the code easy to audit and change. We use [secp256k1](https://github.com/bitcoin-core/secp256k1) library from Bitcoin Core for elliptic curve calculations and [LittlevGL](https://littlevgl.com/) library for GUI.
 
 ## DISCLAIMER
 
-This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testnet. It is not perfectly stable yet - sometimes it crashes. If this happens to you please open an issue and we will try to fix it. Meanwhile try reseting the device (press the black button on the back or powercycle the board).
+This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testnet. It is not perfectly stable yet - sometimes it crashes. If this happens to you please open an issue and we will try to fix it. Meanwhile try resetting the device (press the black button on the back or powercycle the board).
 
 This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). That's why **by default we don't store your private keys on the device** - you need to type your recovery phrase every time you power it on. You still can save your recovery phrase to the device if you wish - there is a setting for that.
 
