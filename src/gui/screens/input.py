@@ -61,7 +61,6 @@ class InputScreen(Screen):
         lv.SYMBOL.OK + " Done",
         "",
     ]
-    #       "\'+,-./:;<=>?[\\]^_`{|}~
     CHARSET_EXTRA = [
         "!",
         "@",
