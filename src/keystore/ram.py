@@ -216,7 +216,7 @@ class RAMKeyStore(KeyStore):
         """
         # check we have attempts
         if self.pin_attempts_left <= 0:
-            self.wipe(self.path)
+            # wipe is happening automatically on this error
             raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
         # check PIN code somehow, raise PinError if it's incorrect
         # for reference - first decrease PIN counter, then check PIN

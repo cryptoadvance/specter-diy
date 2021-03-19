@@ -112,13 +112,18 @@ class FlashKeyStore(RAMKeyStore):
         Unlock the keystore, raises PinError if PIN is invalid.
         Raises CriticalErrorWipeImmediately if no attempts left.
         """
-        # decrease the counter
-        self._pin_attempts_left -= 1
-        self.save_state()
-        # check we have attempts
-        if self._pin_attempts_left <= 0:
-            self.wipe(self.path)
-            raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
+        # if anything goes wrong here - wipe
+        try:
+            # decrease the counter
+            self._pin_attempts_left -= 1
+            self.save_state()
+            # check we have attempts
+            if self._pin_attempts_left <= 0:
+                self.wipe(self.path)
+                raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
+        except Exception as e:
+            # convert any error to a critical error to wipe the device
+            raise CriticalErrorWipeImmediately(str(e))
         # calculate hmac with entered PIN
         key = tagged_hash("pin", self.secret)
         pin_hmac = hmac.new(key=key, msg=pin.encode(), digestmod="sha256").digest()

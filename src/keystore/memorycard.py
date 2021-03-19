@@ -123,7 +123,7 @@ In this mode device can only operate when the smartcard is inserted!"""
                     % (self.pin_attempts_left, self.pin_attempts_max)
                 )
             elif str(e) == "0503":  # bricked
-                self.wipe(self.path)
+                # wipe is happening automatically on this exception
                 raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
             else:
                 raise e
