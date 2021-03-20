@@ -6,7 +6,10 @@ from bitcoin import ec, hashes, script
 from bitcoin.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
 import hashlib
-
+from .screens import WalletScreen, WalletInfoScreen
+from .commands import DELETE, EDIT, MENU, INFO
+from gui.screens import Menu
+import lvgl as lv
 
 class WalletError(AppError):
     NAME = "Wallet error"
@@ -36,8 +39,39 @@ class Wallet:
         self.gaps = [self.GAP_LIMIT, self.GAP_LIMIT]
         self.name = name
         self.unused_recv = 0
+        self.keystore = None
+
+    async def show(self, network, show_screen):
+        while True:
+            scr = WalletScreen(self, network, idx=self.unused_recv)
+            cmd = await show_screen(scr)
+            if cmd == MENU:
+                buttons = [
+                    (INFO, "Show detailed information"),
+                    (EDIT, lv.SYMBOL.EDIT + " Change the name"),
+                    # value, label,                            enabled, color
+                    (DELETE, lv.SYMBOL.TRASH + " Delete wallet", True, 0x951E2D),
+                ]
+                cmd = await show_screen(Menu(buttons, last=(255, None), title=self.name, note="What do you want to do?"))
+                if cmd == 255:
+                    continue
+                elif cmd == INFO:
+                    keys = self.get_key_dicts(network)
+                    for k in keys:
+                        k["mine"] = True if self.keystore and self.keystore.owns(k["key"]) else False
+                    await show_screen(WalletInfoScreen(self.name, self.policy, keys))
+                    continue
+            # other commands go to the wallet manager
+            return cmd
+
+    @property
+    def is_watchonly(self):
+        """Checks if the wallet is watch-only (doesn't control the key) or not"""
+        return not any([self.keystore.owns(k) if self.keystore else False for k in self.get_keys()])
 
     def save(self, keystore, path=None):
+        # wallet has access to keystore only if it's saved or loaded from file
+        self.keystore = keystore
         if path is not None:
             self.path = path.rstrip("/")
         if self.path is None:
@@ -170,6 +204,26 @@ class Wallet:
     def get_keys(self):
         return self.script.get_keys()
 
+    def get_key_dicts(self, network):
+        keys = [{
+            "key": k,
+        } for k in self.get_keys()]
+        # get XYZ-pubs
+        slip132_ver = NETWORKS[network]["xpub"]
+        if type(self.script) == SingleKey:
+            if self.wrapped:
+                slip132_ver = NETWORKS[network]["ypub"]
+            else:
+                slip132_ver = NETWORKS[network]["zpub"]
+        elif type(self.script) == Multisig:
+            if self.wrapped:
+                slip132_ver = NETWORKS[network]["Ypub"]
+            else:
+                slip132_ver = NETWORKS[network]["Zpub"]
+        for k in keys:
+            k["slip132"] = k["key"].to_base58(slip132_ver)
+        return keys
+
     @classmethod
     def parse(cls, desc, path=None):
         name = "Untitled"
@@ -217,6 +271,8 @@ class Wallet:
             w.name = obj["name"]
         if "unused_recv" in obj:
             w.unused_recv = obj["unused_recv"]
+        # wallet has access to keystore only if it's saved or loaded from file
+        w.keystore = keystore
         return w
 
     @classmethod

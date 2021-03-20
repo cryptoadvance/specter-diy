@@ -83,8 +83,7 @@ class WalletManager(BaseApp):
             w = menuitem
             # pass wallet and network
             self.show_loader(title="Loading wallet...")
-            scr = WalletScreen(w, self.network, idx=w.unused_recv)
-            cmd = await show_screen(scr)
+            cmd = await w.show(self.network, show_screen)
             if cmd == DELETE:
                 scr = Prompt(
                     "Delete wallet?",
@@ -303,9 +302,15 @@ class WalletManager(BaseApp):
             return BytesIO(txt)
 
     async def confirm_new_wallet(self, w, show_screen):
-        keys = [{"key": k, "mine": self.keystore.owns(k)} for k in w.get_keys()]
+        keys = w.get_key_dicts(self.network)
+        for k in keys:
+            k["mine"] = self.keystore.owns(k["key"])
         if not any([k["mine"] for k in keys]):
-            raise WalletError("None of the keys belong to the device")
+            if not await show_screen(
+                    Prompt("Warning!",
+                           "None of the keys belong to the device.\n\n"
+                           "Are you sure you still want to add the wallet?")):
+                return False
         # get XYZ-pubs
         slip132_ver = NETWORKS[self.network]["xpub"]
         if type(w.script) == SingleKey:

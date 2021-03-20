@@ -1,8 +1,8 @@
 import lvgl as lv
 from gui.common import add_label, add_button, HOR_RES, format_addr, PADDING
 from gui.decorators import on_release
-from gui.screens import QRAlert, Prompt
-from .commands import DELETE, EDIT
+from gui.screens import QRAlert, Prompt, Alert
+from .commands import DELETE, EDIT, MENU
 
 
 class WalletScreen(QRAlert):
@@ -56,15 +56,20 @@ class WalletScreen(QRAlert):
         self.nxt.align(self.qr, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
         self.nxt.set_x(HOR_RES - 70)
 
-        self.delbtn = add_button(
-            lv.SYMBOL.TRASH + " Delete wallet", on_release(self.delwallet), scr=self
+        self.menubtn = add_button(
+            lv.SYMBOL.SETTINGS + " Settings", on_release(self.show_menu), scr=self
         )
-        self.delbtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
-        style = lv.style_t()
-        lv.style_copy(style, self.delbtn.get_style(lv.btn.STYLE.REL))
-        style.body.main_color = lv.color_hex(0x951E2D)
-        style.body.grad_color = lv.color_hex(0x951E2D)
-        self.delbtn.set_style(lv.btn.STYLE.REL, style)
+        self.menubtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
+
+        # self.delbtn = add_button(
+        #     lv.SYMBOL.TRASH + " Delete wallet", on_release(self.delwallet), scr=self
+        # )
+        # self.delbtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
+        # style = lv.style_t()
+        # lv.style_copy(style, self.delbtn.get_style(lv.btn.STYLE.REL))
+        # style.body.main_color = lv.color_hex(0x951E2D)
+        # style.body.grad_color = lv.color_hex(0x951E2D)
+        # self.delbtn.set_style(lv.btn.STYLE.REL, style)
 
         if idx is not None:
             self.idx = idx
@@ -72,6 +77,9 @@ class WalletScreen(QRAlert):
 
     def rename(self):
         self.set_value(EDIT)
+
+    def show_menu(self):
+        self.set_value(MENU)
 
     def delwallet(self):
         # TODO: ugly, 255 should go to some constant
@@ -121,6 +129,35 @@ class WalletScreen(QRAlert):
 class ConfirmWalletScreen(Prompt):
     def __init__(self, name, policy, keys):
         super().__init__('Add wallet "%s"?' % name, "")
+        self.policy = add_label("Policy: " + policy, y=75, scr=self)
+
+        lbl = lv.label(self)
+        lbl.set_text("Canonical xpub                     SLIP-132             ")
+        lbl.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        self.slip_switch = lv.sw(self)
+        self.slip_switch.align(lbl, lv.ALIGN.CENTER, 0, 0)
+        self.slip_switch.set_event_cb(on_release(self.fill_message))
+
+        self.page.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 70)
+        self.message.set_recolor(True)
+        self.page.set_height(500)
+        self.keys = keys
+        self.fill_message()
+
+    def fill_message(self):
+        msg = ""
+        arg = "slip132" if self.slip_switch.get_state() else "key"
+        for k in self.keys:
+            if k["mine"]:
+                msg += "#7ED321 My key: # %s\n\n" % k[arg]
+            else:
+                msg += "#F5A623 External key: # %s\n\n" % k[arg]
+        self.message.set_text(msg)
+
+# TODO: refactor to remove duplication
+class WalletInfoScreen(Alert):
+    def __init__(self, name, policy, keys):
+        super().__init__(name, "")
         self.policy = add_label("Policy: " + policy, y=75, scr=self)
 
         lbl = lv.label(self)
