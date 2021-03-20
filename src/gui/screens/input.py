@@ -57,7 +57,7 @@ class InputScreen(Screen):
         lv.SYMBOL.LEFT,
         "\n",
         lv.SYMBOL.LEFT + " Back",
-        " ",
+        "[    space    ]",
         lv.SYMBOL.OK + " Done",
         "",
     ]
@@ -86,7 +86,6 @@ class InputScreen(Screen):
         "aA",
         "\"",
         "'",
-        "^",
         "_",
         "-",
         "=",
@@ -102,7 +101,7 @@ class InputScreen(Screen):
         lv.SYMBOL.LEFT,
         "\n",
         lv.SYMBOL.LEFT + " Back",
-        " ",
+        "[    space    ]",
         lv.SYMBOL.OK + " Done",
         "",
     ]
@@ -143,6 +142,8 @@ class InputScreen(Screen):
             c = obj.get_active_btn_text()
             if c is None:
                 return
+            if "space" in c:
+                c = " "
             if c == lv.SYMBOL.LEFT:
                 self.ta.del_char()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
