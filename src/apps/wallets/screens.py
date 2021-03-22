@@ -127,9 +127,10 @@ class WalletScreen(QRAlert):
 
 
 class ConfirmWalletScreen(Prompt):
-    def __init__(self, name, policy, keys):
+    def __init__(self, name, policy, keys, is_miniscript=True):
         super().__init__('Add wallet "%s"?' % name, "")
         self.policy = add_label("Policy: " + policy, y=75, scr=self)
+        self.is_miniscript = is_miniscript
 
         lbl = lv.label(self)
         lbl.set_text("Canonical xpub                     SLIP-132             ")
@@ -146,19 +147,24 @@ class ConfirmWalletScreen(Prompt):
 
     def fill_message(self):
         msg = ""
-        arg = "slip132" if self.slip_switch.get_state() else "key"
-        for k in self.keys:
+        arg = "slip132" if self.slip_switch.get_state() else "canonical"
+        for i, k in enumerate(self.keys):
+            alias = "" if not self.is_miniscript else " (%s)" % chr(65+i)
+            kstr = str(k[arg]).replace("]","]\n")
             if k["mine"]:
-                msg += "#7ED321 My key: # %s\n\n" % k[arg]
+                msg += "#7ED321 My key%s: #\n%s\n\n" % (alias, kstr)
+            elif k["is_private"]:
+                msg += "#F51E2D Private key%s: #\n%s\n\n" % (alias, kstr)
             else:
-                msg += "#F5A623 External key: # %s\n\n" % k[arg]
+                msg += "#F5A623 External key%s:\n# %s\n\n" % (alias, kstr)
         self.message.set_text(msg)
 
 # TODO: refactor to remove duplication
 class WalletInfoScreen(Alert):
-    def __init__(self, name, policy, keys):
+    def __init__(self, name, policy, keys, is_miniscript=True):
         super().__init__(name, "")
         self.policy = add_label("Policy: " + policy, y=75, scr=self)
+        self.is_miniscript = is_miniscript
 
         lbl = lv.label(self)
         lbl.set_text("Canonical xpub                     SLIP-132             ")
@@ -175,10 +181,14 @@ class WalletInfoScreen(Alert):
 
     def fill_message(self):
         msg = ""
-        arg = "slip132" if self.slip_switch.get_state() else "key"
-        for k in self.keys:
+        arg = "slip132" if self.slip_switch.get_state() else "canonical"
+        for i, k in enumerate(self.keys):
+            alias = "" if not self.is_miniscript else " (%s)" % chr(65+i)
+            kstr = str(k[arg]).replace("]","]\n")
             if k["mine"]:
-                msg += "#7ED321 My key: # %s\n\n" % k[arg]
+                msg += "#7ED321 My key%s: #\n%s\n\n" % (alias, kstr)
+            elif k["is_private"]:
+                msg += "#F51E2D Private key%s: #\n%s\n\n" % (alias, kstr)
             else:
-                msg += "#F5A623 External key: # %s\n\n" % k[arg]
+                msg += "#F5A623 External key%s:\n# %s\n\n" % (alias, kstr)
         self.message.set_text(msg)

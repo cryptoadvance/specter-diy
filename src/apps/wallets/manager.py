@@ -9,7 +9,6 @@ from bitcoin.psbt import PSBT
 from bitcoin.networks import NETWORKS
 from bitcoin import script, bip32
 from .wallet import WalletError, Wallet
-from .scripts import SingleKey, Multisig
 from .commands import DELETE, EDIT
 from io import BytesIO
 from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
@@ -74,7 +73,10 @@ class WalletManager(BaseApp):
 
     async def menu(self, show_screen):
         buttons = [(None, "Your wallets")]
-        buttons += [(w, w.name) for w in self.wallets]
+        buttons += [(w, w.name) for w in self.wallets if not w.is_watchonly]
+        if len(buttons) != (len(self.wallets)+1):
+            buttons += [(None, "Watch only wallets")]
+            buttons += [(w, w.name) for w in self.wallets if w.is_watchonly]
         menuitem = await show_screen(Menu(buttons, last=(255, None)))
         if menuitem == 255:
             # we are done
@@ -311,21 +313,7 @@ class WalletManager(BaseApp):
                            "None of the keys belong to the device.\n\n"
                            "Are you sure you still want to add the wallet?")):
                 return False
-        # get XYZ-pubs
-        slip132_ver = NETWORKS[self.network]["xpub"]
-        if type(w.script) == SingleKey:
-            if w.wrapped:
-                slip132_ver = NETWORKS[self.network]["ypub"]
-            else:
-                slip132_ver = NETWORKS[self.network]["zpub"]
-        elif type(w.script) == Multisig:
-            if w.wrapped:
-                slip132_ver = NETWORKS[self.network]["Ypub"]
-            else:
-                slip132_ver = NETWORKS[self.network]["Zpub"]
-        for k in keys:
-            k["slip132"] = k["key"].to_base58(slip132_ver)
-        return await show_screen(ConfirmWalletScreen(w.name, w.policy, keys))
+        return await show_screen(ConfirmWalletScreen(w.name, w.full_policy, keys, w.is_miniscript))
 
     async def showaddr(
         self, paths: list, script_type: str, redeem_script=None, show_screen=None
@@ -444,7 +432,7 @@ class WalletManager(BaseApp):
                 pass
         if w is None:
             raise WalletError("Can't detect matching wallet type")
-        if w.descriptor() in [ww.descriptor() for ww in self.wallets]:
+        if str(w.descriptor) in [str(ww.descriptor) for ww in self.wallets]:
             raise WalletError("Wallet with this descriptor already exists")
         return w
 
@@ -546,22 +534,24 @@ class WalletManager(BaseApp):
                 if w is None:
                     continue
                 if w.owns(inp):
-                    change, idx = w.get_derivation(inp)
-                    if gaps[i][change] < idx + type(w).GAP_LIMIT:
-                        gaps[i][change] = idx + type(w).GAP_LIMIT
+                    branch_idx, idx = w.get_derivation(inp)
+                    if gaps[i][branch_idx] < idx + type(w).GAP_LIMIT:
+                        gaps[i][branch_idx] = idx + type(w).GAP_LIMIT
         # check all outputs if index is ok
         for i, out in enumerate(psbt.outputs):
             if not meta["outputs"][i]["change"]:
                 continue
             for j, w in enumerate(wallets):
                 if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
-                    change, idx = w.get_derivation(out)
-                    if change:
+                    branch_idx, idx = w.get_derivation(out)
+                    if branch_idx == 1:
                         meta["outputs"][i]["label"] += " (change %d)" % idx
-                    else:
+                    elif branch_idx == 0:
                         meta["outputs"][i]["label"] += " (address %d)" % idx
+                    else:
+                        meta["outputs"][i]["label"] += " (address %d, branch %d)" % (idx, branch_idx)
                     # add warning if idx beyond gap
-                    if idx > gaps[j][change]:
+                    if idx > gaps[j][branch_idx]:
                         meta["warnings"].append(
                             "Address index %d is beyond the gap limit!" % idx
                         )

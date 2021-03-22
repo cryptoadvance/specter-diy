@@ -5,6 +5,12 @@ import platform
 
 TEST_DIR = "testdir"
 
+def init_keystore(ks):
+    platform.maybe_mkdir(ks.path)
+    ks.load_secret(ks.path)
+    ks.load_state()
+    ks.initialized = True
+
 class FlashKeyStoreTest(TestCase):
 
     def get_keystore(self):
@@ -14,12 +20,13 @@ class FlashKeyStoreTest(TestCase):
             os.rmdir(TEST_DIR)
         except:
             pass
-        return FlashKeyStore(TEST_DIR)
+        FlashKeyStore.path = TEST_DIR
+        return FlashKeyStore()
 
     def test_create_config(self):
         """Test initial config creation"""
         ks = self.get_keystore()
-        ks.init()
+        init_keystore(ks)
         files = [f[0] for f in os.ilistdir(TEST_DIR)]
         self.assertTrue("secret" in files)
         self.assertTrue("pin" in files)
@@ -31,15 +38,18 @@ class FlashKeyStoreTest(TestCase):
         """Test wipe exception if secret is changed"""
         # create keystore
         ks = self.get_keystore()
-        ks.init()
+        init_keystore(ks)
+        files = [f[0] for f in os.ilistdir(TEST_DIR)]
+        self.assertTrue("secret" in files)
+        self.assertTrue("pin" in files)
         # now change secret value
         with open(TEST_DIR+"/secret", "wb") as f:
             # a different value
             f.write(b"5"*32)
-        ks = FlashKeyStore(TEST_DIR)
+        ks = FlashKeyStore()
         # check it raises
         with self.assertRaises(platform.CriticalErrorWipeImmediately):
-            ks.init()
+            init_keystore(ks)
         # files are deleted
         files = [f[0] for f in os.ilistdir(TEST_DIR)]
         self.assertFalse("secret" in files)
@@ -49,7 +59,7 @@ class FlashKeyStoreTest(TestCase):
         """Test wipe exception if pin state changed"""
         # create keystore
         ks = self.get_keystore()
-        ks.init()
+        init_keystore(ks)
         # load signed pin state
         with open(TEST_DIR+"/pin", "rb") as f:
             # a different value
@@ -60,10 +70,10 @@ class FlashKeyStoreTest(TestCase):
         with open(TEST_DIR+"/pin", "wb") as f:
             # a different value
             f.write(content)
-        ks = FlashKeyStore(TEST_DIR)
+        ks = FlashKeyStore()
         # check it raises
         with self.assertRaises(platform.CriticalErrorWipeImmediately):
-            ks.init()
+            init_keystore(ks)
         # files are deleted
         files = [f[0] for f in os.ilistdir(TEST_DIR)]
         self.assertFalse("secret" in files)

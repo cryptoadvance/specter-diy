@@ -1,6 +1,6 @@
 from unittest import TestCase
 from apps.wallets.wallet import Wallet
-from apps.wallets.scripts import DescriptorKey
+from bitcoin.descriptor import Key
 import os, json
 import platform
 
@@ -10,7 +10,7 @@ class WalletsTest(TestCase):
 
     def test_descriptors(self):
         """Test initial config creation"""
-        k = "[8cce63f8/84h/1h/0h]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2"
+        k = "[8cce63f8/84h/1h/0h]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2/{0,1}/*"
         descriptors = [
             "wpkh(%s)" % k,
             "sh(wpkh(%s))" % k,
@@ -21,7 +21,7 @@ class WalletsTest(TestCase):
         ]
         for desc in descriptors:
             w = Wallet.parse(desc)
-            self.assertEqual(w.descriptor(), desc)
+            self.assertEqual(str(w.descriptor), desc)
 
     def test_invalid_desc(self):
         """Test initial config creation"""
@@ -42,12 +42,11 @@ class WalletsTest(TestCase):
     def test_key(self):
         keys = [
             "[8cce63f8/84h/1h/0h]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2",
-            "[m/84h/1h/0h]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2",
             "[8cce63f8]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2",
             "tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2",
         ]
         for k in keys:
-            DescriptorKey.parse(k)
+            Key.parse(k)
 
     def test_invalid_keys(self):
         keys = [
@@ -58,6 +57,6 @@ class WalletsTest(TestCase):
         ]
         for k in keys:
             with self.assertRaises(Exception):
-                DescriptorKey.parse(k)
+                Key.parse(k)
                 print(k)
 
