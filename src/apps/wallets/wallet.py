@@ -102,8 +102,6 @@ class Wallet:
         if idx < 0:
             raise WalletError("Invalid index %d - can't be negative" % idx)
         sc = self.descriptor.derive(idx, branch_index=change).script_pubkey()
-        if self.wrapped:
-            sc = script.p2sh(sc)
         return sc, self.gaps[change]
 
     @property
