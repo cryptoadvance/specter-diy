@@ -12,7 +12,7 @@ class SDHost(Host):
     - saving signed transaction to the card
     """
 
-    button = "Sign from SD card"
+    button = "SD card"
 
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)
@@ -44,13 +44,17 @@ class SDHost(Host):
         """
         self.reset_and_mount()
         try:
-            sd_file = await self.select_file(".psbt")
+            sd_file = await self.select_file([".psbt", ".txt"])
             if sd_file is None:
                 return
             self.sd_file = sd_file
             with open(self.fram, "wb") as fout:
-                fout.write(b"sign ")
                 with open(self.sd_file, "rb") as fin:
+                    # check sign prefix for txs
+                    start = fin.read(5)
+                    if self.sd_file.endswith(".psbt") and start != b"sign ":
+                        fout.write(b"sign ")
+                    fout.write(start)
                     self.copy(fin, fout)
             self.f = open(self.fram,"rb")
         finally:
@@ -62,13 +66,25 @@ class SDHost(Host):
             return fname
         return fname[:18]+"..."+fname[-12:]
 
-    async def select_file(self, extension):
-        buttons = [(self.sdpath+"/"+f[0], self.truncate(f[0])) for f in os.ilistdir(self.sdpath) if f[0].endswith(extension) and f[1] == 0x8000]
-        if len(buttons) == 0:
-            raise HostError("\n\nNo %s files found on the SD card" % extension)
-        if len(buttons) == 1:
-            return buttons[0][0]
-        fname = await self.manager.gui.menu(buttons, title="Select a %s file" % extension, last=(None, "Cancel"))
+    async def select_file(self, extensions):
+
+        files = sum([[f[0] for f in os.ilistdir(self.sdpath) if f[0].lower().endswith(ext) and f[1] == 0x8000] for ext in extensions], [])
+
+        if len(files) == 0:
+            raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
+        if len(files) == 1:
+            return self.sdpath+"/"+ files[0]
+
+        buttons = []
+        for ext in extensions:
+            title = [(None, ext+" files")]
+            barr = [(self.sdpath+"/"+f, self.truncate(f)) for f in files if f.lower().endswith(ext)]
+            if len(barr) == 0:
+                buttons += [(None, "%s files - No files" % ext)]
+            else:
+                buttons += title + barr
+
+        fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
         return fname
 
     async def send_data(self, stream, *args, **kwargs):
@@ -77,6 +93,9 @@ class SDHost(Host):
         as psbt.signed.<suffix> file
         Returns a success message to display
         """
+        # only psbt files are coming from the device right now
+        if not self.sd_file.endswith(".psbt"):
+            return
         self.reset_and_mount()
         try:
             new_fname = self.sd_file.replace(".psbt", ".signed.psbt")
