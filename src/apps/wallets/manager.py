@@ -5,7 +5,7 @@ from .screens import WalletScreen, ConfirmWalletScreen
 import platform
 import os
 from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
-from bitcoin.psbt import PSBT
+from bitcoin.psbt import PSBT, DerivationPath
 from bitcoin.networks import NETWORKS
 from bitcoin import script, bip32
 from .wallet import WalletError, Wallet
@@ -216,7 +216,7 @@ class WalletManager(BaseApp):
                 if arg.startswith("index="):
                     idx = int(arg[6:])
                     break
-            w = self.find_wallet_from_address(addr, idx)
+            w, _ = self.find_wallet_from_address(addr, index=idx)
             await show_screen(WalletScreen(w, self.network, idx))
             return
         elif cmd == DERIVE_ADDRESS:
@@ -228,7 +228,7 @@ class WalletManager(BaseApp):
                 script_type, path, redeem_script = arr
             else:
                 raise WalletError("Too many arguments")
-            paths = path.split(b",")
+            paths = [p.decode() for p in path.split(b",")]
             if len(paths) == 0:
                 raise WalletError("Invalid path argument")
             res = await self.showaddr(
@@ -318,54 +318,42 @@ class WalletManager(BaseApp):
     async def showaddr(
         self, paths: list, script_type: str, redeem_script=None, show_screen=None
     ) -> str:
+        net = NETWORKS[self.network]
         if redeem_script is not None:
             redeem_script = script.Script(unhexlify(redeem_script))
         # first check if we have corresponding wallet:
-        # - just take last 2 indexes of the derivation
-        # and see if redeem script matches
         address = None
         if redeem_script is not None:
             if script_type == b"wsh":
-                address = script.p2wsh(redeem_script).address(NETWORKS[self.network])
+                address = script.p2wsh(redeem_script).address(net)
             elif script_type == b"sh-wsh":
-                address = script.p2sh(script.p2wsh(redeem_script)).address(
-                    NETWORKS[self.network]
-                )
-            else:
-                raise HostError("Unsupported script type: %s" % script_type)
-        # in our wallets every key
-        # has the same two last indexes for derivation
-        path = paths[0]
-        if not path.startswith(b"m/"):
-            path = b"m" + path[8:]
-        derivation = bip32.parse_path(path.decode())
-
-        # if not multisig:
-        if address is None and len(paths) == 1:
-            pub = self.keystore.get_xpub(derivation)
-            if script_type == b"wpkh":
-                address = script.p2wpkh(pub).address(NETWORKS[self.network])
-            elif script_type == b"sh-wpkh":
-                address = script.p2sh(
-                    script.p2wpkh(pub)
-                ).address(NETWORKS[self.network])
+                address = script.p2sh(script.p2wsh(redeem_script)).address(net)
+            elif script_type == b"sh":
+                address = script.p2sh(redeem_script).address(net)
             else:
                 raise WalletError("Unsupported script type: %s" % script_type)
 
-        if len(derivation) >= 2:
-            derivation = derivation[-2:]
         else:
-            raise WalletError("Invalid derivation")
-        if address is None:
-            raise WalletError("Can't derive address. Provide redeem script.")
-        try:
-            change = bool(derivation[0])
-            w = self.find_wallet_from_address(address, derivation[1], change=change)
-        except Exception as e:
-            raise WalletError("%s" % e)
+            if len(paths) != 1:
+                raise WalletError("Invalid number of paths, expected 1")
+            path = paths[0]
+            if not path.startswith("m/"):
+                path = "m" + path[8:]
+            derivation = bip32.parse_path(path)
+            pub = self.keystore.get_xpub(derivation)
+            if script_type == b"wpkh":
+                address = script.p2wpkh(pub).address(net)
+            elif script_type == b"sh-wpkh":
+                address = script.p2sh(script.p2wpkh(pub)).address(net)
+            elif script_type == b"pkh":
+                address = script.p2pkh(pub).address(net)
+            else:
+                raise WalletError("Unsupported script type: %s" % script_type)
+
+        w, (branch_idx, idx) = self.find_wallet_from_address(address, paths=paths)
         if show_screen is not None:
             await show_screen(
-                WalletScreen(w, self.network, derivation[1], change=change)
+                WalletScreen(w, self.network, idx, branch_index=branch_idx)
             )
         return address
 
@@ -455,11 +443,29 @@ class WalletManager(BaseApp):
         self.wallets.pop(self.wallets.index(w))
         w.wipe()
 
-    def find_wallet_from_address(self, addr: str, idx: int, change=False):
-        for w in self.wallets:
-            a, gap = w.get_address(idx, self.network, change)
-            if a == addr:
-                return w
+    def find_wallet_from_address(self, addr: str, paths=None, index=None):
+        if index is not None:
+            for w in self.wallets:
+                a, _ = w.get_address(index, self.network)
+                if a == addr:
+                    return w, (0, index)
+        if paths is not None:
+            # we can detect the wallet from just one path
+            p = paths[0]
+            if not p.startswith("m"):
+                fingerprint = unhexlify(p[:8])
+                derivation = bip32.parse_path("m"+p[8:])
+            else:
+                fingerprint = self.keystore.fingerprint
+                derivation = bip32.parse_path(p)
+            derivation_path = DerivationPath(fingerprint, derivation)
+            for w in self.wallets:
+                der = w.descriptor.check_derivation(derivation_path)
+                if der is not None:
+                    branch_idx, idx = der
+                    a, _ = w.get_address(idx, self.network, branch_idx)
+                    if a == addr:
+                        return w, (branch_idx, idx)
         raise WalletError("Can't find wallet owning address %s" % addr)
 
     def parse_psbt(self, psbt):

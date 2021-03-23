@@ -36,6 +36,6 @@ class BasicTest(TestCase):
 
         # should find it before adding a wallet
         for addr in addresses:
-            res = sim.query(addr,[True])
+            res = sim.query(addr,[None])
             self.assertFalse(b"error: Can't find wallet owning address" in res)
 

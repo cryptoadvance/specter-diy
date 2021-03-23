@@ -89,20 +89,20 @@ class Wallet:
             raise WalletError("I don't know path...")
         delete_recursively(self.path, include_self=True)
 
-    def get_address(self, idx: int, network: str, change=False):
-        sc, gap = self.script_pubkey([int(change), idx])
+    def get_address(self, idx: int, network: str, branch_index=0):
+        sc, gap = self.script_pubkey([int(branch_index), idx])
         return sc.address(NETWORKS[network]), gap
 
     def script_pubkey(self, derivation: list):
         """Returns script_pubkey and gap limit"""
         # derivation can be only two elements
-        change, idx = derivation
-        if change not in [0, 1]:
-            raise WalletError("Invalid change index %d - can be 0 or 1" % change)
-        if idx < 0:
-            raise WalletError("Invalid index %d - can't be negative" % idx)
-        sc = self.descriptor.derive(idx, branch_index=change).script_pubkey()
-        return sc, self.gaps[change]
+        branch_idx, idx = derivation
+        if branch_idx < 0 or branch_idx >= self.descriptor.num_branches:
+            raise WalletError("Invalid branch index %d - can be between 0 and %d" % (branch_idx, self.descriptor.num_branches))
+        if idx < 0 or idx >= 0x80000000:
+            raise WalletError("Invalid index %d" % idx)
+        sc = self.descriptor.derive(idx, branch_index=branch_idx).script_pubkey()
+        return sc, self.gaps[branch_idx]
 
     @property
     def fingerprint(self):
@@ -163,9 +163,9 @@ class Wallet:
             for scope in scopes:
                 res = self.get_derivation(scope)
                 if res is not None:
-                    change, idx = res
-                    if idx + self.GAP_LIMIT > gaps[change]:
-                        gaps[change] = idx + self.GAP_LIMIT + 1
+                    branch_idx, idx = res
+                    if idx + self.GAP_LIMIT > gaps[branch_idx]:
+                        gaps[branch_idx] = idx + self.GAP_LIMIT + 1
         # update from gaps arg
         if known_idxs is not None:
             for i, gap in enumerate(gaps):

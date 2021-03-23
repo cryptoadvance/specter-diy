@@ -6,11 +6,11 @@ from .commands import DELETE, EDIT, MENU
 
 
 class WalletScreen(QRAlert):
-    def __init__(self, wallet, network, idx=None, change=False):
+    def __init__(self, wallet, network, idx=None, branch_index=0):
         self.wallet = wallet
         self.network = network
         self.idx = wallet.unused_recv
-        addr, gap = wallet.get_address(self.idx, network=network, change=change)
+        addr, gap = wallet.get_address(self.idx, network=network, branch_index=branch_index)
         super().__init__(
             "    " + wallet.name + "  #708092 " + lv.SYMBOL.EDIT,
             format_addr(addr, words=4),
@@ -28,10 +28,9 @@ class WalletScreen(QRAlert):
         self.message.set_style(0, style)
 
         # index
-        self.change = change
-        prefix = "Change" if change else "Receiving"
+        self.branch_index = branch_index
         self.note = add_label(
-            "%s address #%d" % (prefix, self.idx), y=80, style="hint", scr=self
+            "%s address #%d" % (self.prefix, self.idx), y=80, style="hint", scr=self
         )
         self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
         self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
@@ -75,6 +74,14 @@ class WalletScreen(QRAlert):
             self.idx = idx
             self.update_address()
 
+    @property
+    def prefix(self):
+        if self.branch_index == 0:
+            return "Receiving"
+        elif self.branch_index == 1:
+            return "Change"
+        return "Branch %d" % self.branch_index    
+
     def rename(self):
         self.set_value(EDIT)
 
@@ -102,10 +109,9 @@ class WalletScreen(QRAlert):
         else:
             self.prv.set_state(lv.btn.STATE.INA)
         addr, gap = self.wallet.get_address(
-            self.idx, network=self.network, change=self.change
+            self.idx, network=self.network, branch_index=self.branch_index
         )
-        prefix = "Change" if self.change else "Receiving"
-        note = "%s address #%d" % (prefix, self.idx)
+        note = "%s address #%d" % (self.prefix, self.idx)
         self.note.set_text(note)
         self.message.set_text(format_addr(addr, words=4))
         self.qr.set_text("bitcoin:" + addr)

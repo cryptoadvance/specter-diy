@@ -75,6 +75,12 @@ class RPCTest(TestCase):
         d1 = f"wpkh([{fgp}/{path}]{xpub}/0/*)"
         d2 = f"wpkh([{fgp}/{path}]{xpub}/1/*)"
         wname = wallet_prefix+"_wpkh"
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        res = sim.query(f"showaddr wpkh m/{path}/0/5", [True])
+        self.assertEqual(res.decode(), addr)
+
         self.sign_with_descriptor(wname, d1, d2)
 
     def test_sh_wpkh(self):
@@ -91,6 +97,12 @@ class RPCTest(TestCase):
         d3 = f"sh(wpkh([{fgp}/{path}]{xpub}"+ "/{0,1}/*))"
         wname = wallet_prefix+"_sh_wpkh"
         res = sim.query("addwallet shwpkh&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        res = sim.query(f"showaddr sh-wpkh m/{path}/0/5", [True])
+        self.assertEqual(res.decode(), addr)
+
         self.sign_with_descriptor(wname, d1, d2)
 
     def test_strange_derivation(self):
@@ -105,6 +117,12 @@ class RPCTest(TestCase):
         # combined with default derivation {0,1}/*
         d3 = f"wpkh([{fgp}/{path}]{xpub}"+ "/{44,55}/8/*)"
         res = sim.query("addwallet weird&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        res = sim.query(f"showaddr wpkh m/{path}/44/8/5", [True])
+        self.assertEqual(res.decode(), addr)
+
         wname = wallet_prefix+"_weird"
         self.sign_with_descriptor(wname, d1, d2)
 
@@ -121,6 +139,13 @@ class RPCTest(TestCase):
         # combined with default derivation {0,1}/*
         d3 = f"wsh(sortedmulti(1,[{fgp}/{path}]{xpub}/" + "{0,1}/*" + f",{cosigner}/"+"{0,1}/*))"
         res = sim.query("addwallet wsh&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        sc = Descriptor.from_string(d1).derive(5).witness_script().data.hex()
+        res = sim.query(f"showaddr wsh m/{path}/0/5 {sc}", [True])
+        self.assertEqual(res.decode(), addr)
+
         wname = wallet_prefix+"_wsh"
         self.sign_with_descriptor(wname, d1, d2)
 
@@ -137,6 +162,13 @@ class RPCTest(TestCase):
         # combined with default derivation {0,1}/*
         d3 = f"sh(wsh(multi(1,[{fgp}/{path}]{xpub}/" + "{0,1}/*" + f",{cosigner}/"+"{0,1}/*)))"
         res = sim.query("addwallet shwsh&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        sc = Descriptor.from_string(d1).derive(5).witness_script().data.hex()
+        res = sim.query(f"showaddr sh-wsh m/{path}/0/5 {sc}", [True])
+        self.assertEqual(res.decode(), addr)
+
         wname = wallet_prefix+"_sh_wsh"
         self.sign_with_descriptor(wname, d1, d2)
 
@@ -153,6 +185,13 @@ class RPCTest(TestCase):
         # combined with default derivation {0,1}/*
         d3 = f"wsh(sortedmulti(1,[{fgp}/{path}]{xpub}/" + "{5,8}/*" + f",{cosigner}/"+"{2,3}/5/*))"
         res = sim.query("addwallet wshmeh&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        sc = Descriptor.from_string(d1).derive(5).witness_script().data.hex()
+        res = sim.query(f"showaddr wsh m/{path}/5/5 {sc}", [True])
+        self.assertEqual(res.decode(), addr)
+
         wname = wallet_prefix+"_wshmeh"
         self.sign_with_descriptor(wname, d1, d2)
 
@@ -163,8 +202,16 @@ class RPCTest(TestCase):
         xpub = sim.query(f"xpub m/{path}").decode()
         desc = f"wsh(and_v(v:pk([{fgp}/{path}]{xpub}"+"/{0,1}/*),after(10)))"
         res = sim.query("addwallet mini&"+desc, [True])
+
         wname = wallet_prefix+"_mini"
         d = Descriptor.from_string(desc)
+
+        addr = d.derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        sc = d.derive(5).witness_script().data.hex()
+        res = sim.query(f"showaddr wsh m/{path}/0/5 {sc}", [True])
+        self.assertEqual(res.decode(), addr)
+
         d1 = d.derive(2, branch_index=0)
         d2 = d.derive(3, branch_index=1)
         # recv addr 2
