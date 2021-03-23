@@ -157,7 +157,11 @@ class WalletManager(BaseApp):
         platform.delete_recursively(self.tempdir)
         cmd, stream = self.parse_stream(stream)
         if cmd == SIGN_PSBT:
-            res = await self.sign_psbt(stream, show_screen)
+            encoding = BASE64_STREAM
+            if stream.read(5) == b"psbt\xff":
+                encoding = RAW_STREAM
+            stream.seek(-5, 1)
+            res = await self.sign_psbt(stream, show_screen, encoding)
             if res is not None:
                 obj = {
                     "title": "Transaction is signed!",
