@@ -197,7 +197,7 @@ class WalletManager(BaseApp):
             return
         elif cmd == ADD_WALLET:
             # read content, it's small
-            desc = stream.read().decode()
+            desc = stream.read().decode().strip()
             w = self.parse_wallet(desc)
             res = await self.confirm_new_wallet(w, show_screen)
             if res:
