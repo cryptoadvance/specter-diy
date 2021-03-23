@@ -11,6 +11,16 @@ import sys
 from helpers import load_apps
 from app import BaseApp
 
+def load_extra():
+    import json, os
+    extradir = platform.fpath("/flash/libs")
+    platform.maybe_mkdir(extradir)
+    platform.maybe_mkdir(extradir+"/extra_apps")
+    sys.path.append(extradir)
+    mods = [f[0][:-4] for f in os.ilistdir(extradir+"/extra_apps") if f[0].endswith(".mpy")]
+    with open(extradir+"/extra_apps/__init__.py", "w") as f:
+        f.write("__all__="+json.dumps(mods))
+    return load_apps("extra_apps")
 
 def main(apps=None, network="main", keystore_cls=None):
     """
@@ -47,6 +57,7 @@ def main(apps=None, network="main", keystore_cls=None):
     # loading apps
     if apps is None:
         apps = load_apps()
+        apps += load_extra()
 
     # make Specter instance
     settings_path = platform.fpath("/flash")

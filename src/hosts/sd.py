@@ -44,7 +44,7 @@ class SDHost(Host):
         """
         self.reset_and_mount()
         try:
-            sd_file = await self.select_file([".psbt", ".txt"])
+            sd_file = await self.select_file([".psbt", ".txt", ".mapp"])
             if sd_file is None:
                 return
             self.sd_file = sd_file
@@ -72,8 +72,8 @@ class SDHost(Host):
 
         if len(files) == 0:
             raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
-        if len(files) == 1:
-            return self.sdpath+"/"+ files[0]
+        # if len(files) == 1:
+        #     return self.sdpath+"/"+ files[0]
 
         buttons = []
         for ext in extensions:
