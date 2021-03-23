@@ -34,8 +34,8 @@ class Specter:
     Call .start() method to register in the event loop
     It will then call the .setup() and .main() functions to display the GUI
     """
-
-    def __init__(self, gui, keystores, hosts, apps, settings_path, network="test"):
+    usb = False
+    def __init__(self, gui, keystores, hosts, apps, settings_path, network="main"):
         self.hosts = hosts
         self.keystores = keystores
         self.keystore = None
@@ -46,7 +46,6 @@ class Specter:
         self.gui = gui
         self.path = settings_path
         self.current_menu = self.initmenu
-        self.usb = False
         self.dev = False
         self.apps = apps
 
@@ -458,8 +457,13 @@ class Specter:
             stream.seek(0)
             app = matching_apps[0]
             res = await app.process_host_command(stream, self.gui.show_screen(popup))
-        except BaseError as e:
-            raise HostError(str(e))
+        except Exception as e:
+            if isinstance(e, BaseError):
+                # error that has a meaningfull message, will be sent to the host
+                raise HostError(str(e))
+            else:
+                # converted to "unknown error" on the host
+                raise e
         finally:
             self.gui.hide_loader()
         return res

@@ -30,8 +30,14 @@ def main(apps=None, network="main", keystore_cls=None):
     ]
     # temp storage in RAM for host commands processing
     BaseApp.TEMPDIR = rampath+"/tmp"
+
     # define GUI
-    gui = SpecterGUI()
+    if not platform.simulator:
+        gui = SpecterGUI()
+    else:
+        # this GUI can simulate user actions for automated testing
+        from gui.tcp_gui import TCPGUI
+        gui = TCPGUI()
 
     # inject the folder where keystore stores it's data
     KeyStore.path = platform.fpath("/flash/keystore")
