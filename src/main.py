@@ -26,7 +26,7 @@ def main(apps=None, network="main", keystore_cls=None):
     hosts = [
         QRHost(rampath + "/qr"),
         USBHost(rampath + "/usb"),
-        # SDHost(rampath+"/sd"), # not implemented yet
+        SDHost(rampath+"/sd"),
     ]
     # temp storage in RAM for host commands processing
     BaseApp.TEMPDIR = rampath+"/tmp"
