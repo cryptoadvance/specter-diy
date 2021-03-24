@@ -1,6 +1,7 @@
 import logging
 import requests, json, os
 import os, sys, errno
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -8,6 +9,23 @@ RPC_PORTS = {"test": 18332, "regtest": 18443, "main": 8332, "signet": 38332}
 
 # detects regtest, makes sure default wallet exists and gets some funds there
 def prepare_rpc():
+    # r = BitcoinRPC("bitcoin","secret",port=18778)
+    # t0 = time.time()
+    # rpc = None
+    # while rpc is None:
+    #     try:
+    #         info = r.getmininginfo()
+    #         if info["chain"] == "regtest":
+    #             rpc = r
+    #             break
+    #         else:
+    #             raise RuntimeError("Invalid network: %s" % info["chain"])
+    #     except Exception as e:
+    #         print(e)
+    #     time.sleep(1)
+    #     if time.time()-t0 > 10:
+    #         raise RuntimeError("Timeout connecting to Core!")
+    #         break
     rpcs = autodetect_rpc_confs()
     rpc = None
     for conf in rpcs:

@@ -8,6 +8,7 @@ from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
 from bitcoin.psbt import PSBT, DerivationPath
 from bitcoin.networks import NETWORKS
 from bitcoin import script, bip32
+from bitcoin.transaction import SIGHASH
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
@@ -244,13 +245,36 @@ class WalletManager(BaseApp):
             psbt = PSBT.parse(data)
         else:
             psbt = PSBT.read_from(stream)
-        # check if all witness_utxos are there and fill if not
+        # check if all utxos are there and if there are custom sighashes
+        sighash = SIGHASH.ALL
+        custom_sighashes = []
         for i, inp in enumerate(psbt.inputs):
             if inp.witness_utxo is None:
                 if inp.non_witness_utxo is None:
                     raise WalletError("Invalid PSBT - missing previous transaction")
-                inp.witness_utxo = inp.non_witness_utxo.vout[psbt.tx.vin[i].vout]
+            if inp.sighash_type and inp.sighash_type != SIGHASH.ALL:
+                sh, anyonecanpay = SIGHASH.check(inp.sighash_type)
+                custom_sighashes.append((i, sh, anyonecanpay))
 
+        if len(custom_sighashes) > 0:
+            SIGHASH_NAMES = {
+                SIGHASH.ALL: "ALL",
+                SIGHASH.NONE: "NONE",
+                SIGHASH.SINGLE: "SINGLE",
+            }
+            txt = [("Input %d: " % i) + SIGHASH_NAMES[sh] + (" | ANYONECANPAY" if anyonecanpay else "")
+                    for (i, sh, anyonecanpay) in custom_sighashes]
+            canceltxt = "Only sign ALL" if len(custom_sighashes) != len(psbt.inputs) else "Cancel"
+            confirm = await show_screen(Prompt("Warning!",
+                "\nCustom SIGHASH flags are used!\n\n"+"\n".join(txt),
+                confirm_text="Sign anyway", cancel_text=canceltxt
+            ))
+            if confirm:
+                sighash = None
+            else:
+                if len(custom_sighashes) == len(psbt.inputs):
+                    # nothing to sign
+                    return
         wallets, meta = self.parse_psbt(psbt=psbt)
         # there is an unknown wallet
         # wallet is a list of tuples: (wallet, amount)
@@ -276,17 +300,19 @@ class WalletManager(BaseApp):
         res = await show_screen(TransactionScreen(title, meta))
         if res:
             self.show_loader(title="Signing transaction...")
+            sigsStart = 0
+            for i, inp in enumerate(psbt.inputs):
+                sigsStart += len(list(inp.partial_sigs.keys()))
             for w, _ in wallets:
                 if w is None:
                     continue
                 # fill derivation paths from proprietary fields
                 w.update_gaps(psbt=psbt)
                 w.save(self.keystore)
-                psbt = w.fill_psbt(psbt, self.keystore.fingerprint)
-            sigsStart = 0
-            for i, inp in enumerate(psbt.inputs):
-                sigsStart += len(list(inp.partial_sigs.keys()))
-            self.keystore.sign_psbt(psbt)
+                w.fill_psbt(psbt, self.keystore.fingerprint)
+                if w.has_private_keys:
+                    w.sign_psbt(psbt, sighash)
+            self.keystore.sign_psbt(psbt, sighash)
             # remove unnecessary stuff:
             out_psbt = PSBT(psbt.tx)
             sigsEnd = 0
@@ -447,6 +473,7 @@ class WalletManager(BaseApp):
         if index is not None:
             for w in self.wallets:
                 a, _ = w.get_address(index, self.network)
+                print(a)
                 if a == addr:
                     return w, (0, index)
         if paths is not None:
@@ -477,7 +504,7 @@ class WalletManager(BaseApp):
         amounts = []
 
         # calculate fee
-        fee = sum([inp.witness_utxo.value for inp in psbt.inputs])
+        fee = sum([psbt.utxo(i).value for i in range(len(psbt.inputs))])
         fee -= sum([out.value for out in psbt.tx.vout])
 
         # metadata for GUI
@@ -494,25 +521,25 @@ class WalletManager(BaseApp):
             "warnings": [],
         }
         # detect wallet for all inputs
-        for inp in psbt.inputs:
+        for i, inp in enumerate(psbt.inputs):
             found = False
             for w in self.wallets:
-                if w.owns(inp):
+                if w.owns(psbt.utxo(i), inp.bip32_derivations):
                     if w not in wallets:
                         wallets.append(w)
-                        amounts.append(inp.witness_utxo.value)
+                        amounts.append(psbt.utxo(i).value)
                     else:
                         idx = wallets.index(w)
-                        amounts[idx] += inp.witness_utxo.value
+                        amounts[idx] += psbt.utxo(i).value
                     found = True
                     break
             if not found:
                 if None not in wallets:
                     wallets.append(None)
-                    amounts.append(inp.witness_utxo.value)
+                    amounts.append(psbt.utxo(i).value)
                 else:
                     idx = wallets.index(None)
-                    amounts[idx] += inp.witness_utxo.value
+                    amounts[idx] += psbt.utxo(i).value
 
         if None in wallets:
             meta["warnings"].append("Unknown wallet in input!")
@@ -524,7 +551,7 @@ class WalletManager(BaseApp):
             for w in wallets:
                 if w is None:
                     continue
-                if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
+                if w.owns(psbt.tx.vout[i], out.bip32_derivations):
                     meta["outputs"][i]["change"] = True
                     meta["outputs"][i]["label"] = w.name
                     break
@@ -535,12 +562,12 @@ class WalletManager(BaseApp):
         # it's ok if both are larger than gap limit
         # but differ by less than gap limit
         # (i.e. old wallet is used)
-        for inp in psbt.inputs:
+        for inidx, inp in enumerate(psbt.inputs):
             for i, w in enumerate(wallets):
                 if w is None:
                     continue
-                if w.owns(inp):
-                    branch_idx, idx = w.get_derivation(inp)
+                if w.owns(psbt.utxo(inidx), inp.bip32_derivations):
+                    branch_idx, idx = w.get_derivation(inp.bip32_derivations)
                     if gaps[i][branch_idx] < idx + type(w).GAP_LIMIT:
                         gaps[i][branch_idx] = idx + type(w).GAP_LIMIT
         # check all outputs if index is ok
@@ -548,8 +575,8 @@ class WalletManager(BaseApp):
             if not meta["outputs"][i]["change"]:
                 continue
             for j, w in enumerate(wallets):
-                if w.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
-                    branch_idx, idx = w.get_derivation(out)
+                if w.owns(psbt.tx.vout[i], out.bip32_derivations):
+                    branch_idx, idx = w.get_derivation(out.bip32_derivations)
                     if branch_idx == 1:
                         meta["outputs"][i]["label"] += " (change %d)" % idx
                     elif branch_idx == 0:

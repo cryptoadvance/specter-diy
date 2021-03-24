@@ -90,8 +90,38 @@ class SimController:
         # if we need to confirm anything
         for command in commands:
             sim.gui.send(command)
+            time.sleep(0.3)
         res = sim.usb.receive()
         return res.strip()
 
+class BitcoinCore:
+    datadir = "./testdir/"
+    def __init__(self):
+        pass
+
+    def start(self):
+        print("starting Bitcon Core in regtest mode with datadir %s" % self.datadir)
+        try:
+            shutil.rmtree(self.datadir)
+        except:
+            pass
+        try:
+            os.mkdir(self.datadir)
+        except:
+            pass
+        self.proc = subprocess.Popen("bitcoind -datadir=%s -regtest -fallbackfee=0.0002 -rpcuser=bitcoin -rpcpassword=secret -rpcport=18778 -port=18779" % self.datadir,
+                                stdout=subprocess.PIPE,
+                                shell=True, preexec_fn=os.setsid)
+        time.sleep(1)
+
+    def shutdown(self):
+        print("shutting down Bitcon Core")
+        os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)  # Send the signal to all the process groups
+        time.sleep(3)
+        try:
+            shutil.rmtree(self.datadir)
+        except:
+            pass
 
 sim = SimController()
+core = BitcoinCore()

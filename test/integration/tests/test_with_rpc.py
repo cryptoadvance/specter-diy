@@ -1,13 +1,13 @@
 from unittest import TestCase, skip
-from .controller import sim
-from .rpc import prepare_rpc
+from util.controller import sim
+from util.rpc import prepare_rpc
 import random
 import time
 from embit.descriptor import Descriptor
 from embit.bip32 import HDKey
 from embit.networks import NETWORKS
 from embit.psbt import PSBT, DerivationPath
-from embit.transaction import Transaction, TransactionInput, TransactionOutput
+from embit.transaction import Transaction, TransactionInput, TransactionOutput, SIGHASH
 from embit import ec, bip32
 from embit.script import Witness
 
@@ -18,7 +18,7 @@ wallet_prefix = "test/"+random.randint(0,0xFFFFFFFF).to_bytes(4,'big').hex()
 class RPCTest(TestCase):
     """Complete tests with Core on regtest - should catch problems with signing of transactions"""
 
-    def sign_with_descriptor(self, wname, d1, d2):
+    def sign_with_descriptor(self, wname, d1, d2, all_sighashes=False):
         # to derive addresses
         desc1 = Descriptor.from_string(d1)
         desc2 = Descriptor.from_string(d2)
@@ -52,17 +52,29 @@ class RPCTest(TestCase):
         wdefault.sendtoaddress(addr1, 0.1)
         rpc.mine()
         psbt = w.walletcreatefundedpsbt([], [{wdefault.getnewaddress(): 0.002}], 0, {"includeWatching": True, "changeAddress": addr2}, True)
-        unsigned = psbt["psbt"].encode()
-        # confirm signing
-        signed = sim.query(b"sign "+unsigned, [True])
-        # signed tx
-        combined = rpc.combinepsbt([unsigned.decode(), signed.decode()])
-        final = rpc.finalizepsbt(combined)
-        self.assertTrue(final["complete"])
-        # broadcast
-        res = rpc.sendrawtransaction(final["hex"])
-        rpc.mine()
-        self.assertEqual(len(bytes.fromhex(res)), 32)
+        unsigned = psbt["psbt"]
+        sighashes = [None]
+        if all_sighashes:
+            sh = [SIGHASH.ALL, SIGHASH.NONE, SIGHASH.SINGLE]
+            sighashes += sh + [s | SIGHASH.ANYONECANPAY for s in sh]
+        tx = PSBT.from_base64(unsigned)
+        for sh in sighashes:
+            for inp in tx.inputs:
+                inp.sighash_type = sh
+            unsigned = tx.to_base64().encode()
+            # confirm signing
+            if sh in [SIGHASH.ALL, None]:
+                signed = sim.query(b"sign "+unsigned, [True])
+            else:
+                # confirm warning
+                signed = sim.query(b"sign "+unsigned, [True, True])
+            # signed tx
+            combined = rpc.combinepsbt([unsigned.decode(), signed.decode()])
+            final = rpc.finalizepsbt(combined)
+            self.assertTrue(final["complete"])
+            # broadcast
+            res = rpc.testmempoolaccept([final["hex"]])
+            self.assertTrue(res[0]["allowed"])
 
     def test_wpkh(self):
         """Native segwit single-sig"""
@@ -279,8 +291,114 @@ class RPCTest(TestCase):
         self.assertEqual(len(bytes.fromhex(res)), 32)
 
 
-    def test_with_private(self):
-        pass
+    def test_legacy(self):
+        """Native segwit single-sig"""
+        path = "44h/1h/0h"
+        fgp = sim.query("fingerprint").decode()
+        xpub = sim.query(f"xpub m/{path}").decode()
+        # normalize for regtest
+        hd = HDKey.from_string(xpub)
+        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
+        d1 = f"pkh([{fgp}/{path}]{xpub}/0/*)"
+        d2 = f"pkh([{fgp}/{path}]{xpub}/1/*)"
+        # combined
+        d3 = f"pkh([{fgp}/{path}]{xpub})"
+        wname = wallet_prefix+"_pkh"
+        res = sim.query("addwallet pkh&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        res = sim.query(f"showaddr pkh m/{path}/0/5", [True])
+        self.assertEqual(res.decode(), addr)
+
+        self.sign_with_descriptor(wname, d1, d2)
+
+    def test_legacy_sh(self):
+        cosigner = "[12345678/41h/2h/0h]tpubDCUwbXdGiV5qFWMyaHBfdtDv1AZtUJmENrLMGEooEdyYka1Gk5FrBdoTp54EFWxopWi9H7udD4d8CxMNa2GUECRCodbBkd4eZfiQzbMXWU3"
+        path = "49h/1h/0h/2h"
+        fgp = sim.query("fingerprint").decode()
+        xpub = sim.query(f"xpub m/{path}").decode()
+        # normalize for regtest
+        hd = HDKey.from_string(xpub)
+        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
+        d1 = f"sh(sortedmulti(1,[{fgp}/{path}]{xpub}/0/*,{cosigner}/0/*))"
+        d2 = f"sh(sortedmulti(1,[{fgp}/{path}]{xpub}/1/*,{cosigner}/1/*))"
+        # combined with default derivation {0,1}/*
+        d3 = f"sh(sortedmulti(1,[{fgp}/{path}]{xpub}/" + "{0,1}/*" + f",{cosigner}/"+"{0,1}/*))"
+        res = sim.query("addwallet legsh&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        sc = Descriptor.from_string(d1).derive(5).redeem_script().data.hex()
+        res = sim.query(f"showaddr sh m/{path}/0/5 {sc}", [True])
+        self.assertEqual(res.decode(), addr)
+
+        wname = wallet_prefix+"_legsh"
+        self.sign_with_descriptor(wname, d1, d2)
 
     def test_sighashes(self):
-        pass
+        """Native segwit single-sig"""
+        path = "84h/1h/0h"
+        fgp = sim.query("fingerprint").decode()
+        xpub = sim.query(f"xpub m/{path}").decode()
+        # normalize for regtest
+        hd = HDKey.from_string(xpub)
+        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
+        d1 = f"wpkh([{fgp}/{path}]{xpub}/0/*)"
+        d2 = f"wpkh([{fgp}/{path}]{xpub}/1/*)"
+        wname = wallet_prefix+"_wpkhsighash"
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        res = sim.query(f"showaddr wpkh m/{path}/0/5", [True])
+        self.assertEqual(res.decode(), addr)
+
+        self.sign_with_descriptor(wname, d1, d2, all_sighashes=True)
+
+    def test_sighashes_legacy(self):
+        """Native segwit single-sig"""
+        path = "44h/1h/0h"
+        fgp = sim.query("fingerprint").decode()
+        xpub = sim.query(f"xpub m/{path}").decode()
+        # normalize for regtest
+        hd = HDKey.from_string(xpub)
+        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
+        # legacy sighashes
+        d1 = f"pkh([{fgp}/{path}]{xpub}/0/*)"
+        d2 = f"pkh([{fgp}/{path}]{xpub}/1/*)"
+        d3 = f"pkh([{fgp}/{path}]{xpub}"+ "/{0,1}/*)"
+        wname = wallet_prefix+"_pkhsighash"
+
+        res = sim.query("addwallet pkhsighsh&"+d3, [True])
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        res = sim.query(f"showaddr pkh m/{path}/0/5", [True])
+        self.assertEqual(res.decode(), addr)
+
+        self.sign_with_descriptor(wname, d1, d2, all_sighashes=True)
+
+    def test_with_private(self):
+        cosigner = "[12345678/41h/2h/0h]tprv8ffduPBLPgcNBZcXgCPo91WbmhXdpLKq8gtq7C6KnXbcqMPrj2NhSWp8WCjFarhBDi2TnPf7AcndKJZeF6Eq3uXXEbsbQZpk94cmrtopNH4"
+        cosigner_public = "[12345678/41h/2h/0h]tpubDCMg3oDaY4J352eKZr4PYRAiLj3ZyfWjhzVcPi8dCoQ1fqedMRCHd1RzgLHXN7fbqMFCquaby2ETYKoVmjGLU7rdadZ2MeprqeHrJWHLKYn"
+        cosigner2 = "cUHFVwhcD4jJnVQkuDw5MdhZQVf2t6qSF6miA7UDnDSyiBNSZ4st"
+        cosigner2_public = "0307208358ae8ccce81c81ea7a89683ee854e1002e05be8df39cb0ca5ed44eac29"
+        path = "49h/1h/0h/2h"
+        fgp = sim.query("fingerprint").decode()
+        xpub = sim.query(f"xpub m/{path}").decode()
+        # normalize for regtest
+        hd = HDKey.from_string(xpub)
+        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
+        d1 = f"wsh(sortedmulti(3,[{fgp}/{path}]{xpub}/0/*,{cosigner_public}/0/*,"+f"{cosigner2_public}))"
+        d2 = f"wsh(sortedmulti(3,[{fgp}/{path}]{xpub}/1/*,{cosigner_public}/1/*,"+f"{cosigner2_public}))"
+        # combined with default derivation {0,1}/*
+        d3 = f"wsh(sortedmulti(3,[{fgp}/{path}]{xpub}/" + "{0,1}/*" + f",{cosigner}/"+"{0,1}/*,"+f"{cosigner2}))"
+        res = sim.query("addwallet wshpriv&"+d3, [True])
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+        # check it finds the wallet correctly
+        sc = Descriptor.from_string(d1).derive(5).witness_script().data.hex()
+        res = sim.query(f"showaddr wsh m/{path}/0/5 {sc}", [True])
+        self.assertEqual(res.decode(), addr)
+
+        wname = wallet_prefix+"_wshprv"
+        self.sign_with_descriptor(wname, d1, d2)

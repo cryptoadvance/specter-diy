@@ -1,5 +1,5 @@
 from unittest import TestCase
-from .controller import sim
+from util.controller import sim
 
 class BasicTest(TestCase):
 

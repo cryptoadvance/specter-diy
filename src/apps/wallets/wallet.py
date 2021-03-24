@@ -6,6 +6,7 @@ from bitcoin.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
 from bitcoin.descriptor import Descriptor
 from bitcoin.descriptor.arguments import AllowedDerivation
+from bitcoin.transaction import SIGHASH
 import hashlib
 from .screens import WalletScreen, WalletInfoScreen
 from .commands import DELETE, EDIT, MENU, INFO
@@ -109,43 +110,24 @@ class Wallet:
         """Fingerprint of the wallet - hash160(descriptor)"""
         return hashes.hash160(str(self.descriptor))[:4]
 
-    def owns(self, psbt_in=None, psbt_out=None, tx_out=None):
+    def owns(self, tx_out, bip32_derivations):
         """
         Checks that psbt scope belongs to the wallet.
-        Pass psbt_in or psbt_out + tx_out
         """
-        output = None
-        derivation = None
-        if psbt_in is not None:
-            output = psbt_in.witness_utxo
-            derivation = self.get_derivation(psbt_in)
-        if psbt_out is not None:
-            output = tx_out
-            derivation = self.get_derivation(psbt_out)
+        derivation = self.get_derivation(bip32_derivations)
 
         # derivation not found
         if derivation is None:
             return False
         # check that script_pubkey matches
         sc, _ = self.script_pubkey(derivation)
-        return sc == output.script_pubkey
+        return sc == tx_out.script_pubkey
 
-    def get_derivation(self, scope):
-        # check if wallet derivation is there (custom psbt field)
-        derivation = None
-        wallet_key = b"\xfc\xca\x01" + self.fingerprint
-        # derivation is a sequence of 2 bytes - branch_index and wildcard index
-        if wallet_key in scope.unknown and len(scope.unknown[wallet_key]) == 8:
-            der = scope.unknown[wallet_key]
-            derivation = []
-            for i in range(len(der) // 4):
-                idx = int.from_bytes(der[4 * i : 4 * i + 4], "little")
-                derivation.append(idx)
-            return derivation
+    def get_derivation(self, bip32_derivations):
         # otherwise we need standard derivation
-        for pub in scope.bip32_derivations:
-            if len(scope.bip32_derivations[pub].derivation) >= 2:
-                der = self.descriptor.check_derivation(scope.bip32_derivations[pub])
+        for pub in bip32_derivations:
+            if len(bip32_derivations[pub].derivation) >= 2:
+                der = self.descriptor.check_derivation(bip32_derivations[pub])
                 if der is not None:
                     return der
 
@@ -154,14 +136,14 @@ class Wallet:
         # update from psbt
         if psbt is not None:
             scopes = []
-            for inp in psbt.inputs:
-                if self.owns(inp):
+            for i, inp in enumerate(psbt.inputs):
+                if self.owns(psbt.utxo(i), inp.bip32_derivations):
                     scopes.append(inp)
             for i, out in enumerate(psbt.outputs):
-                if self.owns(psbt_out=out, tx_out=psbt.tx.vout[i]):
+                if self.owns(psbt.tx.vout[i], out.bip32_derivations):
                     scopes.append(out)
             for scope in scopes:
-                res = self.get_derivation(scope)
+                res = self.get_derivation(scope.bip32_derivations)
                 if res is not None:
                     branch_idx, idx = res
                     if idx + self.GAP_LIMIT > gaps[branch_idx]:
@@ -198,15 +180,14 @@ class Wallet:
             scope.witness_script = self.descriptor.derive(*wallet_derivation).witness_script()
             if self.descriptor.sh:
                 scope.redeem_script = self.descriptor.derive(*wallet_derivation).redeem_script()
-        return psbt
 
     @property
     def keys(self):
         return self.descriptor.keys
 
     @property
-    def wrapped(self):
-        return self.descriptor.sh    
+    def has_private_keys(self):
+        return any([k.is_private for k in self.keys])
 
     def get_key_dicts(self, network):
         keys = [{
@@ -216,14 +197,14 @@ class Wallet:
         slip132_ver = "xpub"
         canonical_ver = "xpub"
         if self.descriptor.is_pkh:
-            if self.wrapped:
+            if self.descriptor.is_wrapped:
                 slip132_ver = "ypub"
-            else:
+            elif self.descriptor.is_segwit:
                 slip132_ver = "zpub"
         elif self.descriptor.is_basic_multisig:
-            if self.wrapped:
+            if self.descriptor.is_wrapped:
                 slip132_ver = "Ypub"
-            else:
+            elif self.descriptor.is_segwit:
                 slip132_ver = "Zpub"
         for k in keys:
             k["is_private"] = k["key"].is_private
@@ -232,6 +213,22 @@ class Wallet:
             ver = canonical_ver.replace("pub", "prv") if k["is_private"] else canonical_ver
             k["canonical"] = k["key"].to_string(NETWORKS[network][ver])
         return keys
+
+    def sign_psbt(self, psbt, sighash=SIGHASH.ALL):
+        if not self.has_private_keys:
+            return
+        # psbt may not have derivation for other keys
+        # and in case of WIF key there is no derivation whatsoever
+        for i, inp in enumerate(psbt.inputs):
+            der = self.get_derivation(inp.bip32_derivations)
+            if der is None:
+                continue
+            branch, idx = der
+            derived = self.descriptor.derive(idx, branch_index=branch)
+            keys = [k for k in derived.keys if k.is_private]
+            for k in keys:
+                if k.is_private:
+                    psbt.sign_with(k.private_key, sighash)
 
     @classmethod
     def parse(cls, desc, path=None):
