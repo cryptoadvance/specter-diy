@@ -29,6 +29,15 @@ SIGN_BCUR = 0x05
 BASE64_STREAM = 0x64
 RAW_STREAM = 0xFF
 
+SIGHASH_NAMES = {
+    SIGHASH.ALL: "ALL",
+    SIGHASH.NONE: "NONE",
+    SIGHASH.SINGLE: "SINGLE",
+    (SIGHASH.ALL | SIGHASH.ANYONECANPAY): "ALL | ANYONECANPAY",
+    (SIGHASH.NONE | SIGHASH.ANYONECANPAY): "NONE | ANYONECANPAY",
+    (SIGHASH.SINGLE | SIGHASH.ANYONECANPAY): "SINGLE | ANYONECANPAY",
+}
+
 class WalletManager(BaseApp):
     """
     WalletManager class manages your wallets.
@@ -253,17 +262,11 @@ class WalletManager(BaseApp):
                 if inp.non_witness_utxo is None:
                     raise WalletError("Invalid PSBT - missing previous transaction")
             if inp.sighash_type and inp.sighash_type != SIGHASH.ALL:
-                sh, anyonecanpay = SIGHASH.check(inp.sighash_type)
-                custom_sighashes.append((i, sh, anyonecanpay))
+                custom_sighashes.append((i, inp.sighash_type))
 
         if len(custom_sighashes) > 0:
-            SIGHASH_NAMES = {
-                SIGHASH.ALL: "ALL",
-                SIGHASH.NONE: "NONE",
-                SIGHASH.SINGLE: "SINGLE",
-            }
-            txt = [("Input %d: " % i) + SIGHASH_NAMES[sh] + (" | ANYONECANPAY" if anyonecanpay else "")
-                    for (i, sh, anyonecanpay) in custom_sighashes]
+            txt = [("Input %d: " % i) + SIGHASH_NAMES[sh]
+                    for (i, sh) in custom_sighashes]
             canceltxt = "Only sign ALL" if len(custom_sighashes) != len(psbt.inputs) else "Cancel"
             confirm = await show_screen(Prompt("Warning!",
                 "\nCustom SIGHASH flags are used!\n\n"+"\n".join(txt),
@@ -509,6 +512,7 @@ class WalletManager(BaseApp):
 
         # metadata for GUI
         meta = {
+            "inputs": [{} for i in psbt.tx.vin],
             "outputs": [
                 {
                     "address": out.script_pubkey.address(NETWORKS[self.network]),
@@ -523,14 +527,20 @@ class WalletManager(BaseApp):
         # detect wallet for all inputs
         for i, inp in enumerate(psbt.inputs):
             found = False
+            utxo = psbt.utxo(i)
             for w in self.wallets:
                 if w.owns(psbt.utxo(i), inp.bip32_derivations):
+                    meta["inputs"][i] = {
+                        "label": w.name,
+                        "value": utxo.value,
+                        "sighash": SIGHASH_NAMES[inp.sighash_type or SIGHASH.ALL]
+                    }
                     if w not in wallets:
                         wallets.append(w)
-                        amounts.append(psbt.utxo(i).value)
+                        amounts.append(utxo.value)
                     else:
                         idx = wallets.index(w)
-                        amounts[idx] += psbt.utxo(i).value
+                        amounts[idx] += utxo.value
                     found = True
                     break
             if not found:
