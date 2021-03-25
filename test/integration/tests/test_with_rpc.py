@@ -81,9 +81,6 @@ class RPCTest(TestCase):
         path = "84h/1h/0h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"wpkh([{fgp}/{path}]{xpub}/0/*)"
         d2 = f"wpkh([{fgp}/{path}]{xpub}/1/*)"
         wname = wallet_prefix+"_wpkh"
@@ -100,9 +97,6 @@ class RPCTest(TestCase):
         path = "49h/1h/0h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"sh(wpkh([{fgp}/{path}]{xpub}/0/*))"
         d2 = f"sh(wpkh([{fgp}/{path}]{xpub}/1/*))"
         # combined with default derivation {0,1}/*
@@ -121,9 +115,6 @@ class RPCTest(TestCase):
         path = "84h/1h/0h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"wpkh([{fgp}/{path}]{xpub}/44/8/*)"
         d2 = f"wpkh([{fgp}/{path}]{xpub}/55/8/*)"
         # combined with default derivation {0,1}/*
@@ -143,9 +134,6 @@ class RPCTest(TestCase):
         path = "49h/1h/0h/2h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"wsh(sortedmulti(1,[{fgp}/{path}]{xpub}/0/*,{cosigner}/0/*))"
         d2 = f"wsh(sortedmulti(1,[{fgp}/{path}]{xpub}/1/*,{cosigner}/1/*))"
         # combined with default derivation {0,1}/*
@@ -166,9 +154,6 @@ class RPCTest(TestCase):
         path = "49h/1h/0h/2h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"sh(wsh(multi(1,[{fgp}/{path}]{xpub}/0/*,{cosigner}/0/*)))"
         d2 = f"sh(wsh(multi(1,[{fgp}/{path}]{xpub}/1/*,{cosigner}/1/*)))"
         # combined with default derivation {0,1}/*
@@ -189,9 +174,6 @@ class RPCTest(TestCase):
         path = "49h/1h/0h/2h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"wsh(sortedmulti(1,[{fgp}/{path}]{xpub}/5/*,{cosigner}/2/5/*))"
         d2 = f"wsh(sortedmulti(1,[{fgp}/{path}]{xpub}/8/*,{cosigner}/3/5/*))"
         # combined with default derivation {0,1}/*
@@ -296,9 +278,6 @@ class RPCTest(TestCase):
         path = "44h/1h/0h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"pkh([{fgp}/{path}]{xpub}/0/*)"
         d2 = f"pkh([{fgp}/{path}]{xpub}/1/*)"
         # combined
@@ -318,9 +297,6 @@ class RPCTest(TestCase):
         path = "49h/1h/0h/2h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"sh(sortedmulti(1,[{fgp}/{path}]{xpub}/0/*,{cosigner}/0/*))"
         d2 = f"sh(sortedmulti(1,[{fgp}/{path}]{xpub}/1/*,{cosigner}/1/*))"
         # combined with default derivation {0,1}/*
@@ -341,9 +317,6 @@ class RPCTest(TestCase):
         path = "84h/1h/0h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"wpkh([{fgp}/{path}]{xpub}/0/*)"
         d2 = f"wpkh([{fgp}/{path}]{xpub}/1/*)"
         wname = wallet_prefix+"_wpkhsighash"
@@ -360,9 +333,6 @@ class RPCTest(TestCase):
         path = "44h/1h/0h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         # legacy sighashes
         d1 = f"pkh([{fgp}/{path}]{xpub}/0/*)"
         d2 = f"pkh([{fgp}/{path}]{xpub}/1/*)"
@@ -385,9 +355,6 @@ class RPCTest(TestCase):
         path = "49h/1h/0h/2h"
         fgp = sim.query("fingerprint").decode()
         xpub = sim.query(f"xpub m/{path}").decode()
-        # normalize for regtest
-        hd = HDKey.from_string(xpub)
-        xpub = hd.to_string(NETWORKS["regtest"]["xpub"])
         d1 = f"wsh(sortedmulti(3,[{fgp}/{path}]{xpub}/0/*,{cosigner_public}/0/*,"+f"{cosigner2_public}))"
         d2 = f"wsh(sortedmulti(3,[{fgp}/{path}]{xpub}/1/*,{cosigner_public}/1/*,"+f"{cosigner2_public}))"
         # combined with default derivation {0,1}/*

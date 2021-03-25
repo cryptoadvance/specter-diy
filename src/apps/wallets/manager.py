@@ -440,17 +440,21 @@ class WalletManager(BaseApp):
     def parse_wallet(self, desc):
         w = None
         # trying to find a correct wallet type
+        errors = []
         for walletcls in self.WALLETS:
             try:
                 w = walletcls.parse(desc)
                 # if fails - we continue, otherwise - we are done
                 break
             except Exception as e:
-                pass
+                # raise if only one wallet class is available (most cases)
+                errors.append(e)
         if w is None:
-            raise WalletError("Can't detect matching wallet type")
+            raise WalletError("Can't detect matching wallet type\n"+"\n".join([str(e) for e in errors]))
         if str(w.descriptor) in [str(ww.descriptor) for ww in self.wallets]:
             raise WalletError("Wallet with this descriptor already exists")
+        if not w.check_network(NETWORKS[self.network]):
+            raise WalletError("Some keys don't belong to the %s network!" % NETWORKS[self.network]["name"])
         return w
 
     def add_wallet(self, w):

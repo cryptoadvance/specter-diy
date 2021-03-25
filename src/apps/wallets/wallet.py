@@ -85,6 +85,20 @@ class Wallet:
         meta = json.dumps(obj).encode()
         keystore.save_aead(self.path + "/meta", plaintext=meta)
 
+    def check_network(self, network):
+        """
+        Checks that all the keys belong to the network (version of xpub and network of private key).
+        Returns True if all keys belong to the network, False otherwise.
+        """
+        for k in self.keys:
+            if k.is_extended:
+                if k.key.version not in network.values():
+                    return False
+            elif k.is_private and isinstance(k.key, ec.PrivateKey):
+                if k.key.network["wif"] != network["wif"]:
+                    return False
+        return True
+
     def wipe(self):
         if self.path is None:
             raise WalletError("I don't know path...")

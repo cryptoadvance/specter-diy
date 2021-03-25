@@ -33,7 +33,7 @@ class TCPSocket:
 
     def query(self, data):
         self.s.send(data)
-        return self.readline(eol=b"ACK")
+        return self.readline(eol=b"ACK\r\n")
 
     def receive(self):
         return self.readline()
@@ -43,13 +43,13 @@ class SimController:
         self.started = False
         self.gui = None
         self.usb = None
-
-    def start(self):
-        print("Starting up...")
         try:
             shutil.rmtree("./fs/")
         except:
             pass
+
+    def start(self):
+        print("Starting up...")
         self.proc = subprocess.Popen("../../bin/micropython_unix simulator.py",
                                 stdout=subprocess.PIPE,
                                 shell=True, preexec_fn=os.setsid)

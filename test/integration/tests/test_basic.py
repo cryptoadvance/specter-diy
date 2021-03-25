@@ -18,23 +18,28 @@ class BasicTest(TestCase):
         res = sim.query(b"fingerprint")
         self.assertEqual(res, b"73c5da0a")
         res = sim.query(b"xpub m/44h/1h/0h")
-        self.assertEqual(res, b"xpub6BhcvYN2qwQKRviMKKBTfRcK1RmCTmM7JHsg67r3rwvymhUEt8gPHhnkugQaQ7UN8M5FfhEUfyVuSaK5fQzfUpvAcCxN4bAT9jyySbPGsTs")
+        self.assertEqual(res, b"tpubDC5FSnBiZDMmhiuCmWAYsLwgLYrrT9rAqvTySfuCCrgsWz8wxMXUS9Tb9iVMvcRbvFcAHGkMD5Kx8koh4GquNGNTfohfk7pgjhaPCdXpoba")
 
     def test_add_wallet(self):
         # and(pk(A),after(100)) -> and_v(v:pk(A),after(100))
-        desc = "wsh(and_v(v:pk([73c5da0a/44h/1h/0h]xpub6BhcvYN2qwQKRviMKKBTfRcK1RmCTmM7JHsg67r3rwvymhUEt8gPHhnkugQaQ7UN8M5FfhEUfyVuSaK5fQzfUpvAcCxN4bAT9jyySbPGsTs),after(100))"
+        desc = "wsh(and_v(v:pk([73c5da0a/44h/1h/0h]tpubDC5FSnBiZDMmhiuCmWAYsLwgLYrrT9rAqvTySfuCCrgsWz8wxMXUS9Tb9iVMvcRbvFcAHGkMD5Kx8koh4GquNGNTfohfk7pgjhaPCdXpoba),after(100)))"
+        inv_desc = "wsh(and_v(v:pk([73c5da0a/44h/1h/0h]xpub6BhcvYN2qwQKRviMKKBTfRcK1RmCTmM7JHsg67r3rwvymhUEt8gPHhnkugQaQ7UN8M5FfhEUfyVuSaK5fQzfUpvAcCxN4bAT9jyySbPGsTs),after(100)))"
         addresses = [
             b"bitcoin:bcrt1qd7mtkvjmm7rlpgjjfv3902h6c749d7xuss0pr6garuq8q2qu9xas5qs39e?index=0",
             b"bitcoin:bcrt1qyrmdmuy0ml7m7fw3834lek6anrx20nrlmh7yvhsulu0dhxvgvkds4n9dq5?index=2"
         ]
-        # shouldn't find it before adding a wallet
+
+        # shouldn't find addresses before adding a wallet
         for addr in addresses:
             res = sim.query(addr)
             self.assertTrue(b"error: Can't find wallet owning address" in res)
 
-        res = sim.query(f"addwallet timelocked&{desc})".encode(), [True])
+        res = sim.query(f"addwallet timelocked&{inv_desc})".encode())
+        self.assertTrue(b"error" in res)
 
-        # should find it before adding a wallet
+        res = sim.query(f"addwallet timelocked&{desc}".encode(), [True])
+
+        # should find addresses after adding a wallet
         for addr in addresses:
             res = sim.query(addr,[None])
             self.assertFalse(b"error: Can't find wallet owning address" in res)
