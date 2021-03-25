@@ -102,7 +102,7 @@ class XpubApp(BaseApp):
             # get xpub
             xpub = self.keystore.get_xpub(bip32.path_to_str(path))
             # send back as base58
-            return BytesIO(xpub.to_base58().encode()), {}
+            return BytesIO(xpub.to_base58(NETWORKS[self.network]["xpub"]).encode()), {}
         raise AppError("Unknown command")
 
     async def show_xpub(self, derivation, show_screen):

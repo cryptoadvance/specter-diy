@@ -64,7 +64,6 @@ class FlashKeyStore(RAMKeyStore):
         except Exception as e:
             # this happens if someone tries to change PIN file
             self.wipe(self.path)
-            sys.print_exception(e)
             raise CriticalErrorWipeImmediately(
                 "Something went terribly wrong!\nDevice is wiped!\n%s" % e
             )

@@ -140,8 +140,11 @@ class USBHost(Host):
                 sys.print_exception(e)
             # for all other exceptions - send back generic message
             except Exception as e:
-                self.respond(b"error: Unknown error")
-                sys.print_exception(e)
+                if platform.simulator:
+                    self.respond(b"error: Unknown error %s" % e)
+                    sys.print_exception(e)
+                else:
+                    self.respond(b"error: Unknown error")
             self.cleanup()
 
         # wait a bit
