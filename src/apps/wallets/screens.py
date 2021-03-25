@@ -60,16 +60,6 @@ class WalletScreen(QRAlert):
         )
         self.menubtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
 
-        # self.delbtn = add_button(
-        #     lv.SYMBOL.TRASH + " Delete wallet", on_release(self.delwallet), scr=self
-        # )
-        # self.delbtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
-        # style = lv.style_t()
-        # lv.style_copy(style, self.delbtn.get_style(lv.btn.STYLE.REL))
-        # style.body.main_color = lv.color_hex(0x951E2D)
-        # style.body.grad_color = lv.color_hex(0x951E2D)
-        # self.delbtn.set_style(lv.btn.STYLE.REL, style)
-
         if idx is not None:
             self.idx = idx
             self.update_address()
