@@ -534,11 +534,18 @@ class WalletManager(BaseApp):
             utxo = psbt.utxo(i)
             for w in self.wallets:
                 if w.owns(psbt.utxo(i), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
+                    branch_idx, idx = w.get_derivation(inp.bip32_derivations)
                     meta["inputs"][i] = {
                         "label": w.name,
                         "value": utxo.value,
                         "sighash": SIGHASH_NAMES[inp.sighash_type or SIGHASH.ALL]
                     }
+                    if branch_idx == 1:
+                        meta["inputs"][i]["label"] += " change %d" % idx
+                    elif branch_idx == 0:
+                        meta["inputs"][i]["label"] += " #%d" % idx
+                    else:
+                        meta["inputs"][i]["label"] += " #%d on branch %d" % (idx, branch_idx)
                     if w not in wallets:
                         wallets.append(w)
                         amounts.append(utxo.value)
@@ -592,11 +599,11 @@ class WalletManager(BaseApp):
                 if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
                     branch_idx, idx = w.get_derivation(out.bip32_derivations)
                     if branch_idx == 1:
-                        meta["outputs"][i]["label"] += " (change %d)" % idx
+                        meta["outputs"][i]["label"] += " change %d" % idx
                     elif branch_idx == 0:
-                        meta["outputs"][i]["label"] += " (address %d)" % idx
+                        meta["outputs"][i]["label"] += " #%d" % idx
                     else:
-                        meta["outputs"][i]["label"] += " (address %d, branch %d)" % (idx, branch_idx)
+                        meta["outputs"][i]["label"] += " #%d on branch %d" % (idx, branch_idx)
                     # add warning if idx beyond gap
                     if idx > gaps[j][branch_idx]:
                         meta["warnings"].append(
