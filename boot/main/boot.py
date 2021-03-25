@@ -6,10 +6,10 @@ import pyb, os, micropython, time
 pwr = pyb.Pin("B15", pyb.Pin.OUT)
 pwr.on()
 
-# v1.4.7-rc99 - use odd rc for main firmware and even for debug
+# v1.4.8-rc99 - use odd rc for main firmware and even for debug
 # so it's possible to upgrade from debug to main firmware.
 # (rc99 is final version for production)
-version = "<version:tag10>0100400799</version:tag10>"
+version = "<version:tag10>0100400899</version:tag10>"
 
 # get i2c
 i2c = pyb.I2C(1)
