@@ -533,7 +533,7 @@ class WalletManager(BaseApp):
             found = False
             utxo = psbt.utxo(i)
             for w in self.wallets:
-                if w.owns(psbt.utxo(i), inp.bip32_derivations):
+                if w.owns(psbt.utxo(i), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
                     meta["inputs"][i] = {
                         "label": w.name,
                         "value": utxo.value,
@@ -565,7 +565,7 @@ class WalletManager(BaseApp):
             for w in wallets:
                 if w is None:
                     continue
-                if w.owns(psbt.tx.vout[i], out.bip32_derivations):
+                if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
                     meta["outputs"][i]["change"] = True
                     meta["outputs"][i]["label"] = w.name
                     break
@@ -580,7 +580,7 @@ class WalletManager(BaseApp):
             for i, w in enumerate(wallets):
                 if w is None:
                     continue
-                if w.owns(psbt.utxo(inidx), inp.bip32_derivations):
+                if w.owns(psbt.utxo(inidx), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
                     branch_idx, idx = w.get_derivation(inp.bip32_derivations)
                     if gaps[i][branch_idx] < idx + type(w).GAP_LIMIT:
                         gaps[i][branch_idx] = idx + type(w).GAP_LIMIT
@@ -589,7 +589,7 @@ class WalletManager(BaseApp):
             if not meta["outputs"][i]["change"]:
                 continue
             for j, w in enumerate(wallets):
-                if w.owns(psbt.tx.vout[i], out.bip32_derivations):
+                if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
                     branch_idx, idx = w.get_derivation(out.bip32_derivations)
                     if branch_idx == 1:
                         meta["outputs"][i]["label"] += " (change %d)" % idx

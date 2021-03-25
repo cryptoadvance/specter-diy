@@ -124,10 +124,16 @@ class Wallet:
         """Fingerprint of the wallet - hash160(descriptor)"""
         return hashes.hash160(str(self.descriptor))[:4]
 
-    def owns(self, tx_out, bip32_derivations):
+    def owns(self, tx_out, bip32_derivations, script=None):
         """
         Checks that psbt scope belongs to the wallet.
         """
+        # quick check for the scriptpubkey type
+        if tx_out.script_pubkey.script_type() != self.descriptor.scriptpubkey_type():
+            return False
+        # quick check of the script length
+        if script and (len(script.data) != self.descriptor.script_len):
+            return False
         derivation = self.get_derivation(bip32_derivations)
 
         # derivation not found
@@ -151,10 +157,10 @@ class Wallet:
         if psbt is not None:
             scopes = []
             for i, inp in enumerate(psbt.inputs):
-                if self.owns(psbt.utxo(i), inp.bip32_derivations):
+                if self.owns(psbt.utxo(i), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
                     scopes.append(inp)
             for i, out in enumerate(psbt.outputs):
-                if self.owns(psbt.tx.vout[i], out.bip32_derivations):
+                if self.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
                     scopes.append(out)
             for scope in scopes:
                 res = self.get_derivation(scope.bip32_derivations)
