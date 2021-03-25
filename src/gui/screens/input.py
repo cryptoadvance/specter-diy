@@ -207,8 +207,13 @@ class PinScreen(Screen):
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
         btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        # increase font size
+        style = lv.style_t()
+        lv.style_copy(style, btnm.get_style(lv.btnm.STYLE.BTN_REL))
+        style.text.font = lv.font_roboto_28
         # remove feedback on press to avoid sidechannels
-        btnm.set_style(lv.btnm.STYLE.BTN_PR, btnm.get_style(lv.btnm.STYLE.BTN_REL))
+        btnm.set_style(lv.btnm.STYLE.BTN_REL, style)
+        btnm.set_style(lv.btnm.STYLE.BTN_PR, style)
 
         self.pin = lv.ta(self)
         self.pin.set_text("")
