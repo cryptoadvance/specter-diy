@@ -46,6 +46,7 @@ class TransactionScreen(Prompt):
             self.inputs_text += "\n\nInput %d: %.8f BTC from \"%s\"%s" % (i, inp["value"]/1e8, inp["label"], "" if inp["sighash"] == "ALL" else ("\n( SIGHASH %s )" % inp["sighash"]))
         self.inputs_text += "\n___________________________________________"
         self.input_label.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        obj = self.input_label
 
         self.objs = []
         num_change_outputs = 0
