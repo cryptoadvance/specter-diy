@@ -104,7 +104,7 @@ class TransactionScreen(Prompt):
                 shlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
                 shlbl.set_x(60)
                 shlbl.set_style(0, style_warning)
-            lbl = shlbl
+                lbl = shlbl
             obj = lbl
 
         lbl = add_label("%d OUTPUTS" % len(meta["outputs"]), scr=self.page2)
