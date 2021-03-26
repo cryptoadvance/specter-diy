@@ -30,9 +30,7 @@ All this entropy is hashed together and converted to your recovery phrase. The r
 
 ## High level logic - wallets
 
-Specter operates as a key storage. It holds HD private keys that can be involved in wallets. Wallets are defined by their [descriptors](https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md). At the moment we only support single key and (sorted)multisig descriptors, miniscript is on the roadmap.
-
-If there is an HD key in the descriptor it will be used to derive individual public keys. The same non-hardened path will be applied to all HD keys: `/0/idx` for receiving addresses, `/1/idx` for change addresses. No other derivations are allowed for the wallet. Individual public keys and preimages can be used in the descriptor, but they will be static across all addresses. This restriction helps to prevent from [derivation-path-based attacks](https://thecharlatan.github.io/Ransom-Coldcard/).
+Specter operates as a key storage. It holds HD private keys that can be involved in wallets. Wallets are defined by their [descriptors](./descriptors.md). We support miniscript as well.
 
 Every wallet belongs to a particular network. This means that if you imported a wallet on `testnet` it will not be available on `mainnet` or `regtest` - you need to switch to this network and import the wallet separately.
 
@@ -40,8 +38,7 @@ Every wallet belongs to a particular network. This means that if you imported a 
 
 The following rules apply to transactions that wallet will sign:
 
-- mixed inputs from different wallets are not allowed ([attack](https://blog.trezor.io/details-of-the-multisig-change-address-issue-and-its-mitigation-6370ad73ed2a))
-- change outputs to addresses not belonging to this particular wallet are NOT change
-- legacy transactions are not supported
-- to use a multisig setup you first need to import the wallet by scanning wallet descriptor
+- if mixed inputs from different wallets are found the user is warned ([attack](https://blog.trezor.io/details-of-the-multisig-change-address-issue-and-its-mitigation-6370ad73ed2a))
+- change outputs show the name of the wallet they are sent to
+- to use a multisig or miniscript you first need to import the wallet by adding wallet descriptor (over QR, USB or SD card)
 

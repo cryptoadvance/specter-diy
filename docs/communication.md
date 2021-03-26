@@ -32,10 +32,10 @@ In order to sign transaction or verify an address Specter needs to know about co
 To import the wallet using QR codes user needs to get to the **Wallets** menu and click on **Add wallet**. Scanned QR code should be of the following form:
 
 ```
-<wallet_name>&<wallet_descriptor>
+addwallet <wallet_name>&<wallet_descriptor>
 ```
 
-Descriptors used in Specter are almost the same as in [Bitcoin Core](https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md) with one exception - we remove suffix `/0/*` and `/1/*` to avoid duplications in the QR code and append it afterwards internally.
+Descriptors used in Specter are almost the same as in [Bitcoin Core](https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md) with a few differences - they support miniscript, multiple branches definitions and use default derivations `/{0,1}/*`. Check out [descriptors.md](./descriptors.md) for details.
 
 Example of the multisig wallet import code:
 
@@ -64,5 +64,9 @@ The following commands are supported:
 - `fingerprint` - returns hex fingerprint of the root key.
 - `xpub <derivation>` - returns xpub with derivation. For hardened derivation both `h` and `'` can be used. For example `xpub m/84h/1h/0h`.
 - `sign <psbt>` - asks user to confirm transaction signing.
-- `showaddr <type> <derivation>` - show address of `type` with `derivation`. `type` can be `wpkh`, `sh-wpkh` or `pkh`.
+- `showaddr <type> <derivation> [witness_script_hex]` - show address of `type` with `derivation`. `type` can be `wpkh`, `sh-wpkh`, `pkh`, `sh`, `sh-wsh` or `wsh`. Witness script is required for non-pkh wallets.
 - `importwallet <wallet_name>&<descriptor>` - asks user to confirm adding new `wallet` with `descriptor`.
+
+## SD card
+
+`.psbt` and `.txt` files are supported. The content of the file is processed like a USB or QR code, so it can be a transaction, wallet import command or address verification command.

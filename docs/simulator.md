@@ -12,7 +12,11 @@ You can connect to these ports using `telnet` and type whatever you expect to be
 
 The simulator is also printing content of the QR codes displayed on the screen to the console.
 
+The simulator create folders in `./fs`:
 
-The simulator create folders in `./fs`, one of them is called `sd`. Files located in this directory can be used within the simulator.
+- `fs/flash` - files that would be stored in the internal flash of the MCU
+- `fs/qspi` - files in external QSPI chip (untrusted, everything is stored encrypted and authenticated)
+- `fs/ramdisk` - files in external SPIRAM memory (work as temporary storage for host communication, untrusted)
+- `fs/sd` - SD card
 
 
