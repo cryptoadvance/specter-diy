@@ -11,3 +11,8 @@ You should see the screen with the wallet interface. As in unixport we don't hav
 You can connect to these ports using `telnet` and type whatever you expect to be scanned / sent from the host.
 
 The simulator is also printing content of the QR codes displayed on the screen to the console.
+
+
+The simulator create folders in `./fs`, one of them is called `sd`. These files can be used within the simulator.
+
+
