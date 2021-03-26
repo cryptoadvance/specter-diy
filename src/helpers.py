@@ -53,7 +53,8 @@ def decrypt(ct: bytes, key: bytes) -> bytes:
     arr = plain.split(b"\x80")
     # remove last element and check it's all zeroes
     last = arr.pop()
-    assert last == b"\x00" * len(last)
+    if last != b"\x00" * len(last):
+        raise Exception("Invalid padding")
     # join all but last
     return b"\x80".join(arr)
 
@@ -84,11 +85,13 @@ def aead_decrypt(ciphertext: bytes, key: bytes) -> tuple:
 
     aes_key = tagged_hash("aes", key)
     hmac_key = tagged_hash("hmac", key)
-    assert mac == hmac.new(hmac_key, msg=ct, digestmod="sha256").digest()
+    if mac != hmac.new(hmac_key, msg=ct, digestmod="sha256").digest():
+        raise Exception("Invalid HMAC")
     b = BytesIO(ct)
     l = compact.read_from(b)
     adata = b.read(l)
-    assert len(adata) == l
+    if len(adata) != l:
+        raise Exception("Invalid length")
     ct = b.read()
     if len(ct) == 0:
         return adata, b""

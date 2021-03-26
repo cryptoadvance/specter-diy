@@ -5,6 +5,7 @@ from rng import get_random_bytes
 import hashlib
 import hmac
 from bitcoin import ec, bip39, bip32
+from bitcoin.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
 from gui.screens import Alert, PinScreen, MnemonicScreen, Prompt
@@ -64,8 +65,8 @@ class RAMKeyStore(KeyStore):
         # stored on untrusted external chip
         self.idkey = self.root.child(0x1D, hardened=True).key.serialize()
 
-    def sign_psbt(self, psbt):
-        psbt.sign_with(self.root)
+    def sign_psbt(self, psbt, sighash=SIGHASH.ALL):
+        psbt.sign_with(self.root, sighash)
 
     def sign_hash(self, derivation, msghash: bytes):
         return self.root.derive(derivation).key.sign(msghash)
@@ -216,7 +217,7 @@ class RAMKeyStore(KeyStore):
         """
         # check we have attempts
         if self.pin_attempts_left <= 0:
-            self.wipe(self.path)
+            # wipe is happening automatically on this error
             raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
         # check PIN code somehow, raise PinError if it's incorrect
         # for reference - first decrease PIN counter, then check PIN

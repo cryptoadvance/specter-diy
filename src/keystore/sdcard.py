@@ -1,6 +1,5 @@
 from .core import KeyStoreError, PinError
 from .flash import FlashKeyStore
-from platform import CriticalErrorWipeImmediately
 import platform
 from rng import get_random_bytes
 from bitcoin import bip39

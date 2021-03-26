@@ -13,6 +13,17 @@ import rng
 
 class InputScreen(Screen):
     CHARSET = [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "0",
+        "\n",
         "q",
         "w",
         "e",
@@ -46,48 +57,51 @@ class InputScreen(Screen):
         lv.SYMBOL.LEFT,
         "\n",
         lv.SYMBOL.LEFT + " Back",
-        " ",
+        "[    space    ]",
         lv.SYMBOL.OK + " Done",
         "",
     ]
     CHARSET_EXTRA = [
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",
-        "0",
-        "\n",
-        "aA",
+        "!",
         "@",
         "#",
         "$",
-        "_",
+        "%",
+        "^",
         "&",
-        "-",
-        "+",
+        "*",
         "(",
         ")",
-        "/",
         "\n",
+        "~",
+        "<",
+        ">",
+        "/",
+        "\\",
+        "{",
+        "}",
         "[",
         "]",
-        "*",
-        '"',
+        "\n",
+        "aA",
+        "\"",
         "'",
+        "_",
+        "-",
+        "=",
+        "+",
+        "\n",
+        "`",
         ":",
         ";",
-        "!",
+        ",",
+        ".",
+        "|",
         "?",
-        "\\",
         lv.SYMBOL.LEFT,
         "\n",
         lv.SYMBOL.LEFT + " Back",
-        " ",
+        "[    space    ]",
         lv.SYMBOL.OK + " Done",
         "",
     ]
@@ -107,7 +121,7 @@ class InputScreen(Screen):
         self.kb = HintKeyboard(self)
         self.kb.set_map(self.CHARSET)
         self.kb.set_width(HOR_RES)
-        self.kb.set_height(VER_RES // 3)
+        self.kb.set_height(int(VER_RES / 2.5))
         self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
         self.ta = lv.ta(self)
@@ -128,6 +142,8 @@ class InputScreen(Screen):
             c = obj.get_active_btn_text()
             if c is None:
                 return
+            if "space" in c:
+                c = " "
             if c == lv.SYMBOL.LEFT:
                 self.ta.del_char()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
@@ -191,8 +207,13 @@ class PinScreen(Screen):
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
         btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        # increase font size
+        style = lv.style_t()
+        lv.style_copy(style, btnm.get_style(lv.btnm.STYLE.BTN_REL))
+        style.text.font = lv.font_roboto_28
         # remove feedback on press to avoid sidechannels
-        btnm.set_style(lv.btnm.STYLE.BTN_PR, btnm.get_style(lv.btnm.STYLE.BTN_REL))
+        btnm.set_style(lv.btnm.STYLE.BTN_REL, style)
+        btnm.set_style(lv.btnm.STYLE.BTN_PR, style)
 
         self.pin = lv.ta(self)
         self.pin.set_text("")

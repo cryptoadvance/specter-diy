@@ -32,6 +32,15 @@ class Menu(Screen):
                     btn = add_button(text, cb, y=y, scr=self.page)
                     if not enable:
                         btn.set_state(lv.btn.STATE.INA)
+                    # color
+                    if len(args) > 1:
+                        color = args[1]
+                        style = lv.style_t()
+                        lv.style_copy(style, btn.get_style(lv.btn.STYLE.REL))
+                        style.body.main_color = lv.color_hex(color)
+                        style.body.grad_color = lv.color_hex(color)
+                        btn.set_style(lv.btn.STYLE.REL, style)
+
                     self.buttons.append(btn)
                     y += 85
                 else:

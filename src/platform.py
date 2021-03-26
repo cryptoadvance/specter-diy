@@ -214,8 +214,13 @@ def wipe():
     256 - 447:   internal flash
     448 - 33215: QSPI
     """
-    delete_recursively(fpath("/flash"))
-    delete_recursively(fpath("/qspi"))
+    # delete files normally in simulator
+    try:
+        delete_recursively(fpath("/flash"))
+        delete_recursively(fpath("/qspi"))
+    except:
+        pass
+    # on real hardware overwrite flash with random data
     if not simulator:
         os.umount("/flash")
         os.umount("/qspi")
