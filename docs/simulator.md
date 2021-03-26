@@ -13,6 +13,6 @@ You can connect to these ports using `telnet` and type whatever you expect to be
 The simulator is also printing content of the QR codes displayed on the screen to the console.
 
 
-The simulator create folders in `./fs`, one of them is called `sd`. These files can be used within the simulator.
+The simulator create folders in `./fs`, one of them is called `sd`. Files located in this directory can be used within the simulator.
 
 
