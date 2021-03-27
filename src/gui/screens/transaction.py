@@ -63,13 +63,12 @@ class TransactionScreen(Prompt):
 
         if send_amount > 0:
             fee_percent = meta["fee"] * 100 / send_amount
-            fee = add_label(
-                "Fee: %d satoshi (%.2f%%)" % (meta["fee"], fee_percent), scr=self.page
-            )
+            fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
         # back to wallet
         else:
-            fee = add_label("Fee: %d satoshi" % (meta["fee"]), scr=self.page)
-            fee.set_style(0, style)
+            fee_txt = "%d satoshi" % (meta["fee"])
+        fee = add_label("Fee: " + fee_txt, scr=self.page)
+        fee.set_style(0, style)
         fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
         obj = fee
@@ -135,7 +134,7 @@ class TransactionScreen(Prompt):
             lbl = addrlbl
 
         idxlbl = lv.label(self.page2)
-        idxlbl.set_text("Fee:  %d satoshi (%.2f%%)" % (meta["fee"], fee_percent))
+        idxlbl.set_text("Fee:  " + fee_txt)
         idxlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         idxlbl.set_x(30)
 
