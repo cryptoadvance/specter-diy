@@ -1,5 +1,6 @@
 TARGET_DIR = bin
 BOARD ?= STM32F469DISC
+FLAVOR ?= SPECTER
 USER_C_MODULES ?= ../../../usermods
 MPY_DIR ?= f469-disco/micropython
 FROZEN_MANIFEST_DISCO ?= ../../../../manifests/disco.py
@@ -27,6 +28,7 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
+		FLAVOR=$(FLAVOR) \
 		USE_DBOOT=$(USE_DBOOT) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) \
@@ -42,6 +44,7 @@ debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
+		FLAVOR=$(FLAVOR) \
 		USE_DBOOT=$(USE_DBOOT) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DEBUG) \
