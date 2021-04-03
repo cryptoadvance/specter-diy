@@ -67,14 +67,14 @@ class SDHost(Host):
         return fname[:18]+"..."+fname[-12:]
 
     async def select_file(self, extensions):
-
         files = sum([[f[0] for f in os.ilistdir(self.sdpath) if f[0].lower().endswith(ext) and f[1] == 0x8000] for ext in extensions], [])
-
+        
         if len(files) == 0:
             raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
-        if len(files) == 1:
+        elif len(files) == 1:
             return self.sdpath+"/"+ files[0]
-
+        
+        files.sort()
         buttons = []
         for ext in extensions:
             title = [(None, ext+" files")]
@@ -83,7 +83,7 @@ class SDHost(Host):
                 buttons += [(None, "%s files - No files" % ext)]
             else:
                 buttons += title + barr
-
+        
         fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
         return fname
 
