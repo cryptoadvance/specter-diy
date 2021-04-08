@@ -6,10 +6,16 @@ from io import BytesIO
 import rng
 import platform
 from binascii import b2a_base64, a2b_base64
+from bitcoin.liquid.networks import NETWORKS
 
 AES_BLOCK = 16
 IV_SIZE = 16
 AES_CBC = 2
+
+def is_liquid(network):
+    if isinstance(network, str):
+        network = NETWORKS[network]
+    return ("blech32" in network)
 
 def gen_mnemonic(num_words: int) -> str:
     """Generates a mnemonic with num_words"""

@@ -1,26 +1,35 @@
 from app import BaseApp, AppError
 from gui.screens import Menu, DerivationScreen, NumericScreen
-from .screens import XPubScreen
+from .screens import BlindingKeysScreen
 
 from binascii import hexlify
 from bitcoin.liquid.networks import NETWORKS
+from helpers import is_liquid
 from bitcoin import bip32
 from io import BytesIO
 
 
-class XpubApp(BaseApp):
+class BlindingKeysApp(BaseApp):
     """
     WalletManager class manages your wallets.
     It stores public information about the wallets
     in the folder and signs it with keystore's id key
     """
 
-    button = "Master public keys"
-    prefixes = [b"fingerprint", b"xpub"]
+    button = None
+    BTNTEXT = "Blinding keys"
+    prefixes = [b"bprv", b"bpub"]
 
     def __init__(self, path):
         self.account = 0
         pass
+
+    def init(self, *args, **kwargs):
+        super().init(*args, **kwargs)
+        if is_liquid(self.network):
+            self.button = self.BTNTEXT
+        else:
+            self.button = None
 
     async def menu(self, show_screen, show_all=False):
         net = NETWORKS[self.network]
@@ -66,7 +75,7 @@ class XpubApp(BaseApp):
         elif menuitem == 1:
             der = await show_screen(DerivationScreen())
             if der is not None:
-                await self.show_xpub(der, show_screen)
+                await self.show_blinding_key(der, show_screen)
                 return True
         elif menuitem == 2:
             account = await show_screen(NumericScreen(current_val=str(self.account)))
@@ -78,7 +87,7 @@ class XpubApp(BaseApp):
                 self.account = 0
             return await self.menu(show_screen)
         else:
-            await self.show_xpub(menuitem, show_screen)
+            await self.show_blinding_key(menuitem, show_screen)
             return True
         return False
 
@@ -87,39 +96,35 @@ class XpubApp(BaseApp):
             raise AppError("Device is locked")
         # reads prefix from the stream (until first space)
         prefix = self.get_prefix(stream)
-        # get device fingerprint, data is ignored
-        if prefix == b"fingerprint":
-            return BytesIO(hexlify(self.keystore.fingerprint)), {}
-        # get xpub,
+        # get blinding xprv,
         # data: derivation path in human-readable form like m/44h/1h/0
-        elif prefix == b"xpub":
-            try:
-                path = stream.read().strip()
-                # convert to list of indexes
-                path = bip32.parse_path(path.decode())
-            except:
-                raise AppError('Invalid path: "%s"' % path.decode())
-            # get xpub
-            xpub = self.keystore.get_xpub(bip32.path_to_str(path))
-            # send back as base58
-            return BytesIO(xpub.to_base58(NETWORKS[self.network]["xpub"]).encode()), {}
+        try:
+            path = stream.read().strip()
+            # convert to list of indexes
+            path = bip32.parse_path(path.decode())
+        except:
+            raise AppError('Invalid path: "%s"' % path.decode())
+        if prefix in [b"bprv", b"bpub"]:
+            # get xprv
+            xprv = self.keystore.get_blinding_xprv(bip32.path_to_str(path))
+            if prefix == b"bprv":
+                return BytesIO(xprv.to_base58(NETWORKS[self.network]["xprv"]).encode()), {}
+            else:
+                return BytesIO(xprv.to_public().to_base58(NETWORKS[self.network]["xpub"]).encode()), {}
         raise AppError("Unknown command")
 
-    async def show_xpub(self, derivation, show_screen):
+    async def show_blinding_key(self, derivation, show_screen):
         self.show_loader(title="Deriving the key...")
         derivation = derivation.rstrip("/")
         net = NETWORKS[self.network]
-        xpub = self.keystore.get_xpub(derivation)
-        ver = bip32.detect_version(derivation, default="xpub", network=net)
-        canonical = xpub.to_base58(net["xpub"])
-        slip132 = xpub.to_base58(ver)
-        if slip132 == canonical:
-            slip132 = None
+        xprv = self.keystore.get_blinding_xprv(derivation)
         prefix = "[%s%s]" % (
             hexlify(self.keystore.fingerprint).decode(),
             derivation[1:],
         )
-        await show_screen(XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix))
+        await show_screen(BlindingKeysScreen(xprv=xprv.to_base58(net["xprv"]),
+                                             xpub=xprv.to_public().to_base58(net["xpub"]),
+                                             prefix=prefix))
 
     def wipe(self):
         # nothing to delete

@@ -5,6 +5,7 @@ from rng import get_random_bytes
 import hashlib
 import hmac
 from bitcoin import ec, bip39, bip32
+from bitcoin.liquid import blip32
 from bitcoin.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
@@ -31,6 +32,10 @@ class RAMKeyStore(KeyStore):
         self.root = None
         # root fingerprint
         self.fingerprint = None
+        # blinding root
+        self.blinding_root = None
+        # blinding fingerprint
+        self.blinding_fingerprint = None
         # private key at path m/0x1D'
         # used to encrypt & authenticate data
         # specific to this root key
@@ -61,6 +66,9 @@ class RAMKeyStore(KeyStore):
         seed = bip39.mnemonic_to_seed(self.mnemonic, password)
         self.root = bip32.HDKey.from_seed(seed)
         self.fingerprint = self.root.child(0).fingerprint
+        # liquid blinding keys
+        self.blinding_root = blip32.BlindingHDKey.from_seed(seed)
+        self.blinding_fingerprint = self.blinding_root.child(0).fingerprint
         # id key to sign and encrypt wallet files
         # stored on untrusted external chip
         self.idkey = self.root.child(0x1D, hardened=True).key.serialize()
@@ -106,6 +114,11 @@ class RAMKeyStore(KeyStore):
         if self.is_locked or self.root is None:
             raise KeyStoreError("Keystore is not ready")
         return self.root.derive(path).to_public()
+
+    def get_blinding_xprv(self, path):
+        if self.is_locked or self.blinding_root is None:
+            raise KeyStoreError("Keystore is not ready")
+        return self.blinding_root.derive(path)
 
     def owns(self, key):
         if key.fingerprint is not None and key.fingerprint != self.fingerprint:

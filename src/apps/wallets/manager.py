@@ -6,7 +6,7 @@ import platform
 import os
 from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
 from bitcoin.psbt import PSBT, DerivationPath
-from bitcoin.networks import NETWORKS
+from bitcoin.liquid.networks import NETWORKS
 from bitcoin import script, bip32
 from bitcoin.transaction import SIGHASH
 from .wallet import WalletError, Wallet
@@ -47,7 +47,6 @@ class WalletManager(BaseApp):
     """
 
     button = "Wallets"
-    WALLETS = [Wallet]
 
     def __init__(self, path):
         self.root_path = path
@@ -73,14 +72,6 @@ class WalletManager(BaseApp):
         if self.wallets is None or len(self.wallets) == 0:
             w = self.create_default_wallet(path=self.path + "/0")
             self.wallets = [w]
-
-    @classmethod
-    def register(cls, walletcls):
-        """Registers an additional wallet class"""
-        # check if it's already there
-        if walletcls in cls.WALLETS:
-            return
-        cls.WALLETS.append(walletcls)
 
     async def menu(self, show_screen):
         buttons = [(None, "Your wallets")]
@@ -330,7 +321,9 @@ class WalletManager(BaseApp):
             del psbt
             gc.collect()
             if sigsEnd == sigsStart:
-                raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
+                raise WalletError("We didn't add any signatures!\n\n"
+                                  "Maybe you forgot to import the wallet?\n\n"
+                                  "Scan the wallet descriptor to import it.")
             if encoding == BASE64_STREAM:
                 # TODO: also use ram file
                 txt = b2a_base64(out_psbt.serialize()).decode().strip()
@@ -411,21 +404,13 @@ class WalletManager(BaseApp):
 
     def load_wallet(self, path):
         """Loads a wallet with particular id"""
-        w = None
-        # going through all wallet classes and trying to load
-        # first we verify descriptor sig in the folder
-        for walletcls in self.WALLETS:
-            try:
-                # pass path and key for verification
-                w = walletcls.from_path(path, self.keystore)
-                # if fails - we continue, otherwise - we are done
-                break
-            except Exception as e:
-                pass
-        # if we failed to load -> delete folder and throw an error
-        if w is None:
+        try:
+            # pass path and key for verification
+            w = Wallet.from_path(path, self.keystore)
+        except Exception as e:
+            # if we failed to load -> delete folder and throw an error
             platform.delete_recursively(path, include_self=True)
-            raise WalletError("Can't load wallet from %s" % path)
+            raise WalletError("Can't load wallet from %s\n\n:%s" % (path, str(e)))
         return w
 
     def create_default_wallet(self, path):
@@ -447,16 +432,11 @@ class WalletManager(BaseApp):
         w = None
         # trying to find a correct wallet type
         errors = []
-        for walletcls in self.WALLETS:
-            try:
-                w = walletcls.parse(desc)
-                # if fails - we continue, otherwise - we are done
-                break
-            except Exception as e:
-                # raise if only one wallet class is available (most cases)
-                errors.append(e)
-        if w is None:
-            raise WalletError("Can't detect matching wallet type\n"+"\n".join([str(e) for e in errors]))
+        try:
+            w = Wallet.parse(desc)
+        except Exception as e:
+            # raise if only one wallet class is available (most cases)
+            raise WalletError("Can't parse descriptor\n\n%s" % str(e))
         if str(w.descriptor) in [str(ww.descriptor) for ww in self.wallets]:
             raise WalletError("Wallet with this descriptor already exists")
         if not w.check_network(NETWORKS[self.network]):

@@ -2,7 +2,7 @@ from app import AppError
 from platform import maybe_mkdir, delete_recursively
 import json
 from bitcoin import ec, hashes, script
-from bitcoin.networks import NETWORKS
+from bitcoin.liquid.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
 from bitcoin.descriptor import Descriptor
 from bitcoin.descriptor.arguments import AllowedDerivation
