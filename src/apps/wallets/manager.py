@@ -13,6 +13,7 @@ from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
 from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
+from helpers import a2b_base64_stream
 import gc
 
 SIGN_PSBT = 0x01
@@ -250,8 +251,13 @@ class WalletManager(BaseApp):
 
     async def sign_psbt(self, stream, show_screen, encoding=BASE64_STREAM):
         if encoding == BASE64_STREAM:
-            data = a2b_base64(stream.read())
-            psbt = PSBT.parse(data)
+            with open(self.tempdir+"/raw", "wb") as f:
+                # read in chunks, write to ram file
+                a2b_base64_stream(stream, f)
+            with open(self.tempdir+"/raw", "rb") as f:
+                psbt = PSBT.read_from(f)
+            # cleanup
+            platform.delete_recursively(self.tempdir)
         else:
             psbt = PSBT.read_from(stream)
         # check if all utxos are there and if there are custom sighashes
@@ -327,6 +333,7 @@ class WalletManager(BaseApp):
             if sigsEnd == sigsStart:
                 raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
             if encoding == BASE64_STREAM:
+                # TODO: also use ram file
                 txt = b2a_base64(out_psbt.serialize()).decode().strip()
             else:
                 txt = out_psbt.serialize()

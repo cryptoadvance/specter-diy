@@ -5,6 +5,7 @@ from ucryptolib import aes
 from io import BytesIO
 import rng
 import platform
+from binascii import b2a_base64, a2b_base64
 
 AES_BLOCK = 16
 IV_SIZE = 16
@@ -115,3 +116,17 @@ def load_apps(module="apps", whitelist=None, blacklist=None):
         else:
             print("Failed loading app:", modname)
     return apps
+
+def a2b_base64_stream(sin, sout):
+    while True:
+        chunk = sin.read(64) # 16 quants 4 chars each
+        if len(chunk) == 0:
+            break
+        sout.write(a2b_base64(chunk))
+
+def b2a_base64_stream(sin, sout):
+    while True:
+        chunk = sin.read(48) # 16 quants 3 bytes each
+        if len(chunk) == 0:
+            break
+        sout.write(b2a_base64(chunk))
