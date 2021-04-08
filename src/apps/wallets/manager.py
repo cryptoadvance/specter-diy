@@ -255,18 +255,17 @@ class WalletManager(BaseApp):
                 # read in chunks, write to ram file
                 a2b_base64_stream(stream, f)
             with open(self.tempdir+"/raw", "rb") as f:
-                psbt = PSBT.read_from(f)
+                psbt = PSBT.read_from(f, compress=True)
             # cleanup
             platform.delete_recursively(self.tempdir)
         else:
-            psbt = PSBT.read_from(stream)
+            psbt = PSBT.read_from(stream, compress=True)
         # check if all utxos are there and if there are custom sighashes
         sighash = SIGHASH.ALL
         custom_sighashes = []
         for i, inp in enumerate(psbt.inputs):
-            if inp.witness_utxo is None:
-                if inp.non_witness_utxo is None:
-                    raise WalletError("Invalid PSBT - missing previous transaction")
+            if (not inp.is_verified) and inp.witness_utxo is None and inp.non_witness_utxo is None:
+                raise WalletError("Invalid PSBT - missing previous transaction")
             if inp.sighash_type and inp.sighash_type != SIGHASH.ALL:
                 custom_sighashes.append((i, inp.sighash_type))
 
@@ -539,14 +538,15 @@ class WalletManager(BaseApp):
         for i, inp in enumerate(psbt.inputs):
             found = False
             utxo = psbt.utxo(i)
+            meta["inputs"][i] = {
+                "label": "Unknown wallet",
+                "value": utxo.value,
+                "sighash": SIGHASH_NAMES[inp.sighash_type or SIGHASH.ALL]
+            }
             for w in self.wallets:
                 if w.owns(psbt.utxo(i), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
                     branch_idx, idx = w.get_derivation(inp.bip32_derivations)
-                    meta["inputs"][i] = {
-                        "label": w.name,
-                        "value": utxo.value,
-                        "sighash": SIGHASH_NAMES[inp.sighash_type or SIGHASH.ALL]
-                    }
+                    meta["inputs"][i]["label"] = w.name
                     if branch_idx == 1:
                         meta["inputs"][i]["label"] += " change %d" % idx
                     elif branch_idx == 0:

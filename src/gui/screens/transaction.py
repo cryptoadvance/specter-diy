@@ -13,7 +13,7 @@ class TransactionScreen(Prompt):
 
         obj = self.message # for alignments
 
-        enable_inputs = len([k for k in meta["inputs"] if k["sighash"] != "ALL"]) > 0
+        enable_inputs = len([k for k in meta["inputs"] if k.get("sighash", "ALL") != "ALL"]) > 0
 
         lbl = add_label("Show detailed information                      ", scr=self)
         lbl.align(obj, lv.ALIGN.CENTER, 0, 0)
