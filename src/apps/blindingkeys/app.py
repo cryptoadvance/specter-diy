@@ -1,5 +1,5 @@
 from app import BaseApp, AppError
-from gui.screens import Menu, DerivationScreen, NumericScreen
+from gui.screens import Menu, DerivationScreen, NumericScreen, QRAlert, Prompt
 from .screens import BlindingKeysScreen
 
 from binascii import hexlify
@@ -18,7 +18,7 @@ class BlindingKeysApp(BaseApp):
 
     button = None
     BTNTEXT = "Blinding keys"
-    prefixes = [b"bprv", b"bpub"]
+    prefixes = [b"bprv", b"bpub", b"slip77"]
 
     def __init__(self, path):
         self.account = 0
@@ -35,6 +35,7 @@ class BlindingKeysApp(BaseApp):
         net = NETWORKS[self.network]
         coin = net["bip32"]
         buttons = [
+            (77, "Standard SLIP-77 key"),
             (None, "Recommended"),
             ("m/84h/%dh/%dh" % (coin, self.account), "Single key"),
             ("m/48h/%dh/%dh/2h" % (coin, self.account), "Multisig"),
@@ -86,6 +87,11 @@ class BlindingKeysApp(BaseApp):
             except:
                 self.account = 0
             return await self.menu(show_screen)
+        elif menuitem == 77:
+            await show_screen(QRAlert("Standard SLIP-77 blinding key",
+                    self.keystore.slip77_key.wif(NETWORKS[self.network]),
+                    note="Blinding private key allow your software wallet\nto track your balance."
+                    ))
         else:
             await self.show_blinding_key(menuitem, show_screen)
             return True
@@ -96,21 +102,34 @@ class BlindingKeysApp(BaseApp):
             raise AppError("Device is locked")
         # reads prefix from the stream (until first space)
         prefix = self.get_prefix(stream)
-        # get blinding xprv,
-        # data: derivation path in human-readable form like m/44h/1h/0
-        try:
-            path = stream.read().strip()
-            # convert to list of indexes
-            path = bip32.parse_path(path.decode())
-        except:
-            raise AppError('Invalid path: "%s"' % path.decode())
         if prefix in [b"bprv", b"bpub"]:
+            # get blinding xprv,
+            # data: derivation path in human-readable form like m/44h/1h/0
+            try:
+                path = stream.read().strip()
+                # convert to list of indexes to check that it's valid
+                path = bip32.parse_path(path.decode())
+            except:
+                raise AppError('Invalid path: "%s"' % path.decode())
+            if prefix == b"bprv":
+                if not await show_screen(Prompt("Confirm the action",
+                           ("Send blinding private key\nto the host?\n\n"
+                           "Host is requesting your\nblinding private key at path %s\n\n"
+                           "It will be able to watch your funds and unblind transactions.") % bip32.path_to_str(path))):
+                    return
             # get xprv
             xprv = self.keystore.get_blinding_xprv(bip32.path_to_str(path))
             if prefix == b"bprv":
                 return BytesIO(xprv.to_base58(NETWORKS[self.network]["xprv"]).encode()), {}
             else:
                 return BytesIO(xprv.to_public().to_base58(NETWORKS[self.network]["xpub"]).encode()), {}
+        elif prefix == b"slip77":
+            if not await show_screen(Prompt("Confirm the action",
+                       "Send master blinding private key\nto the host?\n\n"
+                       "Host is requesting your\nSLIP-77 blinding key.\n\n"
+                       "It will be able to watch your funds and unblind transactions.")):
+                return
+            return BytesIO(self.keystore.slip77_key.wif(NETWORKS[self.network])), {}
         raise AppError("Unknown command")
 
     async def show_blinding_key(self, derivation, show_screen):

@@ -437,13 +437,14 @@ class WalletManager(BaseApp):
             xpub.to_base58(NETWORKS[self.network]["xpub"]),
         )
         if is_liquid(self.network):
-            bprv = self.keystore.get_blinding_xprv(der)
-            bkey = "[%s%s]%s/{0,1}/*" % (
-                hexlify(self.keystore.blinding_fingerprint).decode(),
-                der[1:],
-                bprv.to_base58(NETWORKS[self.network]["xprv"]),
-            )
-            desc = "blinded(%s,%s)" % (bkey, desc)
+            # bprv = self.keystore.get_blinding_xprv(der)
+            # bkey = "[%s%s]%s/{0,1}/*" % (
+            #     hexlify(self.keystore.blinding_fingerprint).decode(),
+            #     der[1:],
+            #     bprv.to_base58(NETWORKS[self.network]["xprv"]),
+            # )
+            # desc = "blinded(%s,%s)" % (bkey, desc)
+            desc = "blinded(slip77(%s),%s)" % (self.keystore.slip77_key, desc)
         w = Wallet.parse("Default&"+desc, path)
         # pass keystore to encrypt data
         w.save(self.keystore)
