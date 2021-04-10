@@ -1,6 +1,7 @@
 from app import BaseApp
 from gui.screens import Menu, InputScreen, Prompt, TransactionScreen
 from .screens import WalletScreen, ConfirmWalletScreen
+from gui.common import format_addr
 
 import platform
 import os
@@ -19,6 +20,7 @@ from io import BytesIO
 from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
 from helpers import a2b_base64_stream, is_liquid
 import gc
+import json
 
 SIGN_PSBT = 0x01
 ADD_WALLET = 0x02
@@ -72,6 +74,10 @@ class WalletManager(BaseApp):
     """
 
     button = "Wallets"
+    assets = {
+        # bytes(reversed(unhexlify("6fa2bda92ebad2303b92370441e106acae2c8316c0147e7c176744269911653c"))): "tDIY",
+        bytes(reversed(unhexlify("230164e2d3ff2c88cc0739e56a3501c979fe131fd07944e8a609323ef26c6918"))): "tBTC",
+    }
 
     def __init__(self, path):
         self.root_path = path
@@ -97,6 +103,7 @@ class WalletManager(BaseApp):
         if self.wallets is None or len(self.wallets) == 0:
             w = self.create_default_wallet(path=self.path + "/0")
             self.wallets = [w]
+        self.load_assets()
 
     async def menu(self, show_screen):
         buttons = [(None, "Your wallets")]
@@ -310,6 +317,27 @@ class WalletManager(BaseApp):
                     # nothing to sign
                     return
         wallets, meta = self.parse_psbt(psbt=psbt)
+        if len(meta["unknown_assets"]) > 0:
+            scr = Prompt(
+                "Warning!",
+                "\nUnknown asset in the transaction!\n\n\n"
+                "Do you want to label them?\n"
+                "Otherwise they will be rendered as \"???\"",
+            )
+            if await show_screen(scr):
+                for asset in meta["unknown_assets"]:
+                    # return False if the user cancelled
+                    scr = InputScreen("Asset\n\n"+format_addr(hexlify(bytes(reversed(asset))).decode(), letters=8, words=2),
+                                note="\nChoose a label for unknown asset.\nBetter to keep it short, like LBTC or LDIY")
+                    scr.ta.set_pos(190, 350)
+                    scr.ta.set_width(100)
+                    lbl = await show_screen(scr)
+                    if lbl is None:
+                        return
+                    else:
+                        self.assets[asset] = lbl
+                self.save_assets()
+                wallets, meta = self.parse_psbt(psbt=psbt)
         # there is an unknown wallet
         # wallet is a list of tuples: (wallet, amount)
         if None in [w[0] for w in wallets]:
@@ -387,6 +415,26 @@ class WalletManager(BaseApp):
             else:
                 txt = out_psbt.serialize()
             return BytesIO(txt)
+
+    def save_assets(self):
+        path = self.root_path + "/" + self.keystore.uid
+        platform.maybe_mkdir(path)
+        assets = {}
+        # no support for bytes...
+        for asset in self.assets:
+            assets[hexlify(asset).decode()] = self.assets[asset]
+        self.keystore.save_aead(path + "/" + self.network, plaintext=json.dumps(assets).encode(), key=self.keystore.userkey)
+
+    def load_assets(self):
+        path = self.root_path + "/" + self.keystore.uid
+        platform.maybe_mkdir(path)
+        if platform.file_exists(path + "/" + self.network):
+            _, assets = self.keystore.load_aead(path + "/" + self.network, key=self.keystore.userkey)
+            assets = json.loads(assets.decode())
+            # no support for bytes...
+            for asset in assets:
+                self.assets[unhexlify(asset)] = assets[asset]
+
 
     async def confirm_new_wallet(self, w, show_screen):
         keys = w.get_key_dicts(self.network)
@@ -567,19 +615,26 @@ class WalletManager(BaseApp):
         # calculate fee
         fee = psbt.fee()
 
+        if is_liquid(self.network):
+            default_asset = None
+        else:
+            default_asset = "BTC" if self.network == "main" else "tBTC"
+
         # metadata for GUI
         meta = {
-            "inputs": [{} for i in psbt.tx.vin],
+            "inputs": [{"asset": default_asset} for inp in psbt.inputs],
             "outputs": [
                 {
                     "address": get_address(out, psbt.outputs[i], NETWORKS[self.network]),
                     "value": out.value,
                     "change": False,
+                    "asset": default_asset,
                 }
                 for i, out in enumerate(psbt.tx.vout)
             ],
             "fee": fee,
             "warnings": [],
+            "unknown_assets": [],
         }
         # detect wallet for all inputs
         for i, inp in enumerate(psbt.inputs):
@@ -587,11 +642,17 @@ class WalletManager(BaseApp):
             utxo = psbt.utxo(i)
             # value is stored in utxo for btc tx and in unblinded tx vin for liquid
             value = utxo.value if not is_liquid(self.network) else inp.value
-            meta["inputs"][i] = {
+            if is_liquid(self.network):
+                if inp.asset in self.assets:
+                    meta["inputs"][i]["asset"] = self.assets[inp.asset]
+                else:
+                    if inp.asset not in meta["unknown_assets"]:
+                        meta["unknown_assets"].append(inp.asset)
+            meta["inputs"][i].update({
                 "label": "Unknown wallet",
                 "value": value,
                 "sighash": SIGHASH_NAMES[inp.sighash_type or SIGHASH.ALL]
-            }
+            })
             for w in self.wallets:
                 if w.owns(psbt.utxo(i), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
                     branch_idx, idx = w.get_derivation(inp.bip32_derivations)
@@ -625,7 +686,15 @@ class WalletManager(BaseApp):
 
         # check change outputs
         for i, out in enumerate(psbt.outputs):
-            if is_liquid(self.network) and psbt.tx.vout[i].script_pubkey.data == b"":
+            vout = psbt.tx.vout[i]
+            if is_liquid(self.network):
+                asset = vout.asset[1:]
+                if asset in self.assets:
+                    meta["outputs"][i]["asset"] = self.assets[asset]
+                else:
+                    if asset not in meta["unknown_assets"]:
+                        meta["unknown_assets"].append(asset)
+            if is_liquid(self.network) and vout.script_pubkey.data == b"":
                 continue
             for w in wallets:
                 if w is None:

@@ -10,7 +10,7 @@ from bitcoin.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
 from gui.screens import Alert, PinScreen, MnemonicScreen, Prompt
-
+from binascii import hexlify
 
 class RAMKeyStore(KeyStore):
     """
@@ -38,6 +38,8 @@ class RAMKeyStore(KeyStore):
         self.blinding_fingerprint = None
         # slip77 blinding key
         self.slip77_key = None
+        # user key (different for internal flash / smartcard)
+        self.userkey = None
         # private key at path m/0x1D'
         # used to encrypt & authenticate data
         # specific to this root key
@@ -145,6 +147,11 @@ class RAMKeyStore(KeyStore):
         except:
             self.secret = self.create_new_secret(path)
 
+    @property
+    def uid(self):
+        if self.userkey:
+            return hexlify(tagged_hash("uid", self.userkey)[:4]).decode()
+
     def create_new_secret(self, path):
         """Generate new secret and default PIN config"""
         # generate new and save
@@ -248,6 +255,7 @@ class RAMKeyStore(KeyStore):
         # set encryption secret somehow mb save it
         # don't use this approach, it's just for reference
         self.enc_secret = tagged_hash("enc", self.secret)
+        self.userkey = tagged_hash("userkey", self.secret)
 
     def _change_pin(self, old_pin, new_pin):
         """Implement PIN change function"""

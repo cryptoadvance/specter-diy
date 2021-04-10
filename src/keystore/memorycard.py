@@ -127,6 +127,8 @@ In this mode device can only operate when the smartcard is inserted!"""
                 raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
             else:
                 raise e
+        # userkey is uniquie for every smart card
+        self.userkey = tagged_hash("userkey", self.secret+self.applet.card_pubkey.sec())
         self.check_saved()
 
     def check_saved(self):

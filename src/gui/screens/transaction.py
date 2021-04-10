@@ -91,7 +91,7 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            lbl.set_text("%.8f BTC from %s" % (inp["value"]/1e8, inp["label"]))
+            lbl.set_text("%.8f %s from %s" % (inp["value"]/1e8, inp["asset"] or "???", inp["label"]))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
@@ -117,7 +117,7 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            lbl.set_text("%.8f BTC to %s" % (out["value"]/1e8, out.get("label", "")))
+            lbl.set_text("%.8f %s to %s" % (out["value"]/1e8, out["asset"] or "???", out.get("label", "")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
@@ -151,7 +151,7 @@ class TransactionScreen(Prompt):
     def show_output(self, out, obj):
         # show output
         lbl = add_label(
-            "%.8f BTC to" % (out["value"] / 1e8), style="title", scr=self.page
+            "%.8f %s to" % (out["value"] / 1e8, out["asset"] or "???"), style="title", scr=self.page
         )
         lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         obj = lbl

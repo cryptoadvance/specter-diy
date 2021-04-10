@@ -137,6 +137,7 @@ class FlashKeyStore(RAMKeyStore):
         self.save_state()
         # derive PIN keys for reckless storage
         self.pin_secret = tagged_hash("pin", self.secret + pin.encode())
+        self.userkey = tagged_hash("userkey", self.secret)
         self.load_enc_secret()
 
     def load_enc_secret(self):
