@@ -258,7 +258,7 @@ class SpecterBase:
 
     EOL = b"\r\n"
     ACK = b"ACK"
-    ACK_TIMOUT = 3
+    ACK_TIMEOUT = 10
 
     def prepare_cmd(self, data):
         """
@@ -299,7 +299,7 @@ class SpecterUSBDevice(SpecterBase):
         self.ser.open()
         self.ser.write(self.prepare_cmd(data))
         # first we should get ACK
-        res = self.read_until(self.EOL, self.ACK_TIMOUT)[: -len(self.EOL)]
+        res = self.read_until(self.EOL, self.ACK_TIMEOUT)[: -len(self.EOL)]
         # then we should get the data itself
         if res != self.ACK:
             self.ser.close()
@@ -339,7 +339,7 @@ class SpecterSimulator(SpecterBase):
         s.send(self.prepare_cmd(data))
         s.setblocking(False)
         # we will get ACK right away
-        res = self.read_until(s, self.EOL, self.ACK_TIMOUT)[: -len(self.EOL)]
+        res = self.read_until(s, self.EOL, self.ACK_TIMEOUT)[: -len(self.EOL)]
         if res != self.ACK:
             raise DeviceBusyError("Device didn't return ACK")
         # fetch with required timeout

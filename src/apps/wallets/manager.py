@@ -4,12 +4,15 @@ from .screens import WalletScreen, ConfirmWalletScreen
 
 import platform
 import os
+import secp256k1
+import hashlib
 from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
 from bitcoin.psbt import PSBT, DerivationPath
 from bitcoin.liquid.pset import PSET
 from bitcoin.liquid.networks import NETWORKS
-from bitcoin import script, bip32
+from bitcoin import script, bip32, ec
 from bitcoin.liquid.transaction import LSIGHASH as SIGHASH
+from bitcoin.liquid.addresses import address as liquid_address
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
@@ -42,6 +45,24 @@ for sh in list(SIGHASH_NAMES):
 # add sighash | rangeproof
 for sh in list(SIGHASH_NAMES):
     SIGHASH_NAMES[sh | SIGHASH.RANGEPROOF] = SIGHASH_NAMES[sh] + " | RANGEPROOF"
+
+def get_address(vout, psbtout, network):
+    """Helper function to get an address for every output"""
+    if is_liquid(network):
+        # liquid fee
+        if vout.script_pubkey.data == b"":
+            return "Fee"
+        if psbtout.blinding_pubkey is not None:
+            # TODO: check rangeproof if it's present,
+            # otherwise generate it ourselves if sighash is | RANGEPROOF
+            bpub = ec.PublicKey.parse(psbtout.blinding_pubkey)
+            return liquid_address(vout.script_pubkey, bpub, network)
+    # finally just return bitcoin address or unconfidential
+    try:
+        return vout.script_pubkey.address(NETWORKS[network])
+    except:
+        # if script doesn't have address representation
+        return hexlify(vout.script_pubkey.data)
 
 class WalletManager(BaseApp):
     """
@@ -313,6 +334,28 @@ class WalletManager(BaseApp):
         res = await show_screen(TransactionScreen(title, meta))
         if res:
             self.show_loader(title="Signing transaction...")
+            if is_liquid(self.network):
+                # fill missing data
+                for i, out in enumerate(psbt.outputs):
+                    # skip non-confidential
+                    if b'\xfc\x07specter\x01' not in out.unknown:
+                        continue
+                    nonce = out.unknown[b'\xfc\x07specter\x01']
+                    if out.nonce_commitment:
+                        assert out.nonce_commitment == ec.PrivateKey(nonce).sec()
+                    else:
+                        out.nonce_commitment = ec.PrivateKey(nonce).sec()
+                    pub = secp256k1.ec_pubkey_parse(out.blinding_pubkey)
+                    secp256k1.ec_pubkey_tweak_mul(pub, nonce)
+                    sec = secp256k1.ec_pubkey_serialize(pub)
+                    ecdh_nonce = hashlib.sha256(hashlib.sha256(sec).digest()).digest()
+                    vout = psbt.tx.vout[i]
+                    proof = secp256k1.rangeproof_sign(
+                        ecdh_nonce, vout.value, secp256k1.pedersen_commitment_parse(out.value_commitment),
+                        out.value_blinding_factor, vout.asset[1:]+out.asset_blinding_factor,
+                        vout.script_pubkey.data, secp256k1.generator_parse(out.asset_commitment))
+                    out.range_proof = proof
+
             sigsStart = 0
             for i, inp in enumerate(psbt.inputs):
                 sigsStart += len(list(inp.partial_sigs.keys()))
@@ -327,7 +370,7 @@ class WalletManager(BaseApp):
                     w.sign_psbt(psbt, sighash)
             self.keystore.sign_psbt(psbt, sighash)
             # remove unnecessary stuff:
-            out_psbt = PSBT(psbt.tx)
+            out_psbt = PSBTClass(psbt.tx)
             sigsEnd = 0
             for i, inp in enumerate(psbt.inputs):
                 sigsEnd += len(list(inp.partial_sigs.keys()))
@@ -360,6 +403,7 @@ class WalletManager(BaseApp):
     async def showaddr(
         self, paths: list, script_type: str, redeem_script=None, show_screen=None
     ) -> str:
+        # TODO: update for liquid
         net = NETWORKS[self.network]
         if redeem_script is not None:
             redeem_script = script.Script(unhexlify(redeem_script))
@@ -486,6 +530,7 @@ class WalletManager(BaseApp):
         w.wipe()
 
     def find_wallet_from_address(self, addr: str, paths=None, index=None):
+        # TODO: update for liquid
         if index is not None:
             for w in self.wallets:
                 a, _ = w.get_address(index, self.network)
@@ -527,11 +572,11 @@ class WalletManager(BaseApp):
             "inputs": [{} for i in psbt.tx.vin],
             "outputs": [
                 {
-                    "address": out.script_pubkey.address(NETWORKS[self.network]) if out.script_pubkey.data != b"" else "Fee",
+                    "address": get_address(out, psbt.outputs[i], NETWORKS[self.network]),
                     "value": out.value,
                     "change": False,
                 }
-                for out in psbt.tx.vout
+                for i, out in enumerate(psbt.tx.vout)
             ],
             "fee": fee,
             "warnings": [],
@@ -586,6 +631,7 @@ class WalletManager(BaseApp):
                 if w is None:
                     continue
                 if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
+                    # TODO: check blinding pubkeys
                     meta["outputs"][i]["change"] = True
                     meta["outputs"][i]["label"] = w.name
                     break
