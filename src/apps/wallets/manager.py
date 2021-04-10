@@ -630,8 +630,7 @@ class WalletManager(BaseApp):
             for w in wallets:
                 if w is None:
                     continue
-                if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
-                    # TODO: check blinding pubkeys
+                if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script, ec.PublicKey.parse(out.blinding_pubkey)):
                     meta["outputs"][i]["change"] = True
                     meta["outputs"][i]["label"] = w.name
                     break

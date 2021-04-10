@@ -7,6 +7,7 @@ from bitcoin.psbt import DerivationPath
 from bitcoin.liquid.descriptor import LDescriptor as Descriptor
 from bitcoin.descriptor.arguments import AllowedDerivation
 from bitcoin.transaction import SIGHASH
+from bitcoin.liquid.addresses import address as liquid_address
 import hashlib
 from .screens import WalletScreen, WalletInfoScreen
 from .commands import DELETE, EDIT, MENU, INFO
@@ -127,7 +128,7 @@ class Wallet:
         """Fingerprint of the wallet - hash160(descriptor)"""
         return hashes.hash160(str(self.descriptor))[:4]
 
-    def owns(self, tx_out, bip32_derivations, script=None):
+    def owns(self, tx_out, bip32_derivations, script=None, blinding_pubkey=None):
         """
         Checks that psbt scope belongs to the wallet.
         """
@@ -144,6 +145,10 @@ class Wallet:
             return False
         # check that script_pubkey matches
         sc, _ = self.script_pubkey(derivation)
+        if blinding_pubkey is not None:
+            branch_idx, idx = derivation
+            addr, _ = self.get_address(idx, 'liquidv1', branch_index=branch_idx)
+            return addr == liquid_address(sc, blinding_pubkey)
         return sc == tx_out.script_pubkey
 
     def get_derivation(self, bip32_derivations):
