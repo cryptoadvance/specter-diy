@@ -32,6 +32,8 @@ VERIFY_ADDRESS = 0x03
 DERIVE_ADDRESS = 0x04
 # sign psbt transaction encoded in bc-ur format
 SIGN_BCUR = 0x05
+ADD_ASSET = 0x06
+DUMP_ASSETS = 0x07
 
 BASE64_STREAM = 0x64
 RAW_STREAM = 0xFF
@@ -75,7 +77,6 @@ class WalletManager(BaseApp):
 
     button = "Wallets"
     assets = {
-        # bytes(reversed(unhexlify("6fa2bda92ebad2303b92370441e106acae2c8316c0147e7c176744269911653c"))): "tDIY",
         bytes(reversed(unhexlify("230164e2d3ff2c88cc0739e56a3501c979fe131fd07944e8a609323ef26c6918"))): "tBTC",
     }
 
@@ -153,6 +154,10 @@ class WalletManager(BaseApp):
                 return DERIVE_ADDRESS, stream
             elif prefix == b"addwallet":
                 return ADD_WALLET, stream
+            elif is_liquid(self.network) and prefix == b"addasset":
+                return ADD_ASSET, stream
+            elif is_liquid(self.network) and prefix == b"dumpassets":
+                return DUMP_ASSETS, stream
             else:
                 return None, None
         # if not - we get data any without prefix
@@ -268,6 +273,19 @@ class WalletManager(BaseApp):
                 paths, script_type, redeem_script, show_screen=show_screen
             )
             return BytesIO(res), {}
+        elif cmd == ADD_ASSET:
+            arr = stream.read().decode().split(" ")
+            if len(arr) != 2:
+                raise WalletError("Invalid number of arguments. Usage: addasset <hex_asset> asset_lbl")
+            hexasset, assetlbl = arr
+            if await show_screen(Prompt("Import asset?",
+                    "Asset:\n\n"+format_addr(hexasset, letters=8, words=2)+"\n\nLabel: "+assetlbl)):
+                asset = bytes(reversed(unhexlify(hexasset)))
+                self.assets[asset] = assetlbl
+                self.save_assets()
+            return BytesIO(b"success"), {}
+        elif cmd == DUMP_ASSETS:
+            return BytesIO(self.assets_json()), {}
         else:
             raise WalletError("Unknown command")
 
@@ -416,14 +434,18 @@ class WalletManager(BaseApp):
                 txt = out_psbt.serialize()
             return BytesIO(txt)
 
-    def save_assets(self):
-        path = self.root_path + "/" + self.keystore.uid
-        platform.maybe_mkdir(path)
+    def assets_json(self):
         assets = {}
         # no support for bytes...
         for asset in self.assets:
-            assets[hexlify(asset).decode()] = self.assets[asset]
-        self.keystore.save_aead(path + "/" + self.network, plaintext=json.dumps(assets).encode(), key=self.keystore.userkey)
+            assets[hexlify(bytes(reversed(asset))).decode()] = self.assets[asset]
+        return json.dumps(assets)
+
+    def save_assets(self):
+        path = self.root_path + "/uid" + self.keystore.uid
+        platform.maybe_mkdir(path)
+        assets = self.assets_json()
+        self.keystore.save_aead(path + "/" + self.network, plaintext=assets.encode(), key=self.keystore.userkey)
 
     def load_assets(self):
         path = self.root_path + "/" + self.keystore.uid
@@ -433,7 +455,7 @@ class WalletManager(BaseApp):
             assets = json.loads(assets.decode())
             # no support for bytes...
             for asset in assets:
-                self.assets[unhexlify(asset)] = assets[asset]
+                self.assets[bytes(reversed(unhexlify(asset)))] = assets[asset]
 
 
     async def confirm_new_wallet(self, w, show_screen):
