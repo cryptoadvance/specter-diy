@@ -11,7 +11,7 @@ from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
 from bitcoin.psbt import PSBT, DerivationPath
 from bitcoin.liquid.pset import PSET
 from bitcoin.liquid.networks import NETWORKS
-from bitcoin import script, bip32, ec
+from bitcoin import script, bip32, ec, compact
 from bitcoin.liquid.transaction import LSIGHASH as SIGHASH
 from bitcoin.liquid.addresses import address as liquid_address
 from .wallet import WalletError, Wallet
@@ -381,10 +381,20 @@ class WalletManager(BaseApp):
         if res:
             self.show_loader(title="Signing transaction...")
             if is_liquid(self.network):
+                h = hashlib.sha256()
                 # fill missing data
+                gc.collect()
                 for i, out in enumerate(psbt.outputs):
+                    self.show_loader(title="Rangeproof %d..." % i)
                     # skip non-confidential
                     if b'\xfc\x07specter\x01' not in out.unknown:
+                        if out.range_proof:
+                            h.update(compact.to_bytes(len(proof)))
+                            h.update(proof)
+                            h.update(compact.to_bytes(len(out.surjection_proof)))
+                            h.update(out.surjection_proof)
+                        else:
+                            h.update(b"\x00\x00")
                         continue
                     nonce = out.unknown[b'\xfc\x07specter\x01']
                     if out.nonce_commitment:
@@ -400,8 +410,16 @@ class WalletManager(BaseApp):
                         ecdh_nonce, vout.value, secp256k1.pedersen_commitment_parse(out.value_commitment),
                         out.value_blinding_factor, vout.asset[1:]+out.asset_blinding_factor,
                         vout.script_pubkey.data, secp256k1.generator_parse(out.asset_commitment))
-                    out.range_proof = proof
+                    h.update(compact.to_bytes(len(proof)))
+                    h.update(proof)
+                    h.update(compact.to_bytes(len(out.surjection_proof)))
+                    h.update(out.surjection_proof)
+                    out.surjection_proof = None
+                    del proof
+                    gc.collect()
+                psbt.tx._hash_outputs_rangeproofs = h.digest()
 
+            self.show_loader(title="Signing now..." % i)
             sigsStart = 0
             for i, inp in enumerate(psbt.inputs):
                 sigsStart += len(list(inp.partial_sigs.keys()))
