@@ -111,6 +111,10 @@ def init_styles(dark=True):
     lv.style_copy(styles["hint"], th.style.label.sec)
     styles["hint"].text.font = lv.font_roboto_16
 
+    styles["small"] = lv.style_t()
+    lv.style_copy(styles["small"], styles["hint"])
+    styles["small"].text.color = ctxt
+
 
 def add_label(text, y=PADDING, scr=None, style=None, width=None):
     """Helper functions that creates a title-styled label"""

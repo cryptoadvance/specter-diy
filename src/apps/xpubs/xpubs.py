@@ -1,11 +1,12 @@
 from app import BaseApp, AppError
-from gui.screens import Menu, DerivationScreen, NumericScreen
+from gui.screens import Menu, DerivationScreen, NumericScreen, Alert
 from .screens import XPubScreen
 
 from binascii import hexlify
 from bitcoin.networks import NETWORKS
 from bitcoin import bip32
 from io import BytesIO
+import platform
 
 
 class XpubApp(BaseApp):
@@ -115,11 +116,25 @@ class XpubApp(BaseApp):
         slip132 = xpub.to_base58(ver)
         if slip132 == canonical:
             slip132 = None
+        fingerprint = hexlify(self.keystore.fingerprint).decode()
         prefix = "[%s%s]" % (
-            hexlify(self.keystore.fingerprint).decode(),
+            fingerprint,
             derivation[1:],
         )
-        await show_screen(XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix))
+        res = await show_screen(XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix))
+        if res:
+            fname = "%s-%s.txt" % (fingerprint, derivation[2:].replace("/","-"))
+            if not platform.is_sd_present():
+                raise AppError("SD card is not present")
+            platform.mount_sdcard()
+            with open(platform.fpath("/sd/%s" % fname), "w") as f:
+                f.write(res)
+            platform.unmount_sdcard()
+            await show_screen(
+                Alert("Saved!",
+                      "Extended public key is saved to the file:\n\n%s" % fname,
+                      button_text="Close")
+            )
 
     def wipe(self):
         # nothing to delete
