@@ -1,5 +1,6 @@
 debug.h
 bin
+.venv
 fs
 testdir
 __pycache__
