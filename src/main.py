@@ -5,7 +5,7 @@ from keystore.core import KeyStore
 from keystore.sdcard import SDKeyStore
 from keystore.memorycard import MemoryCard
 
-from hosts import SDHost, QRHost, USBHost
+from hosts import SDHost, QRHost, USBHost, Host
 import platform
 import sys
 from helpers import load_apps
@@ -23,9 +23,10 @@ def main(apps=None, network="main", keystore_cls=None):
     rampath = platform.mount_sdram()
     # define hosts - USB, QR, SDCard
     # each hosts gets it's own RAM folder for data
+    Host.SETTINGS_DIR = platform.fpath("/qspi/hosts")
     hosts = [
-        QRHost(rampath + "/qr"),
         USBHost(rampath + "/usb"),
+        QRHost(rampath + "/qr"),
         SDHost(rampath+"/sd"),
     ]
     # temp storage in RAM for host commands processing

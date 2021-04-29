@@ -6,7 +6,7 @@ from ..decorators import on_release, cb_with_args
 
 class Menu(Screen):
     def __init__(
-        self, buttons=[], title="What do you want to do?", note=None, y0=80, last=None
+        self, buttons=[], title="What do you want to do?", note=None, y0=60, last=None
     ):
         super().__init__()
         y = y0
@@ -21,6 +21,7 @@ class Menu(Screen):
         self.page.set_y(y)
         y = 0
         self.buttons = []
+        # value, text, enable, color
         for value, text, *args in buttons:
             if text is not None:
                 if value is not None:

@@ -52,6 +52,7 @@ class QRHost(Host):
     RECOVERY_TIME = 30
 
     button = "Scan QR code"
+    settings_button = "QR scanner"
 
     def __init__(self, path, trigger=None, uart="YA", baudrate=9600):
         super().__init__(path)
@@ -102,7 +103,7 @@ class QRHost(Host):
             return False
         return res == SUCCESS
 
-    def save_settings(self):
+    def save_settings_on_scanner(self):
         res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
         if res is None:
             return False
@@ -147,7 +148,7 @@ class QRHost(Host):
             save_required = True
 
         if save_required:
-            val = self.save_settings()
+            val = self.save_settings_on_scanner()
             if not val:
                 return False
 

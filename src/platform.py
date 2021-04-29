@@ -169,6 +169,11 @@ def delete_recursively(path, include_self=False):
 if not simulator:
     stlk = pyb.UART("YB", 9600)
 
+def enable_usb():
+    pyb.usb_mode("VCP")
+
+def disable_usb():
+    pyb.usb_mode(None)
 
 def set_usb_mode(dev=False, usb=False):
     if simulator:

@@ -128,6 +128,10 @@ class RAMKeyStore(KeyStore):
         except:
             self.secret = self.create_new_secret(path)
 
+    @property
+    def settings_key(self):
+        return tagged_hash("settings key", self.secret)
+
     def create_new_secret(self, path):
         """Generate new secret and default PIN config"""
         # generate new and save

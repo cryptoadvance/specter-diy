@@ -1,7 +1,9 @@
 import asyncio
 from platform import maybe_mkdir
 from errors import BaseError
-
+import json
+from gui.screens.settings import HostSettings
+from gui.screens import Alert
 
 class HostError(BaseError):
     NAME = "Host error"
@@ -17,21 +19,30 @@ class Host:
 
     # time to wait after init
     RECOVERY_TIME = 1
+    # store device settings here with unique filename
+    # common for all hosts
+    SETTINGS_DIR = None
     # set the button on the main screen
     # should be a tuple (text, callback)
     # keep None if you don't need a button
     button = None
+    # button text for settings menu, None if nothing to configure
+    settings_button = None
 
     def __init__(self, path):
         # storage for data
         self.path = path
         maybe_mkdir(path)
+        if self.SETTINGS_DIR:
+            maybe_mkdir(self.SETTINGS_DIR)
         # set manager
         self.manager = None
         # check this flag in update function
         # if disabled - throw all incoming data
         self.enabled = False
         self.initialized = False
+        # default settings, extend it with more settings if applicable
+        self.settings = { "enabled": True }
         # if host can be triggered by the user
         # this is monitored by the manager
         # self.in_progress = False
@@ -46,6 +57,43 @@ class Host:
         Configure hardware, do selfchecks etc.
         """
         pass
+
+    @property
+    def is_enabled(self):
+        return self.settings.get("enabled", True)
+
+    @property
+    def settings_fname(self):
+        return self.SETTINGS_DIR + "/" + type(self).__name__ + ".settings"
+
+    def load_settings(self, keystore):
+        try:
+            adata, _ = keystore.load_aead(self.settings_fname, key=keystore.settings_key)
+            settings = json.loads(adata.decode())
+            self.settings = settings
+        except Exception as e:
+            print(e)
+        return self.settings
+
+    def save_settings(self, keystore):
+        keystore.save_aead(self.settings_fname,
+                           adata=json.dumps(self.settings).encode(),
+                           key=keystore.settings_key
+        )
+
+    async def settings_menu(self, show_screen, keystore):
+        title = self.settings_button or "Settings"
+        controls = [{
+            "label": "Enable " + title,
+            "hint": "This setting will completely enable or disable this communication channel and remove corresponding button from the main menu",
+            "value": self.settings["enabled"]
+        }]
+        scr = HostSettings(controls, title=title)
+        res = await show_screen(scr)
+        if res:
+            self.settings["enabled"] = res[0]
+            self.save_settings(keystore)
+            await show_screen(Alert("Success!", "\n\nSettings updated!", button_text="Close"))
 
     def start(self, manager, rate: int = 10):
         self.manager = manager

@@ -13,6 +13,7 @@ class SDHost(Host):
     """
 
     button = "SD card"
+    settings_button = "SD card"
 
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)

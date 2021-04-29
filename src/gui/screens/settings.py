@@ -3,6 +3,37 @@ from .prompt import Prompt
 from ..common import add_label, add_button
 from ..decorators import on_release
 
+class HostSettings(Prompt):
+    def __init__(self, controls, title="Host setttings", note=None):
+        super().__init__(title, "")
+        if note is not None:
+            self.note = add_label(note, style="hint", scr=self)
+            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+        self.controls = controls
+        self.switches = []
+        y = 70
+        for control in controls:
+            label = add_label(control["label"], y, scr=self.page)
+            hint = add_label(
+                control.get("hint", ""),
+                y + 40,
+                scr=self.page,
+                style="hint",
+            )
+            switch = lv.sw(self.page)
+            switch.align(hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+            lbl = add_label(" OFF                              ON  ", scr=self.page)
+            lbl.align(switch, lv.ALIGN.CENTER, 0, 0)
+            if control.get("value", False):
+                switch.on(lv.ANIM.OFF)
+            self.switches.append(switch)
+            y += 200
+
+        self.confirm_button.set_event_cb(on_release(self.update))
+        self.cancel_button.set_event_cb(on_release(lambda: self.set_value(None)))
+
+    def update(self):
+        self.set_value([switch.get_state() for switch in self.switches])
 
 class DevSettings(Prompt):
     def __init__(self, dev=False, usb=False, note=None):

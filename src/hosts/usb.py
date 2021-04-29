@@ -15,9 +15,12 @@ class USBHost(Host):
 
     ACK = b"ACK\r\n"
     RECOVERY_TIME = 10
+    settings_button = "USB communication"
 
     def __init__(self, path):
         super().__init__(path)
+        # USB is disabled by default
+        self.settings = { "enabled": False }
         self.usb = None
         self.f = None
 
@@ -29,12 +32,31 @@ class USBHost(Host):
             if platform.simulator:
                 print("Connect to 127.0.0.1:8789 to do USB communication")
 
+    def load_settings(self, *args, **kwargs):
+        super().load_settings(*args, **kwargs)
+        if self.is_enabled:
+            platform.enable_usb()
+        else:
+            platform.disable_usb()
+
     async def enable(self):
         # cleanup first
         self.cleanup()
         if self.usb is not None:
             self.usb.read()
         return await super().enable()
+
+    async def settings_menu(self, *args, **kwargs):
+        enabled = self.is_enabled
+        await super().settings_menu(*args, **kwargs)
+        # check if the state didn't change
+        if self.is_enabled != enabled:
+            if self.is_enabled:
+                platform.enable_usb()
+            else:
+                platform.disable_usb()
+            # reboot required
+            return True
 
     def cleanup(self):
         if self.f is not None:

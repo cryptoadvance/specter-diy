@@ -167,8 +167,6 @@ class Specter:
         if self.keystore.is_key_saved and self.keystore.load_button:
             buttons.append((2, self.keystore.load_button))
         buttons += [(None, "Settings"), (3, "Device settings")]
-        if hasattr(self.keystore, "lock"):
-            buttons += [(4, "Change PIN code"), (5, "Lock device")]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons)
 
@@ -204,9 +202,6 @@ class Specter:
             return self.mainmenu
         elif menuitem == 3:
             await self.update_devsettings()
-        # change pin code
-        elif menuitem == 4:
-            await self.keystore.change_pin()
         # lock device
         elif menuitem == 5:
             await self.lock()
@@ -222,7 +217,7 @@ class Specter:
         # buttons defined by host classes
         # only added if there is a GUI-triggered communication
         host_buttons = [
-            (host, host.button) for host in self.hosts if host.button is not None
+            (host, host.button) for host in self.hosts if host.button is not None and host.is_enabled
         ]
         # buttons defined by app classes
         app_buttons = [(app, app.button) for app in self.apps if app.button is not None]
@@ -283,8 +278,6 @@ class Specter:
         if self.keystore.storage_button is not None:
             buttons.append((0, self.keystore.storage_button))
         buttons.extend([(2, "Enter BIP-39 password"), (None, "Security")])  # delimiter
-        if hasattr(self.keystore, "lock"):
-            buttons.extend([(3, "Change PIN code")])
         buttons.extend([(4, "Device settings")])
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None), note="Firmware version %s" % get_version())
@@ -302,9 +295,6 @@ class Specter:
             self.keystore.set_mnemonic(password=pwd)
             for app in self.apps:
                 app.init(self.keystore, self.network, self.gui.show_loader)
-        elif menuitem == 3:
-            await self.keystore.change_pin()
-            return self.mainmenu
         elif menuitem == 4:
             await self.update_devsettings()
         elif menuitem == 5:
@@ -345,10 +335,38 @@ class Specter:
         self.set_network(network)
 
     async def update_devsettings(self):
-        res = await self.gui.devscreen(dev=self.dev, usb=self.usb,
-                                       note="Firmware version %s" % get_version())
-        if res is not None:
-            if res["wipe"]:
+        buttons = [
+            (None, "Communication settings")
+        ] + [
+            (host, host.settings_button)
+            for host in self.hosts
+            if host.settings_button is not None
+        ] + [
+            (None, "Global settings"),
+        ]
+        if hasattr(self.keystore, "lock"):
+            buttons.extend([(3, "Change PIN code")])
+        buttons += [
+            (456, "Reboot"),
+            (123, "Wipe the device", True, 0x951E2D),
+        ]
+        while True:
+            menuitem = await self.gui.menu(buttons,
+                                      title="Device settings",
+                                      note="Firmware version %s" % get_version(),
+                                      last=(255, None)
+            )
+            if menuitem == 255:
+                return
+            elif menuitem == 456:
+                if await self.gui.prompt(
+                    "Reboot the device?",
+                    "\n\nAre you sure?",
+                ):
+                    reboot()
+                return
+            # WIPE
+            elif menuitem == 123:
                 if await self.gui.prompt(
                     "Wiping the device will erase everything in the internal storage!",
                     "This includes multisig wallet files, keys, apps data etc.\n\n"
@@ -357,12 +375,21 @@ class Specter:
                 ):
                     self.wipe()
                 return
-            self.update_config(**res)
-            if await self.gui.prompt(
-                "Reboot required!",
-                "Changing USB mode requires to " "reboot the device. Proceed?",
-            ):
-                reboot()
+            elif menuitem == 3:
+                await self.keystore.change_pin()
+                return
+            elif isinstance(menuitem, Host):
+                reboot_required = await menuitem.settings_menu(self.gui.show_screen(), self.keystore)
+                if reboot_required:
+                    if await self.gui.prompt(
+                        "Reboot required!",
+                        "Settings have been updated and will become active after reboot.\n\n"
+                        "Do you want to reboot now?",
+                    ):
+                        reboot()
+            else:
+                print(menuitem)
+                raise SpecterError("Not implemented")
 
     def wipe(self):
         # TODO: wipe the smartcard as well?
@@ -376,8 +403,6 @@ class Specter:
         # disable hosts
         for host in self.hosts:
             await host.disable()
-        # disable usb and dev
-        set_usb_mode(False, False)
 
     async def unlock(self):
         """
@@ -385,53 +410,9 @@ class Specter:
         - enter PIN if set
         """
         await self.keystore.unlock()
-        # now keystore is unlocked - we can proceed
-        # load configuration
-        self.load_config()
-        set_usb_mode(usb=self.usb, dev=self.dev)
-
-    def load_config(self):
-        try:
-            config, _ = self.keystore.load_aead(
-                self.path + "/settings",
-                self.keystore.app_secret("specter")
-            )
-            config = json.loads(config.decode())
-        except Exception as e:
-            print(e)
-            config = {
-                "dev": False, # self.dev,
-                "usb": self.usb
-            }
-            self.keystore.save_aead(
-                self.path + "/settings",
-                adata=json.dumps(config).encode(),
-                key=self.keystore.app_secret("specter"),
-            )
-        self.dev = False # config["dev"]
-        self.usb = config["usb"]
-        # add apps in dev mode
-        # if self.dev:
-        #     try:
-        #         qspi = fpath("/qspi/extensions")
-        #         maybe_mkdir(qspi)
-        #         maybe_mkdir(qspi + "/extra_apps")
-        #         if qspi not in sys.path:
-        #             sys.path.append(qspi)
-        #             self.apps += load_apps("extra_apps")
-        #     except Exception as e:
-        #         print(e)
-
-    def update_config(self, usb=False, dev=False, **kwargs):
-        config = {"usb": usb, "dev": dev}
-        self.keystore.save_aead(
-            self.path + "/settings",
-            adata=json.dumps(config).encode(),
-            key=self.keystore.app_secret("specter"),
-        )
-        self.usb = usb
-        self.dev = dev
-        set_usb_mode(usb=self.usb, dev=self.dev)
+        # now keystore is unlocked - we can load hosts configs
+        for host in self.hosts:
+            host.load_settings(self.keystore)
 
     async def process_host_request(self, stream, popup=True):
         """
