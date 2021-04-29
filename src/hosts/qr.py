@@ -5,6 +5,8 @@ import asyncio
 from platform import simulator, config, delete_recursively
 from io import BytesIO
 import gc
+from gui.screens.settings import HostSettings
+from gui.screens import Alert
 
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
@@ -16,8 +18,6 @@ SERIAL_VALUE = 0xA0  # use serial port for data
 """ We switch the scanner to continuous mode to initiate scanning and
 to command mode to stop scanning. No external trigger is necessary """
 SETTINGS_ADDR = b"\x00\x00"
-SETTINGS_CMD_MODE = 0xD1  # use command mode + aim light, no flash light
-SETTINGS_CONT_MODE = 0xD2  # use continuous mode + aim light, no flash light
 
 """ After basic scanner configuration (9600 bps) uart is set to 115200 bps
 to support fast scanning of animated qrs """
@@ -57,6 +57,14 @@ class QRHost(Host):
     def __init__(self, path, trigger=None, uart="YA", baudrate=9600):
         super().__init__(path)
 
+        # default settings, extend it with more settings if applicable
+        self.settings = {
+            "enabled": True,
+            "aim": True,
+            "light": False,
+            "sound": True,
+        }
+
         if simulator:
             self.EOL = b"\r\n"
         else:
@@ -76,6 +84,25 @@ class QRHost(Host):
             self.is_configured = True
         self.scanning = False
         self.parts = None
+
+    @property
+    def MASK(self):
+        b = (1<<7)
+        if self.settings.get("sound", True):
+            b |= (1<<6)
+        if self.settings.get("aim", True):
+            b |= (1<<4)
+        if self.settings.get("light", False):
+            b |= (1<<2)
+        return b
+
+    @property
+    def CMD_MODE(self):
+        return self.MASK | 1
+
+    @property
+    def CONT_MODE(self):
+        return self.MASK | 2
 
     def query(self, data, timeout=100):
         """Blocking query"""
@@ -122,8 +149,8 @@ class QRHost(Host):
         val = self.get_setting(SETTINGS_ADDR)
         if val is None:
             return False
-        if val != SETTINGS_CMD_MODE:
-            self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
+        if val != self.CMD_MODE:
+            self.set_setting(SETTINGS_ADDR, self.CMD_MODE)
             save_required = True
 
         val = self.get_setting(TIMOUT_ADDR)
@@ -186,6 +213,39 @@ class QRHost(Host):
         self.is_configured = True
         pyb.LED(3).on()
 
+    async def settings_menu(self, show_screen, keystore):
+        title = "QR scanner"
+        controls = [{
+            "label": "Enable QR scanner",
+            "hint": "Enable or disable QR scanner and remove corresponding button from the main menu",
+            "value": self.settings.get("enabled", True)
+        }, {
+            "label": "Sound",
+            "hint": "To beep or not to beep?",
+            "value": self.settings.get("sound", True)
+        }, {
+            "label": "Aim light",
+            "hint": "Laser eyes!",
+            "value": self.settings.get("aim", True)
+        }, {
+            "label": "Flashlight",
+            "hint": "Can create blicks on the screen",
+            "value": self.settings.get("light", False)
+        }]
+        scr = HostSettings(controls, title=title)
+        res = await show_screen(scr)
+        if res:
+            enabled, sound, aim, light = res
+            self.settings = {
+                "enabled": enabled,
+                "aim": aim,
+                "light": light,
+                "sound": sound,
+            }
+            self.save_settings(keystore)
+            self.configure()
+            await show_screen(Alert("Success!", "\n\nSettings updated!", button_text="Close"))
+
     def clean_uart(self):
         self.uart.read()
 
@@ -194,7 +254,7 @@ class QRHost(Host):
         if self.trigger is not None:
             self.trigger.on()
         else:
-            self.set_setting(SETTINGS_ADDR, SETTINGS_CMD_MODE)
+            self.set_setting(SETTINGS_ADDR, self.CMD_MODE)
 
     def abort(self):
         self.data = None
@@ -206,7 +266,7 @@ class QRHost(Host):
         if self.trigger is not None:
             self.trigger.off()
         else:
-            self.set_setting(SETTINGS_ADDR, SETTINGS_CONT_MODE)
+            self.set_setting(SETTINGS_ADDR, self.CONT_MODE)
         self.data = b""
         if self.f is not None:
             self.f.close()

@@ -11,23 +11,23 @@ class HostSettings(Prompt):
             self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
         self.controls = controls
         self.switches = []
-        y = 70
+        y = 40
         for control in controls:
             label = add_label(control["label"], y, scr=self.page)
             hint = add_label(
                 control.get("hint", ""),
-                y + 40,
+                y + 30,
                 scr=self.page,
                 style="hint",
             )
             switch = lv.sw(self.page)
-            switch.align(hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+            switch.align(hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
             lbl = add_label(" OFF                              ON  ", scr=self.page)
             lbl.align(switch, lv.ALIGN.CENTER, 0, 0)
             if control.get("value", False):
                 switch.on(lv.ANIM.OFF)
             self.switches.append(switch)
-            y += 200
+            y = lbl.get_y() + 80
 
         self.confirm_button.set_event_cb(on_release(self.update))
         self.cancel_button.set_event_cb(on_release(lambda: self.set_value(None)))
