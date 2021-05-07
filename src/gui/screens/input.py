@@ -258,7 +258,7 @@ class PinScreen(Screen):
     def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
-            if c is None:
+            if c is None or c == " ":
                 return
             if c == lv.SYMBOL.CLOSE:
                 self.reset()
