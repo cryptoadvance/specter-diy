@@ -279,16 +279,18 @@ class RAMKeyStore(KeyStore):
             self.show_loader("Verifying PIN code...")
             self._unlock(pin)
 
-    async def get_pin(self, title="Enter your PIN code"):
+    async def get_pin(self, title="Enter your PIN code", with_cancel=False):
         """
         Async version of the PIN screen.
         Waits for an event that is set in the callback.
         """
+
         scr = PinScreen(
             title=title,
             note="Do you recognize these words?",
             get_word=self.get_auth_word,
             subtitle=self.pin_subtitle,
+            with_cancel=with_cancel
         )
         return await self.show(scr)
 
@@ -328,7 +330,10 @@ class RAMKeyStore(KeyStore):
 
     async def change_pin(self):
         # get_auth_word function can generate words from part of the PIN
-        old_pin = await self.get_pin(title="First enter your old PIN code")
+        old_pin = await self.get_pin(title="First enter your old PIN code", with_cancel=True)
+        if old_pin == PinScreen.CANCEL_VALUE:
+            return
+
         # check pin - will raise if not valid
         self.show_loader("Verifying PIN code...")
         self._unlock(old_pin)
@@ -336,7 +341,7 @@ class RAMKeyStore(KeyStore):
         self.show_loader("Setting new PIN code...")
         self._change_pin(old_pin, new_pin)
         await self.show(
-            Alert("Success!", "PIN code is sucessfully changed!", button_text="OK")
+            Alert("Success!", "PIN code is successfully changed!", button_text="OK")
         )
 
     async def show_mnemonic(self):
