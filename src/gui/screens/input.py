@@ -185,14 +185,14 @@ class PinScreen(Screen):
         if subtitle is not None:
             lbl = add_label(subtitle, scr=self, style="hint")
             lbl.set_recolor(True)
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
+            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 180)
+            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 110)
         self.get_word = get_word
         if get_word is not None:
             self.words = add_label(get_word(b""), scr=self)
-            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 90)
+            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 140)
         btnm = lv.btnm(self)
         # shuffle numbers to make sure
         # no constant fingerprints left on screen
@@ -232,7 +232,7 @@ class PinScreen(Screen):
         self.pin.set_one_line(True)
         self.pin.set_text_align(lv.label.ALIGN.CENTER)
         self.pin.set_pwd_show_time(0)
-        self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, 0)
+        self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, -80)
 
         self.next_button = add_button(scr=self, callback=on_release(self.submit))
 
