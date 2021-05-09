@@ -331,7 +331,7 @@ class RAMKeyStore(KeyStore):
     async def change_pin(self):
         # get_auth_word function can generate words from part of the PIN
         old_pin = await self.get_pin(title="First enter your old PIN code", with_cancel=True)
-        if old_pin == PinScreen.CANCEL_VALUE:
+        if old_pin is None:
             return
 
         # check pin - will raise if not valid
