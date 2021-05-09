@@ -107,10 +107,10 @@ class InputScreen(Screen):
     ]
 
     def __init__(
-        self,
-        title="Enter your bip-39 password:",
-        note="It is never stored on the device",
-        suggestion="",
+            self,
+            title="Enter your bip-39 password:",
+            note="It is never stored on the device",
+            suggestion="",
     ):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
@@ -177,8 +177,9 @@ class InputScreen(Screen):
 
 class PinScreen(Screen):
     network = None
+    CANCEL_VALUE = "*"
 
-    def __init__(self, title="Enter your PIN code", note=None, get_word=None, subtitle=None):
+    def __init__(self, title="Enter your PIN code", note=None, get_word=None, subtitle=None, with_cancel=False):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
         if subtitle is not None:
@@ -187,11 +188,11 @@ class PinScreen(Screen):
             lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 180)
+            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 110)
         self.get_word = get_word
         if get_word is not None:
             self.words = add_label(get_word(b""), scr=self)
-            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 210)
+            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 140)
         btnm = lv.btnm(self)
         # shuffle numbers to make sure
         # no constant fingerprints left on screen
@@ -202,11 +203,11 @@ class PinScreen(Screen):
                 v = rng.get_random_bytes(1)[0] % len(buttons)
                 btnmap.append(buttons.pop(v))
             btnmap.append("\n")
-        btnmap = btnmap + [lv.SYMBOL.CLOSE, buttons.pop(), lv.SYMBOL.OK, ""]
+        btnmap = btnmap + [lv.SYMBOL.CLOSE, buttons.pop(), " ", ""]
         btnm.set_map(btnmap)
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
-        btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -100)
         # increase font size
         style = lv.style_t()
         lv.style_copy(style, btnm.get_style(lv.btnm.STYLE.BTN_REL))
@@ -231,9 +232,23 @@ class PinScreen(Screen):
         self.pin.set_one_line(True)
         self.pin.set_text_align(lv.label.ALIGN.CENTER)
         self.pin.set_pwd_show_time(0)
-        self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, -150)
+        self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, -80)
+
+        self.next_button = add_button(scr=self, callback=on_release(self.submit))
+
+        self.next_label = lv.label(self.next_button)
+        self.next_label.set_text("Next " + lv.SYMBOL.RIGHT)
+
+        if with_cancel:
+            self.cancel_button = add_button(scr=self, callback=on_release(self.cancel))
+
+            self.cancel_label = lv.label(self.cancel_button)
+            self.cancel_label.set_text(lv.SYMBOL.LEFT + " Cancel")
+
+            align_button_pair(self.cancel_button, self.next_button)
 
         btnm.set_event_cb(feed_rng(self.cb))
+
 
     def reset(self):
         self.pin.set_text("")
@@ -243,12 +258,10 @@ class PinScreen(Screen):
     def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
-            if c is None:
+            if c is None or c == " ":
                 return
             if c == lv.SYMBOL.CLOSE:
                 self.reset()
-            elif c == lv.SYMBOL.OK:
-                self.release()
             else:
                 self.pin.add_text(c)
                 # add new anti-phishing word
@@ -258,8 +271,16 @@ class PinScreen(Screen):
                     self.words.set_text(cur_words)
 
     def get_value(self):
-        return self.pin.get_text()
+        v = self.pin.get_text()
+        return None if v == self.CANCEL_VALUE else v
 
+    def submit(self):
+        self.release()
+
+    def cancel(self):
+        # obj.del_async()
+        self.pin.set_text(self.CANCEL_VALUE)
+        self.release()
 
 class DerivationScreen(Screen):
     PATH_CHARSET = [
@@ -339,6 +360,7 @@ class DerivationScreen(Screen):
         else:
             self.ta.add_text(c)
 
+
 class NumericScreen(Screen):
     NUMERIC_CHARSET = [
         "1",
@@ -360,9 +382,9 @@ class NumericScreen(Screen):
     ]
 
     def __init__(
-        self,
-        title="Enter account number",
-        current_val='0'
+            self,
+            title="Enter account number",
+            current_val='0'
     ):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
