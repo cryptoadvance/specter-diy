@@ -281,7 +281,7 @@ class PinScreen(Screen):
     def cancel(self):
         # obj.del_async()
         self.pin.set_text(self.CANCEL_VALUE)
-        self.set_value(None)
+        self.release()
 
 class DerivationScreen(Screen):
     PATH_CHARSET = [
