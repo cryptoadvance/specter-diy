@@ -275,8 +275,6 @@ class PinScreen(Screen):
         return None if v == self.CANCEL_VALUE else v
 
     def submit(self):
-        if self.get_value() == "":
-            return
         self.release()
 
     def cancel(self):
