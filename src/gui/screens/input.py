@@ -271,7 +271,8 @@ class PinScreen(Screen):
                     self.words.set_text(cur_words)
 
     def get_value(self):
-        return self.pin.get_text()
+        v = self.pin.get_text()
+        return None if v == self.CANCEL_VALUE else v
 
     def submit(self):
         if self.get_value() == "":
