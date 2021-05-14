@@ -71,7 +71,7 @@ def aead_encrypt(key: bytes, adata: bytes = b"", plaintext: bytes = b"") -> byte
     # if there is not ct - just add hmac
     if len(plaintext) > 0:
         data += encrypt(plaintext, aes_key)
-    mac = hmac.new(hmac_key, msg=data, digestmod="sha256").digest()
+    mac = hmac.new(hmac_key, data, digestmod="sha256").digest()
     return data + mac
 
 
@@ -86,7 +86,7 @@ def aead_decrypt(ciphertext: bytes, key: bytes) -> tuple:
 
     aes_key = tagged_hash("aes", key)
     hmac_key = tagged_hash("hmac", key)
-    if mac != hmac.new(hmac_key, msg=ct, digestmod="sha256").digest():
+    if mac != hmac.new(hmac_key, ct, digestmod="sha256").digest():
         raise Exception("Invalid HMAC")
     b = BytesIO(ct)
     l = compact.read_from(b)
