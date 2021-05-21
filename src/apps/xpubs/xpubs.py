@@ -92,7 +92,8 @@ class XpubApp(BaseApp):
                 if format == self.export_specter_diy:
                     filedata = ""
                     for der in derivations:
-                        filedata += "[%s/%s]%s\n" % (fingerprint, der[2], self.calculate_xpub(der[2]))
+                        xpub = self.keystore.get_xpub(der[2])
+                        filedata += "[%s/%s]%s\n" % (fingerprint, der[2], xpub.to_base58(net["xpub"]))
                     extension = "txt"
                 else:
                     m = self.keystore.get_xpub("m")
@@ -104,23 +105,25 @@ class XpubApp(BaseApp):
                     }
 
                     for der in derivations:
+                        xpub = self.keystore.get_xpub(der[2])
+
                         data[der[0]] = {
                             "name": der[1],
                             "deriv": der[2],
-                            "xpub": self.calculate_xpub(der[2]),
-                            "_pub": self.calculate_xpub(der[2], True),
+                            "xpub": xpub.to_base58(net["xpub"]),
+                            "_pub": xpub.to_base58(bip32.detect_version(der[2], default="xpub", network=net))
                         }
 
                     filedata = json.dumps(data).encode()
 
                 filename = "%s-%s-%d-all.%s" % (format, fingerprint, self.account, extension)
 
-                if self.write_file(filename, filedata):
-                    await show_screen(
-                        Alert("Saved!",
-                              "Public keys are saved to the file:\n\n%s" % filename,
-                              button_text="Close")
-                    )
+                self.write_file(filename, filedata)
+                await show_screen(
+                    Alert("Saved!",
+                          "Public keys are saved to the file:\n\n%s" % filename,
+                          button_text="Close")
+                )
 
         elif menuitem == 2:
             account = await show_screen(NumericScreen(current_val=str(self.account)))
@@ -177,20 +180,12 @@ class XpubApp(BaseApp):
         res = await show_screen(XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix))
         if res:
             filename = "%s-%s.txt" % (fingerprint, derivation[2:].replace("/", "-"))
-            if self.write_file(filename, res):
-                await show_screen(
-                    Alert("Saved!",
-                          "Extended public key is saved to the file:\n\n%s" % filename,
-                          button_text="Close")
-                )
-
-    def calculate_xpub(self, derivation, as_slip132=False):
-        net = NETWORKS[self.network]
-        xpub = self.keystore.get_xpub(derivation)
-        ver = net["xpub"]
-        if as_slip132:
-            ver = bip32.detect_version(derivation, default="xpub", network=net)
-        return xpub.to_base58(ver)
+            self.write_file(filename, res)
+            await show_screen(
+                Alert("Saved!",
+                      "Extended public key is saved to the file:\n\n%s" % filename,
+                      button_text="Close")
+            )
 
     def write_file(self, filename, filedata):
         if not platform.is_sd_present():
@@ -199,11 +194,8 @@ class XpubApp(BaseApp):
         with open(platform.fpath("/sd/%s" % filename), "w") as f:
             f.write(filedata)
         platform.unmount_sdcard()
-        return True
 
     async def save_menu(self, show_screen):
-        net = NETWORKS[self.network]
-
         buttons = [(0, "Specter-DIY"), (1, "Cold Card")]
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
