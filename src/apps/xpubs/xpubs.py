@@ -187,10 +187,10 @@ class XpubApp(BaseApp):
     def calculate_xpub(self, derivation, as_slip132=False):
         net = NETWORKS[self.network]
         xpub = self.keystore.get_xpub(derivation)
-        ver = bip32.detect_version(derivation, default="xpub", network=net)
-        canonical = xpub.to_base58(net["xpub"])
-        slip132 = xpub.to_base58(ver)
-        return slip132 if as_slip132 is True else canonical
+        ver = net["xpub"]
+        if as_slip132:
+            ver = bip32.detect_version(derivation, default="xpub", network=net)
+        return xpub.to_base58(ver)
 
     def write_file(self, filename, filedata):
         if not platform.is_sd_present():
