@@ -1,7 +1,7 @@
 from app import BaseApp, AppError
 from gui.screens import Menu, DerivationScreen, NumericScreen, Alert
 from .screens import XPubScreen
-
+import json
 from binascii import hexlify
 from bitcoin.networks import NETWORKS
 from bitcoin import bip32
@@ -16,6 +16,9 @@ class XpubApp(BaseApp):
     in the folder and signs it with keystore's id key
     """
 
+    export_coldcard = "ckcc"
+    export_generic_json = "json"
+    export_specter_diy = "specter-diy"
     button = "Master public keys"
     prefixes = [b"fingerprint", b"xpub"]
 
@@ -52,7 +55,8 @@ class XpubApp(BaseApp):
                 ),
             ]
         else:
-            buttons += [(0, "Show more keys"), (2, "Change account number"), (1, "Enter custom derivation")]
+            buttons += [(0, "Show more keys"), (2, "Change account number"), (1, "Enter custom derivation"),
+                        (3, "Export all keys")]
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
                                           title="Select the key",
@@ -69,10 +73,59 @@ class XpubApp(BaseApp):
             if der is not None:
                 await self.show_xpub(der, show_screen)
                 return True
+        elif menuitem == 3:
+            format = await self.save_menu(show_screen)
+            if format is not False:
+
+                fingerprint = hexlify(self.keystore.fingerprint).decode()
+                extension = "json"
+                coin = net["bip32"]
+
+                derivations = [
+                    ('bip49', "p2wpkh", "m/49'/%d'/%d'" % (coin, self.account)),
+                    ('bip84', "p2sh-p2wpkh", "m/84'/%d'/%d'" % (coin, self.account)),
+                    ('bip44', "p2pkh", "m/44'/%d'/%d'" % (coin, self.account)),
+                    ('bip48_2', "p2wsh", "m/48'/%d'/%d'/2'" % (coin, self.account)),
+                    ('bip48_1', "p2sh-p2wsh", "m/48'/%d'/%d'/1'" % (coin, self.account)),
+                ]
+
+                if format == self.export_specter_diy:
+                    filedata = ""
+                    for der in derivations:
+                        filedata += "[%s/%s]%s\n" % (fingerprint, der[2], self.calculate_xpub(der[2]))
+                    extension = "txt"
+                else:
+                    m = self.keystore.get_xpub("m")
+                    data = {
+                        "xpub": m.to_base58(NETWORKS[self.network]["xpub"]),
+                        "xfp": fingerprint,
+                        "account": self.account,
+                        "chain": "BTC" if self.network == "main" else "XTN"
+                    }
+
+                    for der in derivations:
+                        data[der[0]] = {
+                            "name": der[1],
+                            "deriv": der[2],
+                            "xpub": self.calculate_xpub(der[2]),
+                            "_pub": self.calculate_xpub(der[2], True),
+                        }
+
+                    filedata = json.dumps(data).encode()
+
+                filename = "%s-%s-%s-all.%s" % (format, fingerprint, self.account, extension)
+
+                if self.write_file(filename, filedata):
+                    await show_screen(
+                        Alert("Saved!",
+                              "Public keys are saved to the file:\n\n%s" % filename,
+                              button_text="Close")
+                    )
+
         elif menuitem == 2:
             account = await show_screen(NumericScreen(current_val=str(self.account)))
             if account and int(account) > 0x80000000:
-                    raise AppError('Account number too large')
+                raise AppError('Account number too large')
             try:
                 self.account = int(account)
             except:
@@ -123,18 +176,48 @@ class XpubApp(BaseApp):
         )
         res = await show_screen(XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix))
         if res:
-            fname = "%s-%s.txt" % (fingerprint, derivation[2:].replace("/","-"))
-            if not platform.is_sd_present():
-                raise AppError("SD card is not present")
-            platform.mount_sdcard()
-            with open(platform.fpath("/sd/%s" % fname), "w") as f:
-                f.write(res)
-            platform.unmount_sdcard()
-            await show_screen(
-                Alert("Saved!",
-                      "Extended public key is saved to the file:\n\n%s" % fname,
-                      button_text="Close")
-            )
+            filename = "%s-%s.txt" % (fingerprint, derivation[2:].replace("/", "-"))
+            if self.write_file(filename, res):
+                await show_screen(
+                    Alert("Saved!",
+                          "Extended public key is saved to the file:\n\n%s" % filename,
+                          button_text="Close")
+                )
+
+    def calculate_xpub(self, derivation, as_slip132=False):
+        net = NETWORKS[self.network]
+        xpub = self.keystore.get_xpub(derivation)
+        ver = bip32.detect_version(derivation, default="xpub", network=net)
+        canonical = xpub.to_base58(net["xpub"])
+        slip132 = xpub.to_base58(ver)
+        return slip132 if as_slip132 is True else canonical
+
+    def write_file(self, filename, filedata):
+        if not platform.is_sd_present():
+            raise AppError("SD card is not present")
+        platform.mount_sdcard()
+        with open(platform.fpath("/sd/%s" % filename), "w") as f:
+            f.write(filedata)
+        platform.unmount_sdcard()
+        return True
+
+    async def save_menu(self, show_screen):
+        net = NETWORKS[self.network]
+
+        buttons = [(0, "Specter-DIY"), (1, "Cold Card")]
+        # wait for menu selection
+        menuitem = await show_screen(Menu(buttons, last=(255, None),
+                                          title="Select a format"))
+
+        # process the menu button:
+        # back button
+        if menuitem == 255:
+            return False
+        elif menuitem == 0:
+            return self.export_specter_diy
+        elif menuitem == 1:
+            return self.export_coldcard
+        return False
 
     def wipe(self):
         # nothing to delete
