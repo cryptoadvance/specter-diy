@@ -113,7 +113,7 @@ class XpubApp(BaseApp):
 
                     filedata = json.dumps(data).encode()
 
-                filename = "%s-%s-%s-all.%s" % (format, fingerprint, self.account, extension)
+                filename = "%s-%s-%d-all.%s" % (format, fingerprint, self.account, extension)
 
                 if self.write_file(filename, filedata):
                     await show_screen(
