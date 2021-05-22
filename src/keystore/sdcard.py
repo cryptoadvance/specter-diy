@@ -3,7 +3,7 @@ from .flash import FlashKeyStore
 import platform
 from rng import get_random_bytes
 from bitcoin import bip39
-from gui.screens import Alert, Progress, Menu, MnemonicScreen
+from gui.screens import Alert, Progress, Menu, MnemonicScreen, InputScreen, Prompt
 import asyncio
 from io import BytesIO
 from helpers import tagged_hash
@@ -31,8 +31,14 @@ class SDKeyStore(FlashKeyStore):
 
     @property
     def sdpath(self):
+        return platform.fpath("/sd")
+
+    def fileprefix(self, path):
+        if path is self.flashpath:
+            return 'reckless'
+
         hexid = hexlify(tagged_hash("sdid", self.secret)[:4]).decode()
-        return platform.fpath("/sd/specterdiy%s" % hexid)
+        return "specterdiy%s" % hexid
 
     async def get_keypath(self, title="Select media", only_if_exist=True, **kwargs):
         # enable / disable buttons
@@ -51,7 +57,7 @@ class SDKeyStore(FlashKeyStore):
         res = await self.show(scr)
         return res
 
-    async def save_mnemonic(self, path=None):
+    async def save_mnemonic(self, filename, path=None):
         if self.is_locked:
             raise KeyStoreError("Keystore is locked")
         if self.mnemonic is None:
@@ -66,11 +72,22 @@ class SDKeyStore(FlashKeyStore):
             if not platform.is_sd_present():
                 raise KeyStoreError("SD card is not present")
             platform.mount_sdcard()
-        self.save_aead(path, plaintext=self.mnemonic.encode(), key=self.enc_secret)
+
+        if platform.file_exists("%s/%s.%s" % (path, self.fileprefix(path), filename)):
+            scr = Prompt(
+                "\n\nFile already exists: %s\n" % filename,
+                "Would you like to overwrite this file?",
+            )
+            res = await self.show(scr)
+            if res is False:
+                return None
+
+        self.save_aead("%s/%s.%s" % (path, self.fileprefix(path), filename), plaintext=self.mnemonic.encode(),
+                       key=self.enc_secret)
         if path == self.sdpath:
             platform.unmount_sdcard()
         # check it's ok
-        await self.load_mnemonic(path)
+        await self.load_mnemonic(path, "%s.%s" % (self.fileprefix(path), filename))
         return True
 
     @property
@@ -83,7 +100,7 @@ class SDKeyStore(FlashKeyStore):
         platform.unmount_sdcard()
         return sd_exists or flash_exists
 
-    async def load_mnemonic(self, path=None):
+    async def load_mnemonic(self, path=None, file=None):
         if self.is_locked:
             raise KeyStoreError("Keystore is locked")
         if path is None:
@@ -97,14 +114,43 @@ class SDKeyStore(FlashKeyStore):
                 raise KeyStoreError("SD card is not present")
             platform.mount_sdcard()
 
-        if not platform.file_exists(path):
+        if file is None:
+            file = await self.select_file(path, self.fileprefix(path))
+            if file is None:
+                return False
+
+        print("loading "+ file)
+        if not platform.file_exists("%s/%s" % (path, file)):
             raise KeyStoreError("Key is not saved")
-        _, data = self.load_aead(path, self.enc_secret)
+        _, data = self.load_aead("%s/%s" % (path, file), self.enc_secret)
 
         if path == self.sdpath:
             platform.unmount_sdcard()
         self.set_mnemonic(data.decode(), "")
         return True
+
+    async def select_file(self, path, prefix):
+        files = []
+
+        for file in os.ilistdir(path):
+            if file[0].startswith(prefix):
+                displayname = file[0].replace(prefix, "")
+                if displayname is "":
+                    displayname = "Default"
+                else:
+                    displayname = displayname[1:]  # strip first character
+                files.append([file[0], displayname])
+
+        if len(files) == 0:
+            raise KeyStoreError("\n\nNo matching files found")
+
+        files.sort()
+        buttons = []
+        for file in files:
+            buttons += [(file[0], file[1])]
+
+        fname = await self.show(Menu(buttons, title="Select a file", last=(None, "Cancel")))
+        return fname
 
     async def delete_mnemonic(self, path=None):
         if path is None:
@@ -115,17 +161,33 @@ class SDKeyStore(FlashKeyStore):
             if not platform.is_sd_present():
                 raise KeyStoreError("SD card is not present")
             platform.mount_sdcard()
-        if not platform.file_exists(path):
-            raise KeyStoreError("Secret is not saved. No need to delete anything.")
+
+        file = await self.select_file(path, self.fileprefix(path))
+        if file is None:
+            return False
+
+        if not platform.file_exists("%s/%s" % (path, file)):
+            raise KeyStoreError("File not found.")
         try:
-            os.remove(path)
+            os.remove("%s/%s" % (path, file))
         except Exception as e:
             print(e)
-            raise KeyStoreError("Failed to delete file at " + path)
+            raise KeyStoreError("Failed to delete file '%s' from %s" % (file, path))
         finally:
             if path == self.sdpath:
                 platform.unmount_sdcard()
             return True
+
+    async def get_input(
+            self,
+            title="Enter a name for this seed",
+            note="Naming your seeds allows you to store multiple.\n"
+                 "Give each seed a unique name!",
+            suggestion="",
+    ):
+        scr = InputScreen(title, note, suggestion)
+        await self.show(scr)
+        return scr.get_value()
 
     async def storage_menu(self):
         """Manage storage and display of the recovery phrase"""
@@ -148,12 +210,22 @@ class SDKeyStore(FlashKeyStore):
             if menuitem == 255:
                 return
             elif menuitem == 0:
-                if await self.save_mnemonic():
+                filename = await self.get_input()
+                if filename is None:
+                    return
+                if filename is "":
                     await self.show(
-                        Alert("Success!", "Your key is stored now.", button_text="OK")
+                        Alert("Error!", "Please provide a valid name!\n\nYour file has NOT been saved.", button_text="OK")
+                    )
+                    return
+                if await self.save_mnemonic(filename=filename):
+                    await self.show(
+                        Alert("Success!", "Your key is stored now.\n\nName: %s" % filename, button_text="OK")
                     )
             elif menuitem == 1:
-                if await self.load_mnemonic():
+                res = await self.load_mnemonic()
+                print(res)
+                if res:
                     await self.show(
                         Alert("Success!", "Your key is loaded.", button_text="OK")
                     )
