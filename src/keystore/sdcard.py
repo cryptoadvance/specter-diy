@@ -92,11 +92,17 @@ class SDKeyStore(FlashKeyStore):
 
     @property
     def is_key_saved(self):
-        flash_exists = platform.file_exists(self.flashpath)
+        flash_files = sum(
+            [[f[0] for f in os.ilistdir(self.flashpath) if f[0].lower().startswith(self.fileprefix(self.flashpath))]],
+            [])
+        flash_exists = False if len(flash_files) == 0 else True
         if not platform.is_sd_present():
             return flash_exists
+
         platform.mount_sdcard()
-        sd_exists = platform.file_exists(self.sdpath)
+        sd_files = sum(
+            [[f[0] for f in os.ilistdir(self.sdpath) if f[0].lower().startswith(self.fileprefix(self.sdpath))]], [])
+        sd_exists = False if len(sd_files) == 0 else True
         platform.unmount_sdcard()
         return sd_exists or flash_exists
 
@@ -119,7 +125,6 @@ class SDKeyStore(FlashKeyStore):
             if file is None:
                 return False
 
-        print("loading "+ file)
         if not platform.file_exists("%s/%s" % (path, file)):
             raise KeyStoreError("Key is not saved")
         _, data = self.load_aead("%s/%s" % (path, file), self.enc_secret)
@@ -130,16 +135,8 @@ class SDKeyStore(FlashKeyStore):
         return True
 
     async def select_file(self, path, prefix):
-        files = []
-
-        for file in os.ilistdir(path):
-            if file[0].startswith(prefix):
-                displayname = file[0].replace(prefix, "")
-                if displayname is "":
-                    displayname = "Default"
-                else:
-                    displayname = displayname[1:]  # strip first character
-                files.append([file[0], displayname])
+        files = sum(
+            [[f[0] for f in os.ilistdir(path) if f[0].lower().startswith(prefix)]], [])
 
         if len(files) == 0:
             raise KeyStoreError("\n\nNo matching files found")
@@ -147,7 +144,12 @@ class SDKeyStore(FlashKeyStore):
         files.sort()
         buttons = []
         for file in files:
-            buttons += [(file[0], file[1])]
+            displayname = file.replace(prefix, "")
+            if displayname is "":
+                displayname = "Default"
+            else:
+                displayname = displayname[1:]  # strip first character
+            buttons += [(file, displayname)]
 
         fname = await self.show(Menu(buttons, title="Select a file", last=(None, "Cancel")))
         return fname
@@ -215,7 +217,8 @@ class SDKeyStore(FlashKeyStore):
                     return
                 if filename is "":
                     await self.show(
-                        Alert("Error!", "Please provide a valid name!\n\nYour file has NOT been saved.", button_text="OK")
+                        Alert("Error!", "Please provide a valid name!\n\nYour file has NOT been saved.",
+                              button_text="OK")
                     )
                     return
                 if await self.save_mnemonic(filename=filename):
@@ -223,9 +226,7 @@ class SDKeyStore(FlashKeyStore):
                         Alert("Success!", "Your key is stored now.\n\nName: %s" % filename, button_text="OK")
                     )
             elif menuitem == 1:
-                res = await self.load_mnemonic()
-                print(res)
-                if res:
+                if await self.load_mnemonic():
                     await self.show(
                         Alert("Success!", "Your key is loaded.", button_text="OK")
                     )
