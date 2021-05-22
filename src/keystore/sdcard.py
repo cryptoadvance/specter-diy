@@ -9,6 +9,7 @@ from io import BytesIO
 from helpers import tagged_hash
 from binascii import hexlify
 import os
+from hashlib import sha256
 
 
 class SDKeyStore(FlashKeyStore):
@@ -191,6 +192,33 @@ class SDKeyStore(FlashKeyStore):
         await self.show(scr)
         return scr.get_value()
 
+    async def export_mnemonic(self):
+        if await self.show(Prompt("Warning",
+                                  "You need to confirm your PIN code "
+                                  "to export your recovery phrase.\n\n"
+                                  "Continue?")):
+            self.lock()
+            await self.unlock()
+
+            seed = bip39.mnemonic_to_seed(self.mnemonic)
+            filename = "seed-export-%s.txt" % hexlify(sha256(seed).digest()[:4])
+            filepath = "%s/%s" % (self.sdpath, filename)
+
+            if not platform.is_sd_present():
+                raise KeyStoreError("SD card is not present")
+
+            platform.mount_sdcard()
+
+            with open(filepath, "wb") as f:
+                f.write(self.mnemonic)
+
+            platform.unmount_sdcard()
+
+            await self.show(
+                Alert("Success!", "Your seed is exported.\n\nName: %s" % filename, button_text="OK")
+            )
+
+
     async def storage_menu(self):
         """Manage storage and display of the recovery phrase"""
         buttons = [
@@ -202,6 +230,9 @@ class SDKeyStore(FlashKeyStore):
             (None, "Other"),
             (3, "Show recovery phrase"),
         ]
+
+        if platform.is_sd_present():
+            buttons.append((4, "Export recovery phrase to SD"))
 
         # we stay in this menu until back is pressed
         while True:
@@ -237,3 +268,5 @@ class SDKeyStore(FlashKeyStore):
                     )
             elif menuitem == 3:
                 await self.show_mnemonic()
+            elif menuitem == 4:
+                await self.export_mnemonic()
