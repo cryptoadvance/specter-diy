@@ -196,7 +196,7 @@ class XpubApp(BaseApp):
         platform.unmount_sdcard()
 
     async def save_menu(self, show_screen):
-        buttons = [(0, "Specter-DIY"), (1, "Cold Card")]
+        buttons = [(0, "Specter-DIY (plaintext)"), (1, "Cold Card (json)")]
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
                                           title="Select a format"))
