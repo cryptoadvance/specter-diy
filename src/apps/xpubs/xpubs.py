@@ -56,7 +56,7 @@ class XpubApp(BaseApp):
             ]
         else:
             buttons += [(0, "Show more keys"), (2, "Change account number"), (1, "Enter custom derivation"),
-                        (3, "Export all keys")]
+                        (3, "Export all keys to SD")]
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
                                           title="Select the key",
