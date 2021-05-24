@@ -93,7 +93,7 @@ class XpubApp(BaseApp):
                     filedata = ""
                     for der in derivations:
                         xpub = self.keystore.get_xpub(der[2])
-                        filedata += "[%s/%s]%s\n" % (fingerprint, der[2], xpub.to_base58(net["xpub"]))
+                        filedata += "[%s/%s]%s\n" % (fingerprint, der[2][2:].replace("'","h"), xpub.to_base58(net["xpub"]))
                     extension = "txt"
                 else:
                     m = self.keystore.get_xpub("m")
