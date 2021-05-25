@@ -314,7 +314,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
         else:
             self.table.add_char(c.lower())
 
-        mnemonic = self.table.get_mnemonic()
+        mnemonic = self.get_mnemonic()
         self.check_buttons()
         # if user was able to click this button then mnemonic is correct
         if c == lv.SYMBOL.OK + " Done":
