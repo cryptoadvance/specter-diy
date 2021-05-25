@@ -572,7 +572,7 @@ class WalletManager(BaseApp):
         if None in wallets:
             meta["warnings"].append("Unknown wallet in input!")
         if len(wallets) > 1:
-            warnings.append("Mixed inputs!")
+            meta["warnings"].append("Mixed inputs!")
 
         # check change outputs
         for i, out in enumerate(psbt.outputs):
