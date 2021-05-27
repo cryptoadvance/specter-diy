@@ -12,6 +12,7 @@ Available in [our shop](https://specter.solutions/shop/specter-shield/). Assembl
 
 ![](./3dshield.jpg)
 
-## Print the case yourself
+## Print the case for Specter-DIY + Shield:
 
-Check out the [`3dprinting.md`](3dprinting.md) for instructions and links to 3d files.
+- Design by @geometrick-design: https://www.thingiverse.com/thing:4671552, [instructions](3dprinting.md)
+- Design by @SeedSigner: https://www.thingiverse.com/thing:4733846, [files and instructions](./Alternative_3D_Printed_Case)
