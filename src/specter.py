@@ -277,7 +277,7 @@ class Specter:
         ]
         if self.keystore.storage_button is not None:
             buttons.append((0, self.keystore.storage_button))
-        buttons.extend([(2, "Enter BIP-39 password"), (None, "Security")])  # delimiter
+        buttons.extend([(2, "Enter BIP-39 password"), (3, "Show recovery phrase"), (None, "Security")])  # delimiter
         buttons.extend([(4, "Device settings")])
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None), note="Firmware version %s" % get_version())
@@ -295,6 +295,8 @@ class Specter:
             self.keystore.set_mnemonic(password=pwd)
             for app in self.apps:
                 app.init(self.keystore, self.network, self.gui.show_loader)
+        elif menuitem == 3:
+            await self.keystore.show_mnemonic()
         elif menuitem == 4:
             await self.update_devsettings()
         elif menuitem == 5:

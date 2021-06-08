@@ -353,10 +353,10 @@ class RAMKeyStore(KeyStore):
             await self.unlock()
             await self.show(MnemonicScreen(self.mnemonic))
 
-    async def storage_menu(self):
-        """Manage storage and display of the recovery phrase"""
-        # This class can only show mnemonic, can't save
-        await self.show_mnemonic()
+    # async def storage_menu(self):
+    #     """Manage storage and display of the recovery phrase"""
+    #     # This class can only show mnemonic, can't save
+    #     await self.show_mnemonic()
         """
         # Example:
         buttons = [
@@ -365,7 +365,6 @@ class RAMKeyStore(KeyStore):
             (0, "Save key to flash"),
             (1, "Load key from flash"),
             (2, "Delete key from flash"),
-            (3, "Show recovery phrase"),
         ]
         # wait for menu selection
         menuitem = await self.show(Menu(buttons, last=(255, None)))
