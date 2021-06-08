@@ -7,7 +7,7 @@ from .screen import Screen
 
 
 class MnemonicScreen(Screen):
-    def __init__(self, mnemonic="", title="Your recovery phrase", note=None):
+    def __init__(self, mnemonic="", title="Your recovery phrase:", note=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
@@ -30,7 +30,7 @@ class NewMnemonicScreen(MnemonicScreen):
         wordlist,
         fixer,
         title="Your recovery phrase:",
-        note="Write it down and never show to anybody.",
+        note="Write it down and never show it to anybody.",
     ):
         self.fixer = fixer
         self.wordlist = wordlist
@@ -42,11 +42,11 @@ class NewMnemonicScreen(MnemonicScreen):
         self.table.set_click(True)
 
         self.close_label.set_text(lv.SYMBOL.LEFT + " Back")
-        self.next_button = add_button(scr=self, callback=on_release(self.confirm))
+        self.done_button = add_button(scr=self, callback=on_release(self.confirm))
 
-        self.next_label = lv.label(self.next_button)
-        self.next_label.set_text("Next " + lv.SYMBOL.RIGHT)
-        align_button_pair(self.close_button, self.next_button)
+        self.done_label = lv.label(self.done_button)
+        self.done_label.set_text(lv.SYMBOL.OK + " Done")
+        align_button_pair(self.close_button, self.done_button)
 
         # toggle switch 12-24 words
         lbl = lv.label(self)
@@ -99,7 +99,7 @@ class NewMnemonicScreen(MnemonicScreen):
         word = self.table.words[idx]
         self.instruction.set_text(
             "Changing word number %d:\n%s (%d in wordlist)"
-            % (idx+1, word.upper(), self.wordlist.index(word))
+            % (idx+1, word.upper(), self.wordlist.index(word)+1)
         )
         # hide switch
         if not self.switch.get_hidden():
@@ -132,7 +132,7 @@ class NewMnemonicScreen(MnemonicScreen):
             self.table.set_mnemonic(self.fixer(mnemonic))
             self.instruction.set_text(
                 "Changing word number %d:\n%s (%d in wordlist)"
-                % (idx+1, word.upper(), self.wordlist.index(word))
+                % (idx+1, word.upper(), self.wordlist.index(word)+1)
             )
         self.kb.set_event_cb(cb)
 
