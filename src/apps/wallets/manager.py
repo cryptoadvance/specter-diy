@@ -15,6 +15,7 @@ from io import BytesIO
 from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
 from helpers import a2b_base64_stream
 import gc
+import json
 
 SIGN_PSBT = 0x01
 ADD_WALLET = 0x02
@@ -26,6 +27,8 @@ VERIFY_ADDRESS = 0x03
 DERIVE_ADDRESS = 0x04
 # sign psbt transaction encoded in bc-ur format
 SIGN_BCUR = 0x05
+# list wallet names
+LIST_WALLETS = 0x06
 
 BASE64_STREAM = 0x64
 RAW_STREAM = 0xFF
@@ -48,6 +51,8 @@ class WalletManager(BaseApp):
 
     button = "Wallets"
     WALLETS = [Wallet]
+    prefixes = [b"addwallet", b"sign", b"showaddr", b"listwallets"]
+    name = "wallets"
 
     def __init__(self, path):
         self.root_path = path
@@ -130,6 +135,8 @@ class WalletManager(BaseApp):
                 return DERIVE_ADDRESS, stream
             elif prefix == b"addwallet":
                 return ADD_WALLET, stream
+            elif prefix == b"listwallets":
+                return LIST_WALLETS, stream
             else:
                 return None, None
         # if not - we get data any without prefix
@@ -207,6 +214,9 @@ class WalletManager(BaseApp):
                 gc.collect()
                 return BytesIO(bcur_res), obj
             return
+        elif cmd == LIST_WALLETS:
+            wnames = json.dumps([w.name for w in self.wallets])
+            return BytesIO(wnames.encode()), {}
         elif cmd == ADD_WALLET:
             # read content, it's small
             desc = stream.read().decode().strip()
