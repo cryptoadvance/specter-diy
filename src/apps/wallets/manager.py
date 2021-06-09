@@ -290,7 +290,7 @@ class WalletManager(BaseApp):
             scr = Prompt(
                 "Warning!",
                 "\nUnknown wallet in inputs!\n\n\n"
-                "Wallet for some inpunts is unknown! This means we can't verify change addresses.\n\n\n"
+                "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
                 "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
                 "Proceed to the transaction confirmation?",
             )
