@@ -238,7 +238,7 @@ class FlashKeyStore(RAMKeyStore):
         await super().init(show_fn, show_loader)
 
     async def storage_menu(self):
-        """Manage storage and display of the recovery phrase"""
+        """Manage storage"""
         buttons = [
             # id, text
             (None, "Key management"),

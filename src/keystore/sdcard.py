@@ -128,7 +128,7 @@ class SDKeyStore(FlashKeyStore):
             return True
 
     async def storage_menu(self):
-        """Manage storage and display of the recovery phrase"""
+        """Manage storage"""
         buttons = [
             # id, text
             (None, "Manage keys on SD card and internal flash"),

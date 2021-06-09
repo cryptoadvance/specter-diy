@@ -313,7 +313,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         await super().init(show_fn, show_loader)
 
     async def storage_menu(self):
-        """Manage storage and display of the recovery phrase"""
+        """Manage storage"""
         enabled = self.connection.isCardInserted()
         buttons = [
             # id, text
