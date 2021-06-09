@@ -173,7 +173,7 @@ class RAMKeyStore(KeyStore):
         # hack: we don't support PIN but
         # we need enc_secret, so let's do it here.
         # DONT USE THIS IF YOU HAVE PIN SUPPORT!
-        if self.enc_secret is None:
+        if self.enc_secret is None and self.secret is not None:
             self.enc_secret = tagged_hash("enc", self.secret)
         return False
 
