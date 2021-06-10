@@ -19,10 +19,7 @@ class RAMKeyStore(KeyStore):
     _set_pin, _unlock, _change_pin and other pin-related methods.
     """
 
-    # Button to go to storage menu
-    # Menu should be implemented in async storage_menu function
-    # Here we only have a single option - to show mnemonic
-    storage_button = "Show mnemonic"
+    storage_button = None
 
     def __init__(self):
         # bip39 mnemonic
@@ -173,7 +170,7 @@ class RAMKeyStore(KeyStore):
         # hack: we don't support PIN but
         # we need enc_secret, so let's do it here.
         # DONT USE THIS IF YOU HAVE PIN SUPPORT!
-        if self.enc_secret is None:
+        if self.enc_secret is None and self.secret is not None:
             self.enc_secret = tagged_hash("enc", self.secret)
         return False
 
@@ -352,40 +349,3 @@ class RAMKeyStore(KeyStore):
             self.lock()
             await self.unlock()
             await self.show(MnemonicScreen(self.mnemonic))
-
-    async def storage_menu(self):
-        """Manage storage and display of the recovery phrase"""
-        # This class can only show mnemonic, can't save
-        await self.show_mnemonic()
-        """
-        # Example:
-        buttons = [
-            # id, text
-            (None, "Key management"),
-            (0, "Save key to flash"),
-            (1, "Load key from flash"),
-            (2, "Delete key from flash"),
-            (3, "Show recovery phrase"),
-        ]
-        # wait for menu selection
-        menuitem = await self.show(Menu(buttons, last=(255, None)))
-
-        # process the menu button:
-        # back button
-        if menuitem == 255:
-            pass
-        elif menuitem == 0:
-            await self.save_mnemonic()
-            await self.show(Alert("Success!",
-                                 "Your key is stored in flash now."))
-        elif menuitem == 1:
-            await self.load_mnemonic()
-            await self.show(Alert("Success!",
-                                 "Your key is loaded."))
-        elif menuitem == 2:
-            await self.delete_mnemonic()
-            await self.show(Alert("Success!",
-                                 "Your key is deleted from flash."))
-        elif menuitem == 3:
-            await self.show(MnemonicScreen(self.mnemonic))
-        """
