@@ -188,11 +188,11 @@ class PinScreen(Screen):
             lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 110)
+            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 90)
         self.get_word = get_word
         if get_word is not None:
             self.words = add_label(get_word(b""), scr=self)
-            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 140)
+            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
         btnm = lv.btnm(self)
         # shuffle numbers to make sure
         # no constant fingerprints left on screen

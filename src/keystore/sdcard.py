@@ -220,19 +220,17 @@ class SDKeyStore(FlashKeyStore):
 
 
     async def storage_menu(self):
-        """Manage storage and display of the recovery phrase"""
+        """Manage storage"""
         buttons = [
             # id, text
             (None, "Manage keys on SD card and internal flash"),
             (0, "Save key"),
             (1, "Load key"),
             (2, "Delete key"),
-            (None, "Other"),
-            (3, "Show recovery phrase"),
         ]
 
         if platform.is_sd_present():
-            buttons.append((4, "Export recovery phrase to SD"))
+            buttons.append((3, "Export recovery phrase to SD"))
 
         # we stay in this menu until back is pressed
         while True:
@@ -267,6 +265,4 @@ class SDKeyStore(FlashKeyStore):
                         Alert("Success!", "Your key is deleted.", button_text="OK")
                     )
             elif menuitem == 3:
-                await self.show_mnemonic()
-            elif menuitem == 4:
                 await self.export_mnemonic()

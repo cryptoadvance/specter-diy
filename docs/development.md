@@ -8,7 +8,9 @@ To compile the firmware you will need `arm-none-eabi-gcc` compiler.
 
 On MacOS install it using brew: `brew install arm-none-eabi-gcc`
 
-On Linux: `sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
+On Debian: `sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi gdb-arm-none-eabi openocd`
+
+On Arch Linux: `sudo pacman -S arm-none-eabi-gcc arm-none-eabi-binutils arm-none-eabi-gdb arm-none-eabi-newlib openocd`
 
 Run `make disco` to get the binary or `make unix` to compile the simulator. They will be in the `bin` folder.
 
