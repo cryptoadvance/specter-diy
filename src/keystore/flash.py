@@ -238,14 +238,13 @@ class FlashKeyStore(RAMKeyStore):
         await super().init(show_fn, show_loader)
 
     async def storage_menu(self):
-        """Manage storage and display of the recovery phrase"""
+        """Manage storage"""
         buttons = [
             # id, text
             (None, "Key management"),
             (0, "Save key to flash"),
             (1, "Load key from flash"),
             (2, "Delete key from flash"),
-            (3, "Show recovery phrase"),
         ]
 
         # we stay in this menu until back is pressed
@@ -275,5 +274,4 @@ class FlashKeyStore(RAMKeyStore):
                         "Success!", "Your key is deleted from flash.", button_text="OK"
                     )
                 )
-            elif menuitem == 3:
-                await self.show_mnemonic()
+                
