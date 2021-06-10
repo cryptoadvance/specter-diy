@@ -69,6 +69,7 @@ class RPCTest(TestCase):
                 # confirm warning
                 signed = sim.query(b"sign "+unsigned, [True, True])
             # signed tx
+            self.assertTrue(signed.startswith(b"cHNi"))
             combined = rpc.combinepsbt([unsigned.decode(), signed.decode()])
             final = rpc.finalizepsbt(combined)
             self.assertTrue(final["complete"])
@@ -242,8 +243,8 @@ class RPCTest(TestCase):
         tx = w.createrawtransaction(unspent, [{wdefault.getnewaddress(): 0.002},{addr2: 0.09799}])
         psbt = PSBT.from_base64(w.converttopsbt(tx))
         # locktime magic :)
-        psbt.tx.locktime = 11
-        psbt.tx.vin[0].sequence = 10
+        psbt.locktime = 11
+        psbt.inputs[0].sequence = 10
         # fillinig psbt with data
         psbt.inputs[0].witness_script = d1.witness_script()
         pub = ec.PublicKey.parse(d1.keys[0].sec())
@@ -368,4 +369,16 @@ class RPCTest(TestCase):
         self.assertEqual(res.decode(), addr)
 
         wname = wallet_prefix+"_wshprv"
+        self.sign_with_descriptor(wname, d1, d2)
+
+    def test_no_derivation(self):
+        """Default wallet without derivation path"""
+        path = "84h/1h/0h"
+        xpub = sim.query(f"xpub m/{path}").decode()
+        d1 = f"wpkh({xpub}/0/*)"
+        d2 = f"wpkh({xpub}/1/*)"
+        wname = wallet_prefix+"_wpkh_noder"
+
+        addr = Descriptor.from_string(d1).derive(5).address(NETWORKS['regtest'])
+
         self.sign_with_descriptor(wname, d1, d2)

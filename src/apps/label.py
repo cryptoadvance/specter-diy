@@ -11,7 +11,7 @@ from io import BytesIO
 
 class App(BaseApp):
     """Allows to set a label for the device."""
-
+    name = "label"
     prefixes = [b"getlabel", b"setlabel"]
 
     async def process_host_command(self, stream, show_screen):
