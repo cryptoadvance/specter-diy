@@ -23,11 +23,13 @@ Most of the firmware is written in MicroPython which makes the code easy to audi
 
 ## DISCLAIMER
 
-This firmware is **WORK IN PROGRESS — USE AT YOUR OWN RISK**, better on testnet. It is not perfectly stable yet - sometimes it crashes. If this happens to you please open an issue and we will try to fix it. Meanwhile try resetting the device (press the black button on the back or powercycle the board).
+This project is not very mature yet, **USE AT YOUR OWN RISK**. Some error messages might be not very user friendly, but they help to debug and fix issues. If you see an unexpected error message please open an issue and we will try to fix it. Sometimes reboot helps.
 
-This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like anti chosen-nonce protocol, CoinJoin and Lightning). That's why **by default we don't store your private keys on the device** - you need to type your recovery phrase every time you power it on. You still can save your recovery phrase to the device if you wish - there is a setting for that.
+This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like miniscript, CoinJoin and Lightning). 
 
-If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/spectersupport).
+**By default the wallet doesn't store your private keys** - you need to explicitly go to storage menu and click "Save". If you don't do that the device will forget your key as soon as you turn it off.
+
+If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/orangepioneer).
 
 ## Documentation
 
