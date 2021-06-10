@@ -254,7 +254,9 @@ class Wallet:
     def parse(cls, desc, path=None):
         name = "Untitled"
         if "&" in desc:
-            name, desc = desc.split("&")
+            arr = desc.split("&")
+            desc = arr[-1]
+            name = "&".join(arr[:-1]) # so name with & can be parsed as well
         w = cls.from_descriptor(desc, path)
         w.name = name
         return w

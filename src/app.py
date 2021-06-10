@@ -20,6 +20,7 @@ class BaseApp:
         """path is the folder where this app should store data"""
         maybe_mkdir(path)
         self.path = path
+        self.communicate = None
 
     def can_process(self, stream):
         """Checks if the app can process this stream"""
@@ -39,14 +40,20 @@ class BaseApp:
         stream.seek(len(prefix) + 1)
         return prefix
 
-    def init(self, keystore, network, show_loader):
+    def init(self, keystore, network, show_loader, communicate):
         """
         This method is called when new key is loaded
         or a different network is selected.
+        `show_loader` is a function that is used to display a loader while processing data
+        `communicate` is an async function that allows cross-app communication with another apps.
+        Pass a readable stream to `communicate` function to simulate host command processing.
+        Optionally you can pass a name of the app to communicate with
+        by calling i.e. `await self.communicate(stream, app="wallets")`
         """
         self.keystore = keystore
         self.network = network
         self.show_loader = show_loader
+        self.communicate = communicate
 
     def wipe(self):
         """

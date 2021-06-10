@@ -17,6 +17,7 @@ class MessageApp(BaseApp):
     """
 
     prefixes = [b"signmessage"]
+    name = "message"
 
     async def process_host_command(self, stream, show_screen):
         """

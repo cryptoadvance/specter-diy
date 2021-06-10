@@ -1,5 +1,5 @@
 from app import BaseApp, AppError
-from gui.screens import Menu, DerivationScreen, NumericScreen, Alert
+from gui.screens import Menu, DerivationScreen, NumericScreen, Alert, InputScreen
 from .screens import XPubScreen
 import json
 from binascii import hexlify
@@ -7,7 +7,8 @@ from bitcoin.networks import NETWORKS
 from bitcoin import bip32
 from io import BytesIO
 import platform
-
+import lvgl as lv
+from collections import OrderedDict
 
 class XpubApp(BaseApp):
     """
@@ -21,6 +22,7 @@ class XpubApp(BaseApp):
     export_specter_diy = "specter-diy"
     button = "Master public keys"
     prefixes = [b"fingerprint", b"xpub"]
+    name = "xpub"
 
     def __init__(self, path):
         self.account = 0
@@ -55,8 +57,12 @@ class XpubApp(BaseApp):
                 ),
             ]
         else:
-            buttons += [(0, "Show more keys"), (2, "Change account number"), (1, "Enter custom derivation"),
-                        (3, "Export all keys to SD")]
+            buttons += [
+                (0, "Show more keys"),
+                (2, "Change account number"),
+                (1, "Enter custom derivation"),
+                (3, "Export all keys to SD"),
+            ]
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
                                           title="Select the key",
@@ -74,57 +80,14 @@ class XpubApp(BaseApp):
                 await self.show_xpub(der, show_screen)
                 return True
         elif menuitem == 3:
-            format = await self.save_menu(show_screen)
-            if format is not False:
-
-                fingerprint = hexlify(self.keystore.fingerprint).decode()
-                extension = "json"
-                coin = net["bip32"]
-
-                derivations = [
-                    ('bip49', "p2wpkh", "m/49'/%d'/%d'" % (coin, self.account)),
-                    ('bip84', "p2sh-p2wpkh", "m/84'/%d'/%d'" % (coin, self.account)),
-                    ('bip44', "p2pkh", "m/44'/%d'/%d'" % (coin, self.account)),
-                    ('bip48_2', "p2wsh", "m/48'/%d'/%d'/2'" % (coin, self.account)),
-                    ('bip48_1', "p2sh-p2wsh", "m/48'/%d'/%d'/1'" % (coin, self.account)),
-                ]
-
-                if format == self.export_specter_diy:
-                    filedata = ""
-                    for der in derivations:
-                        xpub = self.keystore.get_xpub(der[2])
-                        filedata += "[%s/%s]%s\n" % (fingerprint, der[2][2:].replace("'","h"), xpub.to_base58(net["xpub"]))
-                    extension = "txt"
-                else:
-                    m = self.keystore.get_xpub("m")
-                    data = {
-                        "xpub": m.to_base58(NETWORKS[self.network]["xpub"]),
-                        "xfp": fingerprint,
-                        "account": self.account,
-                        "chain": "BTC" if self.network == "main" else "XTN"
-                    }
-
-                    for der in derivations:
-                        xpub = self.keystore.get_xpub(der[2])
-
-                        data[der[0]] = {
-                            "name": der[1],
-                            "deriv": der[2],
-                            "xpub": xpub.to_base58(net["xpub"]),
-                            "_pub": xpub.to_base58(bip32.detect_version(der[2], default="xpub", network=net))
-                        }
-
-                    filedata = json.dumps(data).encode()
-
-                filename = "%s-%s-%d-all.%s" % (format, fingerprint, self.account, extension)
-
-                self.write_file(filename, filedata)
+            file_format = await self.save_menu(show_screen)
+            if file_format:
+                filename = self.save_all_to_sd(file_format)
                 await show_screen(
                     Alert("Saved!",
                           "Public keys are saved to the file:\n\n%s" % filename,
                           button_text="Close")
                 )
-
         elif menuitem == 2:
             account = await show_screen(NumericScreen(current_val=str(self.account)))
             if account and int(account) > 0x80000000:
@@ -138,6 +101,52 @@ class XpubApp(BaseApp):
             await self.show_xpub(menuitem, show_screen)
             return True
         return False
+
+    def save_all_to_sd(self, file_format):
+        fingerprint = hexlify(self.keystore.fingerprint).decode()
+        extension = "json"
+        coin = NETWORKS[self.network]["bip32"]
+
+        derivations = [
+            ('bip49', "p2wpkh", "m/49'/%d'/%d'" % (coin, self.account)),
+            ('bip84', "p2sh-p2wpkh", "m/84'/%d'/%d'" % (coin, self.account)),
+            ('bip44', "p2pkh", "m/44'/%d'/%d'" % (coin, self.account)),
+            ('bip48_2', "p2wsh", "m/48'/%d'/%d'/2'" % (coin, self.account)),
+            ('bip48_1', "p2sh-p2wsh", "m/48'/%d'/%d'/1'" % (coin, self.account)),
+        ]
+
+        if file_format == self.export_specter_diy:
+            # text file with [fgp/der]xpub lines
+            filedata = ""
+            for der in derivations:
+                xpub = self.keystore.get_xpub(der[2])
+                filedata += "[%s/%s]%s\n" % (fingerprint, der[2][2:].replace("'","h"), xpub.to_base58(NETWORKS[self.network]["xpub"]))
+            extension = "txt"
+        else:
+            # coldcard generic json format
+            m = self.keystore.get_xpub("m")
+            data = {
+                "xpub": m.to_base58(NETWORKS[self.network]["xpub"]),
+                "xfp": fingerprint,
+                "account": self.account,
+                "chain": "BTC" if self.network == "main" else "XTN"
+            }
+
+            for der in derivations:
+                xpub = self.keystore.get_xpub(der[2])
+
+                data[der[0]] = {
+                    "name": der[1],
+                    "deriv": der[2],
+                    "xpub": xpub.to_base58(NETWORKS[self.network]["xpub"]),
+                    "_pub": xpub.to_base58(bip32.detect_version(der[2], default="xpub", network=NETWORKS[self.network]))
+                }
+
+            filedata = json.dumps(data).encode()
+
+        filename = "%s-%s-%d-all.%s" % (file_format, fingerprint, self.account, extension)
+        self.write_file(filename, filedata)
+        return filename
 
     async def process_host_command(self, stream, show_screen):
         if self.keystore.is_locked:
@@ -178,7 +187,9 @@ class XpubApp(BaseApp):
             derivation[1:],
         )
         res = await show_screen(XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix))
-        if res:
+        if res == XPubScreen.CREATE_WALLET:
+            await self.create_wallet(derivation, canonical, prefix, ver, show_screen)
+        elif res:
             filename = "%s-%s.txt" % (fingerprint, derivation[2:].replace("/", "-"))
             self.write_file(filename, res)
             await show_screen(
@@ -186,6 +197,64 @@ class XpubApp(BaseApp):
                       "Extended public key is saved to the file:\n\n%s" % filename,
                       button_text="Close")
             )
+
+    async def create_wallet(self, derivation, xpub, prefix, version, show_screen):
+        """Shows a wallet creation menu and passes descriptor to the wallets app"""
+        net = NETWORKS[self.network]
+        descriptors = OrderedDict({
+            "zpub": ("wpkh(%s%s/{0,1}/*)" % (prefix, xpub), "Native Segwit"),
+            "ypub": ("sh(wpkh(%s%s/{0,1}/*))" % (prefix, xpub), "Nested Segwit"),
+            "legacy": ("pkh(%s%s/{0,1}/*)" % (prefix, xpub), "Legacy"),
+            # multisig is not supported yet - requires cosigners app
+        })
+        if version == net["ypub"]:
+            buttons = [
+                (None, "Recommended"),
+                descriptors.pop("ypub"),
+                (None, "Other"),
+            ]
+        elif version == net["zpub"]:
+            buttons = [
+                (None, "Recommended"),
+                descriptors.pop("zpub"),
+                (None, "Other"),
+            ]
+        else:
+            buttons = []
+        buttons += [descriptors[k] for k in descriptors]
+        menuitem = await show_screen(Menu(buttons, last=(255, None),
+                                     title="Select wallet type to create"))
+        if menuitem == 255:
+            return
+        else:
+            # get wallet names from the wallets app
+            s, _ = await self.communicate(BytesIO(b"listwallets"), app="wallets")
+            names = json.load(s)
+            if menuitem.startswith("pkh("):
+                name_suggestion = "Legacy %d" % self.account
+            elif menuitem.startswith("wpkh("):
+                name_suggestion = "Native %d" % self.account
+            elif menuitem.startswith("sh(wpkh("):
+                name_suggestion = "Nested %d" % self.account
+            else:
+                name_suggestion = "Wallet %d" % self.account
+            nn = name_suggestion
+            i = 1
+            # make sure we don't suggest existing name
+            while name_suggestion in names:
+                name_suggestion = "%s (%d)" % (nn, i)
+                i += 1
+            name = await show_screen(InputScreen(title="Name your wallet",
+                    note="",
+                    suggestion=name_suggestion
+            ))
+            if not name:
+                return
+            # send the wallets app addwallet command with descriptor
+            data = "addwallet %s&%s" % (name, menuitem)
+            stream = BytesIO(data.encode())
+            await self.communicate(stream, app="wallets")
+
 
     def write_file(self, filename, filedata):
         if not platform.is_sd_present():
@@ -204,12 +273,12 @@ class XpubApp(BaseApp):
         # process the menu button:
         # back button
         if menuitem == 255:
-            return False
+            return None
         elif menuitem == 0:
             return self.export_specter_diy
         elif menuitem == 1:
             return self.export_coldcard
-        return False
+        return None
 
     def wipe(self):
         # nothing to delete
