@@ -203,8 +203,7 @@ class SDKeyStore(FlashKeyStore):
             self.lock()
             await self.unlock()
 
-            seed = bip39.mnemonic_to_seed(self.mnemonic)
-            filename = "seed-export-%s.txt" % hexlify(sha256(seed).digest()[:4])
+            filename = "seed-export-%s.txt" % self.mnemonic.split()[0]
             filepath = "%s/%s" % (self.sdpath, filename)
 
             if not platform.is_sd_present():
