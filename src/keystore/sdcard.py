@@ -110,77 +110,73 @@ class SDKeyStore(FlashKeyStore):
         platform.unmount_sdcard()
         return sd_exists or flash_exists
 
-    async def load_mnemonic(self, path=None, file=None):
+    async def load_mnemonic(self, file=None):
         if self.is_locked:
             raise KeyStoreError("Keystore is locked")
-        if path is None:
-            path = await self.get_keypath(
-                title="From where to load?", note="Select media"
-            )
-            if path is None:
-                return False
-        if path == self.sdpath:
-            if not platform.is_sd_present():
-                raise KeyStoreError("SD card is not present")
-            platform.mount_sdcard()
 
         if file is None:
-            file = await self.select_file(path, self.fileprefix(path))
+            file = await self.select_file()
             if file is None:
                 return False
 
-        if not platform.file_exists("%s/%s" % (path, file)):
+        if not platform.file_exists(file):
             raise KeyStoreError("Key is not saved")
-        _, data = self.load_aead("%s/%s" % (path, file), self.enc_secret)
+        _, data = self.load_aead(file, self.enc_secret)
 
-        if path == self.sdpath:
+        if platform.is_sd_present():
             platform.unmount_sdcard()
         self.set_mnemonic(data.decode(), "")
         return True
 
-    async def select_file(self, path, prefix):
+    async def select_file(self):
+
+        buttons = []
+
+        buttons += [(None, 'Internal storage')]
+        buttons += self.load_files(self.flashpath)
+
+        buttons += [(None, 'SD card')]
+        if platform.is_sd_present():
+            platform.mount_sdcard()
+            buttons += self.load_files(self.sdpath)
+        else:
+            buttons += [('None', 'No SD card present')]
+
+        return await self.show(Menu(buttons, title="Select a file", last=(None, "Cancel")))
+
+    def load_files(self, path):
+        buttons = []
         files = sum(
-            [[f[0] for f in os.ilistdir(path) if f[0].lower().startswith(prefix)]], [])
+            [[f[0] for f in os.ilistdir(path) if f[0].lower().startswith(self.fileprefix(path))]], [])
 
         if len(files) == 0:
-            raise KeyStoreError("\n\nNo matching files found")
+            buttons += [(None, 'No files found')]
+        else:
+            files.sort()
+            for file in files:
+                displayname = file.replace(self.fileprefix(path), "")
+                if displayname is "":
+                    displayname = "Default"
+                else:
+                    displayname = displayname[1:]  # strip first character
+                buttons += [("%s/%s" % (path, file), displayname)]
+        return buttons
 
-        files.sort()
-        buttons = []
-        for file in files:
-            displayname = file.replace(prefix, "")
-            if displayname is "":
-                displayname = "Default"
-            else:
-                displayname = displayname[1:]  # strip first character
-            buttons += [(file, displayname)]
+    async def delete_mnemonic(self):
 
-        fname = await self.show(Menu(buttons, title="Select a file", last=(None, "Cancel")))
-        return fname
-
-    async def delete_mnemonic(self, path=None):
-        if path is None:
-            path = await self.get_keypath(title="From where to delete?")
-            if path is None:
-                return False
-        if path == self.sdpath:
-            if not platform.is_sd_present():
-                raise KeyStoreError("SD card is not present")
-            platform.mount_sdcard()
-
-        file = await self.select_file(path, self.fileprefix(path))
+        file = await self.select_file()
         if file is None:
             return False
 
-        if not platform.file_exists("%s/%s" % (path, file)):
+        if not platform.file_exists(file):
             raise KeyStoreError("File not found.")
         try:
-            os.remove("%s/%s" % (path, file))
+            os.remove(file)
         except Exception as e:
             print(e)
-            raise KeyStoreError("Failed to delete file '%s' from %s" % (file, path))
+            raise KeyStoreError("Failed to delete file '%s'" % file)
         finally:
-            if path == self.sdpath:
+            if platform.is_sd_present():
                 platform.unmount_sdcard()
             return True
 
