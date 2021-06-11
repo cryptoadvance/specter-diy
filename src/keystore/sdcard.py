@@ -101,9 +101,11 @@ class SDKeyStore(FlashKeyStore):
             return flash_exists
 
         platform.mount_sdcard()
-        sd_files = sum(
-            [[f[0] for f in os.ilistdir(self.sdpath) if f[0].lower().startswith(self.fileprefix(self.sdpath))]], [])
-        sd_exists = False if len(sd_files) == 0 else True
+        sd_files = [
+            f[0] for f in os.ilistdir(self.sdpath)
+            if f[0].lower().startswith(self.fileprefix(self.sdpath))
+        ]
+        sd_exists = (len(sd_files) > 0)
         platform.unmount_sdcard()
         return sd_exists or flash_exists
 
