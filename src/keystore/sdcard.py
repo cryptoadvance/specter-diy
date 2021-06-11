@@ -243,7 +243,7 @@ class SDKeyStore(FlashKeyStore):
             if menuitem == 255:
                 return
             elif menuitem == 0:
-                filename = await self.get_input()
+                filename = await self.get_input(self.mnemonic.split()[0])
                 if filename is None:
                     return
                 if filename is "":
