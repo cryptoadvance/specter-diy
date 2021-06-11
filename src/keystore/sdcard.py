@@ -93,10 +93,11 @@ class SDKeyStore(FlashKeyStore):
 
     @property
     def is_key_saved(self):
-        flash_files = sum(
-            [[f[0] for f in os.ilistdir(self.flashpath) if f[0].lower().startswith(self.fileprefix(self.flashpath))]],
-            [])
-        flash_exists = False if len(flash_files) == 0 else True
+        flash_files = [
+            f[0] for f in os.ilistdir(self.flashpath)
+            if f[0].lower().startswith(self.fileprefix(self.flashpath))
+        ]
+        flash_exists = (len(flash_files) > 0)
         if not platform.is_sd_present():
             return flash_exists
 
