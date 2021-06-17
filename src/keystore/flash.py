@@ -201,7 +201,7 @@ class FlashKeyStore(RAMKeyStore):
     @property
     def flashpath(self):
         """Path to store bitcoin key"""
-        return self.path + "/reckless"
+        return self.path
 
     @property
     def is_key_saved(self):

@@ -201,7 +201,7 @@ class Specter:
             res = await self.keystore.load_mnemonic()
             if not res:
                 return
-            # await self.gui.alert("Success!", "Key is loaded from flash!")
+            await self.gui.alert("Success!", "Key is loaded!")
             self.init_apps()
             return self.mainmenu
         elif menuitem == 3:
