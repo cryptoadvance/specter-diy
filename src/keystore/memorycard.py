@@ -12,6 +12,7 @@ from gui.screens import Alert, Progress, Menu, MnemonicScreen, Prompt
 import asyncio
 from io import BytesIO
 from uscard import SmartcardException
+from binascii import hexlify
 
 
 class MemoryCard(RAMKeyStore):
@@ -312,6 +313,10 @@ In this mode device can only operate when the smartcard is inserted!"""
         # the rest can be done with parent
         await super().init(show_fn, show_loader)
 
+    @property
+    def hexid(self):
+        return hexlify(tagged_hash("smartcard/pubkey", self.applet.card_pubkey)[:4]).decode()
+
     async def storage_menu(self):
         """Manage storage"""
         enabled = self.connection.isCardInserted()
@@ -321,12 +326,14 @@ In this mode device can only operate when the smartcard is inserted!"""
             (0, "Save key to the card", enabled),
             (1, "Load key from the card", enabled),
             (2, "Delete key from the card", enabled),
+            (3, "Use a different card", enabled)
         ]
 
         # we stay in this menu until back is pressed
         while True:
+            note = "Card fingerprint: %s" % self.hexid
             # wait for menu selection
-            menuitem = await self.show(Menu(buttons, last=(255, None)))
+            menuitem = await self.show(Menu(buttons, note=note, last=(255, None)))
             # process the menu button:
             # back button
             if menuitem == 255:
@@ -354,4 +361,19 @@ In this mode device can only operate when the smartcard is inserted!"""
                         button_text="OK",
                     )
                 )
-                
+            elif menuitem == 3:
+                if await self.show(
+                    Prompt(
+                        "Switching the smartcard",
+                        "To use a different smartcard you need "
+                        "to provide a PIN for current one first!\n\n"
+                        "Continue?"
+                    )
+                ):
+                    self.lock()
+                    await self.unlock()
+                    self.lock()
+                    self.applet.close_secure_channel()
+                    await self.show(Alert("Please swap the card", "Now you can insert another card and set it up.", button_text="Continue"))
+                    await self.check_card(check_pin=True)
+                    await self.unlock()

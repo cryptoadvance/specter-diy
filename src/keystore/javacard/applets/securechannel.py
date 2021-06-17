@@ -198,3 +198,4 @@ class SecureChannel:
         """Closes the secure channel"""
         self.applet.request(self.CLOSE)
         self.is_open = False
+        self.card_pubkey = None
