@@ -179,6 +179,7 @@ class SDKeyStore(FlashKeyStore):
         file = await self.select_file()
         if file is None:
             return False
+        # mount sd before check
         if platform.is_sd_present() and file.startswith(self.sdpath):
             platform.mount_sdcard()
         if not platform.file_exists(file):
