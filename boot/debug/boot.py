@@ -6,10 +6,10 @@ import pyb, os, micropython, time
 pwr = pyb.Pin("B15", pyb.Pin.OUT)
 pwr.on()
 
-# v1.5.5-rc1 - use odd rc for main firmware and even for debug
+# v1.5.6-rc1 - use odd rc for main firmware and even for debug
 # so it's possible to upgrade from debug to main firmware.
 # (rc99 is final version for production)
-version = "<version:tag10>0100500501</version:tag10>"
+version = "<version:tag10>0100500601</version:tag10>"
 
 leds = [pyb.LED(i) for i in range(1,5)]
 # poweroff on button press
