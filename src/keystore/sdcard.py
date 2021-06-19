@@ -200,7 +200,7 @@ class SDKeyStore(FlashKeyStore):
                  "Give each seed a unique name!",
             suggestion="",
     ):
-        scr = InputScreen(title, note, suggestion)
+        scr = InputScreen(title, note, suggestion, allow_empty=False)
         await self.show(scr)
         return scr.get_value()
 

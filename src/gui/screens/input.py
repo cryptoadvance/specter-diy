@@ -111,9 +111,11 @@ class InputScreen(Screen):
             title="Enter your bip-39 password:",
             note="It is never stored on the device",
             suggestion="",
+            allow_empty=True,
     ):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
+        self.allow_empty = allow_empty
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
             self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
@@ -137,6 +139,9 @@ class InputScreen(Screen):
 
         self.kb.set_event_cb(self.cb)
 
+        self.warning = add_label("", scr=self, style="hint")
+        self.warning.align(self.ta, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+
     def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
@@ -146,6 +151,7 @@ class InputScreen(Screen):
                 c = " "
             if c == lv.SYMBOL.LEFT:
                 self.ta.del_char()
+                self.check_text()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
                 for i, ch in enumerate(self.CHARSET):
                     if ch.isalpha():
@@ -166,14 +172,28 @@ class InputScreen(Screen):
                 self.ta.set_text("")
             elif c[0] == lv.SYMBOL.OK:
                 text = self.ta.get_text()
+                if not self.check_text():
+                    return
                 self.ta.set_text("")
                 self.set_value(text)
             elif c == lv.SYMBOL.LEFT + " Back":
                 self.ta.set_text("")
                 self.set_value(None)
             else:
+                # check if input is empty:
                 self.ta.add_text(c)
+                self.check_text()
 
+    def check_text(self):
+        if self.allow_empty:
+            return True
+        text = self.ta.get_text()
+        # check if input is empty:
+        if not text.strip():
+            self.warning.set_text("Enter at least one non-space character")
+            return False
+        self.warning.set_text("")
+        return True
 
 class PinScreen(Screen):
     network = None

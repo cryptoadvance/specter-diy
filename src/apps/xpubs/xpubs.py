@@ -246,7 +246,8 @@ class XpubApp(BaseApp):
                 i += 1
             name = await show_screen(InputScreen(title="Name your wallet",
                     note="",
-                    suggestion=name_suggestion
+                    suggestion=name_suggestion,
+                    allow_empty=False
             ))
             if not name:
                 return
