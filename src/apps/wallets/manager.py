@@ -116,7 +116,7 @@ class WalletManager(BaseApp):
                     title="Enter new wallet name",
                     note="",
                     suggestion=w.name,
-                    allow_empty=False
+                    min_length=1, strip=True
                 )
                 name = await show_screen(scr)
                 if name is not None and name != w.name and name != "":

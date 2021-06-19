@@ -111,11 +111,16 @@ class InputScreen(Screen):
             title="Enter your bip-39 password:",
             note="It is never stored on the device",
             suggestion="",
-            allow_empty=True,
+            min_length=0,
+            max_length=None,
+            strip=False,
     ):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
-        self.allow_empty = allow_empty
+        self.min_length = min_length
+        self.max_length = max_length
+        self.strip = strip
+
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
             self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
@@ -175,6 +180,8 @@ class InputScreen(Screen):
                 if not self.check_text():
                     return
                 self.ta.set_text("")
+                if self.strip:
+                    text = text.strip()
                 self.set_value(text)
             elif c == lv.SYMBOL.LEFT + " Back":
                 self.ta.set_text("")
@@ -185,12 +192,15 @@ class InputScreen(Screen):
                 self.check_text()
 
     def check_text(self):
-        if self.allow_empty:
-            return True
         text = self.ta.get_text()
-        # check if input is empty:
-        if not text.strip():
-            self.warning.set_text("Enter at least one non-space character")
+        if self.strip:
+            text = text.strip()
+        # check if input matches the limits
+        if len(text) < self.min_length:
+            self.warning.set_text("Enter at least %d%s character" % (self.min_length, " non-space" if self.strip else ""))
+            return False
+        if self.max_length and len(text) > self.max_length:
+            self.warning.set_text("Value is too long! Must be between %d and %d characters" % (self.min_length, self.max_length))
             return False
         self.warning.set_text("")
         return True
