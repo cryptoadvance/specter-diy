@@ -179,11 +179,11 @@ class SDKeyStore(FlashKeyStore):
         file = await self.select_file()
         if file is None:
             return False
+        if platform.is_sd_present() and file.startswith(self.sdpath):
+            platform.mount_sdcard()
         if not platform.file_exists(file):
             raise KeyStoreError("File not found.")
         try:
-            if platform.is_sd_present() and file.startswith(self.sdpath):
-                platform.mount_sdcard()
             os.remove(file)
         except Exception as e:
             print(e)
