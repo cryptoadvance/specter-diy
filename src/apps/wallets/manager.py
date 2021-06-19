@@ -113,7 +113,10 @@ class WalletManager(BaseApp):
                     self.delete_wallet(w)
             elif cmd == EDIT:
                 scr = InputScreen(
-                    title="Enter new wallet name", note="", suggestion=w.name
+                    title="Enter new wallet name",
+                    note="",
+                    suggestion=w.name,
+                    min_length=1, strip=True
                 )
                 name = await show_screen(scr)
                 if name is not None and name != w.name and name != "":
