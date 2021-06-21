@@ -485,7 +485,9 @@ class WalletManager(BaseApp):
                 if f[0].isdigit() and f[1] == 0x4000
             ]
         )
-        newpath = self.path + ("/%d" % (max(wallet_ids) + 1))
+        # get wallet id
+        wid = (max(wallet_ids) + 1) if wallet_ids else 0
+        newpath = self.path + ("/%d" % wid)
         platform.maybe_mkdir(newpath)
         w.save(self.keystore, path=newpath)
 
