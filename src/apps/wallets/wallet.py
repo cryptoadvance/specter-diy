@@ -124,24 +124,11 @@ class Wallet:
         """Fingerprint of the wallet - hash160(descriptor)"""
         return hashes.hash160(str(self.descriptor))[:4]
 
-    def owns(self, tx_out, bip32_derivations, script=None):
+    def owns(self, psbt_scope):
         """
         Checks that psbt scope belongs to the wallet.
         """
-        # quick check for the scriptpubkey type
-        if tx_out.script_pubkey.script_type() != self.descriptor.scriptpubkey_type():
-            return False
-        # quick check of the script length
-        if script and (len(script.data) != self.descriptor.script_len):
-            return False
-        derivation = self.get_derivation(bip32_derivations)
-
-        # derivation not found
-        if derivation is None:
-            return False
-        # check that script_pubkey matches
-        sc, _ = self.script_pubkey(derivation)
-        return sc == tx_out.script_pubkey
+        return self.descriptor.owns(psbt_scope)
 
     def get_derivation(self, bip32_derivations):
         # otherwise we need standard derivation
@@ -156,16 +143,13 @@ class Wallet:
         # update from psbt
         if psbt is not None:
             scopes = []
-            for i, inp in enumerate(psbt.inputs):
-                if self.owns(psbt.utxo(i), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
-                    scopes.append(inp)
-            for i, out in enumerate(psbt.outputs):
-                if self.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
-                    scopes.append(out)
+            for sc in psbt.inputs + psbt.outputs:
+                if self.owns(sc):
+                    scopes.append(sc)
             for scope in scopes:
                 res = self.get_derivation(scope.bip32_derivations)
                 if res is not None:
-                    branch_idx, idx = res
+                    idx, branch_idx = res
                     if idx + self.GAP_LIMIT > gaps[branch_idx]:
                         gaps[branch_idx] = idx + self.GAP_LIMIT + 1
         # update from gaps arg
@@ -179,27 +163,24 @@ class Wallet:
     def fill_psbt(self, psbt, fingerprint):
         """Fills derivation paths in inputs"""
         for scope in psbt.inputs:
-            # fill derivation paths
-            wallet_key = b"\xfc\xca\x01" + self.fingerprint
-            if wallet_key not in scope.unknown:
+            if not self.owns(scope):
                 continue
-            der = scope.unknown[wallet_key]
-            wallet_derivation = []
-            for i in range(len(der) // 4):
-                idx = int.from_bytes(der[4 * i : 4 * i + 4], "little")
-                wallet_derivation.append(idx)
+            der = self.get_derivation(scope.bip32_derivations)
+            if der is None:
+                continue
+            idx, branch_idx = der
+            desc = self.descriptor.derive(idx, branch_index=branch_idx)
             # find keys with our fingerprint
-            for key in self.descriptor.keys:
+            for key in desc.keys:
                 if key.fingerprint == fingerprint:
-                    pub = key.derive(wallet_derivation).get_public_key()
+                    pub = key.get_public_key()
                     # fill our derivations
                     scope.bip32_derivations[pub] = DerivationPath(
-                        fingerprint, key.derivation + wallet_derivation
+                        fingerprint, key.derivation
                     )
             # fill script
-            scope.witness_script = self.descriptor.derive(*wallet_derivation).witness_script()
-            if self.descriptor.sh:
-                scope.redeem_script = self.descriptor.derive(*wallet_derivation).redeem_script()
+            scope.witness_script = desc.witness_script()
+            scope.redeem_script = desc.redeem_script()
 
     @property
     def keys(self):
@@ -243,7 +224,7 @@ class Wallet:
             der = self.get_derivation(inp.bip32_derivations)
             if der is None:
                 continue
-            branch, idx = der
+            idx, branch = der
             derived = self.descriptor.derive(idx, branch_index=branch)
             keys = [k for k in derived.keys if k.is_private]
             for k in keys:
@@ -254,7 +235,9 @@ class Wallet:
     def parse(cls, desc, path=None):
         name = "Untitled"
         if "&" in desc:
-            name, desc = desc.split("&")
+            arr = desc.split("&")
+            desc = arr[-1]
+            name = "&".join(arr[:-1]) # so name with & can be parsed as well
         w = cls.from_descriptor(desc, path)
         w.name = name
         return w

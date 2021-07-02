@@ -12,7 +12,7 @@ from rng import get_random_bytes
 
 class App(BaseApp):
     """Allows to query random bytes from on-board TRNG."""
-
+    name = "random"
     prefixes = [b"getrandom"]
 
     async def process_host_command(self, stream, show_fn):

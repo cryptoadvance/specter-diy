@@ -111,9 +111,16 @@ class InputScreen(Screen):
             title="Enter your bip-39 password:",
             note="It is never stored on the device",
             suggestion="",
+            min_length=0,
+            max_length=None,
+            strip=False,
     ):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
+        self.min_length = min_length
+        self.max_length = max_length
+        self.strip = strip
+
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
             self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
@@ -137,6 +144,9 @@ class InputScreen(Screen):
 
         self.kb.set_event_cb(self.cb)
 
+        self.warning = add_label("", scr=self, style="hint")
+        self.warning.align(self.ta, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+
     def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
             c = obj.get_active_btn_text()
@@ -146,6 +156,7 @@ class InputScreen(Screen):
                 c = " "
             if c == lv.SYMBOL.LEFT:
                 self.ta.del_char()
+                self.check_text()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
                 for i, ch in enumerate(self.CHARSET):
                     if ch.isalpha():
@@ -166,14 +177,33 @@ class InputScreen(Screen):
                 self.ta.set_text("")
             elif c[0] == lv.SYMBOL.OK:
                 text = self.ta.get_text()
+                if not self.check_text():
+                    return
                 self.ta.set_text("")
+                if self.strip:
+                    text = text.strip()
                 self.set_value(text)
             elif c == lv.SYMBOL.LEFT + " Back":
                 self.ta.set_text("")
                 self.set_value(None)
             else:
+                # check if input is empty:
                 self.ta.add_text(c)
+                self.check_text()
 
+    def check_text(self):
+        text = self.ta.get_text()
+        if self.strip:
+            text = text.strip()
+        # check if input matches the limits
+        if len(text) < self.min_length:
+            self.warning.set_text("Enter at least %d%s character" % (self.min_length, " non-space" if self.strip else ""))
+            return False
+        if self.max_length and len(text) > self.max_length:
+            self.warning.set_text("Value is too long! Must be between %d and %d characters" % (self.min_length, self.max_length))
+            return False
+        self.warning.set_text("")
+        return True
 
 class PinScreen(Screen):
     network = None
@@ -188,11 +218,11 @@ class PinScreen(Screen):
             lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 110)
+            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 90)
         self.get_word = get_word
         if get_word is not None:
             self.words = add_label(get_word(b""), scr=self)
-            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 140)
+            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
         btnm = lv.btnm(self)
         # shuffle numbers to make sure
         # no constant fingerprints left on screen

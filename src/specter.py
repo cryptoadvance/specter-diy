@@ -154,6 +154,13 @@ class Specter:
                 next_fn = await self.handle_exception(e, self.setup)
                 await next_fn()
 
+    def init_apps(self):
+        for app in self.apps:
+            app.init(self.keystore, self.network, self.gui.show_loader, self.cross_app_communicate)
+
+    async def cross_app_communicate(self, stream, app:str=None):
+        return await self.process_host_request(stream, popup=False, appname=app)
+
     async def initmenu(self):
         # for every button we use an ID
         # to avoid mistakes when editing strings
@@ -176,8 +183,7 @@ class Specter:
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic.strip(), "")
-                for app in self.apps:
-                    app.init(self.keystore, self.network, self.gui.show_loader)
+                self.init_apps()
                 return self.mainmenu
         # recover
         elif menuitem == 1:
@@ -187,8 +193,7 @@ class Specter:
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
                 self.keystore.set_mnemonic(mnemonic, "")
-                for app in self.apps:
-                    app.init(self.keystore, self.network, self.gui.show_loader)
+                self.init_apps()
                 self.current_menu = self.mainmenu
                 return self.mainmenu
         elif menuitem == 2:
@@ -196,9 +201,8 @@ class Specter:
             res = await self.keystore.load_mnemonic()
             if not res:
                 return
-            # await self.gui.alert("Success!", "Key is loaded from flash!")
-            for app in self.apps:
-                app.init(self.keystore, self.network, self.gui.show_loader)
+            await self.gui.alert("Success!", "Key is loaded!")
+            self.init_apps()
             return self.mainmenu
         elif menuitem == 3:
             await self.update_devsettings()
@@ -276,9 +280,11 @@ class Specter:
             (None, "Key management"),
         ]
         if self.keystore.storage_button is not None:
-            buttons.append((0, self.keystore.storage_button))
-        buttons.extend([(2, "Enter BIP-39 password"), (None, "Security")])  # delimiter
-        buttons.extend([(4, "Device settings")])
+            buttons.append((1, self.keystore.storage_button))
+        buttons.append((2, "Enter BIP-39 password"))
+        if hasattr(self.keystore, "show_mnemonic"):
+            buttons.append((3, "Show recovery phrase"))
+        buttons.extend([(None, "Security"), (4, "Device settings")])  # delimiter
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None), note="Firmware version %s" % get_version())
 
@@ -286,15 +292,16 @@ class Specter:
         # back button
         if menuitem == 255:
             return self.mainmenu
-        elif menuitem == 0:
+        elif menuitem == 1:
             await self.keystore.storage_menu()
         elif menuitem == 2:
             pwd = await self.gui.get_input()
             if pwd is None:
                 return self.settingsmenu
             self.keystore.set_mnemonic(password=pwd)
-            for app in self.apps:
-                app.init(self.keystore, self.network, self.gui.show_loader)
+            self.init_apps()
+        elif menuitem == 3:
+            await self.keystore.show_mnemonic()
         elif menuitem == 4:
             await self.update_devsettings()
         elif menuitem == 5:
@@ -323,8 +330,7 @@ class Specter:
             f.write(net)
         if self.keystore.is_ready:
             # load wallets for this network
-            for app in self.apps:
-                app.init(self.keystore, self.network, self.gui.show_loader)
+            self.init_apps()
 
     def load_network(self, path, network="main"):
         try:
@@ -414,7 +420,7 @@ class Specter:
         for host in self.hosts:
             host.load_settings(self.keystore)
 
-    async def process_host_request(self, stream, popup=True):
+    async def process_host_request(self, stream, popup=True, appname=None):
         """
         This method is called whenever we got data from the host.
         It tries to find a proper app and pass the stream with data to it.
@@ -423,17 +429,22 @@ class Specter:
         res = None
         try:
             matching_apps = []
-            for app in self.apps:
-                stream.seek(0)
-                # check if the app can process this stream
-                if app.can_process(stream):
-                    matching_apps.append(app)
+            if appname is not None:
+                for app in self.apps:
+                    if app.name == appname:
+                        matching_apps.append(app)
+            else:
+                for app in self.apps:
+                    stream.seek(0)
+                    # check if the app can process this stream
+                    if app.can_process(stream):
+                        matching_apps.append(app)
             if len(matching_apps) == 0:
-                raise HostError("Host command is not recognized")
+                raise HostError("Can't find matching app for this request")
             # TODO: if more than one - ask which one to use
             if len(matching_apps) > 1:
                 raise HostError(
-                    "Not sure what app to use... " "There are %d" % len(matching_apps)
+                    "Not sure what app to use...\n\nThere are %d" % len(matching_apps)
                 )
             stream.seek(0)
             app = matching_apps[0]

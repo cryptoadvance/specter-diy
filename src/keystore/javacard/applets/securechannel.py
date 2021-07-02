@@ -14,12 +14,16 @@ AES_CBC = 2
 
 class SecureError(Exception):
     """
+    Raised when the card returned an error over secure channel
+    """
+    pass
+
+class SecureChannelError(Exception):
+    """
     Raised when something went wrong with the
     secure channel (i.e. signature is invalid etc)
     """
-
     pass
-
 
 class SecureChannel:
     """
@@ -194,3 +198,4 @@ class SecureChannel:
         """Closes the secure channel"""
         self.applet.request(self.CLOSE)
         self.is_open = False
+        self.card_pubkey = None

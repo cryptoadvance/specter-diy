@@ -12,7 +12,7 @@ class SDHost(Host):
     - saving signed transaction to the card
     """
 
-    button = "SD card"
+    button = "Open SD card file"
     settings_button = "SD card"
 
     def __init__(self, path, sdpath=fpath("/sd")):

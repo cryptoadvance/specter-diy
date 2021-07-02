@@ -15,6 +15,7 @@ from io import BytesIO
 from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
 from helpers import a2b_base64_stream
 import gc
+import json
 
 SIGN_PSBT = 0x01
 ADD_WALLET = 0x02
@@ -26,6 +27,8 @@ VERIFY_ADDRESS = 0x03
 DERIVE_ADDRESS = 0x04
 # sign psbt transaction encoded in bc-ur format
 SIGN_BCUR = 0x05
+# list wallet names
+LIST_WALLETS = 0x06
 
 BASE64_STREAM = 0x64
 RAW_STREAM = 0xFF
@@ -48,6 +51,8 @@ class WalletManager(BaseApp):
 
     button = "Wallets"
     WALLETS = [Wallet]
+    prefixes = [b"addwallet", b"sign", b"showaddr", b"listwallets"]
+    name = "wallets"
 
     def __init__(self, path):
         self.root_path = path
@@ -108,7 +113,10 @@ class WalletManager(BaseApp):
                     self.delete_wallet(w)
             elif cmd == EDIT:
                 scr = InputScreen(
-                    title="Enter new wallet name", note="", suggestion=w.name
+                    title="Enter new wallet name",
+                    note="",
+                    suggestion=w.name,
+                    min_length=1, strip=True
                 )
                 name = await show_screen(scr)
                 if name is not None and name != w.name and name != "":
@@ -130,6 +138,8 @@ class WalletManager(BaseApp):
                 return DERIVE_ADDRESS, stream
             elif prefix == b"addwallet":
                 return ADD_WALLET, stream
+            elif prefix == b"listwallets":
+                return LIST_WALLETS, stream
             else:
                 return None, None
         # if not - we get data any without prefix
@@ -207,6 +217,9 @@ class WalletManager(BaseApp):
                 gc.collect()
                 return BytesIO(bcur_res), obj
             return
+        elif cmd == LIST_WALLETS:
+            wnames = json.dumps([w.name for w in self.wallets])
+            return BytesIO(wnames.encode()), {}
         elif cmd == ADD_WALLET:
             # read content, it's small
             desc = stream.read().decode().strip()
@@ -290,7 +303,7 @@ class WalletManager(BaseApp):
             scr = Prompt(
                 "Warning!",
                 "\nUnknown wallet in inputs!\n\n\n"
-                "Wallet for some inpunts is unknown! This means we can't verify change addresses.\n\n\n"
+                "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
                 "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
                 "Proceed to the transaction confirmation?",
             )
@@ -385,7 +398,7 @@ class WalletManager(BaseApp):
             else:
                 raise WalletError("Unsupported script type: %s" % script_type)
 
-        w, (branch_idx, idx) = self.find_wallet_from_address(address, paths=paths)
+        w, (idx, branch_idx) = self.find_wallet_from_address(address, paths=paths)
         if show_screen is not None:
             await show_screen(
                 WalletScreen(w, self.network, idx, branch_index=branch_idx)
@@ -472,7 +485,9 @@ class WalletManager(BaseApp):
                 if f[0].isdigit() and f[1] == 0x4000
             ]
         )
-        newpath = self.path + ("/%d" % (max(wallet_ids) + 1))
+        # get wallet id
+        wid = (max(wallet_ids) + 1) if wallet_ids else 0
+        newpath = self.path + ("/%d" % wid)
         platform.maybe_mkdir(newpath)
         w.save(self.keystore, path=newpath)
 
@@ -502,10 +517,10 @@ class WalletManager(BaseApp):
             for w in self.wallets:
                 der = w.descriptor.check_derivation(derivation_path)
                 if der is not None:
-                    branch_idx, idx = der
+                    idx, branch_idx = der
                     a, _ = w.get_address(idx, self.network, branch_idx)
                     if a == addr:
-                        return w, (branch_idx, idx)
+                        return w, (idx, branch_idx)
         raise WalletError("Can't find wallet owning address %s" % addr)
 
     def parse_psbt(self, psbt):
@@ -544,8 +559,8 @@ class WalletManager(BaseApp):
                 "sighash": SIGHASH_NAMES[inp.sighash_type or SIGHASH.ALL]
             }
             for w in self.wallets:
-                if w.owns(psbt.utxo(i), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
-                    branch_idx, idx = w.get_derivation(inp.bip32_derivations)
+                if w.owns(inp):
+                    idx, branch_idx = w.get_derivation(inp.bip32_derivations)
                     meta["inputs"][i]["label"] = w.name
                     if branch_idx == 1:
                         meta["inputs"][i]["label"] += " change %d" % idx
@@ -579,7 +594,7 @@ class WalletManager(BaseApp):
             for w in wallets:
                 if w is None:
                     continue
-                if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
+                if w.owns(out):
                     meta["outputs"][i]["change"] = True
                     meta["outputs"][i]["label"] = w.name
                     break
@@ -594,8 +609,8 @@ class WalletManager(BaseApp):
             for i, w in enumerate(wallets):
                 if w is None:
                     continue
-                if w.owns(psbt.utxo(inidx), inp.bip32_derivations, inp.witness_script or inp.redeem_script):
-                    branch_idx, idx = w.get_derivation(inp.bip32_derivations)
+                if w.owns(inp):
+                    idx, branch_idx = w.get_derivation(inp.bip32_derivations)
                     if gaps[i][branch_idx] < idx + type(w).GAP_LIMIT:
                         gaps[i][branch_idx] = idx + type(w).GAP_LIMIT
         # check all outputs if index is ok
@@ -603,8 +618,8 @@ class WalletManager(BaseApp):
             if not meta["outputs"][i]["change"]:
                 continue
             for j, w in enumerate(wallets):
-                if w.owns(psbt.tx.vout[i], out.bip32_derivations, out.witness_script or out.redeem_script):
-                    branch_idx, idx = w.get_derivation(out.bip32_derivations)
+                if w.owns(out):
+                    idx, branch_idx = w.get_derivation(out.bip32_derivations)
                     if branch_idx == 1:
                         meta["outputs"][i]["label"] += " change %d" % idx
                     elif branch_idx == 0:

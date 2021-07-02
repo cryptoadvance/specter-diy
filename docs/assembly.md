@@ -16,9 +16,7 @@ On the top side of the board there is a jumper that defines where it will take p
 
 ## Enclosure for DIY
 
-There are a few case designs made by the community:
-- https://www.thingiverse.com/thing:4680700 - very nice design by @SeedSigner, but access to SD card slot for firmware upgrades requires disassembly. You can also buy it from [his shop](https://btc-hardware-solutions.square.site/)
-- https://github.com/davewhiiite/wraith - full metal DIY
+Check out the [`enclosures`](./enclosures) folder.
 
 ## [Be creative!](./pictures/gallery/README.md)
 
