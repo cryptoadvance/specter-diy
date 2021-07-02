@@ -2,11 +2,14 @@
 
 There are a few case designs made by the community:
 
-## SeedSigner's enclosure v1
+## SeedSigner's "Barebones" enclosure, v2
 
-Very nice design by @SeedSigner, but access to SD card slot for firmware upgrades requires disassembly. You can also buy it from [his shop](https://btc-hardware-solutions.square.site/)
+Updated design from @SeedSigner (Twitter/Telegram) with a smaller form factor & MicroSD access.
+The printable .STL files are for sale for 20,000 sats (currently ~$7, price in sats will be adjusted as the dollar collapses against Bitcoin).
+Barebones v1 is available for download from the docs/enclosures/seedsigner folder.
+You can also buy it from [his shop](https://btc-hardware-solutions.square.site/)
 
-![](../pictures/gallery/seedsigner.jpg)
+![](../pictures/gallery/barebones_v2.jpg)
 
 https://www.thingiverse.com/thing:4680700 
 
