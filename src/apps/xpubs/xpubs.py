@@ -40,6 +40,10 @@ class XpubApp(BaseApp):
         if show_all:
             buttons += [
                 (
+                    "m/86h/%dh/%dh" % (coin, self.account),
+                    "Single Taproot\nm/86h/%dh/%dh" % (coin, self.account)
+                ),
+                (
                     "m/84h/%dh/%dh" % (coin, self.account),
                     "Single Native Segwit\nm/84h/%dh/%dh" % (coin, self.account)
                 ),
@@ -110,6 +114,7 @@ class XpubApp(BaseApp):
         derivations = [
             ('bip49', "p2wpkh", "m/49'/%d'/%d'" % (coin, self.account)),
             ('bip84', "p2sh-p2wpkh", "m/84'/%d'/%d'" % (coin, self.account)),
+            ('bip86', "p2tr", "m/86'/%d'/%d'" % (coin, self.account)),
             ('bip44', "p2pkh", "m/44'/%d'/%d'" % (coin, self.account)),
             ('bip48_2', "p2wsh", "m/48'/%d'/%d'/2'" % (coin, self.account)),
             ('bip48_1', "p2sh-p2wsh", "m/48'/%d'/%d'/1'" % (coin, self.account)),
@@ -203,6 +208,7 @@ class XpubApp(BaseApp):
         net = NETWORKS[self.network]
         descriptors = OrderedDict({
             "zpub": ("wpkh(%s%s/{0,1}/*)" % (prefix, xpub), "Native Segwit"),
+            "taproot": ("tr(%s%s/{0,1}/*)" % (prefix, xpub), "Taproot"),
             "ypub": ("sh(wpkh(%s%s/{0,1}/*))" % (prefix, xpub), "Nested Segwit"),
             "legacy": ("pkh(%s%s/{0,1}/*)" % (prefix, xpub), "Legacy"),
             # multisig is not supported yet - requires cosigners app
@@ -217,6 +223,18 @@ class XpubApp(BaseApp):
             buttons = [
                 (None, "Recommended"),
                 descriptors.pop("zpub"),
+                (None, "Other"),
+            ]
+        elif "/86h/" in derivation:
+            buttons = [
+                (None, "Recommended"),
+                descriptors.pop("taproot"),
+                (None, "Other"),
+            ]
+        elif "/44h/" in derivation:
+            buttons = [
+                (None, "Recommended"),
+                descriptors.pop("legacy"),
                 (None, "Other"),
             ]
         else:
@@ -236,6 +254,8 @@ class XpubApp(BaseApp):
                 name_suggestion = "Native %d" % self.account
             elif menuitem.startswith("sh(wpkh("):
                 name_suggestion = "Nested %d" % self.account
+            if menuitem.startswith("tr("):
+                name_suggestion = "Taproot %d" % self.account
             else:
                 name_suggestion = "Wallet %d" % self.account
             nn = name_suggestion

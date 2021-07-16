@@ -338,6 +338,10 @@ class WalletManager(BaseApp):
             out_psbt = PSBT(psbt.tx)
             sigsEnd = 0
             for i, inp in enumerate(psbt.inputs):
+                if inp.final_scriptwitness:
+                    sigsEnd += 1
+                    out_psbt.inputs[i].final_scriptwitness = inp.final_scriptwitness
+                    continue
                 sigsEnd += len(list(inp.partial_sigs.keys()))
                 out_psbt.inputs[i].partial_sigs = inp.partial_sigs
             del psbt
