@@ -14,7 +14,7 @@ from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
 from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
-from helpers import a2b_base64_stream
+from helpers import a2b_base64_stream, b2a_base64_stream
 import gc
 import json
 
@@ -207,9 +207,12 @@ class WalletManager(BaseApp):
             gc.collect()
             with open(self.tempdir+"/raw", "rb") as f:
                 res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
-            platform.delete_recursively(self.tempdir)
             if res is not None:
-                data, hsh = bcur_encode(res.read(), upper=True)
+                if isinstance(res, str):
+                    with open(res, "rb") as f:
+                        data, hsh = bcur_encode(f.read(), upper=True)
+                else:
+                    data, hsh = bcur_encode(res.read(), upper=True)
                 bcur_res = (b"UR:BYTES/" + hsh + "/" + data)
                 obj = {
                     "title": "Transaction is signed!",
@@ -269,15 +272,14 @@ class WalletManager(BaseApp):
                 # read in chunks, write to ram file
                 a2b_base64_stream(stream, f)
             res = None
-            try:
-                with open(self.tempdir+"/raw", "rb") as f:
-                    res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
-                if res:
-                    return BytesIO(b2a_base64(res.read()).decode().strip())
-            finally:
-                # cleanup
-                platform.delete_recursively(self.tempdir)
-            return res
+            with open(self.tempdir+"/raw", "rb") as f:
+                res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
+            if res:
+                with open(self.tempdir+"/signed_b64", "wb") as fout:
+                    with open(res, "rb") as fin:
+                        b2a_base64_stream(fin, fout)
+                return self.tempdir+"/signed_b64"
+            return
 
         psbtv = PSBTView.view(stream, compress=True)
         # check if all utxos are there and if there are custom sighashes
@@ -327,7 +329,7 @@ class WalletManager(BaseApp):
             else:
                 name = w.name
             spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
-        title = "Spending:\n" + "\n".join(spends)
+        title = "Inputs:\n" + "\n".join(spends)
         res = await show_screen(TransactionScreen(title, meta))
         if res:
             self.show_loader(title="Signing transaction...")
@@ -337,25 +339,29 @@ class WalletManager(BaseApp):
                 # fill derivation paths from proprietary fields
                 w.update_gaps(psbtv=psbtv)
                 w.save(self.keystore)
-            # sigs per wallet + keystore
-            sig_stream = BytesIO()
-            sig_count = 0
-            for i in range(psbtv.num_inputs):
-                inp = psbtv.input(i)
-                w.fill_scope(inp, self.keystore.fingerprint)
-                if w.has_private_keys:
-                    sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
-                sig_count += self.keystore.sign_input(psbtv, i, sig_stream, sighash, inp)
-                # add separator
-                sig_stream.write(b"\x00")
+            with open(self.tempdir+"/sigs", "wb") as sig_stream:
+                sig_count = 0
+                for i in range(psbtv.num_inputs):
+                    self.show_loader(title="Signing input %d of %d" % (i, psbtv.num_inputs))
+                    inp = psbtv.input(i)
+                    for w, _ in wallets:
+                        if w is None:
+                            continue
+                        w.fill_scope(inp, self.keystore.fingerprint)
+                        # sign with wallet if it has private keys
+                        if w.has_private_keys:
+                            sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
+                    # sign with keystore
+                    sig_count += self.keystore.sign_input(psbtv, i, sig_stream, sighash, inp)
+                    # add separator
+                    sig_stream.write(b"\x00")
             # remove unnecessary stuff:
             if sig_count == 0:
                 raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
-            b = BytesIO()
-            sig_stream.seek(0)
-            psbtv.write_to(b, compress=True, extra_input_streams=[sig_stream])
-            b.seek(0)
-            return b
+            with open(self.tempdir+"/signed_raw", "wb") as b:
+                with open(self.tempdir+"/sigs", "rb") as sig_stream:
+                    psbtv.write_to(b, compress=True, extra_input_streams=[sig_stream])
+            return self.tempdir+"/signed_raw"
 
     async def confirm_new_wallet(self, w, show_screen):
         keys = w.get_key_dicts(self.network)

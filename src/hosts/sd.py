@@ -3,6 +3,7 @@ from platform import fpath
 from io import BytesIO
 import os
 import platform
+from binascii import b2a_base64
 
 class SDHost(Host):
     """
@@ -95,13 +96,50 @@ class SDHost(Host):
         Returns a success message to display
         """
         # only psbt files are coming from the device right now
-        if not self.sd_file.endswith(".psbt"):
-            return
+        if self.sd_file.endswith(".psbt"):
+            new_fname = self.sd_file.replace(".psbt", ".signed.psbt")
+        else:
+            arr = self.sd_file.split(".")
+            if len(arr) == 1:
+                arr.append("completed")
+            else:
+                arr = arr[:-1] + ["completed", arr[-1]]
+            new_fname = ".".join(arr)
         self.reset_and_mount()
         try:
-            new_fname = self.sd_file.replace(".psbt", ".signed.psbt")
-            with open(new_fname, "wb") as fout:
-                self.copy(stream, fout)
+            if isinstance(stream, str):
+                with open(stream, "rb") as fin:
+                    with open(new_fname, "wb") as fout:
+                        self.copy(fin, fout)
+            else:
+                with open(new_fname, "wb") as fout:
+                    self.copy(stream, fout)
+                stream.seek(0)
         finally:
             platform.unmount_sdcard()
-        await self.manager.gui.alert("Success!", "\n\nSigned transaction is saved to\n\n%s" % new_fname.split("/")[-1])
+        show_qr = await self.manager.gui.prompt("Success!", "\n\nProcessed request is saved to\n\n%s\n\nShow as QR code?" % new_fname.split("/")[-1])
+        if show_qr:
+            await self._show_qr(stream, *args, **kwargs)
+
+    async def _show_qr(self, stream, meta, *args, **kwargs):
+        # if it's str - it's a file
+        if isinstance(stream, str):
+            with open(stream, "rb") as f:
+                response = f.read()
+        else:
+            response = stream.read()
+        try:
+            res = response.decode()
+        except:
+            res = b2a_base64(response).decode()
+        title = "Your data:"
+        note = None
+        if "title" in meta:
+            title = meta["title"]
+        if "note" in meta:
+            note = meta["note"]
+        msg = res
+        if "message" in meta:
+            msg = meta["message"]
+        await self.manager.gui.qr_alert(title, msg, res, note=note, qr_width=480)
+

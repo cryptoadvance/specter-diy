@@ -468,7 +468,12 @@ class QRHost(Host):
             return stream
 
     async def send_data(self, stream, meta):
-        response = stream.read().decode()
+        # if it's str - it's a file
+        if isinstance(stream, str):
+            with open(stream, "r") as f:
+                response = f.read()
+        else:
+            response = stream.read().decode()
         title = "Your data:"
         note = None
         if "title" in meta:

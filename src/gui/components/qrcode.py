@@ -4,6 +4,7 @@ import qrcode
 import math
 import gc
 import asyncio
+import platform
 
 qr_style = lv.style_t()
 qr_style.body.main_color = lv.color_hex(0xFFFFFF)
@@ -124,7 +125,7 @@ class QRCode(lv.obj):
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
 
     def set_text(self, text="Text"):
-        if self._text != text:
+        if platform.simulator and self._text != text:
             print("QR on screen:", text)
         self._text = text
         self.idx = None

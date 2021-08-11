@@ -129,4 +129,4 @@ def b2a_base64_stream(sin, sout):
         chunk = sin.read(48) # 16 quants 3 bytes each
         if len(chunk) == 0:
             break
-        sout.write(b2a_base64(chunk))
+        sout.write(b2a_base64(chunk).strip())
