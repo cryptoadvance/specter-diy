@@ -65,6 +65,9 @@ class RAMKeyStore(KeyStore):
     def sign_psbt(self, psbt, sighash=SIGHASH.ALL):
         psbt.sign_with(self.root, sighash)
 
+    def sign_input(self, psbtv, i, sig_stream, sighash=SIGHASH.ALL, extra_scope_data=None):
+        return psbtv.sign_input(i, self.root, sig_stream, sighash=sighash, extra_scope_data=extra_scope_data)
+
     def sign_hash(self, derivation, msghash: bytes):
         return self.root.derive(derivation).key.sign(msghash)
 

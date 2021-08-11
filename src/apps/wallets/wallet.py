@@ -138,20 +138,18 @@ class Wallet:
                 if der is not None:
                     return der
 
-    def update_gaps(self, psbt=None, known_idxs=None):
+    def update_gaps(self, psbtv=None, known_idxs=None):
         gaps = self.gaps
         # update from psbt
-        if psbt is not None:
-            scopes = []
-            for sc in psbt.inputs + psbt.outputs:
+        if psbtv is not None:
+            for i in range(psbtv.num_inputs+psbtv.num_outputs):
+                sc = psbtv.input(i) if i < psbtv.num_inputs else psbtv.output(i-psbtv.num_inputs)
                 if self.owns(sc):
-                    scopes.append(sc)
-            for scope in scopes:
-                res = self.get_derivation(scope.bip32_derivations)
-                if res is not None:
-                    idx, branch_idx = res
-                    if idx + self.GAP_LIMIT > gaps[branch_idx]:
-                        gaps[branch_idx] = idx + self.GAP_LIMIT + 1
+                    res = self.get_derivation(sc.bip32_derivations)
+                    if res is not None:
+                        idx, branch_idx = res
+                        if idx + self.GAP_LIMIT > gaps[branch_idx]:
+                            gaps[branch_idx] = idx + self.GAP_LIMIT + 1
         # update from gaps arg
         if known_idxs is not None:
             for i, gap in enumerate(gaps):
@@ -160,27 +158,26 @@ class Wallet:
         self.unused_recv = gaps[0] - self.GAP_LIMIT
         self.gaps = gaps
 
-    def fill_psbt(self, psbt, fingerprint):
+    def fill_scope(self, scope, fingerprint):
         """Fills derivation paths in inputs"""
-        for scope in psbt.inputs:
-            if not self.owns(scope):
-                continue
-            der = self.get_derivation(scope.bip32_derivations)
-            if der is None:
-                continue
-            idx, branch_idx = der
-            desc = self.descriptor.derive(idx, branch_index=branch_idx)
-            # find keys with our fingerprint
-            for key in desc.keys:
-                if key.fingerprint == fingerprint:
-                    pub = key.get_public_key()
-                    # fill our derivations
-                    scope.bip32_derivations[pub] = DerivationPath(
-                        fingerprint, key.derivation
-                    )
-            # fill script
-            scope.witness_script = desc.witness_script()
-            scope.redeem_script = desc.redeem_script()
+        if not self.owns(scope):
+            return
+        der = self.get_derivation(scope.bip32_derivations)
+        if der is None:
+            return
+        idx, branch_idx = der
+        desc = self.descriptor.derive(idx, branch_index=branch_idx)
+        # find keys with our fingerprint
+        for key in desc.keys:
+            if key.fingerprint == fingerprint:
+                pub = key.get_public_key()
+                # fill our derivations
+                scope.bip32_derivations[pub] = DerivationPath(
+                    fingerprint, key.derivation
+                )
+        # fill script
+        scope.witness_script = desc.witness_script()
+        scope.redeem_script = desc.redeem_script()
 
     @property
     def keys(self):
@@ -230,6 +227,24 @@ class Wallet:
             for k in keys:
                 if k.is_private:
                     psbt.sign_with(k.private_key, sighash)
+
+    def sign_input(self, psbtv, i, sig_stream, sighash=SIGHASH.ALL, extra_scope_data=None):
+        if not self.has_private_keys:
+            return 0
+        inp = psbtv.input(i)
+        inp.update(extra_scope_data)
+        der = self.get_derivation(inp.bip32_derivations)
+        if der is None:
+            return 0
+        idx, branch = der
+        derived = self.descriptor.derive(idx, branch_index=branch)
+        keys = [k for k in derived.keys if k.is_private]
+        count = 0
+        for k in keys:
+            if k.is_private:
+                count += psbtv.sign_input(i, k.private_key, sig_stream, sighash, extra_scope_data=extra_scope_data)
+        return count
+
 
     @classmethod
     def parse(cls, desc, path=None):
