@@ -273,6 +273,8 @@ class WalletManager(BaseApp):
             platform.delete_recursively(self.tempdir)
         else:
             psbt = PSBT.read_from(stream, compress=True)
+        # verify non_witness_utxo hashes
+        psbt.verify(ignore_missing=True)
         # check if all utxos are there and if there are custom sighashes
         sighash = SIGHASH.ALL
         custom_sighashes = []
