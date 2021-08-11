@@ -294,11 +294,13 @@ class WalletManager(BaseApp):
                 return self.tempdir+"/signed_b64"
             return
 
+        self.show_loader(title="Parsing transaction...")
         psbtv = PSBTView.view(stream, compress=True)
         # check if all utxos are there and if there are custom sighashes
         sighash = SIGHASH.ALL
         custom_sighashes = []
         for i in range(psbtv.num_inputs):
+            self.show_loader(title="Parsing input %d of %d..." % (i+1, psbtv.num_inputs))
             inp = psbtv.input(i)
             inp.verify(ignore_missing=True)
             if (not inp.is_verified) and inp.witness_utxo is None and inp.non_witness_utxo is None:
@@ -355,7 +357,7 @@ class WalletManager(BaseApp):
             with open(self.tempdir+"/sigs", "wb") as sig_stream:
                 sig_count = 0
                 for i in range(psbtv.num_inputs):
-                    self.show_loader(title="Signing input %d of %d" % (i, psbtv.num_inputs))
+                    self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
                     inp = psbtv.input(i)
                     for w, _ in wallets:
                         if w is None:
@@ -576,6 +578,7 @@ class WalletManager(BaseApp):
         }
         # detect wallet for all inputs
         for i in range(psbtv.num_inputs):
+            self.show_loader(title="Detecting wallet for input %d of %d..." % (i+1, psbtv.num_inputs))
             inp = psbtv.input(i)
             found = False
             meta["inputs"][i] = {
@@ -616,6 +619,7 @@ class WalletManager(BaseApp):
 
         # check change outputs
         for i in range(psbtv.num_outputs):
+            self.show_loader(title="Detecting wallet for output %d of %d..." % (i+1, psbtv.num_outputs))
             out = psbtv.output(i)
             for w in wallets:
                 if w is None:
