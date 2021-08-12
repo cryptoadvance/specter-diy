@@ -4,7 +4,7 @@ import os
 import pyb
 import gc
 
-simulator = sys.platform != "pyboard"
+simulator = (sys.platform in ["linux", "darwin"])
 
 try:
     import config

@@ -80,12 +80,20 @@ class USBHost(Host):
             self.respond(b"error: User cancelled")
         else:
             stream, meta = res
-            # loop until we read everything
+            # if it's str - it's a filename
+            if isinstance(stream, str):
+                with open(stream, "rb") as f:
+                    self._send_data(f)
+            else:
+                self._send_data(stream)
+
+    def _send_data(self, stream):
+        # loop until we read everything
+        chunk = stream.read(32)
+        while len(chunk) > 0:
+            self.usb.write(chunk)
             chunk = stream.read(32)
-            while len(chunk) > 0:
-                self.usb.write(chunk)
-                chunk = stream.read(32)
-            self.respond(b"")
+        self.respond(b"")
 
     def respond(self, data):
         self.usb.write(data)
