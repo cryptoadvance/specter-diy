@@ -3,7 +3,7 @@ from gui.screens import Menu, DerivationScreen, NumericScreen, Alert, InputScree
 from .screens import XPubScreen
 import json
 from binascii import hexlify
-from bitcoin.networks import NETWORKS
+from bitcoin.liquid.networks import NETWORKS
 from bitcoin import bip32
 from io import BytesIO
 import platform

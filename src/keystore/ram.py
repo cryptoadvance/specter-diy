@@ -5,6 +5,7 @@ from rng import get_random_bytes
 import hashlib
 import hmac
 from bitcoin import ec, bip39, bip32
+from bitcoin.liquid import slip77
 from bitcoin.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
@@ -28,6 +29,8 @@ class RAMKeyStore(KeyStore):
         self.root = None
         # root fingerprint
         self.fingerprint = None
+        # slip77 blinding key
+        self.slip77_key = None
         # private key at path m/0x1D'
         # used to encrypt & authenticate data
         # specific to this root key
@@ -58,6 +61,8 @@ class RAMKeyStore(KeyStore):
         seed = bip39.mnemonic_to_seed(self.mnemonic, password)
         self.root = bip32.HDKey.from_seed(seed)
         self.fingerprint = self.root.child(0).fingerprint
+        # slip 77 blinding key
+        self.slip77_key = slip77.master_blinding_from_seed(seed)
         # id key to sign and encrypt wallet files
         # stored on untrusted external chip
         self.idkey = self.root.child(0x1D, hardened=True).key.serialize()

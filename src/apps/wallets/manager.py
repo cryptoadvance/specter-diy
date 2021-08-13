@@ -7,7 +7,7 @@ import os
 from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
 from bitcoin.psbt import PSBT, DerivationPath
 from bitcoin.psbtview import PSBTView
-from bitcoin.networks import NETWORKS
+from bitcoin.liquid.networks import NETWORKS
 from bitcoin import script, bip32
 from bitcoin.transaction import SIGHASH
 from .wallet import WalletError, Wallet

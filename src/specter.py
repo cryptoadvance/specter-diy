@@ -18,7 +18,7 @@ from platform import (
 from hosts import Host, HostError
 from app import BaseApp
 from bitcoin import bip39
-from bitcoin.networks import NETWORKS
+from bitcoin.liquid.networks import NETWORKS
 
 # small helper functions
 from helpers import gen_mnemonic, fix_mnemonic, load_apps
@@ -312,9 +312,16 @@ class Specter:
         return self.settingsmenu
 
     async def select_network(self):
-        # dict is unordered unfortunately, so we need to use hardcoded arr
-        nets = ["main", "test", "regtest", "signet"]
-        buttons = [(net, NETWORKS[net]["name"]) for net in nets]
+        buttons = [
+            (None, "Production"),
+            ("main", "Mainnet"),
+            ("liquidv1", "Liquid"),
+            (None, "Testnets"),
+            ("test", "Testnet"),
+            ("signet", "Signet"),
+            ("regtest", "Regtest"),
+            ("elementsregtest", "Elements Regtest"),
+        ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
         if menuitem != 255:
