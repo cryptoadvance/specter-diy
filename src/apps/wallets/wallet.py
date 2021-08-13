@@ -4,7 +4,7 @@ import json
 from bitcoin import ec, hashes, script
 from bitcoin.liquid.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
-from bitcoin.descriptor import Descriptor
+from bitcoin.liquid.descriptor import LDescriptor as Descriptor
 from bitcoin.descriptor.arguments import AllowedDerivation
 from bitcoin.transaction import SIGHASH
 import hashlib
@@ -105,19 +105,22 @@ class Wallet:
         delete_recursively(self.path, include_self=True)
 
     def get_address(self, idx: int, network: str, branch_index=0):
-        sc, gap = self.script_pubkey([int(branch_index), idx])
-        return sc.address(NETWORKS[network]), gap
+        desc, gap = self.get_descriptor(idx, branch_index)
+        return desc.address(NETWORKS[network]), gap
+
+    def get_descriptor(self, idx: int, branch_index=0):
+        if branch_index < 0 or branch_index >= self.descriptor.num_branches:
+            raise WalletError("Invalid branch index %d - can be between 0 and %d" % (branch_index, self.descriptor.num_branches))
+        if idx < 0 or idx >= 0x80000000:
+            raise WalletError("Invalid index %d" % idx)
+        return self.descriptor.derive(idx, branch_index=branch_index), self.gaps[branch_index]
 
     def script_pubkey(self, derivation: list):
         """Returns script_pubkey and gap limit"""
         # derivation can be only two elements
         branch_idx, idx = derivation
-        if branch_idx < 0 or branch_idx >= self.descriptor.num_branches:
-            raise WalletError("Invalid branch index %d - can be between 0 and %d" % (branch_idx, self.descriptor.num_branches))
-        if idx < 0 or idx >= 0x80000000:
-            raise WalletError("Invalid index %d" % idx)
-        sc = self.descriptor.derive(idx, branch_index=branch_idx).script_pubkey()
-        return sc, self.gaps[branch_idx]
+        desc, gap = self.get_descriptor(idx, branch_idx)
+        return desc.script_pubkey(), gap
 
     @property
     def fingerprint(self):
