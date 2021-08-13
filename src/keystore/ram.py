@@ -10,7 +10,7 @@ from bitcoin.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
 from gui.screens import Alert, PinScreen, MnemonicScreen, Prompt
-
+from binascii import hexlify
 
 class RAMKeyStore(KeyStore):
     """
@@ -43,6 +43,10 @@ class RAMKeyStore(KeyStore):
         # if PIN changed we only need to re-encrypt
         # this secret, all the data remains the same
         self.enc_secret = None
+        # user key - same for RAM / SDCard keystore
+        # but different for smartcards
+        # to isolate card owners from each other
+        self._userkey = None
         self.initialized = False
         # show function for menus and stuff
         self.show = None
@@ -132,6 +136,17 @@ class RAMKeyStore(KeyStore):
                 self.secret = f.read()
         except:
             self.secret = self.create_new_secret(path)
+
+    @property
+    def userkey(self):
+        if self._userkey is None:
+            self._userkey = tagged_hash("userkey", self.secret)
+        return self._userkey
+
+    @property
+    def uid(self):
+        """Uniquie identifier for the user (unique for card / device)"""
+        return hexlify(tagged_hash("uid", self.userkey)[:4]).decode()
 
     @property
     def settings_key(self):
