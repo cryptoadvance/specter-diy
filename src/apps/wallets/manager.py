@@ -80,14 +80,13 @@ class WalletManager(BaseApp):
     button = "Wallets"
     prefixes = [b"addwallet", b"sign", b"showaddr", b"listwallets", b"addasset", b"dumpassets"]
     name = "wallets"
-    # hardcoded known assets
-    assets = {}
 
     def __init__(self, path):
         self.root_path = path
         platform.maybe_mkdir(path)
         self.path = None
         self.wallets = []
+        self.assets = {}
 
     def init(self, keystore, network, *args, **kwargs):
         """Loads or creates default wallets for new keystore or network"""
@@ -367,6 +366,32 @@ class WalletManager(BaseApp):
                     return
         # TODO: meta should be a stream as well (for large number of inputs / outputs)
         wallets, meta = self.parse_psbtview(psbtv)
+
+        # liquid asset stuff
+        if len(meta.get("unknown_assets",[])) > 0:
+            scr = Prompt(
+                "Warning!",
+                "\nUnknown assets in the transaction!\n\n\n"
+                "Do you want to label them?\n"
+                "Otherwise they will be rendered with partial hex id.",
+            )
+            if await show_screen(scr):
+                for asset in meta["unknown_assets"]:
+                    # return False if the user cancelled
+                    scr = InputScreen("Asset\n\n"+format_addr(hexlify(bytes(reversed(asset))).decode(), letters=8, words=2),
+                                note="\nChoose a label for unknown asset.\nBetter to keep it short, like LBTC or LDIY")
+                    scr.ta.set_pos(190, 350)
+                    scr.ta.set_width(100)
+                    lbl = await show_screen(scr)
+                    if lbl is None:
+                        return
+                    else:
+                        self.assets[asset] = lbl
+                self.save_assets()
+            for sc in meta["inputs"] + meta["outputs"]:
+                if sc.get("raw_asset"):
+                    sc["asset"] = self.asset_label(sc["raw_asset"])
+
         # there is an unknown wallet
         # wallet is a list of tuples: (wallet, amount)
         if None in [w[0] for w in wallets]:
@@ -389,6 +414,8 @@ class WalletManager(BaseApp):
             spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
         title = "Inputs:\n" + "\n".join(spends)
         res = await show_screen(TransactionScreen(title, meta))
+        del meta
+        gc.collect()
         if res:
             self.show_loader(title="Signing transaction...")
             for w, _ in wallets:
@@ -598,10 +625,13 @@ class WalletManager(BaseApp):
 
         # metadata for GUI
         meta = {
+            # we can't display fee percent if there are many assets
+            "hide_fee_percent": is_liquid(self.network),
             "default_asset": default_asset,
             "inputs": [{} for i in range(psbtv.num_inputs)],
             "outputs": [{} for i in range(psbtv.num_outputs)],
             "warnings": [],
+            "unknown_assets": [],
         }
         for i in range(psbtv.num_outputs):
             out = psbtv.output(i)
@@ -612,6 +642,13 @@ class WalletManager(BaseApp):
                 "value": out.value,
                 "change": False,
             })
+            if is_liquid(self.network):
+                meta["outputs"][i]["asset"] = self.asset_label(out.asset)
+                if out.asset not in self.assets:
+                    meta["outputs"][i]["raw_asset"] = out.asset
+                    if out.asset not in meta["unknown_assets"]:
+                        meta["unknown_assets"].append(out.asset)
+
         meta["fee"] = fee
         # detect wallet for all inputs
         for i in range(psbtv.num_inputs):
@@ -620,6 +657,13 @@ class WalletManager(BaseApp):
             found = False
             # value is stored in utxo for btc tx and in unblinded tx vin for liquid
             value = inp.utxo.value if not is_liquid(self.network) else inp.value
+
+            if is_liquid(self.network):
+                meta["inputs"][i]["asset"] = self.asset_label(inp.asset)
+                if inp.asset not in self.assets:
+                    meta["inputs"][i]["raw_asset"] = inp.asset
+                    if inp.asset not in meta["unknown_assets"]:
+                        meta["unknown_assets"].append(inp.asset)
 
             meta["inputs"][i].update({
                 "label": "Unknown wallet",
@@ -716,6 +760,15 @@ class WalletManager(BaseApp):
 
     ##### liquid stuff ######
 
+    def asset_label(self, asset):
+        if asset is None:
+            return "Undefined"
+        if asset in self.assets:
+            return self.assets[asset]
+        h = hexlify(bytes(reversed(asset))).decode()
+        # hex repr of the asset
+        return "L-"+h[:4]+"..."+h[-4:]
+
     def assets_json(self):
         assets = {}
         # no support for bytes...
@@ -723,11 +776,19 @@ class WalletManager(BaseApp):
             assets[hexlify(bytes(reversed(asset))).decode()] = self.assets[asset]
         return json.dumps(assets)
 
+    @property
+    def assets_path(self):
+        return self.root_path + "/uid" + self.keystore.uid
+
+    @property
+    def assets_file(self):
+        return self.assets_path + "/assets_" + self.network
+
     def save_assets(self):
-        path = self.root_path + "/uid" + self.keystore.uid
-        platform.maybe_mkdir(path)
+        platform.maybe_mkdir(self.assets_path)
         assets = self.assets_json()
-        self.keystore.save_aead(path + "/" + self.network, plaintext=assets.encode(), key=self.keystore.userkey)
+        self.keystore.save_aead(self.assets_file, plaintext=assets.encode(), key=self.keystore.userkey)
+
 
     def load_assets(self):
         self.assets = {}
@@ -737,10 +798,9 @@ class WalletManager(BaseApp):
                 bytes(reversed(unhexlify("6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"))): "LBTC",
                 bytes(reversed(unhexlify("ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2"))): "USDt",
             })
-        path = self.root_path + "/" + self.keystore.uid
-        platform.maybe_mkdir(path)
-        if platform.file_exists(path + "/" + self.network):
-            _, assets = self.keystore.load_aead(path + "/" + self.network, key=self.keystore.userkey)
+        platform.maybe_mkdir(self.assets_path)
+        if platform.file_exists(self.assets_file):
+            _, assets = self.keystore.load_aead(self.assets_file, key=self.keystore.userkey)
             assets = json.loads(assets.decode())
             # no support for bytes...
             for asset in assets:

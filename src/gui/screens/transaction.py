@@ -6,6 +6,7 @@ from ..decorators import on_release
 
 class TransactionScreen(Prompt):
     def __init__(self, title, meta):
+        self.default_asset = meta.get("default_asset", "BTC")
         send_amount = sum(
             [out["value"] for out in meta["outputs"] if not out["change"]]
         )
@@ -61,7 +62,7 @@ class TransactionScreen(Prompt):
                 continue
             obj = self.show_output(out, obj)
 
-        if send_amount > 0:
+        if send_amount > 0 and not meta.get("hide_fee_percent", False):
             fee_percent = meta["fee"] * 100 / send_amount
             fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
         # back to wallet
@@ -91,7 +92,7 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            lbl.set_text("%.8f BTC from %s" % (inp["value"]/1e8, inp["label"]))
+            lbl.set_text("%.8f %s from %s" % (inp["value"]/1e8, inp.get("asset", self.default_asset), inp.get("label", "Unknown wallet")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
@@ -117,6 +118,7 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
+            lbl.set_text("%.8f %s to %s" % (out["value"]/1e8, out.get("asset", self.default_asset), out.get("label", "")))
             lbl.set_text("%.8f BTC to %s" % (out["value"]/1e8, out.get("label", "")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
@@ -151,7 +153,7 @@ class TransactionScreen(Prompt):
     def show_output(self, out, obj):
         # show output
         lbl = add_label(
-            "%.8f BTC to" % (out["value"] / 1e8), style="title", scr=self.page
+            "%.8f %s to" % (out["value"] / 1e8, out.get("asset", self.default_asset)), style="title", scr=self.page
         )
         lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         obj = lbl
