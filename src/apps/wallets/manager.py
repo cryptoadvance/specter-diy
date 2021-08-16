@@ -175,6 +175,9 @@ class WalletManager(BaseApp):
             # rewind
             stream.seek(0)
             return SIGN_BCUR, stream
+        if data[:5] in [PSBTView.MAGIC, PSETView.MAGIC]:
+            stream.seek(0)
+            return SIGN_PSBT, stream
         if data[:4] in [b"cHNi", b"cHNl"]:
             try:
                 psbt = a2b_base64(data)
@@ -321,7 +324,6 @@ class WalletManager(BaseApp):
             with open(self.tempdir+"/raw", "wb") as f:
                 # read in chunks, write to ram file
                 a2b_base64_stream(stream, f)
-            res = None
             with open(self.tempdir+"/raw", "rb") as f:
                 res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
             if res:
@@ -332,31 +334,20 @@ class WalletManager(BaseApp):
             return
 
         self.show_loader(title="Parsing transaction...")
+        # preprocess stream - parse psbt, check wallets in inputs and outputs,
+        # get metadata to display, default sighash for signing
+        psbtv, wallets, meta, sighash = self.preprocess_psbt(stream)
 
-        PSBTViewClass = PSETView if is_liquid(self.network) else PSBTView
-        psbtv = PSBTViewClass.view(stream, compress=True)
-
-        # we sign rangeproofs by default as well, to verify addresses
-        # check if all utxos are there and if there are custom sighashes
-        # sighash = (SIGHASH.ALL | SIGHASH.RANGEPROOF) if is_liquid(self.network) else SIGHASH.ALL
-        sighash = SIGHASH.ALL
-        custom_sighashes = []
-        for i in range(psbtv.num_inputs):
-            self.show_loader(title="Parsing input %d of %d..." % (i+1, psbtv.num_inputs))
-            inp = psbtv.input(i)
-            inp.verify(ignore_missing=True)
-            if (not inp.is_verified) and inp.witness_utxo is None and inp.non_witness_utxo is None:
-                raise WalletError("Invalid PSBT - missing previous transaction")
-            if inp.sighash_type and inp.sighash_type != SIGHASH.ALL:
-                custom_sighashes.append((i, inp.sighash_type))
-
+        # check if there are any custom sighashes
+        custom_sighashes = meta['custom_sighashes']
+        # ask the user if he wants to sign in case of non-default sighashes
         if len(custom_sighashes) > 0:
             txt = [("Input %d: " % i) + SIGHASH_NAMES[sh]
                     for (i, sh) in custom_sighashes]
-            canceltxt = "Only sign ALL" if len(custom_sighashes) != psbtv.num_inputs else "Cancel"
+            canceltxt = ("Only proceed %s" % SIGHASH_NAMES[sighash]) if len(custom_sighashes) != psbtv.num_inputs else "Cancel"
             confirm = await show_screen(Prompt("Warning!",
                 "\nCustom SIGHASH flags are used!\n\n"+"\n".join(txt),
-                confirm_text="Sign anyway", cancel_text=canceltxt
+                confirm_text="Proceed anyway", cancel_text=canceltxt
             ))
             if confirm:
                 sighash = None
@@ -364,10 +355,8 @@ class WalletManager(BaseApp):
                 if len(custom_sighashes) == psbtv.num_inputs:
                     # nothing to sign
                     return
-        # TODO: meta should be a stream as well (for large number of inputs / outputs)
-        wallets, meta = self.parse_psbtview(psbtv)
 
-        # liquid asset stuff
+        # liquid asset stuff - offer to label unknown assets
         if len(meta.get("unknown_assets",[])) > 0:
             scr = Prompt(
                 "Warning!",
@@ -392,7 +381,7 @@ class WalletManager(BaseApp):
                 if sc.get("raw_asset"):
                     sc["asset"] = self.asset_label(sc["raw_asset"])
 
-        # there is an unknown wallet
+        # check if any inputs belong to unknown wallets
         # wallet is a list of tuples: (wallet, amount)
         if None in [w[0] for w in wallets]:
             scr = Prompt(
@@ -405,6 +394,8 @@ class WalletManager(BaseApp):
             proceed = await show_screen(scr)
             if not proceed:
                 return None
+
+        # build title for the tx screen
         spends = []
         for w, amount in wallets:
             if w is None:
@@ -416,36 +407,11 @@ class WalletManager(BaseApp):
         res = await show_screen(TransactionScreen(title, meta))
         del meta
         gc.collect()
+        # sign transaction if the user confirmed
         if res:
             self.show_loader(title="Signing transaction...")
-            for w, _ in wallets:
-                if w is None:
-                    continue
-                # fill derivation paths from proprietary fields
-                w.update_gaps(psbtv=psbtv)
-                w.save(self.keystore)
-            with open(self.tempdir+"/sigs", "wb") as sig_stream:
-                sig_count = 0
-                for i in range(psbtv.num_inputs):
-                    self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
-                    inp = psbtv.input(i)
-                    for w, _ in wallets:
-                        if w is None:
-                            continue
-                        w.fill_scope(inp, self.keystore.fingerprint)
-                        # sign with wallet if it has private keys
-                        if w.has_private_keys:
-                            sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
-                    # sign with keystore
-                    sig_count += self.keystore.sign_input(psbtv, i, sig_stream, sighash, inp)
-                    # add separator
-                    sig_stream.write(b"\x00")
-            # remove unnecessary stuff:
-            if sig_count == 0:
-                raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
-            with open(self.tempdir+"/signed_raw", "wb") as b:
-                with open(self.tempdir+"/sigs", "rb") as sig_stream:
-                    psbtv.write_to(b, compress=True, extra_input_streams=[sig_stream])
+            with open(self.tempdir+"/signed_raw", "wb") as f:
+                sig_count = self.sign_psbtview(psbtv, f, wallets, sighash)
             return self.tempdir+"/signed_raw"
 
     async def confirm_new_wallet(self, w, show_screen):
@@ -603,6 +569,62 @@ class WalletManager(BaseApp):
                     if a == addr:
                         return w, (idx, branch_idx)
         raise WalletError("Can't find wallet owning address %s" % addr)
+
+    def preprocess_psbt(self, stream):
+        PSBTViewClass = PSETView if is_liquid(self.network) else PSBTView
+        psbtv = PSBTViewClass.view(stream, compress=True)
+
+        # Verify PSBT inputs and check sighashes
+
+        # On Liquid we sign rangeproofs by default as well.
+        # It is required if we want to make sure we will be able to unblind tx.
+        # check if all utxos are there and if there are custom sighashes
+        # sighash = (SIGHASH.ALL | SIGHASH.RANGEPROOF) if is_liquid(self.network) else SIGHASH.ALL
+        default_sighash = SIGHASH.ALL
+        custom_sighashes = []
+        for i in range(psbtv.num_inputs):
+            self.show_loader(title="Parsing input %d of %d..." % (i+1, psbtv.num_inputs))
+            inp = psbtv.input(i)
+            inp.verify(ignore_missing=True)
+            if (not inp.is_verified) and inp.witness_utxo is None and inp.non_witness_utxo is None:
+                raise WalletError("Invalid PSBT - missing previous transaction")
+            if inp.sighash_type and inp.sighash_type != default_sighash:
+                custom_sighashes.append((i, inp.sighash_type))
+
+        # TODO: meta should be a stream as well (for large number of inputs / outputs)
+        wallets, meta = self.parse_psbtview(psbtv)
+        meta["custom_sighashes"] = custom_sighashes
+
+        return psbtv, wallets, meta, default_sighash
+
+    def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
+        for w, _ in wallets:
+            if w is None:
+                continue
+            # fill derivation paths from proprietary fields
+            w.update_gaps(psbtv=psbtv)
+            w.save(self.keystore)
+        sig_count = 0
+        with open(self.tempdir+"/sigs", "wb") as sig_stream:
+            for i in range(psbtv.num_inputs):
+                self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
+                inp = psbtv.input(i)
+                for w, _ in wallets:
+                    if w is None:
+                        continue
+                    w.fill_scope(inp, self.keystore.fingerprint)
+                    # sign with wallet if it has private keys
+                    if w.has_private_keys:
+                        sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
+                # sign with keystore
+                sig_count += self.keystore.sign_input(psbtv, i, sig_stream, sighash, inp)
+                # add separator
+                sig_stream.write(b"\x00")
+        if sig_count == 0:
+            raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
+        # remove unnecessary stuff:
+        with open(self.tempdir+"/sigs", "rb") as sig_stream:
+            psbtv.write_to(out_stream, compress=True, extra_input_streams=[sig_stream])
 
     def parse_psbtview(self, psbtv):
         """Detects a wallet for transaction and returns an object to display"""
