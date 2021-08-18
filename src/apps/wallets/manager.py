@@ -6,10 +6,10 @@ from gui.common import format_addr
 import platform
 import os
 from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
-from bitcoin import script, bip32, ec
+from bitcoin import script, bip32, ec, hashes
 from bitcoin.psbt import DerivationPath
 from bitcoin.psbtview import PSBTView
-from bitcoin.liquid.psetview import PSETView
+from bitcoin.liquid.psetview import PSETView, read_write
 from bitcoin.liquid.networks import NETWORKS
 from bitcoin.liquid.transaction import LSIGHASH as SIGHASH
 from bitcoin.liquid.addresses import address as liquid_address
@@ -20,6 +20,7 @@ from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_strea
 from helpers import a2b_base64_stream, b2a_base64_stream, is_liquid
 import gc
 import json
+import secp256k1
 
 SIGN_PSBT = 0x01
 ADD_WALLET = 0x02
@@ -54,6 +55,8 @@ for sh in list(SIGHASH_NAMES):
 
 def get_address(psbtout, network):
     """Helper function to get an address for every output"""
+    if isinstance(network, str):
+        network = NETWORKS[network]
     if is_liquid(network):
         # liquid fee
         if psbtout.script_pubkey.data == b"":
@@ -335,84 +338,95 @@ class WalletManager(BaseApp):
 
         self.show_loader(title="Parsing transaction...")
         # preprocess stream - parse psbt, check wallets in inputs and outputs,
-        # get metadata to display, default sighash for signing
-        psbtv, wallets, meta, sighash = self.preprocess_psbt(stream)
+        # get metadata to display, default sighash for signing,
+        # fill missing metadata and store it in temp file:
+        with open(self.tempdir + "/filled_psbt", "wb") as fout:
+            PSBTViewClass, wallets, meta, sighash = self.preprocess_psbt(stream, fout)
+        # now we can work with copletely filled psbt:
+        with open(self.tempdir + "/filled_psbt", "rb") as f:
+            psbtv = PSBTViewClass(f)
 
-        # check if there are any custom sighashes
-        custom_sighashes = meta['custom_sighashes']
-        # ask the user if he wants to sign in case of non-default sighashes
-        if len(custom_sighashes) > 0:
-            txt = [("Input %d: " % i) + SIGHASH_NAMES[sh]
-                    for (i, sh) in custom_sighashes]
-            canceltxt = ("Only proceed %s" % SIGHASH_NAMES[sighash]) if len(custom_sighashes) != psbtv.num_inputs else "Cancel"
-            confirm = await show_screen(Prompt("Warning!",
-                "\nCustom SIGHASH flags are used!\n\n"+"\n".join(txt),
-                confirm_text="Proceed anyway", cancel_text=canceltxt
-            ))
-            if confirm:
-                sighash = None
-            else:
-                if len(custom_sighashes) == psbtv.num_inputs:
-                    # nothing to sign
-                    return
-
-        # liquid asset stuff - offer to label unknown assets
-        if len(meta.get("unknown_assets",[])) > 0:
-            scr = Prompt(
-                "Warning!",
-                "\nUnknown assets in the transaction!\n\n\n"
-                "Do you want to label them?\n"
-                "Otherwise they will be rendered with partial hex id.",
-            )
-            if await show_screen(scr):
-                for asset in meta["unknown_assets"]:
-                    # return False if the user cancelled
-                    scr = InputScreen("Asset\n\n"+format_addr(hexlify(bytes(reversed(asset))).decode(), letters=8, words=2),
-                                note="\nChoose a label for unknown asset.\nBetter to keep it short, like LBTC or LDIY")
-                    scr.ta.set_pos(190, 350)
-                    scr.ta.set_width(100)
-                    lbl = await show_screen(scr)
-                    if lbl is None:
+            # check if there are any custom sighashes
+            custom_sighashes = meta['custom_sighashes']
+            # ask the user if he wants to sign in case of non-default sighashes
+            if len(custom_sighashes) > 0:
+                txt = [("Input %d: " % i) + SIGHASH_NAMES[sh]
+                        for (i, sh) in custom_sighashes]
+                canceltxt = ("Only proceed %s" % SIGHASH_NAMES[sighash]) if len(custom_sighashes) != psbtv.num_inputs else "Cancel"
+                confirm = await show_screen(Prompt("Warning!",
+                    "\nCustom SIGHASH flags are used!\n\n"+"\n".join(txt),
+                    confirm_text="Proceed anyway", cancel_text=canceltxt
+                ))
+                if confirm:
+                    # we set sighash to None
+                    # if we want to use whatever sighash is provided in input
+                    sighash = None
+                else:
+                    # if we are forced to use default sighash - check
+                    # that not all inputs have custom sighashes
+                    if len(custom_sighashes) == psbtv.num_inputs:
+                        # nothing to sign
                         return
-                    else:
-                        self.assets[asset] = lbl
-                self.save_assets()
-            for sc in meta["inputs"] + meta["outputs"]:
-                if sc.get("raw_asset"):
-                    sc["asset"] = self.asset_label(sc["raw_asset"])
 
-        # check if any inputs belong to unknown wallets
-        # wallet is a list of tuples: (wallet, amount)
-        if None in [w[0] for w in wallets]:
-            scr = Prompt(
-                "Warning!",
-                "\nUnknown wallet in inputs!\n\n\n"
-                "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
-                "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
-                "Proceed to the transaction confirmation?",
-            )
-            proceed = await show_screen(scr)
-            if not proceed:
-                return None
+            # liquid stuff - offer to label unknown assets
+            if is_liquid(self.network) and len(meta.get("unknown_assets",[])) > 0:
+                scr = Prompt(
+                    "Warning!",
+                    "\nUnknown assets in the transaction!\n\n\n"
+                    "Do you want to label them?\n"
+                    "Otherwise they will be rendered with partial hex id.",
+                )
+                if await show_screen(scr):
+                    for asset in meta["unknown_assets"]:
+                        # return False if the user cancelled
+                        scr = InputScreen("Asset\n\n"+format_addr(hexlify(bytes(reversed(asset))).decode(), letters=8, words=2),
+                                    note="\nChoose a label for unknown asset.\nBetter to keep it short, like LBTC or LDIY")
+                        scr.ta.set_pos(190, 350)
+                        scr.ta.set_width(100)
+                        lbl = await show_screen(scr)
+                        # if user didn't label the asset - go to the next one
+                        if not lbl:
+                            continue
+                        else:
+                            self.assets[asset] = lbl
+                    self.save_assets()
+                # replace labels we just saved
+                for sc in meta["inputs"] + meta["outputs"]:
+                    if sc.get("raw_asset"):
+                        sc["asset"] = self.asset_label(sc["raw_asset"])
 
-        # build title for the tx screen
-        spends = []
-        for w, amount in wallets:
-            if w is None:
-                name = "Unknown wallet"
-            else:
-                name = w.name
-            spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
-        title = "Inputs:\n" + "\n".join(spends)
-        res = await show_screen(TransactionScreen(title, meta))
-        del meta
-        gc.collect()
-        # sign transaction if the user confirmed
-        if res:
-            self.show_loader(title="Signing transaction...")
-            with open(self.tempdir+"/signed_raw", "wb") as f:
-                sig_count = self.sign_psbtview(psbtv, f, wallets, sighash)
-            return self.tempdir+"/signed_raw"
+            # check if any inputs belong to unknown wallets
+            # items in wallets list are tuples: (wallet, amount)
+            if None in [wallet for wallet, amount in wallets]:
+                scr = Prompt(
+                    "Warning!",
+                    "\nUnknown wallet in inputs!\n\n\n"
+                    "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
+                    "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
+                    "Proceed to the transaction confirmation?",
+                )
+                proceed = await show_screen(scr)
+                if not proceed:
+                    return None
+
+            # build title for the tx screen
+            spends = []
+            for w, amount in wallets:
+                if w is None:
+                    name = "Unknown wallet"
+                else:
+                    name = w.name
+                spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
+            title = "Inputs:\n" + "\n".join(spends)
+            res = await show_screen(TransactionScreen(title, meta))
+            del meta
+            gc.collect()
+            # sign transaction if the user confirmed
+            if res:
+                self.show_loader(title="Signing transaction...")
+                with open(self.tempdir+"/signed_raw", "wb") as f:
+                    sig_count = self.sign_psbtview(psbtv, f, wallets, sighash)
+                return self.tempdir+"/signed_raw"
 
     async def confirm_new_wallet(self, w, show_screen):
         keys = w.get_key_dicts(self.network)
@@ -504,6 +518,7 @@ class WalletManager(BaseApp):
             der[1:],
             xpub.to_base58(NETWORKS[self.network]["xpub"]),
         )
+        # add blinding key to the descriptor if we are on liquid network
         if is_liquid(self.network):
             desc = "blinded(slip77(%s),%s)" % (self.keystore.slip77_key, desc)
         w = Wallet.parse("Default&"+desc, path)
@@ -519,6 +534,7 @@ class WalletManager(BaseApp):
             raise WalletError("Can't parse descriptor\n\n%s" % str(e))
         if str(w.descriptor) in [str(ww.descriptor) for ww in self.wallets]:
             raise WalletError("Wallet with this descriptor already exists")
+        # check that xpubs and tpubs are not mixed in the same descriptor:
         if not w.check_network(NETWORKS[self.network]):
             raise WalletError("Some keys don't belong to the %s network!" % NETWORKS[self.network]["name"])
         return w
@@ -570,32 +586,264 @@ class WalletManager(BaseApp):
                         return w, (idx, branch_idx)
         raise WalletError("Can't find wallet owning address %s" % addr)
 
-    def preprocess_psbt(self, stream):
+    def preprocess_psbt(self, stream, fout):
+        """
+        Processes incoming PSBT, fills missing information and writes to fout.
+        Returns:
+        - PSBTView class to use (PSBTView or PSETView)
+        - wallets in inputs: list of tuples (wallet, amount)
+        - metadata for tx display including warnings that require user confirmation
+        - default sighash to use for signing
+        """
+        # TODO:
+        # - separate btc vs liquid as much as possible
+        # - make functions working with each input and output
         PSBTViewClass = PSETView if is_liquid(self.network) else PSBTView
+        # compress = True flag will make sure large fields won't be loaded to RAM
         psbtv = PSBTViewClass.view(stream, compress=True)
 
-        # Verify PSBT inputs and check sighashes
-
-        # On Liquid we sign rangeproofs by default as well.
-        # It is required if we want to make sure we will be able to unblind tx.
-        # check if all utxos are there and if there are custom sighashes
-        # sighash = (SIGHASH.ALL | SIGHASH.RANGEPROOF) if is_liquid(self.network) else SIGHASH.ALL
+        # Default sighash to use for signing
         default_sighash = SIGHASH.ALL
-        custom_sighashes = []
+        # On Liquid we also cover rangeproofs
+        if is_liquid(self.network):
+            default_sighash |= SIGHASH.RANGEPROOF
+
+        # Start with global fields of PSBT
+
+        # On Liquid we check if txseed is provided (for deterministic blinding)
+        # It will be None if it is not there.
+        blinding_seed = psbtv.get_value(b"\xfc\x07specter\x00")
+        if blinding_seed:
+            hseed = hashes.tagged_hash_init("liquid/txseed", blinding_seed)
+            vals = [] # values
+            abfs = [] # asset blinding factors
+            vbfs = [] # value blinding factors
+
+        # Write global scope first
+        psbtv.stream.seek(psbtv.offset)
+        res = read_write(psbtv.stream, fout, psbtv.first_scope-psbtv.offset)
+
+        # string representation of the Bitcoin for wallet processing
+        if is_liquid(self.network):
+            default_asset = "LBTC" if self.network == "liquidv1" else "tLBTC"
+        else:
+            default_asset = "BTC" if self.network == "main" else "tBTC"
+        fee = { default_asset: 0 }
+
+        # here we will store all wallets that we detect in inputs
+        # wallet: {asset: amount}
+        # For BTC it will be always { default_asset: amount }
+        wallets = {}
+        meta = {
+            "inputs": [{} for i in range(psbtv.num_inputs)],
+            "outputs": [{} for i in range(psbtv.num_outputs)],
+            "default_asset": default_asset,
+        }
+
+        fingerprint = self.keystore.fingerprint
+        # We need to detect wallets owning inputs and outputs,
+        # in case of liquid - unblind them.
+        # Fill all necessary information:
+        # For Bitcoin: bip32 derivations, witness script, redeem script
+        # For Liquid: same + values, assets, commitments, proofs etc.
+        # At the end we should have the most complete PSBT / PSET possible
         for i in range(psbtv.num_inputs):
-            self.show_loader(title="Parsing input %d of %d..." % (i+1, psbtv.num_inputs))
+            # load input to memory, verify it (check prevtx hash)
             inp = psbtv.input(i)
+            metainp = meta["inputs"][i]
+            # verify, do not require non_witness_utxo if witness_utxo is set
             inp.verify(ignore_missing=True)
-            if (not inp.is_verified) and inp.witness_utxo is None and inp.non_witness_utxo is None:
-                raise WalletError("Invalid PSBT - missing previous transaction")
-            if inp.sighash_type and inp.sighash_type != default_sighash:
-                custom_sighashes.append((i, inp.sighash_type))
 
-        # TODO: meta should be a stream as well (for large number of inputs / outputs)
-        wallets, meta = self.parse_psbtview(psbtv)
-        meta["custom_sighashes"] = custom_sighashes
+            # check sighash in the input
+            if inp.sighash_type is not None and inp.sighash_type != default_sighash:
+                if inp.sighash_type not in SIGHASH_NAMES:
+                    raise WalletError("Unknown sighash type in the transaction!")
+                metainp["sighash"] = SIGHASH_NAMES[inp.sighash_type]
 
-        return psbtv, wallets, meta, default_sighash
+            # in Liquid we may need to rewind the rangeproof to get values
+            rangeproof_offset = None
+            if is_liquid(self.network):
+                off = psbtv.seek_to_scope(i)
+                # find offset of the rangeproof if it exists
+                rangeproof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x0e', from_current=True)
+                # add scope offset
+                if rangeproof_offset is not None:
+                    rangeproof_offset += off
+
+            # Find wallets owning the inputs and fill scope data:
+            # first we check already detected wallet owns the input
+            # as in most common case all inputs are owned by the same wallet.
+            wallet = None
+            for w in wallets:
+                # pass rangeproof offset if it's in the scope
+                if w.fill_scope(inp, fingerprint,
+                                stream=psbtv.stream, rangeproof_offset=rangeproof_offset):
+                    wallet = w
+                    break
+            if wallet is None:
+                # find wallet and append it to wallets
+                for w in self.wallets:
+                    # pass rangeproof offset if it's in the scope
+                    if w.fill_scope(inp, fingerprint,
+                                    stream=psbtv.stream, rangeproof_offset=rangeproof_offset):
+                        wallet = w
+                        break
+            # add wallet to tx wallets dict
+            if wallet not in wallets:
+                wallets[wallet] = {}
+
+            # Get values (and assets) and store in metadata and wallets dict
+            if not is_liquid(self.network):
+                # bitcoin it easy, just add value to the asset
+                asset = default_asset
+                value = inp.utxo.value
+            else:
+                # we don't know yet if we unblinded stuff or not
+                asset = inp.asset or inp.utxo.asset
+                value = inp.value or inp.utxo.value
+                # blinded assets are 33-bytes long, unblinded - 32
+                if not (len(asset) == 32 and isinstance(value, int)):
+                    asset = None
+                    value = 0
+                if blinding_seed:
+                    # update blinding seed
+                    hseed.update(bytes(reversed(inp.txid)))
+                    hseed.update(inp.vout.to_bytes(4,'little'))
+                    vals.append(value)
+                    abfs.append(inp.asset_blinding_factor or b"\x00"*32)
+                    vbfs.append(inp.value_blinding_factor or b"\x00"*32)
+
+            wallets[wallet][asset] = wallets[wallet].get(asset, 0) + value
+            metainp.update({
+                "label": wallet.name if wallet else "Unknown wallet",
+                "value": value,
+            })
+            if asset != default_asset:
+                metainp.update({"asset": self.asset_label(asset)})
+                if asset not in self.assets:
+                    metainp.update({"raw_asset": asset})
+            inp.write_to(fout)
+
+        # if blinding seed is set - blind outputs that are missing proofs
+        if is_liquid(self.network) and blinding_seed:
+            blinding_out_indexes = []
+            for i in range(psbtv.num_outputs):
+                out = psbtv.output(i)
+                hseed.update(out.script_pubkey.serialize())
+            txseed = hseed.digest()
+            for i in range(psbtv.num_outputs):
+                out = psbtv.output(i)
+                if out.blinding_pubkey:
+                    blinding_out_indexes.append(i)
+                    abfs.append(hashes.tagged_hash("liquid/abf", txseed+i.to_bytes(4,'little')))
+                    vbfs.append(hashes.tagged_hash("liquid/vbf", txseed+i.to_bytes(4,'little')))
+                    vals.append(out.value)
+            # get last vbf from scope
+            out = psbtv.output(blinding_out_indexes[-1])
+            if out.value_blinding_factor:
+                vbfs[-1] = out.value_blinding_factor
+            else:
+                raise NotImplementedError()
+                vbfs[-1] = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, psbtv.num_inputs)
+
+            # calculate commitments (surj proof etc)
+
+            # in_tags = [inp.asset for inp in self.inputs]
+            # in_gens = [secp256k1.generator_parse(inp.utxo.asset) for inp in self.inputs]
+
+            # for i, out in enumerate(self.outputs):
+            #     if out.blinding_pubkey is None:
+            #         continue
+            #     gen = secp256k1.generator_generate_blinded(out.asset, out.asset_blinding_factor)
+            #     out.asset_commitment = secp256k1.generator_serialize(gen)
+            #     value_commitment = secp256k1.pedersen_commit(out.value_blinding_factor, out.value, gen)
+            #     out.value_commitment = secp256k1.pedersen_commitment_serialize(value_commitment)
+
+            #     proof_seed = hashes.tagged_hash("liquid/surjection_proof", txseed+i.to_bytes(4,'little'))
+            #     proof, in_idx = secp256k1.surjectionproof_initialize(in_tags, out.asset, seed=proof_seed)
+            #     secp256k1.surjectionproof_generate(proof, in_idx, in_gens, gen, self.inputs[in_idx].asset_blinding_factor, out.asset_blinding_factor)
+            #     out.surjection_proof = secp256k1.surjectionproof_serialize(proof)
+
+            #     # generate range proof
+            #     rangeproof_nonce = hashes.tagged_hash("liquid/range_proof", txseed+i.to_bytes(4,'little'))
+            #     out.reblind(rangeproof_nonce)
+        # otherwise - verify all outputs
+        for i in range(psbtv.num_outputs):
+            out = psbtv.output(i)
+            metaout = meta["outputs"][i]
+            rangeproof_offset = None
+            # surj_proof_offset = None
+            # find rangeproof and surjection proof
+            if is_liquid(self.network):
+                off = psbtv.seek_to_scope(psbtv.num_inputs+i)
+                # find offset of the rangeproof if it exists
+                rangeproof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x04', from_current=True)
+                if rangeproof_offset is None:
+                    psbtv.seek_to_scope(psbtv.num_inputs+i)
+                    # alternative key definition (psetv0)
+                    rangeproof_offset = psbtv.seek_to_value(b'\xfc\x08elements\x04', from_current=True)
+                if rangeproof_offset is not None:
+                    rangeproof_offset += off
+                # psbtv.seek_to_scope(psbtv.num_inputs+i)
+                # surj_proof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x05', from_current=True)
+                # if surj_proof_offset is None:
+                #     psbtv.seek_to_scope(psbtv.num_inputs+i)
+                #     # alternative key definition (psetv0)
+                #     surj_proof_offset = psbtv.seek_to_value(b'\xfc\x08elements\x04', from_current=True)
+                # if surj_proof_offset is not None:
+                #     surj_proof_offset += off
+            wallet = None
+            for w in wallets:
+                # pass rangeproof offset if it's in the scope
+                if w.fill_scope(out, fingerprint,
+                                stream=psbtv.stream,
+                                rangeproof_offset=rangeproof_offset,
+                                # surj_proof_offset=surj_proof_offset,
+                ):
+                    wallet = w
+                    break
+            if wallet is None:
+                # find wallet and append it to wallets
+                for w in self.wallets:
+                    # pass rangeproof offset if it's in the scope
+                    if w.fill_scope(out, fingerprint,
+                                    stream=psbtv.stream,
+                                    rangeproof_offset=rangeproof_offset,
+                                    # surj_proof_offset=surj_proof_offset,
+                    ):
+                        wallet = w
+                        break
+            # - lq: generate commitments and rangeproofs
+            #       if blinding pubkey is set and seed is set.
+            # Get values (and assets) and store in metadata and wallets dict
+            if not is_liquid(self.network):
+                # bitcoin it easy, just add value to the asset
+                asset = default_asset
+                value = out.value
+            else:
+                # we don't know yet if we unblinded stuff or not
+                asset = out.asset or out.asset_commitment
+                value = out.value or out.value_commitment
+                # blinded assets are 33-bytes long, unblinded - 32
+                if not (len(asset) == 32 and isinstance(value, int)):
+                    asset = None
+                    value = 0
+            metaout.update({
+                "label": wallet.name if wallet else "",
+                "change": wallet is not None,
+                "value": value,
+                "address": get_address(out, self.network),
+            })
+            if asset != default_asset:
+                metaout.update({"asset": self.asset_label(asset)})
+                if asset not in self.assets:
+                    metaout.update({"raw_asset": asset})
+            out.write_to(fout, skip_separator=True)
+            # write rangeproofs and surjection proofs
+            # separator
+            fout.write(b"\x00")
+
+        return PSBTViewClass, wallets, meta, default_sighash
 
     def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
         for w, _ in wallets:
@@ -785,6 +1033,9 @@ class WalletManager(BaseApp):
     def asset_label(self, asset):
         if asset is None:
             return "Undefined"
+        # passing "BTC" shouldn't break things
+        if isinstance(asset, str):
+            return asset
         if asset in self.assets:
             return self.assets[asset]
         h = hexlify(bytes(reversed(asset))).decode()

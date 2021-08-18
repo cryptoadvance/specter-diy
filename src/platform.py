@@ -11,6 +11,12 @@ try:
 except:
     import config_default as config
 
+if not simulator:
+    import sdram
+    sdram.init()
+else:
+    _PREALLOCATED = bytes(0x100000)
+
 sdcard = None  # SD card instance
 sdled = None  # LED to show we are working with SD card
 
@@ -109,14 +115,18 @@ def mount_sdram():
         # cleanup
         delete_recursively(path)
     else:
-        import sdram
-
-        sdram.init()
         bdev = sdram.RAMDevice(512)
         os.VfsFat.mkfs(bdev)
         os.mount(bdev, path)
     return path
 
+def get_preallocated_ram():
+    """Returns pointer and size of preallocated memory"""
+    if simulator:
+        import ctypes
+        return ctypes.addressof(_PREALLOCATED), len(_PREALLOCATED)
+    else:
+        return sdram.preallocated_ptr(), sdram.preallocated_size()
 
 def sync():
     try:
