@@ -1,39 +1,44 @@
 from app import BaseApp
 import platform
 from .manager import WalletManager
+from helpers import is_liquid
+import gc
 
 class WalletsApp(BaseApp):
     # This is a dummy app that can switch between Bitcoin and Liquid wallet managers
-    ManagerApp = WalletManager
-
-    # button = "Wallets"
-    # prefixes = [b"addwallet", b"sign", b"showaddr", b"listwallets"]
-    # name = "wallets"
 
     def __init__(self, path):
         self.root_path = path
         platform.maybe_mkdir(path)
         self.path = None
-        self.manager = self.ManagerApp(self.root_path)
-        # self.button = self.manager.button
-        # self.prefixes = self.manager.prefixes
-        # self.name = self.manager.name
+        self.manager = None
 
     @property
     def button(self):
-        return self.manager.button
+        return self.manager.button if self.manager else None
 
     @property
     def prefixes(self):
-        return self.manager.prefixes
+        return self.manager.prefixes if self.manager else None
 
     @property
     def name(self):
-        return self.manager.name
+        return self.manager.name if self.manager else None
 
     def init(self, keystore, network, *args, **kwargs):
         """Loads or creates default wallets for new keystore or network"""
+        old_network = self.network if hasattr(self, "network") else None
         super().init(keystore, network, *args, **kwargs)
+        # switching the network - use different wallet managers for liquid or btc
+        if old_network is None or self.manager is None or is_liquid(old_network) != is_liquid(network):
+            if self.manager is not None:
+                del self.manager
+                gc.collect()
+            if is_liquid(network):
+                from .liquid.manager import LWalletManager
+                self.manager = LWalletManager(self.root_path)
+            else:
+                self.manager = WalletManager(self.root_path)
         return self.manager.init(keystore, network, *args, **kwargs)
 
     async def menu(self, *args, **kwargs):

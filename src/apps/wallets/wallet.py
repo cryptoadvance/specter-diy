@@ -160,10 +160,10 @@ class Wallet:
     def fill_scope(self, scope, fingerprint):
         """Fills derivation paths in inputs"""
         if not self.owns(scope):
-            return
+            return False
         der = self.get_derivation(scope.bip32_derivations)
         if der is None:
-            return
+            return False
         idx, branch_idx = der
         desc = self.descriptor.derive(idx, branch_index=branch_idx)
         # find keys with our fingerprint
@@ -177,6 +177,7 @@ class Wallet:
         # fill script
         scope.witness_script = desc.witness_script()
         scope.redeem_script = desc.redeem_script()
+        return True
 
     @property
     def keys(self):

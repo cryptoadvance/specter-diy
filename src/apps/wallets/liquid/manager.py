@@ -73,7 +73,7 @@ def get_address(psbtout, network):
         # use hex if script doesn't have address representation
         return hexlify(psbtout.script_pubkey.data).decode()
 
-class WalletManager(BaseApp):
+class LWalletManager(BaseApp):
     """
     WalletManager class manages your wallets.
     It stores public information about the wallets
@@ -344,7 +344,7 @@ class WalletManager(BaseApp):
             PSBTViewClass, wallets, meta, sighash = self.preprocess_psbt(stream, fout)
         # now we can work with copletely filled psbt:
         with open(self.tempdir + "/filled_psbt", "rb") as f:
-            psbtv = PSBTViewClass(f)
+            psbtv = PSBTViewClass.view(f)
 
             # check if there are any custom sighashes
             custom_sighashes = meta['custom_sighashes']
@@ -521,6 +521,7 @@ class WalletManager(BaseApp):
         # add blinding key to the descriptor if we are on liquid network
         if is_liquid(self.network):
             desc = "blinded(slip77(%s),%s)" % (self.keystore.slip77_key, desc)
+        print(desc)
         w = Wallet.parse("Default&"+desc, path)
         # pass keystore to encrypt data
         w.save(self.keystore)

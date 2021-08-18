@@ -96,11 +96,11 @@ class TransactionScreen(Prompt):
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
-            if inp["sighash"] != "ALL":
+            if inp.get("sighash", "ALL") != "ALL":
                 shlbl = lv.label(self.page2)
                 shlbl.set_long_mode(lv.label.LONG.BREAK)
                 shlbl.set_width(380)
-                shlbl.set_text(inp["sighash"])
+                shlbl.set_text(inp.get("sighash", "ALL"))
                 shlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
                 shlbl.set_x(60)
                 shlbl.set_style(0, style_warning)
@@ -118,7 +118,7 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            lbl.set_text("%.8f %s to %s" % (out["value"]/1e8, out.get("asset", self.default_asset), out.get("label", "")))
+            # lbl.set_text("%.8f %s to %s" % (out["value"]/1e8, out.get("asset", self.default_asset), out.get("label", "")))
             lbl.set_text("%.8f BTC to %s" % (out["value"]/1e8, out.get("label", "")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)

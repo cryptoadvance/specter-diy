@@ -6,7 +6,10 @@ import platform
 TEST_DIR = "testdir"
 
 def clear_testdir():
-    platform.delete_recursively(TEST_DIR, include_self=True)
+    try:
+        platform.delete_recursively(TEST_DIR, include_self=True)
+    except:
+        pass
 
 def show_loader(*args, **kwargs):
     """Dummy show_loader function that does nothing"""
