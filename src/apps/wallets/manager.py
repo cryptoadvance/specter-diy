@@ -54,8 +54,13 @@ class WalletManager(BaseApp):
     prefixes = [b"addwallet", b"sign", b"showaddr", b"listwallets"]
     name = "wallets"
 
+    # Class constants for inheritance
     PSBTViewClass = PSBTView
     B64PSBT_PREFIX = b"cHNi"
+    # wallet class
+    WalletClass = Wallet
+    # supported networks
+    Networks = NETWORKS
 
     def __init__(self, path):
         self.root_path = path
@@ -70,7 +75,7 @@ class WalletManager(BaseApp):
         # add fingerprint dir
         path = self.root_path + "/" + hexlify(self.keystore.fingerprint).decode()
         platform.maybe_mkdir(path)
-        if network not in NETWORKS:
+        if network not in self.Networks:
             raise WalletError("Invalid network")
         self.network = network
         # add network dir
@@ -84,7 +89,7 @@ class WalletManager(BaseApp):
 
     def get_address(self, psbtout):
         """Helper function to get an address for every output"""
-        network = NETWORKS[self.network]
+        network = self.Networks[self.network]
         # finally just return bitcoin address or unconfidential
         try:
             return psbtout.script_pubkey.address(network)
@@ -309,7 +314,7 @@ class WalletManager(BaseApp):
         sighash_name = SIGHASH_NAMES[sighash]
         # now we can work with copletely filled psbt:
         with open(self.tempdir + "/filled_psbt", "rb") as f:
-            psbtv = self.PSBTViewClass.view(f)
+            psbtv = self.PSBTViewClass.view(f, compress=True)
 
             # check if there are any custom sighashes
             used_custom_sighashes = any([inp.get("sighash", None) is not None for inp in meta["inputs"]])
@@ -390,7 +395,7 @@ class WalletManager(BaseApp):
     async def showaddr(
         self, paths: list, script_type: str, redeem_script=None, show_screen=None
     ) -> str:
-        net = NETWORKS[self.network]
+        net = self.Networks[self.network]
         if redeem_script is not None:
             redeem_script = script.Script(unhexlify(redeem_script))
         # first check if we have corresponding wallet:
@@ -450,7 +455,7 @@ class WalletManager(BaseApp):
         """Loads a wallet with particular id"""
         try:
             # pass path and key for verification
-            return Wallet.from_path(path, self.keystore)
+            return self.WalletClass.from_path(path, self.keystore)
         except Exception as e:
             # if we failed to load -> delete folder and throw an error
             platform.delete_recursively(path, include_self=True)
@@ -458,14 +463,14 @@ class WalletManager(BaseApp):
 
     def create_default_wallet(self, path):
         """Creates default p2wpkh wallet with name `Default`"""
-        der = "m/84h/%dh/0h" % NETWORKS[self.network]["bip32"]
+        der = "m/84h/%dh/0h" % self.Networks[self.network]["bip32"]
         xpub = self.keystore.get_xpub(der)
         desc = "wpkh([%s%s]%s/{0,1}/*)" % (
             hexlify(self.keystore.fingerprint).decode(),
             der[1:],
-            xpub.to_base58(NETWORKS[self.network]["xpub"]),
+            xpub.to_base58(self.Networks[self.network]["xpub"]),
         )
-        w = Wallet.parse("Default&"+desc, path)
+        w = self.WalletClass.parse("Default&"+desc, path)
         # pass keystore to encrypt data
         w.save(self.keystore)
         platform.sync()
@@ -473,14 +478,14 @@ class WalletManager(BaseApp):
 
     def parse_wallet(self, desc):
         try:
-            w = Wallet.parse(desc)
+            w = self.WalletClass.parse(desc)
         except Exception as e:
             raise WalletError("Can't parse descriptor\n\n%s" % str(e))
         if str(w.descriptor) in [str(ww.descriptor) for ww in self.wallets]:
             raise WalletError("Wallet with this descriptor already exists")
         # check that xpubs and tpubs are not mixed in the same descriptor:
-        if not w.check_network(NETWORKS[self.network]):
-            raise WalletError("Some keys don't belong to the %s network!" % NETWORKS[self.network]["name"])
+        if not w.check_network(self.Networks[self.network]):
+            raise WalletError("Some keys don't belong to the %s network!" % self.Networks[self.network]["name"])
         return w
 
     def add_wallet(self, w):
