@@ -1,21 +1,26 @@
 from app import AppError
-from platform import maybe_mkdir, delete_recursively
+from platform import maybe_mkdir, delete_recursively, get_preallocated_ram
 import json
-from bitcoin import ec, hashes, script
-from bitcoin.networks import NETWORKS
+from bitcoin import ec, hashes, script, compact
+from bitcoin.liquid.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
-from bitcoin.descriptor import Descriptor
+from bitcoin.liquid.descriptor import LDescriptor as Descriptor
 from bitcoin.descriptor.arguments import AllowedDerivation
+from bitcoin.liquid.pset import LInputScope, LOutputScope
 from bitcoin.transaction import SIGHASH
 import hashlib
 from .screens import WalletScreen, WalletInfoScreen
 from .commands import DELETE, EDIT, MENU, INFO
 from gui.screens import Menu
 import lvgl as lv
+import secp256k1
 
 class WalletError(AppError):
     NAME = "Wallet error"
 
+# error that happened during rangeproof_rewind
+class RewindError(Exception):
+    pass
 
 class Wallet:
     """
@@ -105,19 +110,22 @@ class Wallet:
         delete_recursively(self.path, include_self=True)
 
     def get_address(self, idx: int, network: str, branch_index=0):
-        sc, gap = self.script_pubkey([int(branch_index), idx])
-        return sc.address(NETWORKS[network]), gap
+        desc, gap = self.get_descriptor(idx, branch_index)
+        return desc.address(NETWORKS[network]), gap
+
+    def get_descriptor(self, idx: int, branch_index=0):
+        if branch_index < 0 or branch_index >= self.descriptor.num_branches:
+            raise WalletError("Invalid branch index %d - can be between 0 and %d" % (branch_index, self.descriptor.num_branches))
+        if idx < 0 or idx >= 0x80000000:
+            raise WalletError("Invalid index %d" % idx)
+        return self.descriptor.derive(idx, branch_index=branch_index), self.gaps[branch_index]
 
     def script_pubkey(self, derivation: list):
         """Returns script_pubkey and gap limit"""
         # derivation can be only two elements
         branch_idx, idx = derivation
-        if branch_idx < 0 or branch_idx >= self.descriptor.num_branches:
-            raise WalletError("Invalid branch index %d - can be between 0 and %d" % (branch_idx, self.descriptor.num_branches))
-        if idx < 0 or idx >= 0x80000000:
-            raise WalletError("Invalid index %d" % idx)
-        sc = self.descriptor.derive(idx, branch_index=branch_idx).script_pubkey()
-        return sc, self.gaps[branch_idx]
+        desc, gap = self.get_descriptor(idx, branch_idx)
+        return desc.script_pubkey(), gap
 
     @property
     def fingerprint(self):
@@ -133,9 +141,10 @@ class Wallet:
     def get_derivation(self, bip32_derivations):
         # otherwise we need standard derivation
         for pub in bip32_derivations:
-            der = self.descriptor.check_derivation(bip32_derivations[pub])
-            if der is not None:
-                return der
+            if len(bip32_derivations[pub].derivation) >= 2:
+                der = self.descriptor.check_derivation(bip32_derivations[pub])
+                if der is not None:
+                    return der
 
     def update_gaps(self, psbtv=None, known_idxs=None):
         gaps = self.gaps
@@ -157,13 +166,18 @@ class Wallet:
         self.unused_recv = gaps[0] - self.GAP_LIMIT
         self.gaps = gaps
 
-    def fill_scope(self, scope, fingerprint):
-        """Fills derivation paths in inputs"""
+    def fill_scope(self, scope, fingerprint, stream=None, rangeproof_offset=None, surj_proof_offset=None):
+        """
+        Fills derivation paths in inputs.
+        Returns:
+        - True if all went well
+        - False if wallet doesn't own input
+        """
         if not self.owns(scope):
-            return
+            return False
         der = self.get_derivation(scope.bip32_derivations)
         if der is None:
-            return
+            return False
         idx, branch_idx = der
         desc = self.descriptor.derive(idx, branch_index=branch_idx)
         # find keys with our fingerprint
@@ -174,9 +188,58 @@ class Wallet:
                 scope.bip32_derivations[pub] = DerivationPath(
                     fingerprint, key.derivation
                 )
+        # if liquid - unblind / blind etc
+        if desc.is_blinded:
+            try:
+                if not self.fill_pset_scope(scope, desc, stream, rangeproof_offset, surj_proof_offset):
+                    return False
+            except RewindError as e:
+                print(e)
+                return False
         # fill script
         scope.witness_script = desc.witness_script()
         scope.redeem_script = desc.redeem_script()
+        return True
+
+    def fill_pset_scope(self, scope, desc, stream=None, rangeproof_offset=None, surj_proof_offset=None):
+        # if we don't have a rangeproof offset - nothing we can really do
+        if rangeproof_offset is None:
+            return True
+        # pointer and length of preallocated memory for rangeproof rewind
+        memptr, memlen = get_preallocated_ram()
+        # for inputs we check if rangeproof is there
+        if isinstance(scope, LInputScope):
+            # check if we actually need to rewind
+            if None not in [scope.asset, scope.value, scope.asset_blinding_factor, scope.value_blinding_factor]:
+                # verify that asset and value blinding factors lead to value and asset commitments
+                return True
+            l = compact.read_from(stream)
+            vout = scope.utxo
+            blinding_key = desc.blinding_key.get_blinding_key(vout.script_pubkey).secret
+            # get the nonce for unblinding
+            pub = secp256k1.ec_pubkey_parse(vout.ecdh_pubkey)
+            secp256k1.ec_pubkey_tweak_mul(pub, blinding_key)
+            sec = secp256k1.ec_pubkey_serialize(pub)
+            nonce = hashlib.sha256(hashlib.sha256(sec).digest()).digest()
+
+            commit = secp256k1.pedersen_commitment_parse(vout.value)
+            gen = secp256k1.generator_parse(vout.asset)
+            try:
+                value, vbf, msg, _, _ = secp256k1.rangeproof_rewind_from(
+                    stream, l, memptr, memlen,
+                    nonce, commit, vout.script_pubkey.data, gen
+                )
+            except ValueError as e:
+                raise RewindError(str(e))
+            asset = msg[:32]
+            abf = msg[32:64]
+            scope.value = value
+            scope.value_blinding_factor = vbf
+            scope.asset = asset
+            scope.asset_blinding_factor = abf
+        elif isinstance(scope, LOutputScope):
+            pass
+        return True
 
     @property
     def keys(self):

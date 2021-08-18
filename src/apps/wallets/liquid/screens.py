@@ -58,7 +58,7 @@ class WalletScreen(QRAlert):
         self.menubtn = add_button(
             lv.SYMBOL.SETTINGS + " Settings", on_release(self.show_menu), scr=self
         )
-        self.menubtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
+        self.menubtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -15)
 
         if idx is not None:
             self.idx = idx
