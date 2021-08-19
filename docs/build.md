@@ -2,7 +2,7 @@
 
 Clone the repository recursively `git clone https://github.com/cryptoadvance/specter-diy.git --recursive`
 
-`bootloader` folder contains a [secure bootloader](https://github.com/cryptoadvance/specter-bootloader).
+`bootloader` folder contains a [secure bootloader](https://github.com/cryptoadvance/specter-bootloader) that you can customize with your own firmware signing keys.
 
 ## Prerequisities
 
@@ -10,15 +10,15 @@ Clone the repository recursively `git clone https://github.com/cryptoadvance/spe
 
 To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler.
 
-On **MacOS** install it using brew:
+**Linux**:
+```sh
+sudo apt-get install build-essential gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd
+```
+
+**MacOS**:
 ```sh
 brew tap ArmMbed/homebrew-formulae
 brew install arm-none-eabi-gcc
-```
-
-On **Linux**:
-```sh
-sudo apt-get install gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd
 ```
 
 On **Windows**: Install linux subsystem and follow Linux instructions.
