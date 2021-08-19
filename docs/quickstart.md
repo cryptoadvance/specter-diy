@@ -21,19 +21,17 @@ With the secure bootloader initial installation of the firmware is slightly diff
 > 
 > If it fails all the time you can use [stlink](https://github.com/stlink-org/stlink/releases/latest) open-source tool. Install it and type in your terminal: `st-flash write <path/to/initial_firmare.bin> 0x8000000`. It usually works much more reliable.
 
-## Flashing signed Specter firmware
+## Upgrading firmware
 
 - Download the `specter_upgrade_<version>.bin` from the [releases](https://github.com/cryptoadvance/specter-diy/releases).
-- Copy this binary to the root of the SD card (FAT-formatted)
+- Copy this binary to the root of the SD card (FAT-formatted, 32 GB max)
 	- Make sure only one `specter_upgrade***.bin` file is in the root directory
 - Insert SD card to the SD slot of the discovery board and power on the board
 - Bootloader will flash the firmware and will notify you when it's done.
 - Reboot the board - you will see Specter-DIY interface now, it will suggest you to select your PIN code
 
-## Upgrading firmware later on
-
 Whenever a new release is out just download the `specter_upgrade_<version>.bin` from the releases, drop it to the SD card and upgrade the device just like in the previous step. Bootloader will make sure only signed firmware can be loaded to the board.
 
 ## How to find out firmware version
 
-Create an empty file on the SD card named `.show_version` and insert into the device. On every boot the bootloader will check if this file is present and if so - it will show information about current firmware and bootloader versions.
+Go to the `Device settings` menu - it will show the version number under the title of the screen.
