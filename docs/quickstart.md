@@ -17,6 +17,10 @@ With the secure bootloader initial installation of the firmware is slightly diff
 - When the board is done flashing the firmware the board will reset itself and reboot to the bootloader. Bootloader will check the firmware and boot into the main firmware. If see an error message that no firmware is found - follow the update instructions and upload firmware via SD card.
 - Now you can switch the power jumper where you like it and power the board from the powerbank or battery.
 
+> Flashing initial firmware via copy-paste of the `.bin` file sometimes fails - often because of the cable, or if you connect the device through a USB hub. In this case you can try a few more times (normally works in 2-3 attempts).
+> 
+> If it fails all the time you can use [stlink](https://github.com/stlink-org/stlink/releases/latest) open-source tool. Install it and type in your terminal: `st-flash write <path/to/initial_firmare.bin> 0x8000000`. It usually works much more reliable.
+
 ## Flashing signed Specter firmware
 
 - Download the `specter_upgrade_<version>.bin` from the [releases](https://github.com/cryptoadvance/specter-diy/releases).
