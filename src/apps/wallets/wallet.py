@@ -133,10 +133,9 @@ class Wallet:
     def get_derivation(self, bip32_derivations):
         # otherwise we need standard derivation
         for pub in bip32_derivations:
-            if len(bip32_derivations[pub].derivation) >= 2:
-                der = self.descriptor.check_derivation(bip32_derivations[pub])
-                if der is not None:
-                    return der
+            der = self.descriptor.check_derivation(bip32_derivations[pub])
+            if der is not None:
+                return der
 
     def update_gaps(self, psbtv=None, known_idxs=None):
         gaps = self.gaps
