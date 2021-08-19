@@ -39,15 +39,25 @@ class LWalletManager(WalletManager):
     WalletClass = LWallet
     # supported networks
     Networks = {"liquidv1": NETWORKS["liquidv1"], "elementsregtest": NETWORKS["elementsregtest"]}
+    DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
+
 
     def __init__(self, path):
         super().__init__(path)
         self.assets = {}
 
+
     def init(self, keystore, network, *args, **kwargs):
         """Loads or creates default wallets for new keystore or network"""
         super().init(keystore, network, *args, **kwargs)
         self.load_assets()
+
+
+    def get_sighash_info(self, sighash):
+        if sighash not in SIGHASH_NAMES:
+            raise WalletError("Unknown sighash type: %d!" % sighash)
+        return { "name": SIGHASH_NAMES[sighash], "warning": "" }
+
 
     def get_address(self, psbtout):
         """Helper function to get an address for every output"""
@@ -63,6 +73,7 @@ class LWalletManager(WalletManager):
         # finally just return unconfidential address
         return super().get_address(psbtout)
 
+
     def parse_stream(self, stream):
         prefix = self.get_prefix(stream)
         # if we have prefix
@@ -73,6 +84,7 @@ class LWalletManager(WalletManager):
                 return DUMP_ASSETS, stream
         stream.seek(0)
         return super().parse_stream(stream)
+
 
     async def process_host_command(self, stream, show_screen):
         platform.delete_recursively(self.tempdir)
@@ -94,111 +106,50 @@ class LWalletManager(WalletManager):
             stream.seek(0)
             return await super().process_host_command(stream, show_screen)
 
-    async def sign_psbt(self, stream, show_screen, encoding=BASE64_STREAM):
-        if encoding == BASE64_STREAM:
-            with open(self.tempdir+"/raw", "wb") as f:
-                # read in chunks, write to ram file
-                a2b_base64_stream(stream, f)
-            with open(self.tempdir+"/raw", "rb") as f:
-                res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
-            if res:
-                with open(self.tempdir+"/signed_b64", "wb") as fout:
-                    with open(res, "rb") as fin:
-                        b2a_base64_stream(fin, fout)
-                return self.tempdir+"/signed_b64"
+
+    async def confirm_transaction(self, wallets, meta, show_screen):
+        """
+        Checks parsed metadata, asks user about unclear options:
+        - label unknown assets?
+        - sign with provided sighashes or only with default?
+        - sign if unknown wallet in inputs?
+        - final tx confirmation
+        Returns dict with options to pass to sign_psbtview function.
+        """
+        # ask the user to label assets
+        await self.check_unknown_assets(meta, show_screen)
+
+        return await super().confirm_transaction(wallets,meta, show_screen)
+
+
+    async def check_unknown_assets(self, meta, show_screen):
+        if len(meta.get("unknown_assets",[])) == 0:
             return
-
-        self.show_loader(title="Parsing transaction...")
-        # preprocess stream - parse psbt, check wallets in inputs and outputs,
-        # get metadata to display, default sighash for signing,
-        # fill missing metadata and store it in temp file:
-        with open(self.tempdir + "/filled_psbt", "wb") as fout:
-            wallets, meta, sighash = self.preprocess_psbt(stream, fout)
-        # now we can work with copletely filled psbt:
-        with open(self.tempdir + "/filled_psbt", "rb") as f:
-            psbtv = PSBTViewClass.view(f, compress=True)
-
-            # check if there are any custom sighashes
-            custom_sighashes = meta['custom_sighashes']
-            # ask the user if he wants to sign in case of non-default sighashes
-            if len(custom_sighashes) > 0:
-                txt = [("Input %d: " % i) + SIGHASH_NAMES[sh]
-                        for (i, sh) in custom_sighashes]
-                canceltxt = ("Only proceed %s" % SIGHASH_NAMES[sighash]) if len(custom_sighashes) != psbtv.num_inputs else "Cancel"
-                confirm = await show_screen(Prompt("Warning!",
-                    "\nCustom SIGHASH flags are used!\n\n"+"\n".join(txt),
-                    confirm_text="Proceed anyway", cancel_text=canceltxt
-                ))
-                if confirm:
-                    # we set sighash to None
-                    # if we want to use whatever sighash is provided in input
-                    sighash = None
+        scr = Prompt(
+            "Warning!",
+            "\nUnknown assets in the transaction!\n\n\n"
+            "Do you want to label them?\n"
+            "Otherwise they will be rendered with partial hex id.",
+        )
+        if await show_screen(scr):
+            for asset in meta["unknown_assets"]:
+                # return False if the user cancelled
+                scr = InputScreen("Asset\n\n"+format_addr(hexlify(bytes(reversed(asset))).decode(), letters=8, words=2),
+                            note="\nChoose a label for unknown asset.\nBetter to keep it short, like LBTC or LDIY")
+                scr.ta.set_pos(190, 350)
+                scr.ta.set_width(100)
+                lbl = await show_screen(scr)
+                # if user didn't label the asset - go to the next one
+                if not lbl:
+                    continue
                 else:
-                    # if we are forced to use default sighash - check
-                    # that not all inputs have custom sighashes
-                    if len(custom_sighashes) == psbtv.num_inputs:
-                        # nothing to sign
-                        return
+                    self.assets[asset] = lbl
+            self.save_assets()
+        # replace labels we just saved
+        for sc in meta["inputs"] + meta["outputs"]:
+            if sc.get("raw_asset"):
+                sc["asset"] = self.asset_label(sc["raw_asset"])
 
-            # liquid stuff - offer to label unknown assets
-            if len(meta.get("unknown_assets",[])) > 0:
-                scr = Prompt(
-                    "Warning!",
-                    "\nUnknown assets in the transaction!\n\n\n"
-                    "Do you want to label them?\n"
-                    "Otherwise they will be rendered with partial hex id.",
-                )
-                if await show_screen(scr):
-                    for asset in meta["unknown_assets"]:
-                        # return False if the user cancelled
-                        scr = InputScreen("Asset\n\n"+format_addr(hexlify(bytes(reversed(asset))).decode(), letters=8, words=2),
-                                    note="\nChoose a label for unknown asset.\nBetter to keep it short, like LBTC or LDIY")
-                        scr.ta.set_pos(190, 350)
-                        scr.ta.set_width(100)
-                        lbl = await show_screen(scr)
-                        # if user didn't label the asset - go to the next one
-                        if not lbl:
-                            continue
-                        else:
-                            self.assets[asset] = lbl
-                    self.save_assets()
-                # replace labels we just saved
-                for sc in meta["inputs"] + meta["outputs"]:
-                    if sc.get("raw_asset"):
-                        sc["asset"] = self.asset_label(sc["raw_asset"])
-
-            # check if any inputs belong to unknown wallets
-            # items in wallets list are tuples: (wallet, amount)
-            if None in [wallet for wallet, amount in wallets]:
-                scr = Prompt(
-                    "Warning!",
-                    "\nUnknown wallet in inputs!\n\n\n"
-                    "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
-                    "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
-                    "Proceed to the transaction confirmation?",
-                )
-                proceed = await show_screen(scr)
-                if not proceed:
-                    return None
-
-            # build title for the tx screen
-            spends = []
-            for w, amount in wallets:
-                if w is None:
-                    name = "Unknown wallet"
-                else:
-                    name = w.name
-                spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
-            title = "Inputs:\n" + "\n".join(spends)
-            res = await show_screen(TransactionScreen(title, meta))
-            del meta
-            gc.collect()
-            # sign transaction if the user confirmed
-            if res:
-                self.show_loader(title="Signing transaction...")
-                with open(self.tempdir+"/signed_raw", "wb") as f:
-                    sig_count = self.sign_psbtview(psbtv, f, wallets, sighash)
-                return self.tempdir+"/signed_raw"
 
     def create_default_wallet(self, path):
         """Creates default p2wpkh wallet with name `Default`"""
@@ -228,9 +179,6 @@ class LWalletManager(WalletManager):
         """
         # compress = True flag will make sure large fields won't be loaded to RAM
         psbtv = self.PSBTViewClass.view(stream, compress=True)
-
-        # Default sighash to use for signing
-        default_sighash = SIGHASH.ALL | SIGHASH.RANGEPROOF
 
         # Start with global fields of PSBT
 
@@ -276,10 +224,8 @@ class LWalletManager(WalletManager):
             inp.verify(ignore_missing=True)
 
             # check sighash in the input
-            if inp.sighash_type is not None and inp.sighash_type != default_sighash:
-                if inp.sighash_type not in SIGHASH_NAMES:
-                    raise WalletError("Unknown sighash type in the transaction!")
-                metainp["sighash"] = SIGHASH_NAMES[inp.sighash_type]
+            if inp.sighash_type is not None and inp.sighash_type != self.DEFAULT_SIGHASH:
+                metainp["sighash"] = self.get_sighash_info(inp.sighash_type)["name"]
 
             # in Liquid we may need to rewind the rangeproof to get values
             rangeproof_offset = None
@@ -464,7 +410,7 @@ class LWalletManager(WalletManager):
             # separator
             fout.write(b"\x00")
 
-        return wallets, meta, default_sighash
+        return wallets, meta
 
     def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
         for w, _ in wallets:

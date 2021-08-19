@@ -61,6 +61,7 @@ class WalletManager(BaseApp):
     WalletClass = Wallet
     # supported networks
     Networks = NETWORKS
+    DEFAULT_SIGHASH = SIGHASH.ALL
 
     def __init__(self, path):
         self.root_path = path
@@ -305,80 +306,127 @@ class WalletManager(BaseApp):
                 return self.tempdir+"/signed_b64"
             return
 
-        self.show_loader(title="Parsing transaction...")
         # preprocess stream - parse psbt, check wallets in inputs and outputs,
         # get metadata to display, default sighash for signing,
         # fill missing metadata and store it in temp file:
         with open(self.tempdir + "/filled_psbt", "wb") as fout:
-            wallets, meta, sighash = self.preprocess_psbt(stream, fout)
-        sighash_name = SIGHASH_NAMES[sighash]
+            wallets, meta = self.preprocess_psbt(stream, fout)
+
         # now we can work with copletely filled psbt:
         with open(self.tempdir + "/filled_psbt", "rb") as f:
             psbtv = self.PSBTViewClass.view(f, compress=True)
 
-            # check if there are any custom sighashes
-            used_custom_sighashes = any([inp.get("sighash", None) is not None for inp in meta["inputs"]])
-            # ask the user if he wants to sign in case of non-default sighashes
-            if used_custom_sighashes:
-                custom_sighashes = [
-                        ("Input %d: %s" % (i, inp.get("sighash", sighash_name)))
-                        for (i, inp) in enumerate(meta["inputs"])
-                        if inp.get("sighash", sighash_name) != sighash_name
-                ]
-                canceltxt = (
-                    ("Only proceed %s" % SIGHASH_NAMES[sighash])
-                    if len(custom_sighashes) != psbtv.num_inputs
-                    else "Cancel"
-                )
-                confirm = await show_screen(Prompt("Warning!",
-                    "\nCustom SIGHASH flags are used!\n\n"+"\n".join(custom_sighashes),
-                    confirm_text="Proceed anyway", cancel_text=canceltxt
-                ))
-                if confirm:
-                    # we set sighash to None
-                    # if we want to use whatever sighash is provided in input
-                    sighash = None
-                else:
-                    # if we are forced to use default sighash - check
-                    # that not all inputs have custom sighashes
-                    if len(custom_sighashes) == psbtv.num_inputs:
-                        # nothing to sign
-                        return
+            # ask user for everything, if None is returned - user cancelled at some point
+            options = await self.confirm_transaction(wallets, meta, show_screen)
+            if options is None:
+                return
 
-            # check if any inputs belong to unknown wallets
-            # wallets is a dict: {wallet: amount}
-            if None in wallets:
-                scr = Prompt(
-                    "Warning!",
-                    "\nUnknown wallet in inputs!\n\n\n"
-                    "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
-                    "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
-                    "Proceed to the transaction confirmation?",
-                )
-                proceed = await show_screen(scr)
-                if not proceed:
-                    return None
-
-            # build title for the tx screen
-            spends = []
-            unit = "BTC" if self.network == "main" else "tBTC"
-            for w in wallets:
-                if w is None:
-                    name = "Unknown wallet"
-                else:
-                    name = w.name
-                amount = wallets[w]
-                spends.append('%.8f %s\nfrom "%s"' % (amount / 1e8, unit, name))
-            title = "Inputs:\n" + "\n".join(spends)
-            res = await show_screen(TransactionScreen(title, meta))
             del meta
             gc.collect()
             # sign transaction if the user confirmed
-            if res:
-                self.show_loader(title="Signing transaction...")
-                with open(self.tempdir+"/signed_raw", "wb") as f:
-                    sig_count = self.sign_psbtview(psbtv, f, wallets, sighash)
-                return self.tempdir+"/signed_raw"
+            self.show_loader(title="Signing transaction...")
+            with open(self.tempdir+"/signed_raw", "wb") as f:
+                sig_count = self.sign_psbtview(psbtv, f, wallets, **options)
+            return self.tempdir+"/signed_raw"
+
+    async def confirm_transaction(self, wallets, meta, show_screen):
+        """
+        Checks parsed metadata, asks user about unclear options:
+        - sign with provided sighashes or only with default?
+        - sign if unknown wallet in inputs?
+        - final tx confirmation
+        Returns dict with options to pass to sign_psbtview function.
+        """
+
+        # ask the user if he wants to sign with custom sighashes
+        sighash = await self.confirm_sighashes(meta, show_screen)
+        if sighash == False:
+            return
+
+        # ask if we want to continue with unknown wallets
+        if not await self.confirm_wallets(wallets, show_screen):
+            return
+
+        if not await self.confirm_transaction_final(wallets, meta, show_screen):
+            return
+
+        return dict(sighash=sighash)
+
+    async def confirm_transaction_final(self, wallets, meta, show_screen):
+        # build title for the tx screen
+        spends = []
+        unit = "BTC" if self.network == "main" else "tBTC"
+        for w in wallets:
+            if w is None:
+                name = "Unknown wallet"
+            else:
+                name = w.name
+            amount = wallets[w]
+            spends.append('%.8f %s\nfrom "%s"' % (amount / 1e8, unit, name))
+        title = "Inputs:\n" + "\n".join(spends)
+        return await show_screen(TransactionScreen(title, meta))
+
+    async def confirm_wallets(self, wallets, show_screen):
+        # check if any inputs belong to unknown wallets
+        # wallets is a dict: {wallet: amount}
+        if None not in wallets:
+            return True
+        scr = Prompt(
+            "Warning!",
+            "\nUnknown wallet in inputs!\n\n\n"
+            "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
+            "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
+            "Proceed to the transaction confirmation?",
+        )
+        proceed = await show_screen(scr)
+        return proceed
+
+    def get_sighash_info(self, sighash):
+        if sighash not in SIGHASH_NAMES:
+            raise WalletError("Unknown sighash type: %d!" % sighash)
+        return { "name": SIGHASH_NAMES[sighash], "warning": "" }
+
+    async def confirm_sighashes(self, meta, show_screen):
+        """
+        Checks if custom sighashes are used, warns the user and asks for confirmation.
+        Returns one of the options:
+        - None - sign with provided sighashes
+        - self.DEFAULT_SIGHASH - sign only with default
+        - False - interrupt signing process (user cancel)
+        """
+        sighash_name = self.get_sighash_info(self.DEFAULT_SIGHASH)["name"]
+        # check if there are any custom sighashes
+        used_custom_sighashes = any([inp.get("sighash", sighash_name) != sighash_name for inp in meta["inputs"]])
+
+        # no custom sighashes - just continue
+        if not used_custom_sighashes:
+            return None
+
+        # ask the user if he wants to sign in case of non-default sighashes
+        custom_sighashes = [
+                ("Input %d: %s" % (i, inp.get("sighash", sighash_name)))
+                for (i, inp) in enumerate(meta["inputs"])
+                if inp.get("sighash", sighash_name) != sighash_name
+        ]
+        canceltxt = (
+            ("Only sign %s" % sighash_name)
+            if len(custom_sighashes) != len(meta["inputs"])
+            else "Cancel"
+        )
+        confirm = await show_screen(Prompt("Warning!",
+            "\nCustom SIGHASH flags are used!\n\n"+"\n".join(custom_sighashes),
+            confirm_text="Proceed anyway", cancel_text=canceltxt
+        ))
+        if confirm:
+            # we set sighash to None
+            # if we want to use whatever sighash is provided in input
+            return None
+        # if we are forced to use default sighash - check
+        # that not all inputs have custom sighashes
+        if len(custom_sighashes) == len(meta["inputs"]):
+            # nothing to sign
+            return False
+        return self.DEFAULT_SIGHASH
 
     async def confirm_new_wallet(self, w, show_screen):
         keys = w.get_key_dicts(self.network)
@@ -543,11 +591,10 @@ class WalletManager(BaseApp):
         - metadata for tx display including warnings that require user confirmation
         - default sighash to use for signing
         """
+        self.show_loader(title="Parsing transaction...")
+
         # compress = True flag will make sure large fields won't be loaded to RAM
         psbtv = self.PSBTViewClass.view(stream, compress=True)
-
-        # Default sighash to use for signing
-        default_sighash = SIGHASH.ALL
 
         # Write global scope first
         psbtv.stream.seek(psbtv.offset)
@@ -580,10 +627,8 @@ class WalletManager(BaseApp):
             inp.verify(ignore_missing=True)
 
             # check sighash in the input
-            if inp.sighash_type is not None and inp.sighash_type != default_sighash:
-                if inp.sighash_type not in SIGHASH_NAMES:
-                    raise WalletError("Unknown sighash type in the transaction!")
-                metainp["sighash"] = SIGHASH_NAMES[inp.sighash_type]
+            if inp.sighash_type is not None and inp.sighash_type != self.DEFAULT_SIGHASH:
+                metainp["sighash"] = self.get_sighash_info(inp.sighash_type)["name"]
 
             # Find wallets owning the inputs and fill scope data:
             # first we check already detected wallet owns the input
@@ -656,13 +701,13 @@ class WalletManager(BaseApp):
             out.write_to(fout)
 
         meta["fee"] = fee
-        return wallets, meta, default_sighash
+        return wallets, meta
 
     def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
         for w in wallets:
             if w is None:
                 continue
-            # fill derivation paths from proprietary fields
+            # update max used derivations in wallets
             w.update_gaps(psbtv=psbtv)
             w.save(self.keystore)
         sig_count = 0

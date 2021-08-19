@@ -41,7 +41,7 @@ class SignTest(TestCase):
         self.assertTrue(wapp.can_process(s))
 
         fout = BytesIO()
-        wallets, meta, sighash = wapp.manager.preprocess_psbt(s, fout)
+        wallets, meta = wapp.manager.preprocess_psbt(s, fout)
 
         # found a wallet
         self.assertEqual(len(wallets), 1)
@@ -51,7 +51,7 @@ class SignTest(TestCase):
         psbtv = PSBTView.view(fout)
 
         b = BytesIO()
-        sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, sighash)
+        sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, None)
         self.assertEqual(PSBT.parse(b.getvalue()).to_string(), signed)
 
     def test_pset(self):
