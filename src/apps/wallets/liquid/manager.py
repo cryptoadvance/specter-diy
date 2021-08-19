@@ -209,7 +209,7 @@ class LWalletManager(WalletManager):
             der[1:],
             xpub.to_base58(self.Networks[self.network]["xpub"]),
         )
-        # add blinding key to the descriptor if we are on liquid network
+        # add blinding key to the descriptor
         desc = "blinded(slip77(%s),%s)" % (self.keystore.slip77_key, desc)
         w = self.WalletClass.parse("Default&"+desc, path)
         # pass keystore to encrypt data
@@ -248,10 +248,7 @@ class LWalletManager(WalletManager):
         res = read_write(psbtv.stream, fout, psbtv.first_scope-psbtv.offset)
 
         # string representation of the Bitcoin for wallet processing
-        if is_liquid(self.network):
-            default_asset = "LBTC" if self.network == "liquidv1" else "tLBTC"
-        else:
-            default_asset = "BTC" if self.network == "main" else "tBTC"
+        default_asset = "LBTC" if self.network == "liquidv1" else "tLBTC"
         fee = { default_asset: 0 }
 
         # here we will store all wallets that we detect in inputs
@@ -456,7 +453,7 @@ class LWalletManager(WalletManager):
                 "label": wallet.name if wallet else "",
                 "change": wallet is not None,
                 "value": value,
-                "address": get_address(out, self.network),
+                "address": self.get_address(out),
             })
             if asset != default_asset:
                 metaout.update({"asset": self.asset_label(asset)})

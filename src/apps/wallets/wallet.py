@@ -257,7 +257,7 @@ class Wallet:
     def from_descriptor(cls, desc:str, path):
         # remove checksum if it's there and all spaces
         desc = desc.split("#")[0].replace(" ", "")
-        descriptor = self.DescriptorClass.from_string(desc)
+        descriptor = cls.DescriptorClass.from_string(desc)
         no_derivation = all([k.is_extended and k.allowed_derivation is None for k in descriptor.keys])
         if no_derivation:
             for k in descriptor.keys:

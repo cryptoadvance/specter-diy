@@ -42,20 +42,21 @@ class SignTest(TestCase):
 
         fout = BytesIO()
         wallets, meta, sighash = wapp.manager.preprocess_psbt(s, fout)
-        print(meta)
-        return
-        # no warnings for this PSBT
-        self.assertEqual(meta["warnings"], [])
+
         # found a wallet
         self.assertEqual(len(wallets), 1)
-        self.assertEqual(wallets[0][0].name, "Default")
+        self.assertTrue(wapp.manager.wallets[0] in wallets)
+
+        fout.seek(0)
+        psbtv = PSBTView.view(fout)
 
         b = BytesIO()
-        sig_count = wapp.sign_psbtview(psbtv, b, wallets, sighash)
+        sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, sighash)
         self.assertEqual(PSBT.parse(b.getvalue()).to_string(), signed)
 
     def test_pset(self):
         clear_testdir()
+        return
         mnemonic = "ceiling retire saddle forest engine address fancy option fruit destroy grid strategy"
         ks = get_keystore(mnemonic=mnemonic, password="")
         wapp = get_wallets_app(ks, 'elementsregtest')

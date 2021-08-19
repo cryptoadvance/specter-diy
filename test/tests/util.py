@@ -1,4 +1,5 @@
 from keystore.ram import RAMKeyStore
+from app import BaseApp
 from apps.wallets import App as WalletsApp
 import os, json
 import platform
@@ -41,7 +42,7 @@ def get_wallets_app(keystore, network):
     platform.maybe_mkdir(TEST_DIR)
     platform.maybe_mkdir(TEST_DIR+"/wallets")
     platform.maybe_mkdir(TEST_DIR+"/tmp")
-    WalletsApp.tempdir = TEST_DIR+"/tmp"
+    BaseApp.tempdir = TEST_DIR+"/tmp"
     wapp = WalletsApp(TEST_DIR+"/wallets")
     wapp.init(keystore, network, show_loader, communicate)
     return wapp
