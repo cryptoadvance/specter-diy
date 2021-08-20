@@ -104,4 +104,9 @@ class SignTest(TestCase):
         for inp1, inp2 in zip(psbt.inputs, psbt2.inputs):
             self.assertEqual(inp1, inp2)
         for out1, out2 in zip(psbt.outputs, psbt2.outputs):
-            self.assertEqual(out1, out2)
+            self.assertEqual(out1.range_proof, out2.range_proof)
+            self.assertEqual(out1.surjection_proof, out2.surjection_proof)
+            self.assertEqual(out1.asset_commitment, out2.asset_commitment)
+            self.assertEqual(out1.value_commitment, out2.value_commitment)
+            self.assertEqual(out1.asset_blinding_factor, out2.asset_blinding_factor)
+            self.assertEqual(out1.value_blinding_factor, out2.value_blinding_factor)
