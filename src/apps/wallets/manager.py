@@ -668,7 +668,7 @@ class WalletManager(BaseApp):
                 fout.write(b"\x01\x00")
                 fout.write(compact.to_bytes(l))
                 read_write(psbtv.stream, fout, l)
-            inp.write_to(fout)
+            inp.write_to(fout, version=psbtv.version)
 
         # parse all outputs
         for i in range(psbtv.num_outputs):
@@ -698,7 +698,7 @@ class WalletManager(BaseApp):
                 "value": value,
                 "address": self.get_address(out),
             })
-            out.write_to(fout)
+            out.write_to(fout, version=psbtv.version)
 
         meta["fee"] = fee
         return wallets, meta
@@ -718,7 +718,6 @@ class WalletManager(BaseApp):
                 for w in wallets:
                     if w is None:
                         continue
-                    w.fill_scope(inp, self.keystore.fingerprint)
                     # sign with wallet if it has private keys
                     if w.has_private_keys:
                         sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)

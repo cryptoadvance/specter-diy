@@ -4,6 +4,7 @@ from bitcoin.liquid.networks import NETWORKS
 from bitcoin.liquid.pset import PSET
 from bitcoin.psbt import PSBT
 from bitcoin.psbtview import PSBTView
+from bitcoin.liquid.psetview import PSETView
 from io import BytesIO
 
 PSBTS = {
@@ -56,7 +57,6 @@ class SignTest(TestCase):
 
     def test_pset(self):
         clear_testdir()
-        return
         mnemonic = "ceiling retire saddle forest engine address fancy option fruit destroy grid strategy"
         ks = get_keystore(mnemonic=mnemonic, password="")
         wapp = get_wallets_app(ks, 'elementsregtest')
@@ -70,6 +70,14 @@ class SignTest(TestCase):
                 inp.value = None
                 inp.asset_blinding_factor = None
                 inp.value_blinding_factor = None
+        for out in psbt.outputs:
+            out.asset_blinding_factor = None
+            out.value_blinding_factor = None
+            out.asset_commitment = None
+            out.value_commitment = None
+            out.range_proof = None
+            out.surjection_proof = None
+
         s = BytesIO(psbt.to_string().encode())
         # check it can sign b64-psbt
         self.assertTrue(wapp.can_process(s))
@@ -77,7 +85,23 @@ class SignTest(TestCase):
         s = BytesIO(psbt.serialize())
         self.assertTrue(wapp.can_process(s))
 
+        del psbt
+
         fout = BytesIO()
-        psbtv, wallets, meta, sighash = wapp.manager.preprocess_psbt(s, fout)
-        import json
-        print([o["change"] for o in meta['outputs']])
+        wallets, meta = wapp.manager.preprocess_psbt(s, fout)
+
+        # found a wallet
+        self.assertEqual(len(wallets), 1)
+        self.assertTrue(wapp.manager.wallets[0] in wallets)
+
+        fout.seek(0)
+        psbtv = PSETView.view(fout)
+
+        psbt = PSET.from_string(unsigned)
+        for inp in psbt.inputs:
+            inp.range_proof = None
+        psbt2 = PSET.parse(fout.getvalue())
+        for inp1, inp2 in zip(psbt.inputs, psbt2.inputs):
+            self.assertEqual(inp1, inp2)
+        for out1, out2 in zip(psbt.outputs, psbt2.outputs):
+            self.assertEqual(out1, out2)

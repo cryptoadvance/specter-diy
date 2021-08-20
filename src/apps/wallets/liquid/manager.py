@@ -2,7 +2,7 @@ from ..manager import *
 from gui.common import format_addr
 
 from bitcoin import script, bip32, ec, compact, hashes
-from bitcoin.liquid.psetview import PSETView
+from bitcoin.liquid.psetview import PSETView, ser_string
 from bitcoin.liquid.networks import NETWORKS
 from bitcoin.liquid.transaction import LSIGHASH as SIGHASH
 from bitcoin.liquid.addresses import address as liquid_address
@@ -39,7 +39,7 @@ class LWalletManager(WalletManager):
     WalletClass = LWallet
     # supported networks
     Networks = {"liquidv1": NETWORKS["liquidv1"], "elementsregtest": NETWORKS["elementsregtest"]}
-    DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
+    # DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
 
 
     def __init__(self, path):
@@ -72,6 +72,13 @@ class LWalletManager(WalletManager):
             return liquid_address(psbtout.script_pubkey, bpub, network)
         # finally just return unconfidential address
         return super().get_address(psbtout)
+
+
+    def parse_wallet(self, desc):
+        w = super().parse_wallet(desc)
+        if w and w.descriptor.is_legacy:
+            raise WalletError("Legacy wallets are not supported in Liquid")
+        return w
 
 
     def parse_stream(self, stream):
@@ -190,23 +197,21 @@ class LWalletManager(WalletManager):
             vals = [] # values
             abfs = [] # asset blinding factors
             vbfs = [] # value blinding factors
+            in_tags = []
+            in_gens = []
 
         # Write global scope first
         psbtv.stream.seek(psbtv.offset)
         res = read_write(psbtv.stream, fout, psbtv.first_scope-psbtv.offset)
 
-        # string representation of the Bitcoin for wallet processing
-        default_asset = "LBTC" if self.network == "liquidv1" else "tLBTC"
-        fee = { default_asset: 0 }
+        fee = {}
 
         # here we will store all wallets that we detect in inputs
         # wallet: {asset: amount}
-        # For BTC it will be always { default_asset: amount }
         wallets = {}
         meta = {
             "inputs": [{} for i in range(psbtv.num_inputs)],
             "outputs": [{} for i in range(psbtv.num_outputs)],
-            "default_asset": default_asset,
         }
 
         fingerprint = self.keystore.fingerprint
@@ -229,13 +234,13 @@ class LWalletManager(WalletManager):
 
             # in Liquid we may need to rewind the rangeproof to get values
             rangeproof_offset = None
-            if is_liquid(self.network):
-                off = psbtv.seek_to_scope(i)
-                # find offset of the rangeproof if it exists
-                rangeproof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x0e', from_current=True)
-                # add scope offset
-                if rangeproof_offset is not None:
-                    rangeproof_offset += off
+
+            off = psbtv.seek_to_scope(i)
+            # find offset of the rangeproof if it exists
+            rangeproof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x0e', from_current=True)
+            # add scope offset
+            if rangeproof_offset is not None:
+                rangeproof_offset += off
 
             # Find wallets owning the inputs and fill scope data:
             # first we check already detected wallet owns the input
@@ -247,6 +252,7 @@ class LWalletManager(WalletManager):
                                 stream=psbtv.stream, rangeproof_offset=rangeproof_offset):
                     wallet = w
                     break
+            # if it's a different wallet - go through all our wallets and check
             if wallet is None:
                 # find wallet and append it to wallets
                 for w in self.wallets:
@@ -255,93 +261,105 @@ class LWalletManager(WalletManager):
                                     stream=psbtv.stream, rangeproof_offset=rangeproof_offset):
                         wallet = w
                         break
-            # add wallet to tx wallets dict
+            # add wallet to tx wallets dict (None means unknown wallet)
             if wallet not in wallets:
                 wallets[wallet] = {}
 
             # Get values (and assets) and store in metadata and wallets dict
-            if not is_liquid(self.network):
-                # bitcoin it easy, just add value to the asset
-                asset = default_asset
-                value = inp.utxo.value
-            else:
-                # we don't know yet if we unblinded stuff or not
-                asset = inp.asset or inp.utxo.asset
-                value = inp.value or inp.utxo.value
-                # blinded assets are 33-bytes long, unblinded - 32
-                if not (len(asset) == 32 and isinstance(value, int)):
-                    asset = None
-                    value = 0
-                if blinding_seed:
-                    # update blinding seed
-                    hseed.update(bytes(reversed(inp.txid)))
-                    hseed.update(inp.vout.to_bytes(4,'little'))
-                    vals.append(value)
-                    abfs.append(inp.asset_blinding_factor or b"\x00"*32)
-                    vbfs.append(inp.value_blinding_factor or b"\x00"*32)
+            # we don't know yet if we unblinded the input or not, and if it was even blinded
+            asset = inp.asset or inp.utxo.asset
+            value = inp.value or inp.utxo.value
+            # blinded assets are 33-bytes long, unblinded - 32
+            if not (len(asset) == 32 and isinstance(value, int)):
+                asset = None
+                value = 0
+                # if at least one input can't be unblinded - we can't generate proofs
+                blinding_seed = None
+            if blinding_seed:
+                # update blinding seed
+                hseed.update(bytes(reversed(inp.txid)))
+                hseed.update(inp.vout.to_bytes(4,'little'))
+                vals.append(value)
+                abfs.append(inp.asset_blinding_factor or b"\x00"*32)
+                vbfs.append(inp.value_blinding_factor or b"\x00"*32)
+                in_tags.append(inp.asset)
+                in_gens.append(secp256k1.generator_parse(inp.utxo.asset))
 
             wallets[wallet][asset] = wallets[wallet].get(asset, 0) + value
             metainp.update({
                 "label": wallet.name if wallet else "Unknown wallet",
                 "value": value,
+                "asset": self.asset_label(asset),
             })
-            if asset != default_asset:
-                metainp.update({"asset": self.asset_label(asset)})
-                if asset not in self.assets:
-                    metainp.update({"raw_asset": asset})
-            inp.write_to(fout)
+            if asset not in self.assets:
+                metainp.update({"raw_asset": asset})
+            inp.write_to(fout, version=psbtv.version)
 
-        # if blinding seed is set - blind outputs that are missing proofs
-        if is_liquid(self.network) and blinding_seed:
+        # if blinding seed is set we can generate all proofs
+        if blinding_seed:
             blinding_out_indexes = []
+            # first we go through all outputs and update the txseed
             for i in range(psbtv.num_outputs):
                 out = psbtv.output(i)
                 hseed.update(out.script_pubkey.serialize())
             txseed = hseed.digest()
+            # now we can blind everything
             for i in range(psbtv.num_outputs):
                 out = psbtv.output(i)
                 if out.blinding_pubkey:
                     blinding_out_indexes.append(i)
-                    abfs.append(hashes.tagged_hash("liquid/abf", txseed+i.to_bytes(4,'little')))
-                    vbfs.append(hashes.tagged_hash("liquid/vbf", txseed+i.to_bytes(4,'little')))
+                    abf = hashes.tagged_hash("liquid/abf", txseed+i.to_bytes(4,'little'))
+                    vbf = hashes.tagged_hash("liquid/vbf", txseed+i.to_bytes(4,'little'))
+                    abfs.append(abf)
+                    vbfs.append(vbf)
                     vals.append(out.value)
             # get last vbf from scope
             out = psbtv.output(blinding_out_indexes[-1])
-            if out.value_blinding_factor:
-                vbfs[-1] = out.value_blinding_factor
-            else:
-                raise NotImplementedError()
-                vbfs[-1] = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, psbtv.num_inputs)
+            vbfs[-1] = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, psbtv.num_inputs)
 
-            # calculate commitments (surj proof etc)
+            # sanity check
+            assert len(abfs) == psbtv.num_inputs + len(blinding_out_indexes)
 
-            # in_tags = [inp.asset for inp in self.inputs]
-            # in_gens = [secp256k1.generator_parse(inp.utxo.asset) for inp in self.inputs]
-
-            # for i, out in enumerate(self.outputs):
-            #     if out.blinding_pubkey is None:
-            #         continue
-            #     gen = secp256k1.generator_generate_blinded(out.asset, out.asset_blinding_factor)
-            #     out.asset_commitment = secp256k1.generator_serialize(gen)
-            #     value_commitment = secp256k1.pedersen_commit(out.value_blinding_factor, out.value, gen)
-            #     out.value_commitment = secp256k1.pedersen_commitment_serialize(value_commitment)
-
-            #     proof_seed = hashes.tagged_hash("liquid/surjection_proof", txseed+i.to_bytes(4,'little'))
-            #     proof, in_idx = secp256k1.surjectionproof_initialize(in_tags, out.asset, seed=proof_seed)
-            #     secp256k1.surjectionproof_generate(proof, in_idx, in_gens, gen, self.inputs[in_idx].asset_blinding_factor, out.asset_blinding_factor)
-            #     out.surjection_proof = secp256k1.surjectionproof_serialize(proof)
-
-            #     # generate range proof
-            #     rangeproof_nonce = hashes.tagged_hash("liquid/range_proof", txseed+i.to_bytes(4,'little'))
-            #     out.reblind(rangeproof_nonce)
-        # otherwise - verify all outputs
+        # parse outputs and blind if necessary
         for i in range(psbtv.num_outputs):
             out = psbtv.output(i)
             metaout = meta["outputs"][i]
+            # calculate commitments
+            if blinding_seed and out.blinding_pubkey:
+                # index of this output in the abfs, vbfs and vals
+                list_idx = psbtv.num_inputs + blinding_out_indexes.index(i)
+                # asset commitment
+                out.asset_blinding_factor = abfs[list_idx]
+                gen = secp256k1.generator_generate_blinded(out.asset, out.asset_blinding_factor)
+                out.asset_commitment = secp256k1.generator_serialize(gen)
+                # value commitment
+                out.value_blinding_factor = vbfs[list_idx]
+                value_commitment = secp256k1.pedersen_commit(out.value_blinding_factor, out.value, gen)
+                out.value_commitment = secp256k1.pedersen_commitment_serialize(value_commitment)
+                # surjection proof
+                # TODO: with pointer!
+                proof_seed = hashes.tagged_hash("liquid/surjection_proof", txseed+i.to_bytes(4,'little'))
+                proof, in_idx = secp256k1.surjectionproof_initialize(in_tags, out.asset, proof_seed)
+                secp256k1.surjectionproof_generate(proof, in_idx, in_gens, gen, abfs[in_idx], out.asset_blinding_factor)
+                surjection_proof = secp256k1.surjectionproof_serialize(proof)
+
+                # write surjection proof
+                ser_string(fout, b'\xfc\x04pset\x05')
+                ser_string(fout, surjection_proof)
+
+                # generate range proof
+                # TODO: with pointer!
+                rangeproof_nonce = hashes.tagged_hash("liquid/range_proof", txseed+i.to_bytes(4,'little'))
+                out.reblind(rangeproof_nonce, extra_message=out.unknown.get(b"\xfc\x07specter\x01", b""))
+                
+                ser_string(fout, b'\xfc\x04pset\x04')
+                ser_string(fout, out.range_proof)
+
             rangeproof_offset = None
-            # surj_proof_offset = None
-            # find rangeproof and surjection proof
-            if is_liquid(self.network):
+            # we only need to verify rangeproof if we didn't generate it ourselves
+            if not blinding_seed:
+                # surj_proof_offset = None
+                # find rangeproof and surjection proof
                 off = psbtv.seek_to_scope(psbtv.num_inputs+i)
                 # find offset of the rangeproof if it exists
                 rangeproof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x04', from_current=True)
@@ -351,21 +369,15 @@ class LWalletManager(WalletManager):
                     rangeproof_offset = psbtv.seek_to_value(b'\xfc\x08elements\x04', from_current=True)
                 if rangeproof_offset is not None:
                     rangeproof_offset += off
-                # psbtv.seek_to_scope(psbtv.num_inputs+i)
-                # surj_proof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x05', from_current=True)
-                # if surj_proof_offset is None:
-                #     psbtv.seek_to_scope(psbtv.num_inputs+i)
-                #     # alternative key definition (psetv0)
-                #     surj_proof_offset = psbtv.seek_to_value(b'\xfc\x08elements\x04', from_current=True)
-                # if surj_proof_offset is not None:
-                #     surj_proof_offset += off
+
+                # TODO: copy over rangeproof and surj proof!
+
             wallet = None
             for w in wallets:
                 # pass rangeproof offset if it's in the scope
                 if w.fill_scope(out, fingerprint,
                                 stream=psbtv.stream,
                                 rangeproof_offset=rangeproof_offset,
-                                # surj_proof_offset=surj_proof_offset,
                 ):
                     wallet = w
                     break
@@ -376,36 +388,27 @@ class LWalletManager(WalletManager):
                     if w.fill_scope(out, fingerprint,
                                     stream=psbtv.stream,
                                     rangeproof_offset=rangeproof_offset,
-                                    # surj_proof_offset=surj_proof_offset,
                     ):
                         wallet = w
                         break
-            # - lq: generate commitments and rangeproofs
-            #       if blinding pubkey is set and seed is set.
+
             # Get values (and assets) and store in metadata and wallets dict
-            if not is_liquid(self.network):
-                # bitcoin it easy, just add value to the asset
-                asset = default_asset
-                value = out.value
-            else:
-                # we don't know yet if we unblinded stuff or not
-                asset = out.asset or out.asset_commitment
-                value = out.value or out.value_commitment
-                # blinded assets are 33-bytes long, unblinded - 32
-                if not (len(asset) == 32 and isinstance(value, int)):
-                    asset = None
-                    value = 0
+            asset = out.asset or out.asset_commitment
+            value = out.value or out.value_commitment
+            # blinded assets are 33-bytes long, unblinded - 32
+            if not (len(asset) == 32 and isinstance(value, int)):
+                asset = None
+                value = 0
             metaout.update({
                 "label": wallet.name if wallet else "",
                 "change": wallet is not None,
                 "value": value,
                 "address": self.get_address(out),
+                "asset": self.asset_label(asset),
             })
-            if asset != default_asset:
-                metaout.update({"asset": self.asset_label(asset)})
-                if asset not in self.assets:
-                    metaout.update({"raw_asset": asset})
-            out.write_to(fout, skip_separator=True)
+            if asset not in self.assets:
+                metaout.update({"raw_asset": asset})
+            out.write_to(fout, skip_separator=True, version=psbtv.version)
             # write rangeproofs and surjection proofs
             # separator
             fout.write(b"\x00")
@@ -420,14 +423,14 @@ class LWalletManager(WalletManager):
             w.update_gaps(psbtv=psbtv)
             w.save(self.keystore)
         sig_count = 0
+        # TODO: calculate the rangeproof hash cache (either here or refactor psetview)
         with open(self.tempdir+"/sigs", "wb") as sig_stream:
             for i in range(psbtv.num_inputs):
                 self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
                 inp = psbtv.input(i)
-                for w, _ in wallets:
+                for w in wallets:
                     if w is None:
                         continue
-                    w.fill_scope(inp, self.keystore.fingerprint)
                     # sign with wallet if it has private keys
                     if w.has_private_keys:
                         sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
