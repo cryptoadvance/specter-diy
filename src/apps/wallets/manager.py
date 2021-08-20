@@ -636,7 +636,7 @@ class WalletManager(BaseApp):
             wallet = None
             for w in wallets:
                 # pass rangeproof offset if it's in the scope
-                if w.fill_scope(inp, fingerprint):
+                if w and w.fill_scope(inp, fingerprint):
                     wallet = w
                     break
             if wallet is None:
@@ -677,10 +677,8 @@ class WalletManager(BaseApp):
             metaout = meta["outputs"][i]
             wallet = None
             for w in wallets:
-                if w is None:
-                    continue
                 # pass rangeproof offset if it's in the scope
-                if w.fill_scope(out, fingerprint):
+                if w and w.fill_scope(out, fingerprint):
                     wallet = w
                     break
             if wallet is None:

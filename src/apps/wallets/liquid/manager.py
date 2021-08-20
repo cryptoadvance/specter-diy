@@ -275,7 +275,7 @@ class LWalletManager(WalletManager):
             wallet = None
             for w in wallets:
                 # pass rangeproof offset if it's in the scope
-                if w.fill_scope(inp, fingerprint,
+                if w and w.fill_scope(inp, fingerprint,
                                 stream=psbtv.stream, rangeproof_offset=rangeproof_offset):
                     wallet = w
                     break
@@ -429,7 +429,7 @@ class LWalletManager(WalletManager):
             wallet = None
             for w in wallets:
                 # pass rangeproof offset if it's in the scope
-                if w.fill_scope(out, fingerprint,
+                if w and w.fill_scope(out, fingerprint,
                                 stream=psbtv.stream,
                                 rangeproof_offset=rangeproof_offset,
                 ):
