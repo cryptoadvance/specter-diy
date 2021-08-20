@@ -9,6 +9,7 @@ from bitcoin.liquid.addresses import address as liquid_address
 from .wallet import WalletError, LWallet
 from helpers import is_liquid
 import secp256k1
+from platform import get_preallocated_ram
 
 # asset management
 ADD_ASSET = 0xA7
@@ -39,7 +40,7 @@ class LWalletManager(WalletManager):
     WalletClass = LWallet
     # supported networks
     Networks = {"liquidv1": NETWORKS["liquidv1"], "elementsregtest": NETWORKS["elementsregtest"]}
-    # DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
+    DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
 
 
     def __init__(self, path):
@@ -130,16 +131,18 @@ class LWalletManager(WalletManager):
 
 
     async def check_unknown_assets(self, meta, show_screen):
-        if len(meta.get("unknown_assets",[])) == 0:
+        unknown_assets = {sc["raw_asset"] for sc in (meta["inputs"]+meta["outputs"]) if "raw_asset" in sc}
+        if len(unknown_assets) == 0:
             return
         scr = Prompt(
             "Warning!",
             "\nUnknown assets in the transaction!\n\n\n"
+            "Number of unknown assets: %d\n\n"
             "Do you want to label them?\n"
-            "Otherwise they will be rendered with partial hex id.",
+            "Otherwise they will be rendered\nwith partial hex id." % len(unknown_assets),
         )
         if await show_screen(scr):
-            for asset in meta["unknown_assets"]:
+            for asset in unknown_assets:
                 # return False if the user cancelled
                 scr = InputScreen("Asset\n\n"+format_addr(hexlify(bytes(reversed(asset))).decode(), letters=8, words=2),
                             note="\nChoose a label for unknown asset.\nBetter to keep it short, like LBTC or LDIY")
@@ -175,6 +178,32 @@ class LWalletManager(WalletManager):
         platform.sync()
         return w
 
+    def _copy_kv(self, fout, psbtv, key):
+        # find offset of the key if it exists
+        off = psbtv.seek_to_value(key, from_current=True)
+        if off is None:
+            return
+        # we found it - copy over
+        ser_string(fout, key)
+        l = compact.read_from(psbtv.stream)
+        fout.write(compact.to_bytes(l))
+        read_write(psbtv.stream, fout, l)
+        return off
+
+    async def confirm_transaction_final(self, wallets, meta, show_screen):
+        # build title for the tx screen
+        spends = []
+        for w in wallets:
+            if w is None:
+                name = "Unknown wallet"
+            else:
+                name = w.name
+            amount = wallets[w]
+            spend = ", ".join("%.8f %s" % (val, self.asset_label(asset)) for asset, val in amount.items())
+            spends.append('%s\nfrom "%s"' % (spend, name))
+        title = "Inputs:\n" + "\n".join(spends)
+        return await show_screen(TransactionScreen(title, meta))
+
     def preprocess_psbt(self, stream, fout):
         """
         Processes incoming PSBT, fills missing information and writes to fout.
@@ -203,8 +232,6 @@ class LWalletManager(WalletManager):
         # Write global scope first
         psbtv.stream.seek(psbtv.offset)
         res = read_write(psbtv.stream, fout, psbtv.first_scope-psbtv.offset)
-
-        fee = {}
 
         # here we will store all wallets that we detect in inputs
         # wallet: {asset: amount}
@@ -320,6 +347,7 @@ class LWalletManager(WalletManager):
             # sanity check
             assert len(abfs) == psbtv.num_inputs + len(blinding_out_indexes)
 
+        memptr, memlen = get_preallocated_ram()
         # parse outputs and blind if necessary
         for i in range(psbtv.num_outputs):
             out = psbtv.output(i)
@@ -337,40 +365,66 @@ class LWalletManager(WalletManager):
                 value_commitment = secp256k1.pedersen_commit(out.value_blinding_factor, out.value, gen)
                 out.value_commitment = secp256k1.pedersen_commitment_serialize(value_commitment)
                 # surjection proof
-                # TODO: with pointer!
                 proof_seed = hashes.tagged_hash("liquid/surjection_proof", txseed+i.to_bytes(4,'little'))
-                proof, in_idx = secp256k1.surjectionproof_initialize(in_tags, out.asset, proof_seed)
-                secp256k1.surjectionproof_generate(proof, in_idx, in_gens, gen, abfs[in_idx], out.asset_blinding_factor)
-                surjection_proof = secp256k1.surjectionproof_serialize(proof)
+                plen, in_idx = secp256k1.surjectionproof_initialize_preallocated(memptr, memlen, in_tags, out.asset, proof_seed)
+                secp256k1.surjectionproof_generate(memptr, in_idx, in_gens, gen, abfs[in_idx], out.asset_blinding_factor)
+                surjection_proof = secp256k1.surjectionproof_serialize(memptr)
 
                 # write surjection proof
                 ser_string(fout, b'\xfc\x04pset\x05')
                 ser_string(fout, surjection_proof)
+                del surjection_proof
 
                 # generate range proof
-                # TODO: with pointer!
                 rangeproof_nonce = hashes.tagged_hash("liquid/range_proof", txseed+i.to_bytes(4,'little'))
-                out.reblind(rangeproof_nonce, extra_message=out.unknown.get(b"\xfc\x07specter\x01", b""))
-                
-                ser_string(fout, b'\xfc\x04pset\x04')
-                ser_string(fout, out.range_proof)
+                pub = secp256k1.ec_pubkey_parse(out.blinding_pubkey)
+                out.ecdh_pubkey = ec.PrivateKey(rangeproof_nonce).sec()
+                secp256k1.ec_pubkey_tweak_mul(pub, rangeproof_nonce)
+                sec = secp256k1.ec_pubkey_serialize(pub)
+                ecdh_nonce = hashes.double_sha256(sec)
+                # proprietary field that stores extra message for recepient
+                extra_message=out.unknown.get(b"\xfc\x07specter\x01", b"")
+                msg = out.asset[-32:] + out.asset_blinding_factor + extra_message
+                # write to temp file to get length first
+                with open(self.tempdir+"/rangeproof_out", "wb") as frp:
+                    rplen = secp256k1.rangeproof_sign_to(
+                        frp, memptr, memlen,
+                        ecdh_nonce, out.value, secp256k1.pedersen_commitment_parse(out.value_commitment),
+                        out.value_blinding_factor, msg,
+                        out.script_pubkey.data, secp256k1.generator_parse(out.asset_commitment)
+                    )
+                # write to fout rangeproof field
+                with open(self.tempdir+"/rangeproof_out", "rb") as frp:
+                    ser_string(fout, b'\xfc\x04pset\x04')
+                    fout.write(compact.to_bytes(rplen))
+                    read_write(frp, fout, rplen)
 
             rangeproof_offset = None
+            surj_proof_offset = None
             # we only need to verify rangeproof if we didn't generate it ourselves
             if not blinding_seed:
-                # surj_proof_offset = None
                 # find rangeproof and surjection proof
+                # rangeproof
                 off = psbtv.seek_to_scope(psbtv.num_inputs+i)
                 # find offset of the rangeproof if it exists
-                rangeproof_offset = psbtv.seek_to_value(b'\xfc\x04pset\x04', from_current=True)
+                rangeproof_offset = self._copy_kv(fout, psbtv, b'\xfc\x04pset\x04')
                 if rangeproof_offset is None:
                     psbtv.seek_to_scope(psbtv.num_inputs+i)
                     # alternative key definition (psetv0)
-                    rangeproof_offset = psbtv.seek_to_value(b'\xfc\x08elements\x04', from_current=True)
+                    rangeproof_offset = self._copy_kv(fout, psbtv, b'\xfc\x08elements\x04')
                 if rangeproof_offset is not None:
                     rangeproof_offset += off
 
-                # TODO: copy over rangeproof and surj proof!
+                # surjection proof
+                off = psbtv.seek_to_scope(psbtv.num_inputs+i)
+                # find offset of the rangeproof if it exists
+                surj_proof_offset = self._copy_kv(fout, psbtv, b'\xfc\x04pset\x05')
+                if surj_proof_offset is None:
+                    psbtv.seek_to_scope(psbtv.num_inputs+i)
+                    # alternative key definition (psetv0)
+                    surj_proof_offset = self._copy_kv(fout, psbtv, b'\xfc\x08elements\x05')
+                if surj_proof_offset is not None:
+                    surj_proof_offset += off
 
             wallet = None
             for w in wallets:
@@ -414,35 +468,6 @@ class LWalletManager(WalletManager):
             fout.write(b"\x00")
 
         return wallets, meta
-
-    def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
-        for w, _ in wallets:
-            if w is None:
-                continue
-            # fill derivation paths from proprietary fields
-            w.update_gaps(psbtv=psbtv)
-            w.save(self.keystore)
-        sig_count = 0
-        # TODO: calculate the rangeproof hash cache (either here or refactor psetview)
-        with open(self.tempdir+"/sigs", "wb") as sig_stream:
-            for i in range(psbtv.num_inputs):
-                self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
-                inp = psbtv.input(i)
-                for w in wallets:
-                    if w is None:
-                        continue
-                    # sign with wallet if it has private keys
-                    if w.has_private_keys:
-                        sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
-                # sign with keystore
-                sig_count += self.keystore.sign_input(psbtv, i, sig_stream, sighash, inp)
-                # add separator
-                sig_stream.write(b"\x00")
-        if sig_count == 0:
-            raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
-        # remove unnecessary stuff:
-        with open(self.tempdir+"/sigs", "rb") as sig_stream:
-            psbtv.write_to(out_stream, compress=True, extra_input_streams=[sig_stream])
 
 
     ##### assets stuff ######

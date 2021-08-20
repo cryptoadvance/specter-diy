@@ -95,9 +95,12 @@ class SignTest(TestCase):
         self.assertTrue(wapp.manager.wallets[0] in wallets)
 
         fout.seek(0)
-        psbtv = PSETView.view(fout)
+        psbtv = PSETView.view(fout, compress=True)
+        b = BytesIO()
+        sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, None)
 
         psbt = PSET.from_string(unsigned)
+
         for inp in psbt.inputs:
             inp.range_proof = None
         psbt2 = PSET.parse(fout.getvalue())
@@ -105,8 +108,8 @@ class SignTest(TestCase):
             self.assertEqual(inp1, inp2)
         for out1, out2 in zip(psbt.outputs, psbt2.outputs):
             self.assertEqual(out1.range_proof, out2.range_proof)
-            self.assertEqual(out1.surjection_proof, out2.surjection_proof)
             self.assertEqual(out1.asset_commitment, out2.asset_commitment)
             self.assertEqual(out1.value_commitment, out2.value_commitment)
             self.assertEqual(out1.asset_blinding_factor, out2.asset_blinding_factor)
             self.assertEqual(out1.value_blinding_factor, out2.value_blinding_factor)
+            self.assertEqual(out1.surjection_proof, out2.surjection_proof)

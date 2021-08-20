@@ -62,17 +62,18 @@ class TransactionScreen(Prompt):
                 continue
             obj = self.show_output(out, obj)
 
-        if send_amount > 0 and not meta.get("hide_fee_percent", False):
-            fee_percent = meta["fee"] * 100 / send_amount
-            fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
-        # back to wallet
-        else:
-            fee_txt = "%d satoshi" % (meta["fee"])
-        fee = add_label("Fee: " + fee_txt, scr=self.page)
-        fee.set_style(0, style)
-        fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        if meta.get("fee"):
+            if send_amount > 0:
+                fee_percent = meta["fee"] * 100 / send_amount
+                fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
+            # back to wallet
+            else:
+                fee_txt = "%d satoshi" % (meta["fee"])
+            fee = add_label("Fee: " + fee_txt, scr=self.page)
+            fee.set_style(0, style)
+            fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        obj = fee
+            obj = fee
 
         # warning label for address gap limit
         if "warnings" in meta and len(meta["warnings"]) > 0:
@@ -135,10 +136,11 @@ class TransactionScreen(Prompt):
                 addrlbl.set_style(0, style_primary)
             lbl = addrlbl
 
-        idxlbl = lv.label(self.page2)
-        idxlbl.set_text("Fee:  " + fee_txt)
-        idxlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        idxlbl.set_x(30)
+        if meta.get("fee"):
+            idxlbl = lv.label(self.page2)
+            idxlbl.set_text("Fee:  " + fee_txt)
+            idxlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+            idxlbl.set_x(30)
 
         self.toggle_details()
 
