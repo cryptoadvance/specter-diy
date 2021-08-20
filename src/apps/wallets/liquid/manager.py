@@ -213,6 +213,8 @@ class LWalletManager(WalletManager):
         - metadata for tx display including warnings that require user confirmation
         - default sighash to use for signing
         """
+        self.show_loader(title="Parsing transaction...")
+
         # compress = True flag will make sure large fields won't be loaded to RAM
         psbtv = self.PSBTViewClass.view(stream, compress=True)
 
@@ -249,6 +251,7 @@ class LWalletManager(WalletManager):
         # For Liquid: same + values, assets, commitments, proofs etc.
         # At the end we should have the most complete PSBT / PSET possible
         for i in range(psbtv.num_inputs):
+            self.show_loader(title="Parsing input %d..." % i)
             # load input to memory, verify it (check prevtx hash)
             inp = psbtv.input(i)
             metainp = meta["inputs"][i]
@@ -324,6 +327,7 @@ class LWalletManager(WalletManager):
 
         # if blinding seed is set we can generate all proofs
         if blinding_seed:
+            self.show_loader(title="Doing blinding magic...")
             blinding_out_indexes = []
             # first we go through all outputs and update the txseed
             for i in range(psbtv.num_outputs):
@@ -350,6 +354,7 @@ class LWalletManager(WalletManager):
         memptr, memlen = get_preallocated_ram()
         # parse outputs and blind if necessary
         for i in range(psbtv.num_outputs):
+            self.show_loader(title="Parsing output %d..." % i)
             out = psbtv.output(i)
             metaout = meta["outputs"][i]
             # calculate commitments
@@ -403,6 +408,7 @@ class LWalletManager(WalletManager):
             surj_proof_offset = None
             # we only need to verify rangeproof if we didn't generate it ourselves
             if not blinding_seed:
+                self.show_loader(title="Verifying output %d..." % i)
                 # find rangeproof and surjection proof
                 # rangeproof
                 off = psbtv.seek_to_scope(psbtv.num_inputs+i)
