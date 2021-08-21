@@ -5,6 +5,7 @@ from .applet import ISOException
 class MemoryCardApplet(SecureApplet):
     GET_SECRET = b"\x05\x00"
     SET_SECRET = b"\x05\x01"
+    NAME = "MemoryCard"
 
     def __init__(self, connection):
         aid = b"\xB0\x0B\x51\x11\xCB\x01"

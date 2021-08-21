@@ -13,6 +13,7 @@ import asyncio
 from io import BytesIO
 from uscard import SmartcardException
 from binascii import hexlify
+import lvgl as lv
 
 
 class MemoryCard(RAMKeyStore):
@@ -137,7 +138,7 @@ In this mode device can only operate when the smartcard is inserted!"""
             self._is_key_saved = False
         else:
             try:
-                d = self.parse_data(data)
+                d, _ = self.parse_data(data)
                 if "entropy" in d:
                     self._is_key_saved = True
             except KeyStoreError as e:
@@ -171,11 +172,13 @@ In this mode device can only operate when the smartcard is inserted!"""
         fingerprint = tagged_hash("scid", self.secret)[:4]
         l = len(self.MAGIC) + 4
         prefix = data[:l+1]
+        encrypted = True
         if prefix == bytes([l]) + self.MAGIC + fingerprint:
             # smartcard encryption key
             key = tagged_hash("scenc", self.secret)
         elif prefix == bytes([l]) + self.MAGIC + b"\x00"*4:
             key = b"\xcc"*32
+            encrypted = False
         else:
             raise KeyStoreError(
                 "Looks like stored data is created on a different device."
@@ -192,7 +195,7 @@ In this mode device can only operate when the smartcard is inserted!"""
             assert len(v) == l
             if k in self.KEYS:
                 o[self.KEYS[k]] = v
-        return o
+        return o, encrypted
 
     def lock(self):
         """Locks the keystore, requires PIN to unlock"""
@@ -241,14 +244,18 @@ In this mode device can only operate when the smartcard is inserted!"""
     def is_key_saved(self):
         return self._is_key_saved
 
-    async def load_mnemonic(self):
+    async def _get_mnemonic(self):
         await self.check_card(check_pin=True)
         if not self._is_key_saved:
             raise KeyStoreError("Key is not saved")
         self.show_loader("Loading secret to the card...")
         data = self.applet.get_secret()
-        entropy = self.parse_data(data)["entropy"]
-        mnemonic = bip39.mnemonic_from_bytes(entropy)
+        d, _ = self.parse_data(data)
+        entropy = d["entropy"]
+        return bip39.mnemonic_from_bytes(entropy)
+
+    async def load_mnemonic(self):
+        mnemonic = await self._get_mnemonic()
         self.set_mnemonic(mnemonic, "")
         return True
 
@@ -321,16 +328,21 @@ In this mode device can only operate when the smartcard is inserted!"""
         """Manage storage"""
         enabled = self.connection.isCardInserted()
         buttons = [
-            # id, text
+            # id, text, enabled, color
             (None, "Smartcard storage"),
             (0, "Save key to the card", enabled),
-            (1, "Load key from the card", enabled),
-            (2, "Delete key from the card", enabled),
-            (3, "Use a different card", enabled)
+            (1, "Load key from the card", enabled and self.is_key_saved),
+            (2, "Delete key from the card", enabled and self.is_key_saved),
+            (3, "Use a different card", enabled),
+            (4, lv.SYMBOL.SETTINGS + " Get card info", enabled),
+            # (5, lv.SYMBOL.TRASH + " Wipe the card", enabled, 0x951E2D),
         ]
 
         # we stay in this menu until back is pressed
         while True:
+            # check updated status
+            buttons[2] = (1, "Load key from the card", enabled and self.is_key_saved)
+            buttons[3] = (2, "Delete key from the card", enabled and self.is_key_saved)
             note = "Card fingerprint: %s" % self.hexid
             # wait for menu selection
             menuitem = await self.show(Menu(buttons, note=note, last=(255, None)))
@@ -353,14 +365,18 @@ In this mode device can only operate when the smartcard is inserted!"""
                     Alert("Success!", "Your key is loaded.", button_text="OK")
                 )
             elif menuitem == 2:
-                await self.delete_mnemonic()
-                await self.show(
-                    Alert(
-                        "Success!",
-                        "Your key is deleted from the smartcard.",
-                        button_text="OK",
+                if await self.show(Prompt(
+                    "Are you sure?",
+                    "\n\nDelete the key from the card?"
+                )):
+                    await self.delete_mnemonic()
+                    await self.show(
+                        Alert(
+                            "Success!",
+                            "Your key is deleted from the smartcard.",
+                            button_text="OK",
+                        )
                     )
-                )
             elif menuitem == 3:
                 if await self.show(
                     Prompt(
@@ -377,3 +393,42 @@ In this mode device can only operate when the smartcard is inserted!"""
                     await self.show(Alert("Please swap the card", "Now you can insert another card and set it up.", button_text="Continue"))
                     await self.check_card(check_pin=True)
                     await self.unlock()
+            elif menuitem == 4:
+                await self.show_card_info()
+            else:
+                raise KeyStoreError("Invalid menu")
+
+    async def show_card_info(self):
+        note = "Card fingerprint: %s" % self.hexid
+        version = "%s v%s" % (self.applet.NAME, self.applet.version)
+        platform = self.applet.platform
+        data = self.applet.get_secret()
+        key_saved = len(data) > 0
+        encrypted = True
+        decryptable = True
+        if key_saved:
+            try:
+                d, encrypted = self.parse_data(data)
+                if "entropy" in d:
+                    self._is_key_saved = True
+            except KeyStoreError as e:
+                decryptable = False
+        # yes = lv.SYMBOL.OK+" Yes"
+        # no = lv.SYMBOL.CLOSE+" No"
+        yes = "Yes"
+        no = "No"
+        props = [
+            "\n#7f8fa4 PLATFORM #",
+            "Implementation: %s" % platform,
+            "Version: %s" % version,
+            "\n#7f8fa4 KEY INFO: #",
+            "Key saved: " + (yes if key_saved else no),
+        ]
+        if key_saved:
+            props.extend([
+                "Encrypted: " + (yes if encrypted else no),
+                "Decryptable: " + (yes if decryptable else no),
+            ])
+        scr = Alert("Smartcard info", "\n\n".join(props), note=note)
+        scr.message.set_recolor(True)
+        await self.show(scr)
