@@ -162,3 +162,23 @@ class SignTest(TestCase):
         fout = BytesIO()
         with self.assertRaises(WalletError):
             wallets, meta = wapp.manager.preprocess_psbt(s, fout)
+
+        # no abf
+        psbt = PSET.from_string(unsigned)
+        psbt.unknown = {}
+        psbt.outputs[0].asset_blinding_factor = None
+
+        s = BytesIO(psbt.serialize())
+        fout = BytesIO()
+        with self.assertRaises(WalletError):
+            wallets, meta = wapp.manager.preprocess_psbt(s, fout)
+
+        # no vbf
+        psbt = PSET.from_string(unsigned)
+        psbt.unknown = {}
+        psbt.outputs[0].value_blinding_factor = None
+
+        s = BytesIO(psbt.serialize())
+        fout = BytesIO()
+        with self.assertRaises(WalletError):
+            wallets, meta = wapp.manager.preprocess_psbt(s, fout)
