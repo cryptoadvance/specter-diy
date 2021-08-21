@@ -64,56 +64,56 @@ class SignTest(TestCase):
         wapp = get_wallets_app(ks, 'elementsregtest')
         # at this stage only wpkh wallet exists
         # so this tx be parsed and signed just fine
-        for unsigned in [PSETS["wpkh"][0], BLINDED]:
-            # unsigned, signed = PSETS["wpkh"]
-            # unsigned = b64pset
-            psbt = PSET.from_string(unsigned)
-            for inp in psbt.inputs:
-                if inp.range_proof:
-                    inp.asset = None
-                    inp.value = None
-                    inp.asset_blinding_factor = None
-                    inp.value_blinding_factor = None
-            for out in psbt.outputs:
-                out.asset_blinding_factor = None
-                out.value_blinding_factor = None
-                out.asset_commitment = None
-                out.value_commitment = None
-                out.range_proof = None
-                out.surjection_proof = None
+        unsigned, signed = PSETS["wpkh"]
+        # unsigned = b64pset
+        psbt = PSET.from_string(unsigned)
+        for inp in psbt.inputs:
+            if inp.range_proof:
+                inp.asset = None
+                inp.value = None
+                inp.asset_blinding_factor = None
+                inp.value_blinding_factor = None
+        for out in psbt.outputs:
+            out.asset_blinding_factor = None
+            out.value_blinding_factor = None
+            out.asset_commitment = None
+            out.value_commitment = None
+            out.range_proof = None
+            # out.surjection_proof = None
 
-            s = BytesIO(psbt.to_string().encode())
-            # check it can sign b64-psbt
-            self.assertTrue(wapp.can_process(s))
-            # check it can sign raw psbt
-            s = BytesIO(psbt.serialize())
-            self.assertTrue(wapp.can_process(s))
+        s = BytesIO(psbt.to_string().encode())
+        # check it can sign b64-psbt
+        self.assertTrue(wapp.can_process(s))
+        # check it can sign raw psbt
+        s = BytesIO(psbt.serialize())
+        self.assertTrue(wapp.can_process(s))
 
-            del psbt
+        del psbt
 
-            fout = BytesIO()
-            wallets, meta = wapp.manager.preprocess_psbt(s, fout)
+        fout = BytesIO()
+        wallets, meta = wapp.manager.preprocess_psbt(s, fout)
 
-            # found a wallet
-            self.assertEqual(len(wallets), 1)
-            self.assertTrue(wapp.manager.wallets[0] in wallets)
+        # found a wallet
+        self.assertEqual(len(wallets), 1)
+        # print(wallets)
+        self.assertTrue(wapp.manager.wallets[0] in wallets)
 
-            fout.seek(0)
-            psbtv = PSETView.view(fout, compress=True)
-            b = BytesIO()
-            sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, None)
+        fout.seek(0)
+        psbtv = PSETView.view(fout, compress=True)
+        b = BytesIO()
+        sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, None)
 
-            psbt = PSET.from_string(unsigned)
+        psbt = PSET.from_string(unsigned)
 
-            for inp in psbt.inputs:
-                inp.range_proof = None
-            psbt2 = PSET.parse(fout.getvalue())
-            for inp1, inp2 in zip(psbt.inputs, psbt2.inputs):
-                self.assertEqual(inp1, inp2)
-            for out1, out2 in zip(psbt.outputs, psbt2.outputs):
-                self.assertEqual(out1.range_proof, out2.range_proof)
-                self.assertEqual(out1.asset_commitment, out2.asset_commitment)
-                self.assertEqual(out1.value_commitment, out2.value_commitment)
-                self.assertEqual(out1.asset_blinding_factor, out2.asset_blinding_factor)
-                self.assertEqual(out1.value_blinding_factor, out2.value_blinding_factor)
-                self.assertEqual(out1.surjection_proof, out2.surjection_proof)
+        for inp in psbt.inputs:
+            inp.range_proof = None
+        psbt2 = PSET.parse(fout.getvalue())
+        for inp1, inp2 in zip(psbt.inputs, psbt2.inputs):
+            self.assertEqual(inp1, inp2)
+        for out1, out2 in zip(psbt.outputs, psbt2.outputs):
+            self.assertEqual(out1.range_proof, out2.range_proof)
+            self.assertEqual(out1.asset_commitment, out2.asset_commitment)
+            self.assertEqual(out1.value_commitment, out2.value_commitment)
+            self.assertEqual(out1.asset_blinding_factor, out2.asset_blinding_factor)
+            self.assertEqual(out1.value_blinding_factor, out2.value_blinding_factor)
+            self.assertEqual(out1.surjection_proof, out2.surjection_proof)

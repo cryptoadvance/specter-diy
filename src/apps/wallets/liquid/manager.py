@@ -199,7 +199,7 @@ class LWalletManager(WalletManager):
             else:
                 name = w.name
             amount = wallets[w]
-            spend = ", ".join("%s %s" % ("???" if val < 0 else "%.8f" % val, self.asset_label(asset)) for asset, val in amount.items())
+            spend = ", ".join("%s %s" % ("???" if val < 0 else "%.8f" % (val/1e8), self.asset_label(asset)) for asset, val in amount.items())
             spends.append('%s\nfrom "%s"' % (spend, name))
         title = "Inputs:\n" + "\n".join(spends)
         return await show_screen(TransactionScreen(title, meta))
@@ -359,7 +359,8 @@ class LWalletManager(WalletManager):
 
         memptr, memlen = get_preallocated_ram()
         # parse outputs and blind if necessary
-        in_tags = b"".join(in_tags)
+        if blinding_seed:
+            in_tags = b"".join(in_tags)
         for i in range(psbtv.num_outputs):
             gc.collect()
             self.show_loader(title="Parsing output %d..." % i)

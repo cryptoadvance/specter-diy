@@ -95,7 +95,7 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            valuetxt = "???" if inp["value"] == -1 else "%.8f" % inp["value"]
+            valuetxt = "???" if inp["value"] == -1 else "%.8f" % (inp["value"]/1e8)
             lbl.set_text("%s %s from %s" % (valuetxt, inp.get("asset", self.default_asset), inp.get("label", "Unknown wallet")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
@@ -122,7 +122,7 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            valuetxt = "???" if out["value"] == -1 else "%.8f" % out["value"]
+            valuetxt = "???" if out["value"] == -1 else "%.8f" % (out["value"]/1e8)
             lbl.set_text("%s %s to %s" % (valuetxt, out.get("asset", self.default_asset), out.get("label", "")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
@@ -157,7 +157,7 @@ class TransactionScreen(Prompt):
 
     def show_output(self, out, obj):
         # show output
-        valuetxt = "???" if out["value"] == -1 else "%.8f" % out["value"]
+        valuetxt = "???" if out["value"] == -1 else "%.8f" % (out["value"]/1e8)
         lbl = add_label(
             "%s %s to" % (valuetxt, out.get("asset", self.default_asset)), style="title", scr=self.page
         )
