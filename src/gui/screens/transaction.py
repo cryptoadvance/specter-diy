@@ -14,7 +14,9 @@ class TransactionScreen(Prompt):
 
         obj = self.message # for alignments
 
-        enable_inputs = len([k for k in meta["inputs"] if k.get("sighash", "ALL") != "ALL"]) > 0
+        enable_inputs = len([k for k in meta["inputs"] if k.get("sighash", "")]) > 0
+        # if there is at least one unknown value (liquid)
+        enable_inputs = enable_inputs or (-1 in [out["value"] for out in meta["outputs"]])
 
         lbl = add_label("Show detailed information                      ", scr=self)
         lbl.align(obj, lv.ALIGN.CENTER, 0, 0)
@@ -93,15 +95,16 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            lbl.set_text("%.8f %s from %s" % (inp["value"]/1e8, inp.get("asset", self.default_asset), inp.get("label", "Unknown wallet")))
+            valuetxt = "???" if inp["value"] == -1 else "%.8f" % inp["value"]
+            lbl.set_text("%s %s from %s" % (valuetxt, inp.get("asset", self.default_asset), inp.get("label", "Unknown wallet")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
-            if inp.get("sighash", "ALL") != "ALL":
+            if inp.get("sighash", ""):
                 shlbl = lv.label(self.page2)
                 shlbl.set_long_mode(lv.label.LONG.BREAK)
                 shlbl.set_width(380)
-                shlbl.set_text(inp.get("sighash", "ALL"))
+                shlbl.set_text(inp.get("sighash", ""))
                 shlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
                 shlbl.set_x(60)
                 shlbl.set_style(0, style_warning)
@@ -119,8 +122,8 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            # lbl.set_text("%.8f %s to %s" % (out["value"]/1e8, out.get("asset", self.default_asset), out.get("label", "")))
-            lbl.set_text("%.8f BTC to %s" % (out["value"]/1e8, out.get("label", "")))
+            valuetxt = "???" if out["value"] == -1 else "%.8f" % out["value"]
+            lbl.set_text("%s %s to %s" % (valuetxt, out.get("asset", self.default_asset), out.get("label", "")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
@@ -154,8 +157,9 @@ class TransactionScreen(Prompt):
 
     def show_output(self, out, obj):
         # show output
+        valuetxt = "???" if out["value"] == -1 else "%.8f" % out["value"]
         lbl = add_label(
-            "%.8f %s to" % (out["value"] / 1e8, out.get("asset", self.default_asset)), style="title", scr=self.page
+            "%s %s to" % (valuetxt, out.get("asset", self.default_asset)), style="title", scr=self.page
         )
         lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         obj = lbl

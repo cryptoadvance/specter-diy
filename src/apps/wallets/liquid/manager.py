@@ -302,7 +302,7 @@ class LWalletManager(WalletManager):
             # blinded assets are 33-bytes long, unblinded - 32
             if not (len(asset) == 32 and isinstance(value, int)):
                 asset = None
-                value = 0
+                value = -1
                 # if at least one input can't be unblinded - we can't generate proofs
                 blinding_seed = None
             if blinding_seed:
@@ -313,6 +313,8 @@ class LWalletManager(WalletManager):
                 abfs.append(inp.asset_blinding_factor or b"\x00"*32)
                 vbfs.append(inp.value_blinding_factor or b"\x00"*32)
                 in_tags.append(inp.asset)
+                if inp.utxo.asset is None:
+                    raise WalletError("Missing input asset")
                 in_gens.append(secp256k1.generator_parse(inp.utxo.asset))
 
             wallets[wallet][asset] = wallets[wallet].get(asset, 0) + value
@@ -346,10 +348,12 @@ class LWalletManager(WalletManager):
                     vals.append(out.value)
             # get last vbf from scope
             out = psbtv.output(blinding_out_indexes[-1])
-            vbfs[-1] = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, psbtv.num_inputs)
-
-            # sanity check
-            assert len(abfs) == psbtv.num_inputs + len(blinding_out_indexes)
+            if (None in vals or None in abfs or None in vbfs or None in in_tags):
+                blinding_seed = None
+            else:
+                vbfs[-1] = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, psbtv.num_inputs)
+                # sanity check
+                assert len(abfs) == psbtv.num_inputs + len(blinding_out_indexes)
 
         memptr, memlen = get_preallocated_ram()
         # parse outputs and blind if necessary
@@ -456,9 +460,9 @@ class LWalletManager(WalletManager):
             asset = out.asset or out.asset_commitment
             value = out.value or out.value_commitment
             # blinded assets are 33-bytes long, unblinded - 32
-            if not (len(asset) == 32 and isinstance(value, int)):
+            if not (asset and value) or not (len(asset) == 32 and isinstance(value, int)):
                 asset = None
-                value = 0
+                value = -1
             metaout.update({
                 "label": wallet.name if wallet else "",
                 "change": wallet is not None,
@@ -466,7 +470,7 @@ class LWalletManager(WalletManager):
                 "address": self.get_address(out),
                 "asset": self.asset_label(asset),
             })
-            if asset not in self.assets:
+            if asset and asset not in self.assets:
                 metaout.update({"raw_asset": asset})
             out.write_to(fout, skip_separator=True, version=psbtv.version)
             # write rangeproofs and surjection proofs
@@ -481,7 +485,7 @@ class LWalletManager(WalletManager):
 
     def asset_label(self, asset):
         if asset is None:
-            return "Undefined"
+            return "L-???"
         # passing "BTC" shouldn't break things
         if isinstance(asset, str):
             return asset
