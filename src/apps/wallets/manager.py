@@ -713,14 +713,15 @@ class WalletManager(BaseApp):
             for i in range(psbtv.num_inputs):
                 self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
                 inp = psbtv.input(i)
+                inp_sighash = sighash or inp.sighash_type or self.DEFAULT_SIGHASH
                 for w in wallets:
                     if w is None:
                         continue
                     # sign with wallet if it has private keys
                     if w.has_private_keys:
-                        sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
+                        sig_count += w.sign_input(psbtv, i, sig_stream, inp_sighash, inp)
                 # sign with keystore
-                sig_count += self.keystore.sign_input(psbtv, i, sig_stream, sighash, inp)
+                sig_count += self.keystore.sign_input(psbtv, i, sig_stream, inp_sighash, inp)
                 # add separator
                 sig_stream.write(b"\x00")
         if sig_count == 0:
