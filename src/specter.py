@@ -320,7 +320,7 @@ class Specter:
             ("test", "Testnet"),
             ("signet", "Signet"),
             ("regtest", "Regtest"),
-            ("elementsregtest", "Elements Regtest"),
+            ("elementsregtest", "Liquid Regtest"),
         ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))

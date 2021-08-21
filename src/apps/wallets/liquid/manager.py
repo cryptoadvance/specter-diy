@@ -468,6 +468,12 @@ class LWalletManager(WalletManager):
                     ):
                         wallet = w
                         break
+            # if we didn't blind it ourselves
+            if not blinding_seed:
+                try:
+                    out.verify()
+                except:
+                    raise WalletError("Commitments in output %d are wrong" % i)
 
             # Get values (and assets) and store in metadata and wallets dict
             asset = out.asset or out.asset_commitment
