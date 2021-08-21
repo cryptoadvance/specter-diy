@@ -21,6 +21,7 @@ class Wallet:
 
     GAP_LIMIT = 20
     DescriptorClass = Descriptor
+    Networks = NETWORKS
 
     def __init__(self, desc, path=None, name="Untitled"):
         self.name = name
@@ -101,19 +102,22 @@ class Wallet:
         delete_recursively(self.path, include_self=True)
 
     def get_address(self, idx: int, network: str, branch_index=0):
-        sc, gap = self.script_pubkey([int(branch_index), idx])
-        return sc.address(NETWORKS[network]), gap
+        desc, gap = self.get_descriptor(idx, branch_index)
+        return desc.address(self.Networks[network]), gap
+
+    def get_descriptor(self, idx: int, branch_index=0):
+        if branch_index < 0 or branch_index >= self.descriptor.num_branches:
+            raise WalletError("Invalid branch index %d - can be between 0 and %d" % (branch_index, self.descriptor.num_branches))
+        if idx < 0 or idx >= 0x80000000:
+            raise WalletError("Invalid index %d" % idx)
+        return self.descriptor.derive(idx, branch_index=branch_index), self.gaps[branch_index]
 
     def script_pubkey(self, derivation: list):
         """Returns script_pubkey and gap limit"""
         # derivation can be only two elements
         branch_idx, idx = derivation
-        if branch_idx < 0 or branch_idx >= self.descriptor.num_branches:
-            raise WalletError("Invalid branch index %d - can be between 0 and %d" % (branch_idx, self.descriptor.num_branches))
-        if idx < 0 or idx >= 0x80000000:
-            raise WalletError("Invalid index %d" % idx)
-        sc = self.descriptor.derive(idx, branch_index=branch_idx).script_pubkey()
-        return sc, self.gaps[branch_idx]
+        desc, gap = self.get_descriptor(idx, branch_idx)
+        return desc.script_pubkey(), gap
 
     @property
     def fingerprint(self):
@@ -203,9 +207,9 @@ class Wallet:
         for k in keys:
             k["is_private"] = k["key"].is_private
             ver = slip132_ver.replace("pub", "prv") if k["is_private"] else slip132_ver
-            k["slip132"] = k["key"].to_string(NETWORKS[network][ver])
+            k["slip132"] = k["key"].to_string(self.Networks[network][ver])
             ver = canonical_ver.replace("pub", "prv") if k["is_private"] else canonical_ver
-            k["canonical"] = k["key"].to_string(NETWORKS[network][ver])
+            k["canonical"] = k["key"].to_string(self.Networks[network][ver])
         return keys
 
     def sign_psbt(self, psbt, sighash=SIGHASH.ALL):

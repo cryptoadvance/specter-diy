@@ -14,6 +14,7 @@ class RewindError(Exception):
 
 class LWallet(Wallet):
     DescriptorClass = LDescriptor
+    Networks = NETWORKS
 
     def fill_scope(self, scope, fingerprint, stream=None, rangeproof_offset=None, surj_proof_offset=None):
         """

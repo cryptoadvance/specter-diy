@@ -10,7 +10,7 @@ import platform
 import sys
 from helpers import load_apps
 from app import BaseApp
-
+import display
 
 def main(apps=None, network="main", keystore_cls=None):
     """
@@ -18,6 +18,8 @@ def main(apps=None, network="main", keystore_cls=None):
     network: default network to operate
     keystores: list of KeyStore classes that can be used
     """
+    # Init display first as it also inits the SDRAM
+    display.init(False)
     # create virtual file system /sdram
     # for temp untrusted data storage
     rampath = platform.mount_sdram()

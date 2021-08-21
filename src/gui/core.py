@@ -7,7 +7,7 @@ from .common import init_styles
 
 
 def init(blocking=True, dark=True):
-    display.init(not blocking)
+    # display.init(not blocking)
 
     # Initialize the styles
     init_styles(dark=dark)

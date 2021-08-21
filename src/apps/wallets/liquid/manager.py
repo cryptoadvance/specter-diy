@@ -199,7 +199,7 @@ class LWalletManager(WalletManager):
             else:
                 name = w.name
             amount = wallets[w]
-            spend = ", ".join("%.8f %s" % (val, self.asset_label(asset)) for asset, val in amount.items())
+            spend = ", ".join("%s %s" % ("???" if val < 0 else "%.8f" % val, self.asset_label(asset)) for asset, val in amount.items())
             spends.append('%s\nfrom "%s"' % (spend, name))
         title = "Inputs:\n" + "\n".join(spends)
         return await show_screen(TransactionScreen(title, meta))
@@ -354,10 +354,14 @@ class LWalletManager(WalletManager):
                 vbfs[-1] = secp256k1.pedersen_blind_generator_blind_sum(vals, abfs, vbfs, psbtv.num_inputs)
                 # sanity check
                 assert len(abfs) == psbtv.num_inputs + len(blinding_out_indexes)
+                assert all([len(a)==32 for a in abfs])
+                assert all([len(a)==32 for a in vbfs])
 
         memptr, memlen = get_preallocated_ram()
         # parse outputs and blind if necessary
+        in_tags = b"".join(in_tags)
         for i in range(psbtv.num_outputs):
+            gc.collect()
             self.show_loader(title="Parsing output %d..." % i)
             out = psbtv.output(i)
             metaout = meta["outputs"][i]
@@ -365,25 +369,33 @@ class LWalletManager(WalletManager):
             if blinding_seed and out.blinding_pubkey:
                 # index of this output in the abfs, vbfs and vals
                 list_idx = psbtv.num_inputs + blinding_out_indexes.index(i)
+                self.show_loader(title="Generating asset commtiment %d..." % i)
                 # asset commitment
                 out.asset_blinding_factor = abfs[list_idx]
                 gen = secp256k1.generator_generate_blinded(out.asset, out.asset_blinding_factor)
                 out.asset_commitment = secp256k1.generator_serialize(gen)
+                self.show_loader(title="Generating value commtiment %d..." % i)
                 # value commitment
                 out.value_blinding_factor = vbfs[list_idx]
                 value_commitment = secp256k1.pedersen_commit(out.value_blinding_factor, out.value, gen)
                 out.value_commitment = secp256k1.pedersen_commitment_serialize(value_commitment)
-                # surjection proof
-                proof_seed = hashes.tagged_hash("liquid/surjection_proof", txseed+i.to_bytes(4,'little'))
-                plen, in_idx = secp256k1.surjectionproof_initialize_preallocated(memptr, memlen, in_tags, out.asset, proof_seed)
-                secp256k1.surjectionproof_generate(memptr, in_idx, in_gens, gen, abfs[in_idx], out.asset_blinding_factor)
-                surjection_proof = secp256k1.surjectionproof_serialize(memptr)
 
-                # write surjection proof
-                ser_string(fout, b'\xfc\x04pset\x05')
-                ser_string(fout, surjection_proof)
-                del surjection_proof
+                # self.show_loader(title="Generating surjection proof %d..." % i)
 
+                # # surjection proof
+                # proof_seed = hashes.tagged_hash("liquid/surjection_proof", txseed+i.to_bytes(4,'little'))
+                # plen, in_idx = secp256k1.surjectionproof_initialize_preallocated(memptr, memlen, in_tags, out.asset, proof_seed)
+                # # proof, in_idx = secp256k1.surjectionproof_initialize(in_tags, out.asset, proof_seed)
+                # secp256k1.surjectionproof_generate(memptr, in_idx, in_gens, gen, abfs[in_idx], out.asset_blinding_factor)
+                # surjection_proof = secp256k1.surjectionproof_serialize(memptr)
+                # # del proof
+
+                # # write surjection proof
+                # ser_string(fout, b'\xfc\x04pset\x05')
+                # ser_string(fout, surjection_proof)
+                # # del surjection_proof
+
+                self.show_loader(title="Generating range proof %d..." % i)
                 # generate range proof
                 rangeproof_nonce = hashes.tagged_hash("liquid/range_proof", txseed+i.to_bytes(4,'little'))
                 pub = secp256k1.ec_pubkey_parse(out.blinding_pubkey)
@@ -409,7 +421,6 @@ class LWalletManager(WalletManager):
                     read_write(frp, fout, rplen)
 
             rangeproof_offset = None
-            surj_proof_offset = None
             # we only need to verify rangeproof if we didn't generate it ourselves
             if not blinding_seed:
                 self.show_loader(title="Verifying output %d..." % i)
@@ -425,16 +436,17 @@ class LWalletManager(WalletManager):
                 if rangeproof_offset is not None:
                     rangeproof_offset += off
 
-                # surjection proof
-                off = psbtv.seek_to_scope(psbtv.num_inputs+i)
-                # find offset of the rangeproof if it exists
-                surj_proof_offset = self._copy_kv(fout, psbtv, b'\xfc\x04pset\x05')
-                if surj_proof_offset is None:
-                    psbtv.seek_to_scope(psbtv.num_inputs+i)
-                    # alternative key definition (psetv0)
-                    surj_proof_offset = self._copy_kv(fout, psbtv, b'\xfc\x08elements\x05')
-                if surj_proof_offset is not None:
-                    surj_proof_offset += off
+            surj_proof_offset = None
+            # surjection proof
+            off = psbtv.seek_to_scope(psbtv.num_inputs+i)
+            # find offset of the rangeproof if it exists
+            surj_proof_offset = self._copy_kv(fout, psbtv, b'\xfc\x04pset\x05')
+            if surj_proof_offset is None:
+                psbtv.seek_to_scope(psbtv.num_inputs+i)
+                # alternative key definition (psetv0)
+                surj_proof_offset = self._copy_kv(fout, psbtv, b'\xfc\x08elements\x05')
+            if surj_proof_offset is not None:
+                surj_proof_offset += off
 
             wallet = None
             for w in wallets:

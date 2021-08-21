@@ -31,9 +31,6 @@ class WalletsApp(BaseApp):
         super().init(keystore, network, *args, **kwargs)
         # switching the network - use different wallet managers for liquid or btc
         if old_network is None or self.manager is None or is_liquid(old_network) != is_liquid(network):
-            if self.manager is not None:
-                del self.manager
-                gc.collect()
             if is_liquid(network):
                 from .liquid.manager import LWalletManager
                 self.manager = LWalletManager(self.root_path)
