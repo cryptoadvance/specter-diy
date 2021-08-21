@@ -7,7 +7,7 @@ import os
 from binascii import hexlify, unhexlify, a2b_base64
 from bitcoin import script, bip32, compact
 from bitcoin.psbt import DerivationPath
-from bitcoin.psbtview import PSBTView, read_write
+from bitcoin.psbtview import PSBTView, read_write, PSBTError
 from bitcoin.networks import NETWORKS
 from bitcoin.transaction import SIGHASH
 from .wallet import WalletError, Wallet
@@ -193,10 +193,14 @@ class WalletManager(BaseApp):
         platform.delete_recursively(self.tempdir)
         cmd, stream = self.parse_stream(stream)
         if cmd == SIGN_PSBT:
-            encoding = BASE64_STREAM
-            if stream.read(len(self.PSBTViewClass.MAGIC)) == self.PSBTViewClass.MAGIC:
+            magic = stream.read(len(self.PSBTViewClass.MAGIC))
+            if magic == self.PSBTViewClass.MAGIC:
                 encoding = RAW_STREAM
-            stream.seek(-5, 1)
+            elif magic.startswith(self.B64PSBT_PREFIX):
+                encoding = BASE64_STREAM
+            else:
+                raise WalletError("Invalid PSBT magic!")
+            stream.seek(-len(magic), 1)
             res = await self.sign_psbt(stream, show_screen, encoding)
             if res is not None:
                 obj = {
@@ -310,7 +314,10 @@ class WalletManager(BaseApp):
         # get metadata to display, default sighash for signing,
         # fill missing metadata and store it in temp file:
         with open(self.tempdir + "/filled_psbt", "wb") as fout:
-            wallets, meta = self.preprocess_psbt(stream, fout)
+            try:
+                wallets, meta = self.preprocess_psbt(stream, fout)
+            except PSBTError as e:
+                raise WalletError("Invalid PSBT:\n\n%s" % e)
 
         # now we can work with copletely filled psbt:
         with open(self.tempdir + "/filled_psbt", "rb") as f:

@@ -36,10 +36,8 @@ BLINDED = "cHNldP8BAgQCAAAAAQMEAAAAAAEEAQEBBQEDAfsEAgAAAAABAXoK5G7iEYFqPdEDSEo9E
 """
 TODO:
 - wrong prevtx - legacy and segwit
-- wrong asset, value
 - unblindable rangeproof
-- missing surjection proof (ok if all inputs don't have sighash rangeproof)
-- values
+- gap limit warning
 """
 class SignTest(TestCase):
 

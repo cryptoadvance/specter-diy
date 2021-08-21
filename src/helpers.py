@@ -125,7 +125,7 @@ def load_apps(module="apps", whitelist=None, blacklist=None):
 
 def a2b_base64_stream(sin, sout):
     while True:
-        chunk = sin.read(64) # 16 quants 4 chars each
+        chunk = sin.read(64).strip() # 16 quants 4 chars each
         if len(chunk) == 0:
             break
         sout.write(a2b_base64(chunk))
