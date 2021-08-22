@@ -23,8 +23,12 @@ def main(apps=None, network="main", keystore_cls=None):
     # create virtual file system /sdram
     # for temp untrusted data storage
     rampath = platform.mount_sdram()
-    # set working path to sdram
-    os.chdir(rampath)
+
+    # set working path to empty folder in sdram
+    if not platform.simulator:
+        cwd = rampath+"/cwd"
+        platform.maybe_mkdir(cwd)
+        os.chdir(cwd)
 
     # define hosts - USB, QR, SDCard
     # each hosts gets it's own RAM folder for data
