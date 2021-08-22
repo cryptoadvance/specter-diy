@@ -699,7 +699,7 @@ class WalletManager(BaseApp):
             fee -= value
             metaout.update({
                 "label": wallet.name if wallet else "",
-                "change": wallet is not None,
+                "change": (wallet is not None and wallet in wallets),
                 "value": value,
                 "address": self.get_address(out),
             })
