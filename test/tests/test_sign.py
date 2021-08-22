@@ -38,6 +38,7 @@ TODO:
 - wrong prevtx - legacy and segwit
 - unblindable rangeproof
 - gap limit warning
+- sighash is set to ALL
 """
 class SignTest(TestCase):
 
