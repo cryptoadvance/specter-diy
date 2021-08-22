@@ -406,11 +406,13 @@ In this mode device can only operate when the smartcard is inserted!"""
         key_saved = len(data) > 0
         encrypted = True
         decryptable = True
+        same_mnemonic = False
         if key_saved:
             try:
                 d, encrypted = self.parse_data(data)
                 if "entropy" in d:
                     self._is_key_saved = True
+                same_mnemonic = (self.mnemonic == bip39.mnemonic_from_bytes(d["entropy"]))
             except KeyStoreError as e:
                 decryptable = False
         # yes = lv.SYMBOL.OK+" Yes"
@@ -425,10 +427,12 @@ In this mode device can only operate when the smartcard is inserted!"""
             "Key saved: " + (yes if key_saved else no),
         ]
         if key_saved:
-            props.extend([
-                "Encrypted: " + (yes if encrypted else no),
-                "Decryptable: " + (yes if decryptable else no),
-            ])
+            if decryptable:
+                props.append("Same as current key: " + (yes if same_mnemonic else no))
+            props.append("Encrypted: " + (yes if encrypted else no))
+            if encrypted:
+                props.append("Decryptable: " + (yes if decryptable else no))
+
         scr = Alert("Smartcard info", "\n\n".join(props), note=note)
         scr.message.set_recolor(True)
         await self.show(scr)
