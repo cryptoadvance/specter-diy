@@ -6,6 +6,7 @@ from bitcoin.liquid.psetview import PSETView, ser_string
 from bitcoin.liquid.networks import NETWORKS
 from bitcoin.liquid.transaction import LSIGHASH as SIGHASH
 from bitcoin.liquid.addresses import address as liquid_address
+from bitcoin.liquid.addresses import to_unconfidential
 from .wallet import WalletError, LWallet
 from helpers import is_liquid
 import secp256k1
@@ -93,6 +94,15 @@ class LWalletManager(WalletManager):
         stream.seek(0)
         return super().parse_stream(stream)
 
+
+    def find_wallet_from_address(self, addr: str, paths=None, index=None):
+        if index is not None:
+            for w in self.wallets:
+                a, _ = w.get_address(index, self.network)
+                unconf_a = to_unconfidential(a)
+                if addr in [a, unconf_a]:
+                    return w, (0, index)
+        super().find_wallet_from_address(addr, paths, index)
 
     async def process_host_command(self, stream, show_screen):
         platform.delete_recursively(self.tempdir)
