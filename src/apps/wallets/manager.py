@@ -487,7 +487,8 @@ class WalletManager(BaseApp):
             await show_screen(
                 WalletScreen(w, self.network, idx, branch_index=branch_idx)
             )
-        return address
+        addr, _ = w.get_address(idx, self.network, branch_idx)
+        return addr
 
     def load_wallets(self):
         """Loads all wallets from path"""
@@ -568,7 +569,6 @@ class WalletManager(BaseApp):
         if index is not None:
             for w in self.wallets:
                 a, _ = w.get_address(index, self.network)
-                print(a)
                 if a == addr:
                     return w, (0, index)
         if paths is not None:

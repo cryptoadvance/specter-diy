@@ -102,7 +102,26 @@ class LWalletManager(WalletManager):
                 unconf_a = to_unconfidential(a)
                 if addr in [a, unconf_a]:
                     return w, (0, index)
-        super().find_wallet_from_address(addr, paths, index)
+        if paths is not None:
+            # we can detect the wallet from just one path
+            p = paths[0]
+            if not p.startswith("m"):
+                fingerprint = unhexlify(p[:8])
+                derivation = bip32.parse_path("m"+p[8:])
+            else:
+                fingerprint = self.keystore.fingerprint
+                derivation = bip32.parse_path(p)
+            derivation_path = DerivationPath(fingerprint, derivation)
+            for w in self.wallets:
+                der = w.descriptor.check_derivation(derivation_path)
+                if der is not None:
+                    idx, branch_idx = der
+                    a, _ = w.get_address(idx, self.network, branch_idx)
+                    unconf_a = to_unconfidential(a)
+                    if addr in [a, unconf_a]:
+                        return w, (idx, branch_idx)
+        raise WalletError("Can't find wallet owning address %s" % addr)
+
 
     async def process_host_command(self, stream, show_screen):
         platform.delete_recursively(self.tempdir)
