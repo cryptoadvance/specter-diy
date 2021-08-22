@@ -16,6 +16,7 @@ class BlindingKeysApp(BaseApp):
     button = None
     BTNTEXT = "Blinding key"
     prefixes = [b"slip77"] # [b"bprv", b"bpub", b"slip77"]
+    name = "blindingkeys"
 
     def __init__(self, path):
         pass
