@@ -87,9 +87,11 @@ class Wallet:
         Checks that all the keys belong to the network (version of xpub and network of private key).
         Returns True if all keys belong to the network, False otherwise.
         """
+        # all possible xprv / xpub versions
+        versions = [v for k,v in network.items() if k[1:] in ["prv","pub"]]
         for k in self.keys:
             if k.is_extended:
-                if k.key.version not in network.values():
+                if k.key.version not in versions:
                     return False
             elif k.is_private and isinstance(k.key, ec.PrivateKey):
                 if k.key.network["wif"] != network["wif"]:

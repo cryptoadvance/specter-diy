@@ -51,13 +51,17 @@ class SignTest(TestCase):
         # so this tx be parsed and signed just fine
         unsigned, signed = PSBTS["wpkh"]
         psbt = PSBT.from_string(unsigned)
-        s = BytesIO(psbt.to_string().encode())
         # check it can sign b64-psbt
+        s = BytesIO(psbt.to_string().encode())
         self.assertTrue(wapp.can_process(s))
+
+        # check it can sign b64 with sign prefix
+        s = BytesIO(b"sign "+psbt.to_string().encode()+b"\n\n")
+        self.assertTrue(wapp.can_process(s))
+
         # check it can sign raw psbt
         s = BytesIO(psbt.serialize())
         self.assertTrue(wapp.can_process(s))
-
         fout = BytesIO()
         wallets, meta = wapp.manager.preprocess_psbt(s, fout)
 
