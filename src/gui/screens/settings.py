@@ -6,12 +6,13 @@ from ..decorators import on_release
 class HostSettings(Prompt):
     def __init__(self, controls, title="Host setttings", note=None):
         super().__init__(title, "")
+        y = 40
         if note is not None:
             self.note = add_label(note, style="hint", scr=self)
             self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            y += self.note.get_height()
         self.controls = controls
         self.switches = []
-        y = 40
         for control in controls:
             label = add_label(control["label"], y, scr=self.page)
             hint = add_label(

@@ -26,6 +26,7 @@ def main(apps=None, network="main", keystore_cls=None):
     # define hosts - USB, QR, SDCard
     # each hosts gets it's own RAM folder for data
     Host.SETTINGS_DIR = platform.fpath("/qspi/hosts")
+    Specter.SETTINGS_DIR = platform.fpath("/qspi/specter")
     hosts = [
         USBHost(rampath + "/usb"),
         QRHost(rampath + "/qr"),
