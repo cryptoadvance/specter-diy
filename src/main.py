@@ -1,3 +1,4 @@
+import os
 from specter import Specter
 from gui.specter import SpecterGUI
 
@@ -7,7 +8,6 @@ from keystore.memorycard import MemoryCard
 
 from hosts import SDHost, QRHost, USBHost, Host
 import platform
-import sys
 from helpers import load_apps
 from app import BaseApp
 import display
@@ -23,10 +23,13 @@ def main(apps=None, network="main", keystore_cls=None):
     # create virtual file system /sdram
     # for temp untrusted data storage
     rampath = platform.mount_sdram()
+    # set working path to sdram
+    os.chdir(rampath)
+
     # define hosts - USB, QR, SDCard
     # each hosts gets it's own RAM folder for data
     Host.SETTINGS_DIR = platform.fpath("/qspi/hosts")
-    Specter.SETTINGS_DIR = platform.fpath("/qspi/specter")
+    Specter.SETTINGS_DIR = platform.fpath("/qspi/global")
     hosts = [
         USBHost(rampath + "/usb"),
         QRHost(rampath + "/qr"),

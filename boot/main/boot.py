@@ -1,6 +1,13 @@
 # boot.py -- run on boot-up
 # can run arbitrary Python, but best to keep it minimal
 import pyb, os, micropython, time
+import sys
+
+# Clean sys.path from qspi
+# Shouldn't happen in production, but just in case.
+for p in sys.path:
+    if "qspi" in sys.path:
+        sys.path.remove(p)
 
 # power hold
 pwr = pyb.Pin("B15", pyb.Pin.OUT)

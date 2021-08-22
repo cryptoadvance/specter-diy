@@ -393,11 +393,11 @@ class Specter:
         return self.SETTINGS_DIR+"/global.settings"
 
     def load_settings(self, fname=None):
-        if fname is None:
-            fname = self.settings_fname
         settings = {}
         try:
-            adata, _ = self.keystore.load_aead(self.settings_fname, key=self.keystore.settings_key)
+            if fname is None:
+                fname = self.settings_fname
+            adata, _ = self.keystore.load_aead(fname, key=self.keystore.settings_key)
             settings = json.loads(adata.decode())
         except Exception as e:
             print(e)
