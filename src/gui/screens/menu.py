@@ -46,7 +46,7 @@ class Menu(Screen):
                     y += 85
                 else:
                     add_label(text.upper(), y=y + 10, style="hint", scr=self.page)
-                    y += 50
+                    y += 45
             else:
                 y += 40
         if last is not None:

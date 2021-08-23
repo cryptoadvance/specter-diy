@@ -4,16 +4,16 @@ from .screens import WalletScreen, ConfirmWalletScreen
 
 import platform
 import os
-from binascii import hexlify, unhexlify, a2b_base64, b2a_base64
-from bitcoin.psbt import PSBT, DerivationPath
-from bitcoin.psbtview import PSBTView
+from binascii import hexlify, unhexlify, a2b_base64
+from bitcoin import script, bip32, compact
+from bitcoin.psbt import DerivationPath
+from bitcoin.psbtview import PSBTView, read_write, PSBTError
 from bitcoin.networks import NETWORKS
-from bitcoin import script, bip32
 from bitcoin.transaction import SIGHASH
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
-from bcur import bcur_encode, bcur_decode, bcur_decode_stream, bcur_encode_stream
+from bcur import bcur_decode_stream, bcur_encode_stream
 from helpers import a2b_base64_stream, b2a_base64_stream
 import gc
 import json
@@ -38,10 +38,10 @@ SIGHASH_NAMES = {
     SIGHASH.ALL: "ALL",
     SIGHASH.NONE: "NONE",
     SIGHASH.SINGLE: "SINGLE",
-    (SIGHASH.ALL | SIGHASH.ANYONECANPAY): "ALL | ANYONECANPAY",
-    (SIGHASH.NONE | SIGHASH.ANYONECANPAY): "NONE | ANYONECANPAY",
-    (SIGHASH.SINGLE | SIGHASH.ANYONECANPAY): "SINGLE | ANYONECANPAY",
 }
+# add sighash | anyonecanpay
+for sh in list(SIGHASH_NAMES):
+    SIGHASH_NAMES[sh | SIGHASH.ANYONECANPAY] = SIGHASH_NAMES[sh] + " | ANYONECANPAY"
 
 class WalletManager(BaseApp):
     """
@@ -51,9 +51,17 @@ class WalletManager(BaseApp):
     """
 
     button = "Wallets"
-    WALLETS = [Wallet]
     prefixes = [b"addwallet", b"sign", b"showaddr", b"listwallets"]
     name = "wallets"
+
+    # Class constants for inheritance
+    PSBTViewClass = PSBTView
+    B64PSBT_PREFIX = b"cHNi"
+    # wallet class
+    WalletClass = Wallet
+    # supported networks
+    Networks = NETWORKS
+    DEFAULT_SIGHASH = SIGHASH.ALL
 
     def __init__(self, path):
         self.root_path = path
@@ -68,7 +76,7 @@ class WalletManager(BaseApp):
         # add fingerprint dir
         path = self.root_path + "/" + hexlify(self.keystore.fingerprint).decode()
         platform.maybe_mkdir(path)
-        if network not in NETWORKS:
+        if network not in self.Networks:
             raise WalletError("Invalid network")
         self.network = network
         # add network dir
@@ -80,13 +88,15 @@ class WalletManager(BaseApp):
             w = self.create_default_wallet(path=self.path + "/0")
             self.wallets = [w]
 
-    @classmethod
-    def register(cls, walletcls):
-        """Registers an additional wallet class"""
-        # check if it's already there
-        if walletcls in cls.WALLETS:
-            return
-        cls.WALLETS.append(walletcls)
+    def get_address(self, psbtout):
+        """Helper function to get an address for every output"""
+        network = self.Networks[self.network]
+        # finally just return bitcoin address or unconfidential
+        try:
+            return psbtout.script_pubkey.address(network)
+        except Exception as e:
+            # use hex if script doesn't have address representation
+            return hexlify(psbtout.script_pubkey.data).decode()
 
     async def menu(self, show_screen):
         buttons = [(None, "Your wallets")]
@@ -151,10 +161,13 @@ class WalletManager(BaseApp):
             # rewind
             stream.seek(0)
             return SIGN_BCUR, stream
-        if data[:4] == b"cHNi":
+        if data[:len(self.PSBTViewClass.MAGIC)] == self.PSBTViewClass.MAGIC:
+            stream.seek(0)
+            return SIGN_PSBT, stream
+        if data[:len(self.B64PSBT_PREFIX)] == self.B64PSBT_PREFIX:
             try:
                 psbt = a2b_base64(data)
-                if psbt[:5] != b"psbt\xff":
+                if psbt[:len(self.PSBTViewClass.MAGIC)] != self.PSBTViewClass.MAGIC:
                     return None, None
                 # rewind
                 stream.seek(0)
@@ -180,10 +193,14 @@ class WalletManager(BaseApp):
         platform.delete_recursively(self.tempdir)
         cmd, stream = self.parse_stream(stream)
         if cmd == SIGN_PSBT:
-            encoding = BASE64_STREAM
-            if stream.read(5) == b"psbt\xff":
+            magic = stream.read(len(self.PSBTViewClass.MAGIC))
+            if magic == self.PSBTViewClass.MAGIC:
                 encoding = RAW_STREAM
-            stream.seek(-5, 1)
+            elif magic.startswith(self.B64PSBT_PREFIX):
+                encoding = BASE64_STREAM
+            else:
+                raise WalletError("Invalid PSBT magic!")
+            stream.seek(-len(magic), 1)
             res = await self.sign_psbt(stream, show_screen, encoding)
             if res is not None:
                 obj = {
@@ -284,7 +301,6 @@ class WalletManager(BaseApp):
             with open(self.tempdir+"/raw", "wb") as f:
                 # read in chunks, write to ram file
                 a2b_base64_stream(stream, f)
-            res = None
             with open(self.tempdir+"/raw", "rb") as f:
                 res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
             if res:
@@ -294,89 +310,130 @@ class WalletManager(BaseApp):
                 return self.tempdir+"/signed_b64"
             return
 
-        self.show_loader(title="Parsing transaction...")
-        psbtv = PSBTView.view(stream, compress=True)
-        # check if all utxos are there and if there are custom sighashes
-        sighash = SIGHASH.ALL
-        custom_sighashes = []
-        for i in range(psbtv.num_inputs):
-            self.show_loader(title="Parsing input %d of %d..." % (i+1, psbtv.num_inputs))
-            inp = psbtv.input(i)
-            inp.verify(ignore_missing=True)
-            if (not inp.is_verified) and inp.witness_utxo is None and inp.non_witness_utxo is None:
-                raise WalletError("Invalid PSBT - missing previous transaction")
-            if inp.sighash_type and inp.sighash_type != SIGHASH.ALL:
-                custom_sighashes.append((i, inp.sighash_type))
+        # preprocess stream - parse psbt, check wallets in inputs and outputs,
+        # get metadata to display, default sighash for signing,
+        # fill missing metadata and store it in temp file:
+        with open(self.tempdir + "/filled_psbt", "wb") as fout:
+            try:
+                wallets, meta = self.preprocess_psbt(stream, fout)
+            except PSBTError as e:
+                raise WalletError("Invalid PSBT:\n\n%s" % e)
 
-        if len(custom_sighashes) > 0:
-            txt = [("Input %d: " % i) + SIGHASH_NAMES[sh]
-                    for (i, sh) in custom_sighashes]
-            canceltxt = "Only sign ALL" if len(custom_sighashes) != psbtv.num_inputs else "Cancel"
-            confirm = await show_screen(Prompt("Warning!",
-                "\nCustom SIGHASH flags are used!\n\n"+"\n".join(txt),
-                confirm_text="Sign anyway", cancel_text=canceltxt
-            ))
-            if confirm:
-                sighash = None
-            else:
-                if len(custom_sighashes) == psbtv.num_inputs:
-                    # nothing to sign
-                    return
-        # TODO: meta should be a stream as well (for large number of inputs / outputs)
-        wallets, meta = self.parse_psbtview(psbtv)
-        # there is an unknown wallet
-        # wallet is a list of tuples: (wallet, amount)
-        if None in [w[0] for w in wallets]:
-            scr = Prompt(
-                "Warning!",
-                "\nUnknown wallet in inputs!\n\n\n"
-                "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
-                "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
-                "Proceed to the transaction confirmation?",
-            )
-            proceed = await show_screen(scr)
-            if not proceed:
-                return None
+        # now we can work with copletely filled psbt:
+        with open(self.tempdir + "/filled_psbt", "rb") as f:
+            psbtv = self.PSBTViewClass.view(f, compress=True)
+
+            # ask user for everything, if None is returned - user cancelled at some point
+            options = await self.confirm_transaction(wallets, meta, show_screen)
+            if options is None:
+                return
+
+            del meta
+            gc.collect()
+            # sign transaction if the user confirmed
+            self.show_loader(title="Signing transaction...")
+            with open(self.tempdir+"/signed_raw", "wb") as f:
+                sig_count = self.sign_psbtview(psbtv, f, wallets, **options)
+            return self.tempdir+"/signed_raw"
+
+    async def confirm_transaction(self, wallets, meta, show_screen):
+        """
+        Checks parsed metadata, asks user about unclear options:
+        - sign with provided sighashes or only with default?
+        - sign if unknown wallet in inputs?
+        - final tx confirmation
+        Returns dict with options to pass to sign_psbtview function.
+        """
+
+        # ask the user if he wants to sign with custom sighashes
+        sighash = await self.confirm_sighashes(meta, show_screen)
+        if sighash == False:
+            return
+
+        # ask if we want to continue with unknown wallets
+        if not await self.confirm_wallets(wallets, show_screen):
+            return
+
+        if not await self.confirm_transaction_final(wallets, meta, show_screen):
+            return
+
+        return dict(sighash=sighash)
+
+    async def confirm_transaction_final(self, wallets, meta, show_screen):
+        # build title for the tx screen
         spends = []
-        for w, amount in wallets:
+        unit = "BTC" if self.network == "main" else "tBTC"
+        for w in wallets:
             if w is None:
                 name = "Unknown wallet"
             else:
                 name = w.name
-            spends.append('%.8f BTC\nfrom "%s"' % (amount / 1e8, name))
+            amount = wallets[w]
+            spends.append('%.8f %s\nfrom "%s"' % (amount / 1e8, unit, name))
         title = "Inputs:\n" + "\n".join(spends)
-        res = await show_screen(TransactionScreen(title, meta))
-        if res:
-            self.show_loader(title="Signing transaction...")
-            for w, _ in wallets:
-                if w is None:
-                    continue
-                # fill derivation paths from proprietary fields
-                w.update_gaps(psbtv=psbtv)
-                w.save(self.keystore)
-            with open(self.tempdir+"/sigs", "wb") as sig_stream:
-                sig_count = 0
-                for i in range(psbtv.num_inputs):
-                    self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
-                    inp = psbtv.input(i)
-                    for w, _ in wallets:
-                        if w is None:
-                            continue
-                        w.fill_scope(inp, self.keystore.fingerprint)
-                        # sign with wallet if it has private keys
-                        if w.has_private_keys:
-                            sig_count += w.sign_input(psbtv, i, sig_stream, sighash, inp)
-                    # sign with keystore
-                    sig_count += self.keystore.sign_input(psbtv, i, sig_stream, sighash, inp)
-                    # add separator
-                    sig_stream.write(b"\x00")
-            # remove unnecessary stuff:
-            if sig_count == 0:
-                raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
-            with open(self.tempdir+"/signed_raw", "wb") as b:
-                with open(self.tempdir+"/sigs", "rb") as sig_stream:
-                    psbtv.write_to(b, compress=True, extra_input_streams=[sig_stream])
-            return self.tempdir+"/signed_raw"
+        return await show_screen(TransactionScreen(title, meta))
+
+    async def confirm_wallets(self, wallets, show_screen):
+        # check if any inputs belong to unknown wallets
+        # wallets is a dict: {wallet: amount}
+        if None not in wallets:
+            return True
+        scr = Prompt(
+            "Warning!",
+            "\nUnknown wallet in inputs!\n\n\n"
+            "The source wallet for some inputs is unknown! This means we can't verify change address.\n\n\n"
+            "Hint:\nYou can cancel this transaction and import the wallet by scanning it's descriptor.\n\n\n"
+            "Proceed to the transaction confirmation?",
+        )
+        proceed = await show_screen(scr)
+        return proceed
+
+    def get_sighash_info(self, sighash):
+        if sighash not in SIGHASH_NAMES:
+            raise WalletError("Unknown sighash type: %d!" % sighash)
+        return { "name": SIGHASH_NAMES[sighash], "warning": "" }
+
+    async def confirm_sighashes(self, meta, show_screen):
+        """
+        Checks if custom sighashes are used, warns the user and asks for confirmation.
+        Returns one of the options:
+        - None - sign with provided sighashes
+        - self.DEFAULT_SIGHASH - sign only with default
+        - False - interrupt signing process (user cancel)
+        """
+        sighash_name = self.get_sighash_info(self.DEFAULT_SIGHASH)["name"]
+        # check if there are any custom sighashes
+        used_custom_sighashes = any([inp.get("sighash", sighash_name) != sighash_name for inp in meta["inputs"]])
+
+        # no custom sighashes - just continue
+        if not used_custom_sighashes:
+            return None
+
+        # ask the user if he wants to sign in case of non-default sighashes
+        custom_sighashes = [
+                ("Input %d: %s" % (i, inp.get("sighash", sighash_name)))
+                for (i, inp) in enumerate(meta["inputs"])
+                if inp.get("sighash", sighash_name) != sighash_name
+        ]
+        canceltxt = (
+            ("Only sign %s" % sighash_name)
+            if len(custom_sighashes) != len(meta["inputs"])
+            else "Cancel"
+        )
+        confirm = await show_screen(Prompt("Warning!",
+            "\nCustom SIGHASH flags are used!\n\n"+"\n".join(custom_sighashes),
+            confirm_text="Proceed anyway", cancel_text=canceltxt
+        ))
+        if confirm:
+            # we set sighash to None
+            # if we want to use whatever sighash is provided in input
+            return None
+        # if we are forced to use default sighash - check
+        # that not all inputs have custom sighashes
+        if len(custom_sighashes) == len(meta["inputs"]):
+            # nothing to sign
+            return False
+        return self.DEFAULT_SIGHASH
 
     async def confirm_new_wallet(self, w, show_screen):
         keys = w.get_key_dicts(self.network)
@@ -393,7 +450,7 @@ class WalletManager(BaseApp):
     async def showaddr(
         self, paths: list, script_type: str, redeem_script=None, show_screen=None
     ) -> str:
-        net = NETWORKS[self.network]
+        net = self.Networks[self.network]
         if redeem_script is not None:
             redeem_script = script.Script(unhexlify(redeem_script))
         # first check if we have corresponding wallet:
@@ -430,7 +487,8 @@ class WalletManager(BaseApp):
             await show_screen(
                 WalletScreen(w, self.network, idx, branch_index=branch_idx)
             )
-        return address
+        addr, _ = w.get_address(idx, self.network, branch_idx)
+        return addr
 
     def load_wallets(self):
         """Loads all wallets from path"""
@@ -451,56 +509,39 @@ class WalletManager(BaseApp):
 
     def load_wallet(self, path):
         """Loads a wallet with particular id"""
-        w = None
-        # going through all wallet classes and trying to load
-        # first we verify descriptor sig in the folder
-        for walletcls in self.WALLETS:
-            try:
-                # pass path and key for verification
-                w = walletcls.from_path(path, self.keystore)
-                # if fails - we continue, otherwise - we are done
-                break
-            except Exception as e:
-                pass
-        # if we failed to load -> delete folder and throw an error
-        if w is None:
+        try:
+            # pass path and key for verification
+            return self.WalletClass.from_path(path, self.keystore)
+        except Exception as e:
+            # if we failed to load -> delete folder and throw an error
             platform.delete_recursively(path, include_self=True)
-            raise WalletError("Can't load wallet from %s" % path)
-        return w
+            raise e
 
     def create_default_wallet(self, path):
         """Creates default p2wpkh wallet with name `Default`"""
-        der = "m/84h/%dh/0h" % NETWORKS[self.network]["bip32"]
+        der = "m/84h/%dh/0h" % self.Networks[self.network]["bip32"]
         xpub = self.keystore.get_xpub(der)
-        desc = "Default&wpkh([%s%s]%s)" % (
+        desc = "wpkh([%s%s]%s/{0,1}/*)" % (
             hexlify(self.keystore.fingerprint).decode(),
             der[1:],
-            xpub.to_base58(NETWORKS[self.network]["xpub"]),
+            xpub.to_base58(self.Networks[self.network]["xpub"]),
         )
-        w = Wallet.parse(desc, path)
+        w = self.WalletClass.parse("Default&"+desc, path)
         # pass keystore to encrypt data
         w.save(self.keystore)
         platform.sync()
         return w
 
     def parse_wallet(self, desc):
-        w = None
-        # trying to find a correct wallet type
-        errors = []
-        for walletcls in self.WALLETS:
-            try:
-                w = walletcls.parse(desc)
-                # if fails - we continue, otherwise - we are done
-                break
-            except Exception as e:
-                # raise if only one wallet class is available (most cases)
-                errors.append(e)
-        if w is None:
-            raise WalletError("Can't detect matching wallet type\n"+"\n".join([str(e) for e in errors]))
+        try:
+            w = self.WalletClass.parse(desc)
+        except Exception as e:
+            raise WalletError("Can't parse descriptor\n\n%s" % str(e))
         if str(w.descriptor) in [str(ww.descriptor) for ww in self.wallets]:
             raise WalletError("Wallet with this descriptor already exists")
-        if not w.check_network(NETWORKS[self.network]):
-            raise WalletError("Some keys don't belong to the %s network!" % NETWORKS[self.network]["name"])
+        # check that xpubs and tpubs are not mixed in the same descriptor:
+        if not w.check_network(self.Networks[self.network]):
+            raise WalletError("Some keys don't belong to the %s network!" % self.Networks[self.network]["name"])
         return w
 
     def add_wallet(self, w):
@@ -528,7 +569,6 @@ class WalletManager(BaseApp):
         if index is not None:
             for w in self.wallets:
                 a, _ = w.get_address(index, self.network)
-                print(a)
                 if a == addr:
                     return w, (0, index)
         if paths is not None:
@@ -550,123 +590,152 @@ class WalletManager(BaseApp):
                         return w, (idx, branch_idx)
         raise WalletError("Can't find wallet owning address %s" % addr)
 
-    def parse_psbtview(self, psbtv):
-        """Detects a wallet for transaction and returns an object to display"""
-        # wallets owning the inputs
-        # will be a tuple (wallet, amount)
-        # if wallet is not found - (None, amount)
-        wallets = []
-        amounts = []
+    def preprocess_psbt(self, stream, fout):
+        """
+        Processes incoming PSBT, fills missing information and writes to fout.
+        Returns:
+        - wallets in inputs: dict {wallet: amount}
+        - metadata for tx display including warnings that require user confirmation
+        - default sighash to use for signing
+        """
+        self.show_loader(title="Parsing transaction...")
 
-        # calculate fee
-        fee = sum([psbtv.input(i).utxo.value for i in range(psbtv.num_inputs)])
-        fee -= sum([psbtv.output(i).value for i in range(psbtv.num_outputs)])
+        # compress = True flag will make sure large fields won't be loaded to RAM
+        psbtv = self.PSBTViewClass.view(stream, compress=True)
 
-        # metadata for GUI
+        # Write global scope first
+        psbtv.stream.seek(psbtv.offset)
+        res = read_write(psbtv.stream, fout, psbtv.first_scope-psbtv.offset)
+
+        # string representation of the Bitcoin for wallet processing
+        fee = 0
+
+        # here we will store all wallets that we detect in inputs
+        # {wallet: amount}
+        wallets = {}
         meta = {
             "inputs": [{} for i in range(psbtv.num_inputs)],
-            "outputs": [
-                {
-                    "address": psbtv.output(i).script_pubkey.address(NETWORKS[self.network]),
-                    "value": psbtv.output(i).value,
-                    "change": False,
-                }
-                for i in range(psbtv.num_outputs)
-            ],
-            "fee": fee,
-            "warnings": [],
+            "outputs": [{} for i in range(psbtv.num_outputs)],
         }
-        # detect wallet for all inputs
+
+        fingerprint = self.keystore.fingerprint
+        # We need to detect wallets owning inputs and outputs,
+        # in case of liquid - unblind them.
+        # Fill all necessary information:
+        # For Bitcoin: bip32 derivations, witness script, redeem script
+        # For Liquid: same + values, assets, commitments, proofs etc.
+        # At the end we should have the most complete PSBT / PSET possible
         for i in range(psbtv.num_inputs):
-            self.show_loader(title="Detecting wallet for input %d of %d..." % (i+1, psbtv.num_inputs))
+            self.show_loader(title="Parsing input %d..." % i)
+            # load input to memory, verify it (check prevtx hash)
             inp = psbtv.input(i)
-            found = False
-            meta["inputs"][i] = {
-                "label": "Unknown wallet",
-                "value": inp.utxo.value,
-                "sighash": SIGHASH_NAMES[inp.sighash_type or SIGHASH.ALL]
-            }
-            for w in self.wallets:
-                if w.owns(inp):
-                    idx, branch_idx = w.get_derivation(inp.bip32_derivations)
-                    meta["inputs"][i]["label"] = w.name
-                    if branch_idx == 1:
-                        meta["inputs"][i]["label"] += " change %d" % idx
-                    elif branch_idx == 0:
-                        meta["inputs"][i]["label"] += " #%d" % idx
-                    else:
-                        meta["inputs"][i]["label"] += " #%d on branch %d" % (idx, branch_idx)
-                    if w not in wallets:
-                        wallets.append(w)
-                        amounts.append(inp.utxo.value)
-                    else:
-                        idx = wallets.index(w)
-                        amounts[idx] += inp.utxo.value
-                    found = True
-                    break
-            if not found:
-                if None not in wallets:
-                    wallets.append(None)
-                    amounts.append(inp.utxo.value)
-                else:
-                    idx = wallets.index(None)
-                    amounts[idx] += inp.utxo.value
+            metainp = meta["inputs"][i]
+            # verify, do not require non_witness_utxo if witness_utxo is set
+            inp.verify(ignore_missing=True)
 
-        if None in wallets:
-            meta["warnings"].append("Unknown wallet in input!")
-        if len(wallets) > 1:
-            meta["warnings"].append("Mixed inputs!")
+            # check sighash in the input
+            if inp.sighash_type is not None and inp.sighash_type != self.DEFAULT_SIGHASH:
+                metainp["sighash"] = self.get_sighash_info(inp.sighash_type)["name"]
 
-        # check change outputs
-        for i in range(psbtv.num_outputs):
-            self.show_loader(title="Detecting wallet for output %d of %d..." % (i+1, psbtv.num_outputs))
-            out = psbtv.output(i)
+            # Find wallets owning the inputs and fill scope data:
+            # first we check already detected wallet owns the input
+            # as in most common case all inputs are owned by the same wallet.
+            wallet = None
             for w in wallets:
-                if w is None:
-                    continue
-                if w.owns(out):
-                    meta["outputs"][i]["change"] = True
-                    meta["outputs"][i]["label"] = w.name
+                # pass rangeproof offset if it's in the scope
+                if w and w.fill_scope(inp, fingerprint):
+                    wallet = w
                     break
-        # check gap limits
-        gaps = [[] + w.gaps if w is not None else [0, 0] for w in wallets]
-        # update gaps according to all inputs
-        # because if input and output use the same branch (recv / change)
-        # it's ok if both are larger than gap limit
-        # but differ by less than gap limit
-        # (i.e. old wallet is used)
-        for inidx in range(psbtv.num_inputs):
-            inp = psbtv.input(inidx)
-            for i, w in enumerate(wallets):
-                if w is None:
-                    continue
-                if w.owns(inp):
-                    idx, branch_idx = w.get_derivation(inp.bip32_derivations)
-                    if gaps[i][branch_idx] < idx + type(w).GAP_LIMIT:
-                        gaps[i][branch_idx] = idx + type(w).GAP_LIMIT
-        # check all outputs if index is ok
-        for i in range(psbtv.num_outputs):
-            out = psbtv.output(i)
-            if not meta["outputs"][i]["change"]:
-                continue
-            for j, w in enumerate(wallets):
-                if w.owns(out):
-                    idx, branch_idx = w.get_derivation(out.bip32_derivations)
-                    if branch_idx == 1:
-                        meta["outputs"][i]["label"] += " change %d" % idx
-                    elif branch_idx == 0:
-                        meta["outputs"][i]["label"] += " #%d" % idx
-                    else:
-                        meta["outputs"][i]["label"] += " #%d on branch %d" % (idx, branch_idx)
-                    # add warning if idx beyond gap
-                    if idx > gaps[j][branch_idx]:
-                        meta["warnings"].append(
-                            "Address index %d is beyond the gap limit!" % idx
-                        )
-                        # one warning of this type is enough
+            if wallet is None:
+                # find wallet and append it to wallets
+                for w in self.wallets:
+                    # pass rangeproof offset if it's in the scope
+                    if w.fill_scope(inp, fingerprint):
+                        wallet = w
                         break
-        wallets = [(wallets[i], amounts[i]) for i in range(len(wallets))]
+            # add wallet to tx wallets dict
+            if wallet not in wallets:
+                wallets[wallet] = 0
+
+            value = inp.utxo.value
+            fee += value
+
+            wallets[wallet] = wallets.get(wallet, 0) + value
+            metainp.update({
+                "label": wallet.name if wallet else "Unknown wallet",
+                "value": value,
+            })
+            # write non_witness_utxo separately if it exists (as we use compressed psbtview)
+            non_witness_utxo_off = None
+            off = psbtv.seek_to_scope(i)
+            non_witness_utxo_off = psbtv.seek_to_value(b'\x00', from_current=True)
+            if non_witness_utxo_off:
+                non_witness_utxo_off += off
+                l = compact.read_from(psbtv.stream)
+                fout.write(b"\x01\x00")
+                fout.write(compact.to_bytes(l))
+                read_write(psbtv.stream, fout, l)
+            inp.write_to(fout, version=psbtv.version)
+
+        # parse all outputs
+        for i in range(psbtv.num_outputs):
+            self.show_loader(title="Parsing output %d..." % i)
+            out = psbtv.output(i)
+            metaout = meta["outputs"][i]
+            wallet = None
+            for w in wallets:
+                # pass rangeproof offset if it's in the scope
+                if w and w.fill_scope(out, fingerprint):
+                    wallet = w
+                    break
+            if wallet is None:
+                # find wallet and append it to wallets
+                for w in self.wallets:
+                    if w.fill_scope(out, fingerprint):
+                        wallet = w
+                        break
+            # Get values and store in metadata and wallets dict
+            value = out.value
+            fee -= value
+            metaout.update({
+                "label": wallet.name if wallet else "",
+                "change": (wallet is not None and wallet in wallets),
+                "value": value,
+                "address": self.get_address(out),
+            })
+            out.write_to(fout, version=psbtv.version)
+
+        meta["fee"] = fee
         return wallets, meta
+
+    def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
+        for w in wallets:
+            if w is None:
+                continue
+            # update max used derivations in wallets
+            w.update_gaps(psbtv=psbtv)
+            w.save(self.keystore)
+        sig_count = 0
+        with open(self.tempdir+"/sigs", "wb") as sig_stream:
+            for i in range(psbtv.num_inputs):
+                self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
+                inp = psbtv.input(i)
+                inp_sighash = sighash or inp.sighash_type or self.DEFAULT_SIGHASH
+                for w in wallets:
+                    if w is None:
+                        continue
+                    # sign with wallet if it has private keys
+                    if w.has_private_keys:
+                        sig_count += w.sign_input(psbtv, i, sig_stream, inp_sighash, inp)
+                # sign with keystore
+                sig_count += self.keystore.sign_input(psbtv, i, sig_stream, inp_sighash, inp)
+                # add separator
+                sig_stream.write(b"\x00")
+        if sig_count == 0:
+            raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
+        # remove unnecessary stuff:
+        with open(self.tempdir+"/sigs", "rb") as sig_stream:
+            psbtv.write_to(out_stream, compress=True, extra_input_streams=[sig_stream])
 
     def wipe(self):
         """Deletes all wallets info"""

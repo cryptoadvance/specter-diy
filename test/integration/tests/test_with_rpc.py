@@ -69,6 +69,13 @@ class RPCTest(TestCase):
                 # confirm warning
                 signed = sim.query(b"sign "+unsigned, [True, True])
             # signed tx
+            if not signed.startswith(b"cHNi"):
+                print(signed)
+                with open("%s.wallet" % wname, "w") as f:
+                    f.write(d1)
+                with open("%s_%d.psbt" % (wname, sh or 1), "wb") as f:
+                    f.write(unsigned)
+                raise RuntimeError()
             self.assertTrue(signed.startswith(b"cHNi"))
             combined = rpc.combinepsbt([unsigned.decode(), signed.decode()])
             final = rpc.finalizepsbt(combined)

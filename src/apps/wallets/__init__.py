@@ -1,1 +1,1 @@
-from .manager import WalletManager as App
+from .app import WalletsApp as App

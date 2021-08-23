@@ -130,6 +130,13 @@ In this mode device can only operate when the smartcard is inserted!"""
                 raise e
         self.check_saved()
 
+    @property
+    def userkey(self):
+        if self._userkey is None:
+            # userkey is uniquie for every smart card
+            self.userkey = tagged_hash("userkey", self.secret+self.applet.card_pubkey.sec())
+        return self._userkey
+
     def check_saved(self):
         data = self.applet.get_secret()
         # no data yet
@@ -374,6 +381,7 @@ In this mode device can only operate when the smartcard is inserted!"""
                     await self.unlock()
                     self.lock()
                     self.applet.close_secure_channel()
+                    self._userkey = None
                     await self.show(Alert("Please swap the card", "Now you can insert another card and set it up.", button_text="Continue"))
                     await self.check_card(check_pin=True)
                     await self.unlock()
