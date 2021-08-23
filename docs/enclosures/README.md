@@ -12,7 +12,7 @@ Barebones v1 is available for download from the docs/enclosures/seedsigner folde
 
 You can also buy the v2, or a fully assembled Specter-DIY, from [his shop](https://btc-hardware-solutions.square.site/).
 
-(E.U. residents can contact @surfacePlasmon (Twitter) or @daz21 (Telegram) to purchase an enclosure via mail.)
+(E.U. residents can contact @surfacePlasmon (Twitter) or @daz21 (Telegram) to purchase an enclosure via mail or visit diynodes.com)
 
 ![](../pictures/gallery/barebones_v2.png)
 
