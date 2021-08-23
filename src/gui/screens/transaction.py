@@ -6,6 +6,7 @@ from ..decorators import on_release
 
 class TransactionScreen(Prompt):
     def __init__(self, title, meta):
+        self.default_asset = meta.get("default_asset", "BTC")
         send_amount = sum(
             [out["value"] for out in meta["outputs"] if not out["change"]]
         )
@@ -13,7 +14,9 @@ class TransactionScreen(Prompt):
 
         obj = self.message # for alignments
 
-        enable_inputs = len([k for k in meta["inputs"] if k.get("sighash", "ALL") != "ALL"]) > 0
+        enable_inputs = len([k for k in meta["inputs"] if k.get("sighash", "")]) > 0
+        # if there is at least one unknown value (liquid)
+        enable_inputs = enable_inputs or (-1 in [out["value"] for out in meta["outputs"]])
 
         lbl = add_label("Show detailed information                      ", scr=self)
         lbl.align(obj, lv.ALIGN.CENTER, 0, 0)
@@ -61,17 +64,18 @@ class TransactionScreen(Prompt):
                 continue
             obj = self.show_output(out, obj)
 
-        if send_amount > 0:
-            fee_percent = meta["fee"] * 100 / send_amount
-            fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
-        # back to wallet
-        else:
-            fee_txt = "%d satoshi" % (meta["fee"])
-        fee = add_label("Fee: " + fee_txt, scr=self.page)
-        fee.set_style(0, style)
-        fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        if meta.get("fee"):
+            if send_amount > 0:
+                fee_percent = meta["fee"] * 100 / send_amount
+                fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
+            # back to wallet
+            else:
+                fee_txt = "%d satoshi" % (meta["fee"])
+            fee = add_label("Fee: " + fee_txt, scr=self.page)
+            fee.set_style(0, style)
+            fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        obj = fee
+            obj = fee
 
         # warning label for address gap limit
         if "warnings" in meta and len(meta["warnings"]) > 0:
@@ -91,15 +95,16 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            lbl.set_text("%.8f BTC from %s" % (inp["value"]/1e8, inp["label"]))
+            valuetxt = "???" if inp["value"] == -1 else "%.8f" % (inp["value"]/1e8)
+            lbl.set_text("%s %s from %s" % (valuetxt, inp.get("asset", self.default_asset), inp.get("label", "Unknown wallet")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
-            if inp["sighash"] != "ALL":
+            if inp.get("sighash", ""):
                 shlbl = lv.label(self.page2)
                 shlbl.set_long_mode(lv.label.LONG.BREAK)
                 shlbl.set_width(380)
-                shlbl.set_text(inp["sighash"])
+                shlbl.set_text(inp.get("sighash", ""))
                 shlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
                 shlbl.set_x(60)
                 shlbl.set_style(0, style_warning)
@@ -117,7 +122,8 @@ class TransactionScreen(Prompt):
             lbl = lv.label(self.page2)
             lbl.set_long_mode(lv.label.LONG.BREAK)
             lbl.set_width(380)
-            lbl.set_text("%.8f BTC to %s" % (out["value"]/1e8, out.get("label", "")))
+            valuetxt = "???" if out["value"] == -1 else "%.8f" % (out["value"]/1e8)
+            lbl.set_text("%s %s to %s" % (valuetxt, out.get("asset", self.default_asset), out.get("label", "")))
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
@@ -133,10 +139,11 @@ class TransactionScreen(Prompt):
                 addrlbl.set_style(0, style_primary)
             lbl = addrlbl
 
-        idxlbl = lv.label(self.page2)
-        idxlbl.set_text("Fee:  " + fee_txt)
-        idxlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        idxlbl.set_x(30)
+        if meta.get("fee"):
+            idxlbl = lv.label(self.page2)
+            idxlbl.set_text("Fee:  " + fee_txt)
+            idxlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+            idxlbl.set_x(30)
 
         self.toggle_details()
 
@@ -150,8 +157,9 @@ class TransactionScreen(Prompt):
 
     def show_output(self, out, obj):
         # show output
+        valuetxt = "???" if out["value"] == -1 else "%.8f" % (out["value"]/1e8)
         lbl = add_label(
-            "%.8f BTC to" % (out["value"] / 1e8), style="title", scr=self.page
+            "%s %s to" % (valuetxt, out.get("asset", self.default_asset)), style="title", scr=self.page
         )
         lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         obj = lbl

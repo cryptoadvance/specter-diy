@@ -5,4 +5,5 @@ __all__ = [
     "getrandom",  # allows to query random bytes from on-board TRNG
     "label",  # allows settings and getting a label for device
     "backup", # creates and loads backups (only loads for now)
+    "blindingkeys", # blinding keys for liquid wallets
 ]

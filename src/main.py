@@ -1,3 +1,4 @@
+import os
 from specter import Specter
 from gui.specter import SpecterGUI
 
@@ -7,10 +8,9 @@ from keystore.memorycard import MemoryCard
 
 from hosts import SDHost, QRHost, USBHost, Host
 import platform
-import sys
 from helpers import load_apps
 from app import BaseApp
-
+import display
 
 def main(apps=None, network="main", keystore_cls=None):
     """
@@ -18,12 +18,22 @@ def main(apps=None, network="main", keystore_cls=None):
     network: default network to operate
     keystores: list of KeyStore classes that can be used
     """
+    # Init display first as it also inits the SDRAM
+    display.init(False)
     # create virtual file system /sdram
     # for temp untrusted data storage
     rampath = platform.mount_sdram()
+
+    # set working path to empty folder in sdram
+    if not platform.simulator:
+        cwd = rampath+"/cwd"
+        platform.maybe_mkdir(cwd)
+        os.chdir(cwd)
+
     # define hosts - USB, QR, SDCard
     # each hosts gets it's own RAM folder for data
     Host.SETTINGS_DIR = platform.fpath("/qspi/hosts")
+    Specter.SETTINGS_DIR = platform.fpath("/qspi/global")
     hosts = [
         USBHost(rampath + "/usb"),
         QRHost(rampath + "/qr"),

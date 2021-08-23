@@ -18,10 +18,11 @@ from platform import (
 from hosts import Host, HostError
 from app import BaseApp
 from bitcoin import bip39
-from bitcoin.networks import NETWORKS
+from bitcoin.liquid.networks import NETWORKS
+from gui.screens.settings import HostSettings
 
 # small helper functions
-from helpers import gen_mnemonic, fix_mnemonic, load_apps
+from helpers import gen_mnemonic, fix_mnemonic, load_apps, is_liquid
 from errors import BaseError
 
 
@@ -34,7 +35,10 @@ class Specter:
     Call .start() method to register in the event loop
     It will then call the .setup() and .main() functions to display the GUI
     """
-    usb = False
+    SETTINGS_DIR = None
+    # global settings
+    GLOBAL = {}
+
     def __init__(self, gui, keystores, hosts, apps, settings_path, network="main"):
         self.hosts = hosts
         self.keystores = keystores
@@ -312,9 +316,24 @@ class Specter:
         return self.settingsmenu
 
     async def select_network(self):
-        # dict is unordered unfortunately, so we need to use hardcoded arr
-        nets = ["main", "test", "regtest", "signet"]
-        buttons = [(net, NETWORKS[net]["name"]) for net in nets]
+        buttons = [
+            (None, "Production"),
+            ("main", "Mainnet"),
+        ]
+        if self.is_liquid_enabled:
+            buttons.extend([
+                ("liquidv1", "Liquid"),
+            ])
+        buttons.extend([
+            (None, "Testnets"),
+            ("test", "Testnet"),
+            ("signet", "Signet"),
+            ("regtest", "Regtest"),
+        ])
+        if self.is_liquid_enabled:
+            buttons.extend([
+                ("elementsregtest", "Liquid Regtest"),
+            ])
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
         if menuitem != 255:
@@ -340,18 +359,112 @@ class Specter:
             pass
         self.set_network(network)
 
-    async def update_devsettings(self):
+    async def communication_settings(self):
         buttons = [
-            (None, "Communication settings")
+            (None, "Communication channels")
         ] + [
             (host, host.settings_button)
             for host in self.hosts
             if host.settings_button is not None
+        ]
+        while True:
+            menuitem = await self.gui.menu(buttons,
+                                      title="Communication settings",
+                                      note="Firmware version %s" % get_version(),
+                                      last=(255, None)
+            )
+            if menuitem == 255:
+                return
+            elif isinstance(menuitem, Host):
+                reboot_required = await menuitem.settings_menu(self.gui.show_screen(), self.keystore)
+                if reboot_required:
+                    if await self.gui.prompt(
+                        "Reboot required!",
+                        "Settings have been updated and will become active after reboot.\n\n"
+                        "Do you want to reboot now?",
+                    ):
+                        reboot()
+            else:
+                print(menuitem)
+                raise SpecterError("Not implemented")
+
+    @property
+    def settings_fname(self):
+        return self.SETTINGS_DIR+"/global.settings"
+
+    def load_settings(self, fname=None):
+        settings = {}
+        try:
+            if fname is None:
+                fname = self.settings_fname
+            adata, _ = self.keystore.load_aead(fname, key=self.keystore.settings_key)
+            settings = json.loads(adata.decode())
+        except Exception as e:
+            print(e)
+        return settings
+
+    def save_settings(self, settings, fname=None):
+        maybe_mkdir(self.SETTINGS_DIR)
+        if fname is None:
+            fname = self.settings_fname
+        self.keystore.save_aead(fname,
+                           adata=json.dumps(settings).encode(),
+                           key=self.keystore.settings_key
+        )
+
+    @property
+    def is_liquid_enabled(self):
+        return self.GLOBAL.get("experimental",{}).get("liquid", False)
+
+    async def experimental_settings(self):
+
+        controls = [{
+            "label": "Enable Liquid support",
+            "hint": "Two more networks are added:\nLiquid and Liquid Regtest",
+            "value": self.GLOBAL.get("experimental", {}).get("liquid", False)
+        }, {
+            "label": "Taproot",
+            "hint": "Taproot support only for single-key wallets\nwithout tap script trees",
+            "value": self.GLOBAL.get("experimental", {}).get("taproot", False)
+        }]
+
+        scr = HostSettings(
+            controls,
+            title="Experimental features",
+            note="Experimental features are unstable,\n"
+            "only enable them if you really want to try.\n"
+            "Report developers in case of any issues.",
+        )
+        liquid, taproot = await self.gui.show_screen()(scr)
+        # for now only experimental, can be extended
+        settings = {
+            "experimental": {
+                "liquid": liquid,
+                "taproot": taproot,
+            }
+        }
+        self.GLOBAL = settings
+        BaseApp.GLOBAL = settings
+        self.save_settings(settings)
+        if not self.is_liquid_enabled and is_liquid(self.network):
+            if self.network == "liquidv1":
+                self.set_network("main")
+            if self.network == "elementsregtest":
+                self.set_network("regtest")
+            await self.gui.alert("Network have changed!", "\n\nAs you disabled Liquid support\nwe switch current network to Bitcoin.")
+
+    async def update_devsettings(self):
+        buttons = [
+            (None, "Categories")
+        ] + [
+            (1, "Communication"),
+            # (2, "Applications"),
+            (3, "Experimental"),
         ] + [
             (None, "Global settings"),
         ]
         if hasattr(self.keystore, "lock"):
-            buttons.extend([(3, "Change PIN code")])
+            buttons.extend([(777, "Change PIN code")])
         buttons += [
             (456, "Reboot"),
             (123, "Wipe the device", True, 0x951E2D),
@@ -364,6 +477,8 @@ class Specter:
             )
             if menuitem == 255:
                 return
+            elif menuitem == 3:
+                await self.experimental_settings()
             elif menuitem == 456:
                 if await self.gui.prompt(
                     "Reboot the device?",
@@ -381,18 +496,11 @@ class Specter:
                 ):
                     self.wipe()
                 return
-            elif menuitem == 3:
+            elif menuitem == 777:
                 await self.keystore.change_pin()
                 return
-            elif isinstance(menuitem, Host):
-                reboot_required = await menuitem.settings_menu(self.gui.show_screen(), self.keystore)
-                if reboot_required:
-                    if await self.gui.prompt(
-                        "Reboot required!",
-                        "Settings have been updated and will become active after reboot.\n\n"
-                        "Do you want to reboot now?",
-                    ):
-                        reboot()
+            elif menuitem == 1:
+                await self.communication_settings()
             else:
                 print(menuitem)
                 raise SpecterError("Not implemented")
@@ -419,6 +527,9 @@ class Specter:
         # now keystore is unlocked - we can load hosts configs
         for host in self.hosts:
             host.load_settings(self.keystore)
+        settings = self.load_settings()
+        self.GLOBAL = settings
+        BaseApp.GLOBAL = settings
 
     async def process_host_request(self, stream, popup=True, appname=None):
         """

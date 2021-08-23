@@ -3,8 +3,9 @@ from gui.screens import Menu, DerivationScreen, NumericScreen, Alert, InputScree
 from .screens import XPubScreen
 import json
 from binascii import hexlify
-from bitcoin.networks import NETWORKS
+from bitcoin.liquid.networks import NETWORKS
 from bitcoin import bip32
+from helpers import is_liquid
 from io import BytesIO
 import platform
 import lvgl as lv
@@ -252,7 +253,11 @@ class XpubApp(BaseApp):
             if not name:
                 return
             # send the wallets app addwallet command with descriptor
-            data = "addwallet %s&%s" % (name, menuitem)
+            desc = menuitem
+            # add blinding key on liquid
+            if is_liquid(self.network):
+                desc = "blinded(slip77(%s),%s)" % (self.keystore.slip77_key, desc)
+            data = "addwallet %s&%s" % (name, desc)
             stream = BytesIO(data.encode())
             await self.communicate(stream, app="wallets")
 

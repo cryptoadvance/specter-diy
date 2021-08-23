@@ -15,6 +15,8 @@ class BaseApp:
 
     # temp storage for command processing:
     TEMPDIR = None
+    # global settings injected by the Specter class
+    GLOBAL = {}
 
     def __init__(self, path: str):
         """path is the folder where this app should store data"""
