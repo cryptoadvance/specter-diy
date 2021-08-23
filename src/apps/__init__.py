@@ -6,4 +6,5 @@ __all__ = [
     "label",  # allows settings and getting a label for device
     "backup", # creates and loads backups (only loads for now)
     "blindingkeys", # blinding keys for liquid wallets
+    "compatibility", # compatibility layer that converts json/files to Specter format
 ]
