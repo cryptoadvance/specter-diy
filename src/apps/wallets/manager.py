@@ -590,6 +590,15 @@ class WalletManager(BaseApp):
                         return w, (idx, branch_idx)
         raise WalletError("Can't find wallet owning address %s" % addr)
 
+    def fill_zero_fingerprint(self, scope):
+        """Blue Wallet hack - zeroes in fingerprint should be checked and replaced by our fingerprint"""
+        for pub in scope.bip32_derivations:
+            if scope.bip32_derivations[pub].fingerprint == b"\x00\x00\x00\x00":
+                # check if pubkey matches
+                if self.keystore.get_xpub(scope.bip32_derivations[pub].derivation).key == pub:
+                    scope.bip32_derivations[pub].fingerprint = self.keystore.fingerprint
+
+
     def preprocess_psbt(self, stream, fout):
         """
         Processes incoming PSBT, fills missing information and writes to fout.
@@ -637,6 +646,8 @@ class WalletManager(BaseApp):
             if inp.sighash_type is not None and inp.sighash_type != self.DEFAULT_SIGHASH:
                 metainp["sighash"] = self.get_sighash_info(inp.sighash_type)["name"]
 
+            self.fill_zero_fingerprint(inp)
+
             # Find wallets owning the inputs and fill scope data:
             # first we check already detected wallet owns the input
             # as in most common case all inputs are owned by the same wallet.
@@ -682,6 +693,9 @@ class WalletManager(BaseApp):
             self.show_loader(title="Parsing output %d..." % i)
             out = psbtv.output(i)
             metaout = meta["outputs"][i]
+
+            self.fill_zero_fingerprint(out)
+
             wallet = None
             for w in wallets:
                 # pass rangeproof offset if it's in the scope
