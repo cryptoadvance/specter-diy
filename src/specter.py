@@ -162,8 +162,8 @@ class Specter:
         for app in self.apps:
             app.init(self.keystore, self.network, self.gui.show_loader, self.cross_app_communicate)
 
-    async def cross_app_communicate(self, stream, app:str=None):
-        return await self.process_host_request(stream, popup=False, appname=app)
+    async def cross_app_communicate(self, stream, app:str=None, show_fn=None):
+        return await self.process_host_request(stream, popup=False, appname=app, show_fn=show_fn)
 
     async def initmenu(self):
         # for every button we use an ID
@@ -531,13 +531,15 @@ class Specter:
         self.GLOBAL = settings
         BaseApp.GLOBAL = settings
 
-    async def process_host_request(self, stream, popup=True, appname=None):
+    async def process_host_request(self, stream, popup=True, appname=None, show_fn=None):
         """
         This method is called whenever we got data from the host.
         It tries to find a proper app and pass the stream with data to it.
         """
         self.gui.show_loader(title="Processing host data...")
         res = None
+        if show_fn is None:
+            show_fn = self.gui.show_screen(popup)
         try:
             matching_apps = []
             if appname is not None:
@@ -559,7 +561,7 @@ class Specter:
                 )
             stream.seek(0)
             app = matching_apps[0]
-            res = await app.process_host_command(stream, self.gui.show_screen(popup))
+            res = await app.process_host_command(stream, show_fn)
         except Exception as e:
             if isinstance(e, BaseError):
                 # error that has a meaningfull message, will be sent to the host
