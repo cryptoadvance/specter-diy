@@ -13,6 +13,9 @@ class AppletException(Exception):
 
 class Applet:
     SELECT = b"\x00\xA4\x04\x00"  # select command
+    NAME = "GenericApplet"
+    version = "0.1.0" # default
+    platform = "JavaCard OS"
 
     def __init__(self, connection, aid):
         self.conn = connection
