@@ -301,7 +301,9 @@ class Wallet:
 
     @property
     def full_policy(self):
-        if self.descriptor.is_segwit:
+        if self.descriptor.is_taproot:
+            p = "Taproot\n"
+        elif self.descriptor.is_segwit:
             p = "Nested Segwit\n" if self.descriptor.is_wrapped else "Native Segwit\n"
         else:
             p = "Legacy\n"
@@ -314,7 +316,7 @@ class Wallet:
 
     @property
     def is_miniscript(self):
-        return not (self.descriptor.is_basic_multisig or self.descriptor.is_pkh)
+        return not (self.descriptor.is_basic_multisig or self.descriptor.is_pkh or self.descriptor.is_taproot)
 
     def __str__(self):
         return "%s&%s" % (self.name, self.descriptor)

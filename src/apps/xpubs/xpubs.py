@@ -32,38 +32,45 @@ class XpubApp(BaseApp):
     async def menu(self, show_screen, show_all=False):
         net = NETWORKS[self.network]
         coin = net["bip32"]
-        buttons = [
-            (None, "Recommended"),
-            ("m/84h/%dh/%dh" % (coin, self.account), "Single key"),
-            ("m/48h/%dh/%dh/2h" % (coin, self.account), "Multisig"),
-            (None, "Other keys"),
-        ]
-        if show_all:
-            buttons += [
-                (
-                    "m/84h/%dh/%dh" % (coin, self.account),
-                    "Single Native Segwit\nm/84h/%dh/%dh" % (coin, self.account)
-                ),
-                (
-                    "m/49h/%dh/%dh" % (coin, self.account),
-                    "Single Nested Segwit\nm/49h/%dh/%dh" % (coin, self.account)
-                ),
-                (
-                    "m/48h/%dh/%dh/2h" % (coin, self.account),
-                    "Multisig Native Segwit\nm/48h/%dh/%dh/2h" % (coin, self.account),
-                ),
-                (
-                    "m/48h/%dh/%dh/1h" % (coin, self.account),
-                    "Multisig Nested Segwit\nm/48h/%dh/%dh/1h" % (coin, self.account),
-                ),
-            ]
-        else:
-            buttons += [
+        if not show_all:
+            buttons = [
+                (None, "Recommended"),
+                ("m/84h/%dh/%dh" % (coin, self.account), "Single key"),
+                ("m/48h/%dh/%dh/2h" % (coin, self.account), "Multisig"),
+                (None, "Other keys"),
                 (0, "Show more keys"),
                 (2, "Change account number"),
                 (1, "Enter custom derivation"),
                 (3, "Export all keys to SD"),
             ]
+        else:
+            buttons = [
+                (None, "Recommended"),
+                (
+                    "m/84h/%dh/%dh" % (coin, self.account),
+                    "Single Native Segwit\nm/84h/%dh/%dh" % (coin, self.account)
+                ),
+                (
+                    "m/48h/%dh/%dh/2h" % (coin, self.account),
+                    "Multisig Native Segwit\nm/48h/%dh/%dh/2h" % (coin, self.account),
+                ),
+                (None, "Other keys"),
+            ]
+            if self.is_taproot_enabled:
+                buttons.append((
+                    "m/86h/%dh/%dh" % (coin, self.account),
+                    "Single Taproot\nm/86h/%dh/%dh" % (coin, self.account)
+                ))
+            buttons.extend([
+                (
+                    "m/49h/%dh/%dh" % (coin, self.account),
+                    "Single Nested Segwit\nm/49h/%dh/%dh" % (coin, self.account)
+                ),
+                (
+                    "m/48h/%dh/%dh/1h" % (coin, self.account),
+                    "Multisig Nested Segwit\nm/48h/%dh/%dh/1h" % (coin, self.account),
+                ),
+            ])
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
                                           title="Select the key",
@@ -109,11 +116,12 @@ class XpubApp(BaseApp):
         coin = NETWORKS[self.network]["bip32"]
 
         derivations = [
-            ('bip49', "p2wpkh", "m/49'/%d'/%d'" % (coin, self.account)),
-            ('bip84', "p2sh-p2wpkh", "m/84'/%d'/%d'" % (coin, self.account)),
+            ('bip84', "p2wpkh", "m/84'/%d'/%d'" % (coin, self.account)),
+            ('bip86', "p2tr", "m/86'/%d'/%d'" % (coin, self.account)),
+            ('bip49', "p2sh-p2wpkh", "m/49'/%d'/%d'" % (coin, self.account)),
             ('bip44', "p2pkh", "m/44'/%d'/%d'" % (coin, self.account)),
-            ('bip48_2', "p2wsh", "m/48'/%d'/%d'/2'" % (coin, self.account)),
             ('bip48_1', "p2sh-p2wsh", "m/48'/%d'/%d'/1'" % (coin, self.account)),
+            ('bip48_2', "p2wsh", "m/48'/%d'/%d'/2'" % (coin, self.account)),
         ]
 
         if file_format == self.export_specter_diy:
@@ -199,6 +207,10 @@ class XpubApp(BaseApp):
                       button_text="Close")
             )
 
+    @property
+    def is_taproot_enabled(self):
+        return self.GLOBAL.get("experimental",{}).get("taproot", False)
+
     async def create_wallet(self, derivation, xpub, prefix, version, show_screen):
         """Shows a wallet creation menu and passes descriptor to the wallets app"""
         net = NETWORKS[self.network]
@@ -208,6 +220,9 @@ class XpubApp(BaseApp):
             "legacy": ("pkh(%s%s/{0,1}/*)" % (prefix, xpub), "Legacy"),
             # multisig is not supported yet - requires cosigners app
         })
+        if self.is_taproot_enabled:
+            descriptors["taproot"] = ("tr(%s%s/{0,1}/*)" % (prefix, xpub), "Taproot")
+
         if version == net["ypub"]:
             buttons = [
                 (None, "Recommended"),
@@ -218,6 +233,18 @@ class XpubApp(BaseApp):
             buttons = [
                 (None, "Recommended"),
                 descriptors.pop("zpub"),
+                (None, "Other"),
+            ]
+        elif "/86h/" in derivation and self.is_taproot_enabled:
+            buttons = [
+                (None, "Recommended"),
+                descriptors.pop("taproot"),
+                (None, "Other"),
+            ]
+        elif "/44h/" in derivation:
+            buttons = [
+                (None, "Recommended"),
+                descriptors.pop("legacy"),
                 (None, "Other"),
             ]
         else:
@@ -237,6 +264,8 @@ class XpubApp(BaseApp):
                 name_suggestion = "Native %d" % self.account
             elif menuitem.startswith("sh(wpkh("):
                 name_suggestion = "Nested %d" % self.account
+            elif menuitem.startswith("tr("):
+                name_suggestion = "Taproot %d" % self.account
             else:
                 name_suggestion = "Wallet %d" % self.account
             nn = name_suggestion
