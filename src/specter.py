@@ -435,7 +435,10 @@ class Specter:
             "only enable them if you really want to try.\n"
             "Report developers in case of any issues.",
         )
-        liquid, taproot = await self.gui.show_screen()(scr)
+        res = await self.gui.show_screen()(scr)
+        if res is None:
+            return
+        liquid, taproot = res
         # for now only experimental, can be extended
         settings = {
             "experimental": {
