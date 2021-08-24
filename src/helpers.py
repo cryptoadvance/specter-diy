@@ -138,7 +138,7 @@ def b2a_base64_stream(sin, sout):
         sout.write(b2a_base64(chunk).strip())
 
 
-def read_until(s, chars=b"\n\r", max_len=100):
+def read_until(s, chars=b"\n\r", max_len=100, return_on_max_len=False):
     """Reads from stream until one of the chars"""
     res = b""
     chunk = b""
@@ -150,7 +150,7 @@ def read_until(s, chars=b"\n\r", max_len=100):
             return res, chunk
         res += chunk
         if len(res) > max_len:
-            return None, None
+            return res if return_on_max_len else None, None
 
 def seek_to(s, chars=b"\n"):
     """Seeks stream to one of the chars"""
@@ -163,3 +163,11 @@ def seek_to(s, chars=b"\n"):
             return off, None
         if chunk in chars:
             return off, chunk
+
+def read_write(fin, fout, chunk_size=32):
+    chunk = fin.read(chunk_size)
+    total = fout.write(chunk)
+    while len(chunk) > 0:
+        chunk = fin.read(chunk_size)
+        total += fout.write(chunk)
+    return total
