@@ -227,7 +227,7 @@ class LWalletManager(WalletManager):
                 name = "Unknown wallet"
             else:
                 name = w.name
-            amount = wallets[w]
+            amount = wallets[w]["amount"]
             spend = ", ".join("%s %s" % ("???" if val < 0 else "%.8f" % (val/1e8), self.asset_label(asset)) for asset, val in amount.items())
             spends.append('%s\nfrom "%s"' % (spend, name))
         title = "Inputs:\n" + "\n".join(spends)
@@ -265,7 +265,7 @@ class LWalletManager(WalletManager):
         res = read_write(psbtv.stream, fout, psbtv.first_scope-psbtv.offset)
 
         # here we will store all wallets that we detect in inputs
-        # wallet: {asset: amount}
+        # wallet: {"amount": {asset: amount}, "gaps" [gaps]}
         wallets = {}
         meta = {
             "inputs": [{} for i in range(psbtv.num_inputs)],
@@ -320,9 +320,20 @@ class LWalletManager(WalletManager):
                                     stream=psbtv.stream, rangeproof_offset=rangeproof_offset):
                         wallet = w
                         break
-            # add wallet to tx wallets dict (None means unknown wallet)
+            # get gaps
+            gaps = None
+            if wallet:
+                gaps = [g for g in wallet.gaps] # copy
+                res = wallet.get_derivation(inp.bip32_derivations)
+                if res:
+                    idx, branch_idx = res
+                    gaps[branch_idx] = max(gaps[branch_idx], idx+wallet.GAP_LIMIT+1)
+            # add wallet to tx wallets dict
             if wallet not in wallets:
-                wallets[wallet] = {}
+                wallets[wallet] = {"amount": {}, "gaps": gaps}
+            else:
+                if wallets[wallet]["gaps"] is not None and gaps is not None:
+                    wallets[wallet]["gaps"] = [max(g1,g2) for g1,g2 in zip(gaps, wallets[wallet]["gaps"])]
 
             # Get values (and assets) and store in metadata and wallets dict
             # we don't know yet if we unblinded the input or not, and if it was even blinded
@@ -346,7 +357,7 @@ class LWalletManager(WalletManager):
                     raise WalletError("Missing input asset")
                 in_gens.append(secp256k1.generator_parse(inp.utxo.asset))
 
-            wallets[wallet][asset] = wallets[wallet].get(asset, 0) + value
+            wallets[wallet]["amount"][asset] = wallets[wallet]["amount"].get(asset, 0) + value
             metainp.update({
                 "label": wallet.name if wallet else "Unknown wallet",
                 "value": value,
@@ -519,6 +530,21 @@ class LWalletManager(WalletManager):
             })
             if wallet:
                 metaout["label"] = wallet.name
+                res = wallet.get_derivation(out.bip32_derivations)
+                if res:
+                    idx, branch_idx = res
+                    branch_txt = ""
+                    if branch_idx == 1:
+                        "change "
+                    elif branch_idx > 1:
+                        "branch %d " % branch_idx
+                    metaout["label"] = "%s %s#%d" % (wallet.name, branch_txt, idx)
+                    if wallet in wallets:
+                        allowed_idx = wallets[wallet]["gaps"][branch_idx]
+                    else:
+                        allowed_idx = wallet.gaps[branch_idx]
+                    if allowed_idx <= idx:
+                        metaout["warning"] = "Derivation index is by %d larger than last known used index %d!" % (idx-allowed_idx+wallet.GAP_LIMIT, allowed_idx-wallet.GAP_LIMIT)
             if asset and asset not in self.assets:
                 metaout.update({"raw_asset": asset})
             out.write_to(fout, skip_separator=True, version=psbtv.version)
