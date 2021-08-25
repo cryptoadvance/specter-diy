@@ -163,19 +163,16 @@ class TransactionScreen(Prompt):
         )
         lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         obj = lbl
-        # if there is no label but it's a change with warning
-        if "label" not in out and out["change"]:
-            out["label"] = "Change"
-        if "label" in out:
+        if out.get("label", ""):
             lbl = add_label(out["label"], style="title", scr=self.page)
             lbl.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
             obj = lbl
-        if "label" in out:
+        if out.get("label", ""):
             txt = format_addr(out["address"], words=4)
         else:
             txt = format_addr(out["address"])
         addr = add_label(txt, scr=self.page)
-        if "label" in out:
+        if out.get("label", ""):
             addr.set_style(0, self.style_secondary)
         else:
             addr.set_style(0, self.style)

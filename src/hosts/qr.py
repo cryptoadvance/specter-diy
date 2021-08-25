@@ -7,6 +7,7 @@ from io import BytesIO
 import gc
 from gui.screens.settings import HostSettings
 from gui.screens import Alert
+from helpers import read_until, read_write
 
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
@@ -70,7 +71,6 @@ class QRHost(Host):
         else:
             self.EOL = b"\r"
 
-        self.data = b""
         self.f = None
         self.uart_bus = uart
         self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
@@ -257,9 +257,14 @@ class QRHost(Host):
             self.set_setting(SETTINGS_ADDR, self.CMD_MODE)
 
     def abort(self):
-        self.data = None
+        with open(self.tmpfile,"wb"):
+            pass
         self.cancelled = True
         self.stop_scanning()
+
+    @property
+    def tmpfile(self):
+        return self.path+"/tmp"
 
     async def scan(self):
         self.clean_uart()
@@ -267,7 +272,9 @@ class QRHost(Host):
             self.trigger.off()
         else:
             self.set_setting(SETTINGS_ADDR, self.CONT_MODE)
-        self.data = b""
+        # clear the data
+        with open(self.tmpfile,"wb") as f:
+            pass
         if self.f is not None:
             self.f.close()
             self.f = None
@@ -299,56 +306,84 @@ class QRHost(Host):
         # read all available data
         if self.uart.any() > 0:
             d = self.uart.read()
-            self.data += d
-            # we got a full scan
-            if self.data.endswith(self.EOL):
-                # maybe two
-                chunks = self.data.split(self.EOL)
-                self.data = b""
+            num_lines = d.count(self.EOL)
+            # no new lines - just write and continue
+            if num_lines == 0:
+                with open(self.tmpfile,"ab") as f:
+                    f.write(d)
+                return
+            # slice to write
+            start = 0
+            end = len(d)
+            while num_lines >= 1: # last one is incomplete
+                end = d.index(self.EOL, start)
+                with open(self.tmpfile,"ab") as f:
+                    f.write(d[start:end])
                 try:
-                    for chunk in chunks[:-1]:
-                        if self.process_chunk(chunk):
-                            self.stop_scanning()
-                            break
-                        # animated in trigger mode
-                        elif self.trigger is not None:
-                            self.trigger.on()
-                            await asyncio.sleep_ms(30)
-                            self.trigger.off()
+                    if self.process_chunk():
+                        self.stop_scanning()
+                        break
+                    # animated in trigger mode
+                    elif self.trigger is not None:
+                        self.trigger.on()
+                        await asyncio.sleep_ms(30)
+                        self.trigger.off()
                 except Exception as e:
-                    print(e)
+                    print("QR exception", e)
                     self.stop_scanning()
                     raise e
+                num_lines -= 1
+                start = end + len(self.EOL)
+                # erase the content of the file
+                with open(self.tmpfile, "wb") as f:
+                    pass
 
-    def process_chunk(self, chunk):
+    def process_chunk(self):
         """Returns true when scanning complete"""
         # should not be there if trigger mode or simulator
-        if chunk.startswith(SUCCESS):
-            chunk = chunk[len(SUCCESS) :]
-        # check if it's bcur encoding
-        if chunk[:9].upper() == b"UR:BYTES/":
-            self.bcur = True
-            return self.process_bcur(chunk)
-        else:
-            return self.process_normal(chunk)
+        with open(self.tmpfile, "rb") as f:
+            c = f.read(len(SUCCESS))
+            if c!=SUCCESS:
+                f.seek(-len(c), 1)
+            # check if it's bcur encoding
+            start = f.read(9)
+            f.seek(-len(start), 1)
+            if start.upper() == b"UR:BYTES/":
+                self.bcur = True
+                return self.process_bcur(f)
+            else:
+                return self.process_normal(f)
 
-    def process_bcur(self, chunk):
-        # check if it starts with pMofN
-        arr = chunk.upper().split(b"/")
-        # ur:bytes/MofN/hash/data
-        if len(arr) < 4:
+    def process_bcur(self, f):
+        # check if starts with UR:BYTES/
+        chunk, char = read_until(f, b"/", return_on_max_len=True)
+        chunk = chunk or b""
+        assert chunk.upper() == b"UR:BYTES"
+        assert char == b"/"
+        # format: ur:bytes/MofN/hash/data
+        # check if next part is MofN,
+        # if not - 64 bytes is enough to read the hash
+        chunk, char = read_until(f, b"/", max_len=64, return_on_max_len=True)
+        chunk = chunk or b""
+        # if next / is not found or OF not there
+        if char is None or b"OF" not in chunk.upper():
             if not self.animated:
+                # maybe there is a hash, but no parts
                 fname = self.path + "/data.txt"
-                with open(fname, "wb") as f:
-                    f.write(chunk)
+                with open(fname, "wb") as fout:
+                    fout.write(b"UR:BYTES/")
+                    fout.write(chunk)
+                    fout.write(char or b"")
+                    read_write(f, fout)
                 return True
             else:
                 self.stop_scanning()
                 raise HostError("Ivalid QR code part encoding: %r" % chunk)
         # converting to pMofN to reuse parser
-        prefix = b"p" + arr[1].lower()
-        hsh = arr[2]
-        data = arr[3]
+        prefix = b"p" + chunk.lower()
+        hsh, char = read_until(f, b"/", max_len=80, return_on_max_len=True)
+        hsh = hsh or b""
+        assert char == b"/"
         if not self.animated:
             try:
                 m, n = self.parse_prefix(prefix)
@@ -357,8 +392,8 @@ class QRHost(Host):
                 self.animated = True
                 self.parts = [None] * n
                 fname = "%s/p%d.txt" % (self.path, m-1)
-                with open(fname, "wb") as f:
-                    f.write(data)
+                with open(fname, "wb") as fout:
+                    read_write(f, fout)
                 self.parts[m - 1] = fname
                 self.bcur_hash = hsh
                 return False
@@ -373,75 +408,81 @@ class QRHost(Host):
             print(hsh, self.bcur_hash)
             raise HostError("Checksum mismatch")
         fname = "%s/p%d.txt" % (self.path, m-1)
-        with open(fname, "wb") as f:
-            f.write(data)
+        with open(fname, "wb") as fout:
+            fout.write(f.read())
         self.parts[m - 1] = fname
         # all have non-zero len
         if None not in self.parts:
             fname = self.path + "/data.txt"
-            with open(fname, "wb") as f:
-                f.write(b"UR:BYTES/")
-                f.write(self.bcur_hash)
-                f.write(b"/")
+            with open(fname, "wb") as fout:
+                fout.write(b"UR:BYTES/")
+                fout.write(self.bcur_hash)
+                fout.write(b"/")
                 for part in self.parts:
                     with open(part, "rb") as fp:
-                        f.write(fp.read())
+                        read_write(fp, fout)
             return True
         else:
             return False
 
-    def process_normal(self, chunk):
+    def process_normal(self, f):
         # check if it starts with pMofN
-        if b" " not in chunk:
+        chunk, char = read_until(f, b" ", max_len=10, return_on_max_len=True)
+        chunk = chunk or b""
+        if char is None:
             if not self.animated:
                 fname = self.path + "/data.txt"
-                with open(fname, "wb") as f:
-                    f.write(chunk)
+                with open(fname, "wb") as fout:
+                    fout.write(chunk)
+                    read_write(f, fout)
                 return True
             else:
                 self.stop_scanning()
                 raise HostError("Ivalid QR code part encoding: %r" % chunk)
         # space is there
-        prefix, *_ = chunk.split(b" ")
         if not self.animated:
-            if prefix.startswith(b"p") and b"of" in prefix:
+            if chunk.startswith(b"p") and b"of" in chunk:
                 try:
-                    m, n = self.parse_prefix(prefix)
+                    m, n = self.parse_prefix(chunk)
                     # if succeed - first animated frame,
                     # allocate stuff
                     self.animated = True
                     self.parts = [None] * n
                     fname = "%s/p%d.txt" % (self.path, m-1)
-                    with open(fname, "wb") as f:
-                        f.write(chunk[len(prefix)+1:])
+                    with open(fname, "wb") as fout:
+                        read_write(f, fout)
                     self.parts[m - 1] = fname
                     return False
                 # failed - not animated, just unfortunately similar data
                 except:
                     fname = self.path + "/data.txt"
-                    with open(fname, "wb") as f:
-                        f.write(chunk)
+                    with open(fname, "wb") as fout:
+                        fout.write(chunk)
+                        fout.write(char)
+                        read_write(f, fout)
                     return True
             else:
                 fname = self.path + "/data.txt"
-                with open(fname, "wb") as f:
-                    f.write(chunk)
+                with open(fname, "wb") as fout:
+                    fout.write(chunk)
+                    fout.write(char)
+                    read_write(f, fout)
                 return True
         # expecting animated frame
-        m, n = self.parse_prefix(prefix)
+        m, n = self.parse_prefix(chunk)
         if n != len(self.parts):
             raise HostError("Invalid prefix")
         fname = "%s/p%d.txt" % (self.path, m-1)
-        with open(fname, "wb") as f:
-            f.write(chunk[len(prefix)+1:])
+        with open(fname, "wb") as fout:
+            read_write(f, fout)
         self.parts[m - 1] = fname
         # all have non-zero len
         if None not in self.parts:
             fname = self.path + "/data.txt"
-            with open(fname, "wb") as f:
+            with open(fname, "wb") as fout:
                 for part in self.parts:
                     with open(part, "rb") as fp:
-                        f.write(fp.read())
+                        read_write(fp, fout)
             return True
         else:
             return False
