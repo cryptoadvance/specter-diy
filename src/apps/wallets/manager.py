@@ -712,11 +712,12 @@ class WalletManager(BaseApp):
             value = out.value
             fee -= value
             metaout.update({
-                "label": wallet.name if wallet else "",
-                "change": (wallet is not None and wallet in wallets),
+                "change": (wallet is not None and len(wallets) == 1 and wallet in wallets),
                 "value": value,
                 "address": self.get_address(out),
             })
+            if wallet:
+                metaout["label"] = wallet.name
             out.write_to(fout, version=psbtv.version)
 
         meta["fee"] = fee

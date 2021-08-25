@@ -512,12 +512,13 @@ class LWalletManager(WalletManager):
                 asset = None
                 value = -1
             metaout.update({
-                "label": wallet.name if wallet else "",
-                "change": (wallet is not None and wallet in wallets),
+                "change": (wallet is not None and len(wallets) == 1 and wallet in wallets),
                 "value": value,
                 "address": self.get_address(out),
                 "asset": self.asset_label(asset),
             })
+            if wallet:
+                metaout["label"] = wallet.name
             if asset and asset not in self.assets:
                 metaout.update({"raw_asset": asset})
             out.write_to(fout, skip_separator=True, version=psbtv.version)
