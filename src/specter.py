@@ -316,24 +316,26 @@ class Specter:
         return self.settingsmenu
 
     async def select_network(self):
-        buttons = [
-            (None, "Production"),
-            ("main", "Mainnet"),
-        ]
-        if self.is_liquid_enabled:
-            buttons.extend([
-                ("liquidv1", "Liquid"),
-            ])
-        buttons.extend([
-            (None, "Testnets"),
-            ("test", "Testnet"),
-            ("signet", "Signet"),
-            ("regtest", "Regtest"),
-        ])
-        if self.is_liquid_enabled:
-            buttons.extend([
+        if not self.is_liquid_enabled:
+            buttons = [
+                (None, "Production"),
+                ("main", "Mainnet"),
+                (None, "Testnets"),
+                ("test", "Testnet"),
+                ("signet", "Signet"),
+                ("regtest", "Regtest"),
+            ]
+        else:
+            buttons = [
+                (None, "Production"),
+                ("main", "Bitcoin Mainnet"),
+                ("liquidv1", "Liquid Mainnet"),
+                (None, "Testnets"),
+                ("test", "Testnet"),
+                ("signet", "Signet"),
+                ("regtest", "Regtest"),
                 ("elementsregtest", "Liquid Regtest"),
-            ])
+            ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
         if menuitem != 255:
