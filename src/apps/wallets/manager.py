@@ -625,6 +625,7 @@ class WalletManager(BaseApp):
         meta = {
             "inputs": [{} for i in range(psbtv.num_inputs)],
             "outputs": [{} for i in range(psbtv.num_outputs)],
+            "default_asset": "BTC" if self.network == "main" else "tBTC",
         }
 
         fingerprint = self.keystore.fingerprint
