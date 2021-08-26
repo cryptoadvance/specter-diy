@@ -368,7 +368,7 @@ class WalletManager(BaseApp):
                 name = "Unknown wallet"
             else:
                 name = w.name
-            amount = wallets[w]
+            amount = wallets[w].get("amount", 0)
             spends.append('%.8f %s\nfrom "%s"' % (amount / 1e8, unit, name))
         title = "Inputs:\n" + "\n".join(spends)
         return await show_screen(TransactionScreen(title, meta))
@@ -620,11 +620,12 @@ class WalletManager(BaseApp):
         fee = 0
 
         # here we will store all wallets that we detect in inputs
-        # {wallet: amount}
+        # {wallet: {"amount": amount, "gaps": [gaps]}}
         wallets = {}
         meta = {
             "inputs": [{} for i in range(psbtv.num_inputs)],
             "outputs": [{} for i in range(psbtv.num_outputs)],
+            "default_asset": "BTC" if self.network == "main" else "tBTC",
         }
 
         fingerprint = self.keystore.fingerprint
@@ -652,6 +653,7 @@ class WalletManager(BaseApp):
             # first we check already detected wallet owns the input
             # as in most common case all inputs are owned by the same wallet.
             wallet = None
+            gaps = None
             for w in wallets:
                 # pass rangeproof offset if it's in the scope
                 if w and w.fill_scope(inp, fingerprint):
@@ -664,14 +666,23 @@ class WalletManager(BaseApp):
                     if w.fill_scope(inp, fingerprint):
                         wallet = w
                         break
+            if wallet:
+                gaps = [g for g in wallet.gaps] # copy
+                res = wallet.get_derivation(inp.bip32_derivations)
+                if res:
+                    idx, branch_idx = res
+                    gaps[branch_idx] = max(gaps[branch_idx], idx+wallet.GAP_LIMIT+1)
             # add wallet to tx wallets dict
             if wallet not in wallets:
-                wallets[wallet] = 0
+                wallets[wallet] = {"amount": 0, "gaps": gaps}
+            else:
+                if wallets[wallet]["gaps"] is not None and gaps is not None:
+                    wallets[wallet]["gaps"] = [max(g1,g2) for g1,g2 in zip(gaps, wallets[wallet]["gaps"])]
 
             value = inp.utxo.value
             fee += value
 
-            wallets[wallet] = wallets.get(wallet, 0) + value
+            wallets[wallet]["amount"] = wallets.get(wallet, {}).get("amount") + value
             metainp.update({
                 "label": wallet.name if wallet else "Unknown wallet",
                 "value": value,
@@ -718,8 +729,23 @@ class WalletManager(BaseApp):
             })
             if wallet:
                 metaout["label"] = wallet.name
-            out.write_to(fout, version=psbtv.version)
+                res = wallet.get_derivation(out.bip32_derivations)
+                if res:
+                    idx, branch_idx = res
+                    branch_txt = ""
+                    if branch_idx == 1:
+                        "change "
+                    elif branch_idx > 1:
+                        "branch %d " % branch_idx
+                    metaout["label"] = "%s %s#%d" % (wallet.name, branch_txt, idx)
+                    if wallet in wallets:
+                        allowed_idx = wallets[wallet]["gaps"][branch_idx]
+                    else:
+                        allowed_idx = wallet.gaps[branch_idx]
+                    if allowed_idx <= idx:
+                        metaout["warning"] = "Derivation index is by %d larger than last known used index %d!" % (idx-allowed_idx+wallet.GAP_LIMIT, allowed_idx-wallet.GAP_LIMIT)
 
+            out.write_to(fout, version=psbtv.version)
         meta["fee"] = fee
         return wallets, meta
 

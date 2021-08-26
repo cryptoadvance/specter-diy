@@ -51,6 +51,7 @@ class TransactionScreen(Prompt):
         style_warning = lv.style_t()
         lv.style_copy(style_warning, self.message.get_style(0))
         style_warning.text.color = lv.color_hex(0xFF9A00)
+        style_warning.text.font = lv.font_roboto_22
 
         self.style = style
         self.style_secondary = style_secondary
@@ -59,7 +60,7 @@ class TransactionScreen(Prompt):
         num_change_outputs = 0
         for out in meta["outputs"]:
             # first only show destination addresses
-            if out["change"]:
+            if out["change"] and not out.get("warning", ""):
                 num_change_outputs += 1
                 continue
             obj = self.show_output(out, obj)
@@ -77,7 +78,6 @@ class TransactionScreen(Prompt):
 
             obj = fee
 
-        # warning label for address gap limit
         if "warnings" in meta and len(meta["warnings"]) > 0:
             text = "WARNING!\n" + "\n".join(meta["warnings"])
             self.warning = add_label(text, scr=self.page)
@@ -133,11 +133,20 @@ class TransactionScreen(Prompt):
             addrlbl.set_text(format_addr(out["address"], words=4))
             addrlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
             addrlbl.set_x(60)
-            if "label" in out:
+            if out.get("label", ""):
                 addrlbl.set_style(0, style_secondary)
             else:
                 addrlbl.set_style(0, style_primary)
             lbl = addrlbl
+            if "warning" in out:
+                text = out["warning"]
+                warning = add_label(text, scr=self.page2)
+                warning.set_align(lv.label.ALIGN.LEFT)
+                warning.set_width(380)
+                warning.set_style(0, self.style_warning)
+                warning.align(addrlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 10)
+                warning.set_x(60)
+                lbl = warning
 
         if meta.get("fee"):
             idxlbl = lv.label(self.page2)
