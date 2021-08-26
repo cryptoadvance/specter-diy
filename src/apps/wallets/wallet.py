@@ -1,16 +1,18 @@
 from app import AppError
+import platform
 from platform import maybe_mkdir, delete_recursively
 import json
 from bitcoin import ec, hashes, script
 from bitcoin.networks import NETWORKS
 from bitcoin.psbt import DerivationPath
 from bitcoin.descriptor import Descriptor
+from bitcoin.descriptor.checksum import add_checksum
 from bitcoin.descriptor.arguments import AllowedDerivation
 from bitcoin.transaction import SIGHASH
 import hashlib
 from .screens import WalletScreen, WalletInfoScreen
-from .commands import DELETE, EDIT, MENU, INFO
-from gui.screens import Menu
+from .commands import DELETE, EDIT, MENU, INFO, EXPORT
+from gui.screens import Menu, QRAlert, Alert
 import lvgl as lv
 
 class WalletError(AppError):
@@ -43,6 +45,7 @@ class Wallet:
             if cmd == MENU:
                 buttons = [
                     (INFO, "Show detailed information"),
+                    (EXPORT, "Export wallet descriptor"),
                     (EDIT, lv.SYMBOL.EDIT + " Change the name"),
                     # value, label,                            enabled, color
                     (DELETE, lv.SYMBOL.TRASH + " Delete wallet", True, 0x951E2D),
@@ -56,8 +59,41 @@ class Wallet:
                         k["mine"] = True if self.keystore and self.keystore.owns(k["key"]) else False
                     await show_screen(WalletInfoScreen(self.name, self.full_policy, keys, self.is_miniscript))
                     continue
+                elif cmd == EXPORT:
+                    await self.export_menu(show_screen)
+                    continue
             # other commands go to the wallet manager
             return cmd
+
+    async def export_menu(self, show_screen):
+        while True:
+            buttons = [
+                (None, "Export options"),
+                (1, "Show QR code"),
+                (2, "Save to SD card", platform.is_sd_present()),
+            ]
+            menuitem = await show_screen(Menu(buttons, last=(255, None), title="Export wallet %s" % self.name))
+            desc = add_checksum(str(self.descriptor.branch(0)))
+            obj = {
+                "descriptor": desc,
+                "label": self.name,
+            }
+            if self.descriptor.num_branches > 2:
+                obj["branches"] = [add_checksum(str(self.descriptor.branch(i))) for i in range(self.descriptor.num_branches)]
+            if menuitem == 1:
+                await show_screen(QRAlert(title="Export wallet %s" % self.name, qr_width=450,
+                        message="Scan this QR code with compatible software wallet", qr_message=json.dumps(obj)))
+            elif menuitem == 2:
+                if not platform.is_sd_present():
+                    raise WalletError("SD card is not present")
+                platform.mount_sdcard()
+                fname = "/sd/%s.json" % self.name
+                with open(platform.fpath(fname), "w") as f:
+                    json.dump(obj, f)
+                platform.unmount_sdcard()
+                await show_screen(Alert("Success!", "Wallet descriptor is written to\n\n%s" % fname))
+            else:
+                return
 
     @property
     def is_watchonly(self):
