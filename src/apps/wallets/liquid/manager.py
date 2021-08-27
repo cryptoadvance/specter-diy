@@ -363,6 +363,8 @@ class LWalletManager(WalletManager):
                 "value": value,
                 "asset": self.asset_label(asset),
             })
+            if wallet and wallet.is_watchonly:
+                metainp["label"] += " (watch-only)"
             if asset not in self.assets:
                 metainp.update({"raw_asset": asset})
             inp.write_to(fout, version=psbtv.version)
@@ -545,6 +547,8 @@ class LWalletManager(WalletManager):
                         allowed_idx = wallet.gaps[branch_idx]
                     if allowed_idx <= idx:
                         metaout["warning"] = "Derivation index is by %d larger than last known used index %d!" % (idx-allowed_idx+wallet.GAP_LIMIT, allowed_idx-wallet.GAP_LIMIT)
+                if wallet.is_watchonly:
+                    metaout["warning"] = "Watch-only wallet!"
             if asset and asset not in self.assets:
                 metaout.update({"raw_asset": asset})
             out.write_to(fout, skip_separator=True, version=psbtv.version)

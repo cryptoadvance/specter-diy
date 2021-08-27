@@ -687,6 +687,8 @@ class WalletManager(BaseApp):
                 "label": wallet.name if wallet else "Unknown wallet",
                 "value": value,
             })
+            if wallet and wallet.is_watchonly:
+                metainp["label"] += " (watch-only)"
             # write non_witness_utxo separately if it exists (as we use compressed psbtview)
             non_witness_utxo_off = None
             off = psbtv.seek_to_scope(i)
@@ -744,6 +746,8 @@ class WalletManager(BaseApp):
                         allowed_idx = wallet.gaps[branch_idx]
                     if allowed_idx <= idx:
                         metaout["warning"] = "Derivation index is by %d larger than last known used index %d!" % (idx-allowed_idx+wallet.GAP_LIMIT, allowed_idx-wallet.GAP_LIMIT)
+                if wallet.is_watchonly:
+                    metaout["warning"] = "Watch-only wallet!"
 
             out.write_to(fout, version=psbtv.version)
         meta["fee"] = fee
