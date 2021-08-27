@@ -65,7 +65,7 @@ class RevaultTest(TestCase):
                 wallets, meta = wapp.manager.preprocess_psbt(s, fout)
                 # check that we detected wallet and a non-standard sighash
                 self.assertEqual([w.name for w in wallets], wnames)
-                self.assertEqual([inp.get("label") for inp in meta["inputs"]], wnames)
+                self.assertEqual([inp.get("label").replace(" (watch-only)", "") for inp in meta["inputs"]], wnames)
                 self.assertEqual(meta["inputs"][0].get("sighash"), "ALL | ANYONECANPAY")
 
                 fout.seek(0)
