@@ -25,19 +25,46 @@ class QRCode(lv.obj):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        style = lv.style_t()
+        lv.style_copy(style, qr_style)
+        style.text.font = lv.font_roboto_16
+        style.text.color = lv.color_hex(0x192432)
+
         self.qr = lvqr.QRCode(self)
         self._text = "Text"
+        self.desired_frame_size = self.FRAME_SIZE
         # self.label.set_long_mode(lv.label.LONG.BREAK)
         # self.label.set_align(lv.label.ALIGN.CENTER)
+        self.controls = lv.obj(self)
+        self.controls.set_style(lv.style_transp_tight)
+        self.controls.set_size(240, 40)
+        self.controls.set_y(740)
+        self.plus = lv.btn(self.controls)
+        lbl = lv.label(self.plus)
+        lbl.set_text(lv.SYMBOL.PLUS)
+        self.plus.set_size(40, 40)
+        self.plus.align(self.controls, lv.ALIGN.IN_RIGHT_MID, 0, 0)
+        self.plus.set_event_cb(self.on_plus)
+
+        self.minus = lv.btn(self.controls)
+        lbl = lv.label(self.minus)
+        lbl.set_text(lv.SYMBOL.MINUS)
+        self.minus.set_size(40, 40)
+        self.minus.align(self.controls, lv.ALIGN.IN_LEFT_MID, 0, 0)
+        self.minus.set_event_cb(self.on_minus)
+
+        lbl = lv.label(self.controls)
+        lbl.set_text("Frame density")
+        lbl.set_style(0, style)
+        lbl.set_align(lv.label.ALIGN.CENTER)
+        lbl.align(self.controls, lv.ALIGN.CENTER, 0, 0)
+
+        self.controls.set_hidden(True)
 
         self._original_size = None
         self._press_start = None
 
         self.note = lv.label(self)
-        style = lv.style_t()
-        lv.style_copy(style, qr_style)
-        style.text.font = lv.font_roboto_16
-        style.text.color = lv.color_hex(0x192432)
         self.note.set_style(0, style)
         self.note.set_text("")
         self.note.set_align(lv.label.ALIGN.CENTER)
@@ -52,6 +79,18 @@ class QRCode(lv.obj):
                 self.set_frame()
                 self.idx = (self.idx + 1) % self.frame_num
             await asyncio.sleep_ms(self.RATE)
+
+    def on_plus(self, obj, event):
+        # check event
+        if event == lv.EVENT.RELEASED:
+            self.desired_frame_size = int(self.desired_frame_size*1.2)
+            self.set_text(self._text, set_first_frame=True)
+
+    def on_minus(self, obj, event):
+        # check event
+        if event == lv.EVENT.RELEASED:
+            self.desired_frame_size = int(self.desired_frame_size/1.2)
+            self.set_text(self._text, set_first_frame=True)
 
     def cb(self, obj, event):
         # check event
@@ -83,7 +122,7 @@ class QRCode(lv.obj):
             else:
                 self.idx = None
                 self._set_text(self._text)
-            self.updata_note()
+            self.update_note()
 
     def toggle_fullscreen(self):
         if self._original_size is None:
@@ -102,7 +141,7 @@ class QRCode(lv.obj):
         super().set_size(width, height)
         self.qr.set_size(width-10)
         self.qr.align(self, lv.ALIGN.CENTER, 0, 0)
-        self.updata_note()
+        self.update_note()
 
     @property
     def is_fullscreen(self):
@@ -111,7 +150,7 @@ class QRCode(lv.obj):
         # check height is original
         return self._original_size[3] != self.get_height()
 
-    def updata_note(self):
+    def update_note(self):
         if self.is_fullscreen:
             if len(self._text) > self.MIN_SIZE and len(self._text) <= self.MAX_SIZE:
                 self.note.set_text("Click to animate, swipe to shrink.")
@@ -123,8 +162,10 @@ class QRCode(lv.obj):
             else:
                 self.note.set_text("Click to expand")
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.controls.set_hidden((not self.is_fullscreen) or (self.idx is None))
+        self.controls.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -100)
 
-    def set_text(self, text="Text"):
+    def set_text(self, text="Text", set_first_frame=False):
         if platform.simulator and self._text != text:
             print("QR on screen:", text)
         self._text = text
@@ -133,15 +174,15 @@ class QRCode(lv.obj):
             payload = text.split("/")[-1]
         else:
             payload = text
-        self.frame_num = math.ceil(len(payload) / self.FRAME_SIZE)
+        self.frame_num = math.ceil(len(payload) / self.desired_frame_size)
         self.frame_size = math.ceil(len(payload) / self.frame_num)
         # if too large - we have to animate -> set first frame
-        if len(self._text) > self.MAX_SIZE:
+        if len(self._text) > self.MAX_SIZE or set_first_frame:
             self.idx = 0
             self.set_frame()
         else:
             self._set_text(text)
-        self.updata_note()
+        self.update_note()
 
     def set_frame(self):
         if self._text.startswith("UR:BYTES/"):
@@ -164,6 +205,7 @@ class QRCode(lv.obj):
                 note += " Click to expand."
         self.note.set_text(note)
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.controls.set_hidden((not self.is_fullscreen) or (self.idx is None))
 
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
