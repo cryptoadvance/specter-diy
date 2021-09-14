@@ -352,10 +352,13 @@ class LWalletManager(WalletManager):
                 vals.append(value)
                 abfs.append(inp.asset_blinding_factor or b"\x00"*32)
                 vbfs.append(inp.value_blinding_factor or b"\x00"*32)
-                in_tags.append(inp.asset)
+                in_tags.append(asset)
                 if inp.utxo.asset is None:
                     raise WalletError("Missing input asset")
-                in_gens.append(secp256k1.generator_parse(inp.utxo.asset))
+                if len(inp.utxo.asset) == 33:
+                    in_gens.append(secp256k1.generator_parse(inp.utxo.asset))
+                else:
+                    in_gens.append(secp256k1.generator_generate(inp.utxo.asset))
 
             wallets[wallet]["amount"][asset] = wallets[wallet]["amount"].get(asset, 0) + value
             metainp.update({
