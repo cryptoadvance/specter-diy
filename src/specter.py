@@ -316,26 +316,16 @@ class Specter:
         return self.settingsmenu
 
     async def select_network(self):
-        if not self.is_liquid_enabled:
-            buttons = [
-                (None, "Production"),
-                ("main", "Mainnet"),
-                (None, "Testnets"),
-                ("test", "Testnet"),
-                ("signet", "Signet"),
-                ("regtest", "Regtest"),
-            ]
-        else:
-            buttons = [
-                (None, "Production"),
-                ("main", "Bitcoin Mainnet"),
-                ("liquidv1", "Liquid Mainnet"),
-                (None, "Testnets"),
-                ("test", "Testnet"),
-                ("signet", "Signet"),
-                ("regtest", "Regtest"),
-                ("elementsregtest", "Liquid Regtest"),
-            ]
+        buttons = [
+            (None, "Production"),
+            ("main", "Bitcoin Mainnet"),
+            ("liquidv1", "Liquid Mainnet"),
+            (None, "Testnets"),
+            ("test", "Testnet"),
+            ("signet", "Signet"),
+            ("regtest", "Regtest"),
+            ("elementsregtest", "Liquid Regtest"),
+        ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons, last=(255, None))
         if menuitem != 255:
@@ -414,17 +404,9 @@ class Specter:
                            key=self.keystore.settings_key
         )
 
-    @property
-    def is_liquid_enabled(self):
-        return self.GLOBAL.get("experimental",{}).get("liquid", False)
-
     async def experimental_settings(self):
 
         controls = [{
-            "label": "Enable Liquid support",
-            "hint": "Two more networks are added:\nLiquid and Liquid Regtest",
-            "value": self.GLOBAL.get("experimental", {}).get("liquid", False)
-        }, {
             "label": "Taproot",
             "hint": "Taproot support only for single-key wallets\nwithout tap script trees",
             "value": self.GLOBAL.get("experimental", {}).get("taproot", False)
@@ -440,23 +422,16 @@ class Specter:
         res = await self.gui.show_screen()(scr)
         if res is None:
             return
-        liquid, taproot = res
+        taproot, *_ = res
         # for now only experimental, can be extended
         settings = {
             "experimental": {
-                "liquid": liquid,
                 "taproot": taproot,
             }
         }
         self.GLOBAL = settings
         BaseApp.GLOBAL = settings
         self.save_settings(settings)
-        if not self.is_liquid_enabled and is_liquid(self.network):
-            if self.network == "liquidv1":
-                self.set_network("main")
-            if self.network == "elementsregtest":
-                self.set_network("regtest")
-            await self.gui.alert("Network have changed!", "\n\nAs you disabled Liquid support\nwe switch current network to Bitcoin.")
 
     async def update_devsettings(self):
         buttons = [

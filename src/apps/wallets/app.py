@@ -1,6 +1,7 @@
 from app import BaseApp
 import platform
 from .manager import WalletManager
+from .liquid.manager import LWalletManager
 from helpers import is_liquid
 import gc
 
@@ -32,7 +33,6 @@ class WalletsApp(BaseApp):
         # switching the network - use different wallet managers for liquid or btc
         if old_network is None or self.manager is None or is_liquid(old_network) != is_liquid(network):
             if is_liquid(network):
-                from .liquid.manager import LWalletManager
                 self.manager = LWalletManager(self.root_path)
             else:
                 self.manager = WalletManager(self.root_path)
