@@ -135,7 +135,7 @@ In this mode device can only operate when the smartcard is inserted!"""
     def userkey(self):
         if self._userkey is None:
             # userkey is uniquie for every smart card
-            self.userkey = tagged_hash("userkey", self.secret+self.applet.card_pubkey.sec())
+            self._userkey = tagged_hash("userkey", self.secret+(self.applet.card_pubkey or b""))
         return self._userkey
 
     def check_saved(self):
