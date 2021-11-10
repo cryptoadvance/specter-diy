@@ -70,6 +70,11 @@ class XpubApp(BaseApp):
                     "m/48h/%dh/%dh/1h" % (coin, self.account),
                     "Multisig Nested Segwit\nm/48h/%dh/%dh/1h" % (coin, self.account),
                 ),
+                (None, "Deprecated"),
+                (
+                    "m/44h/%dh/%dh" % (coin, self.account),
+                    "Single Legacy\nm/44h/%dh/%dh" % (coin, self.account)
+                ),
             ])
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
