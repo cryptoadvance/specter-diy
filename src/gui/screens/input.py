@@ -331,7 +331,7 @@ class DerivationScreen(Screen):
         "\n",
         "Back",
         "0",
-        lv.SYMBOL.CLOSE,
+        "'",
         lv.SYMBOL.OK,
         "",
     ]
