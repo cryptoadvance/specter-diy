@@ -6,9 +6,7 @@ There are a few case designs made by the community:
 
 Updated design from @SeedSigner (Twitter/Telegram) with a smaller form factor & MicroSD access.
 
-The printable .STL files are available for purchase for 20,000 sats (contact him directly, currently ~$7, price in sats will be adjusted as the dollar collapses against Bitcoin).
-
-Barebones v1 is available for download from the docs/enclosures/seedsigner folder or from [Thingiverse](https://www.thingiverse.com/thing:4680700).
+The printable .STL files for v1 and v2 are available for download from the [docs/enclosures/seedsigner](./seedsigner/) folder.
 
 You can also buy the v2, or a fully assembled Specter-DIY, from [his shop](https://btc-hardware-solutions.square.site/).
 
