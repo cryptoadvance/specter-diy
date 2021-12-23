@@ -13,11 +13,11 @@ for p in sys.path:
 pwr = pyb.Pin("B15", pyb.Pin.OUT)
 pwr.on()
 
-# v1.6.1-rc99 - rc99 is the production release.
+# v1.6.2-rc99 - rc99 is the production release.
 # Use odd rc for main firmware and even for debug
 # so it's possible to upgrade from debug to main firmware.
 # (rc99 is final version for production)
-version = "<version:tag10>0100600199</version:tag10>"
+version = "<version:tag10>0100600299</version:tag10>"
 
 # get i2c
 i2c = pyb.I2C(1)
