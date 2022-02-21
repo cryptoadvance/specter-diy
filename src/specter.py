@@ -324,6 +324,7 @@ class Specter:
             ("test", "Testnet"),
             ("signet", "Signet"),
             ("regtest", "Regtest"),
+            ("liquidtestnet", "Liquid Testnet"),
             ("elementsregtest", "Liquid Regtest"),
         ]
         # wait for menu selection

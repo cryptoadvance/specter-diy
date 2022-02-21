@@ -216,16 +216,18 @@ def enumerate(password=""):
         for port in serial.tools.list_ports.comports()
         if is_micropython(port)
     ]
-    try:
-        # check if there is a simulator on port 8789
-        # and we can connect to it
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(("127.0.0.1", 8789))
-        s.close()
-        ports.append("127.0.0.1:8789")
-    except Exception as e:
-        print(e)
-        pass
+    for i in range(10):
+        try:
+            # check if there is a simulator on port 8789
+            # and we can connect to it
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            port = 8789+i
+            s.connect(("127.0.0.1", port))
+            s.close()
+            ports.append("127.0.0.1:%d" % port)
+        except Exception as e:
+            print(e)
+            pass
 
     for port in ports:
         # for every port try to get a fingerprint

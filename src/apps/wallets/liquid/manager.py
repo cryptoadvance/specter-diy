@@ -237,10 +237,8 @@ class LWalletManager(WalletManager):
         """
         Processes incoming PSBT, fills missing information and writes to fout.
         Returns:
-        - PSBTView class to use (PSBTView or PSETView)
         - wallets in inputs: list of tuples (wallet, amount)
         - metadata for tx display including warnings that require user confirmation
-        - default sighash to use for signing
         """
         self.show_loader(title="Parsing transaction...")
 

@@ -605,7 +605,6 @@ class WalletManager(BaseApp):
         Returns:
         - wallets in inputs: dict {wallet: amount}
         - metadata for tx display including warnings that require user confirmation
-        - default sighash to use for signing
         """
         self.show_loader(title="Parsing transaction...")
 
