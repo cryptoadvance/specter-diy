@@ -17,6 +17,7 @@ class TransactionScreen(Prompt):
         enable_inputs = len([k for k in meta["inputs"] if k.get("sighash", "")]) > 0
         # if there is at least one unknown value (liquid)
         enable_inputs = enable_inputs or (-1 in [out["value"] for out in meta["outputs"]])
+        enable_inputs = enable_inputs or meta.get("issuance", False) or meta.get("reissuance", False)
 
         lbl = add_label("Show detailed information                      ", scr=self)
         lbl.align(obj, lv.ALIGN.CENTER, 0, 0)

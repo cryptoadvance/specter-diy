@@ -156,7 +156,7 @@ class LWalletManager(WalletManager):
         # ask the user to label assets
         await self.check_unknown_assets(meta, show_screen)
 
-        return await super().confirm_transaction(wallets,meta, show_screen)
+        return await super().confirm_transaction(wallets, meta, show_screen)
 
 
     async def check_unknown_assets(self, meta, show_screen):
@@ -231,6 +231,10 @@ class LWalletManager(WalletManager):
             spend = ", ".join("%s %s" % ("???" if val < 0 else "%.8f" % (val/1e8), self.asset_label(asset)) for asset, val in amount.items())
             spends.append('%s\nfrom "%s"' % (spend, name))
         title = "Inputs:\n" + "\n".join(spends)
+        if meta.get("issuance", False):
+            title = "Issuance transaction"
+        if meta.get("reissuance", False):
+            title = "Reissuance transaction"
         return await show_screen(TransactionScreen(title, meta))
 
     def preprocess_psbt(self, stream, fout):
@@ -268,6 +272,7 @@ class LWalletManager(WalletManager):
         meta = {
             "inputs": [{} for i in range(psbtv.num_inputs)],
             "outputs": [{} for i in range(psbtv.num_outputs)],
+            "issuance": False, "reissuance": False,
         }
 
         fingerprint = self.keystore.fingerprint
@@ -288,6 +293,12 @@ class LWalletManager(WalletManager):
             # check sighash in the input
             if inp.sighash_type is not None and inp.sighash_type != self.DEFAULT_SIGHASH:
                 metainp["sighash"] = self.get_sighash_info(inp.sighash_type)["name"]
+
+            if inp.issue_value:
+                if inp.issue_entropy:
+                    meta["reissuance"] = True
+                else:
+                    meta["issuance"] = True
 
             # in Liquid we may need to rewind the rangeproof to get values
             rangeproof_offset = None
