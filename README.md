@@ -29,7 +29,7 @@ This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment wi
 
 **By default the wallet doesn't store your private keys** - you need to explicitly go to storage menu and click "Save". If you don't do that the device will forget your key as soon as you turn it off.
 
-If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/orangepioneer).
+If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/+VEinVSYkW5TUl5Ai).
 
 ## Documentation
 
