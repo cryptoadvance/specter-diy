@@ -74,10 +74,9 @@ class MessageApp(BaseApp):
         sig = self.sign_message(derivation_path, message)
         # for GUI we can also return an object with helpful data
         xpub = self.keystore.get_xpub(derivation_path)
-        address = script.p2pkh(xpub.key).address()
         obj = {
-            "title": "Signature for the message:",
-            "note": "using address %s" % address,
+            "title": "Message signature:",
+            "note": "Derivation path: %s" % bip32.path_to_str(derivation_path),   
         }
         return BytesIO(sig), obj
 
