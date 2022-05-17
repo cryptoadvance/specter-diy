@@ -5,6 +5,7 @@ from app import BaseApp, AppError
 from gui.screens import Prompt
 
 from bitcoin import ec, bip32, script, compact
+from bitcoin.liquid.networks import NETWORKS
 from hashlib import sha256
 from binascii import b2a_base64, unhexlify, a2b_base64, hexlify
 import secp256k1
@@ -42,11 +43,12 @@ class MessageApp(BaseApp):
         derivation_path = arr[0].decode()
         message = b" ".join(arr[1:])
         # if we have fingerprint
-        if not derivation_path.startswith("m/"):
+        if not derivation_path.startswith("m"):
             fingerprint = unhexlify(derivation_path[:8])
             if fingerprint != self.keystore.fingerprint:
                 raise AppError("Not my fingerprint")
             derivation_path = "m" + derivation_path[8:]
+        # Returns a list of indexes
         derivation_path = bip32.parse_path(derivation_path)
 
         if message.startswith(b"ascii:"):
@@ -73,10 +75,19 @@ class MessageApp(BaseApp):
             return None
         sig = self.sign_message(derivation_path, message)
         # for GUI we can also return an object with helpful data
-        xpub = self.keystore.get_xpub(derivation_path)
+        pub = self.keystore.get_xpub(derivation_path).get_public_key()
+        # default - legacy
+        addr = script.p2pkh(pub).address(NETWORKS[self.network])
+        if len(derivation_path) > 0:
+            if derivation_path[0] == (0x80000000 + 84):
+                addr = script.p2wpkh(pub).address(NETWORKS[self.network])
+            if derivation_path[0] == (0x80000000 + 49):
+                addr = script.p2sh(script.p2wpkh(pub)).address(NETWORKS[self.network])
+        note = "Address: %s" % addr
+        note += "\nDerivation path: %s" % bip32.path_to_str(derivation_path)
         obj = {
             "title": "Message signature:",
-            "note": "Derivation path: %s" % bip32.path_to_str(derivation_path),   
+            "note": note,   
         }
         return BytesIO(sig), obj
 
