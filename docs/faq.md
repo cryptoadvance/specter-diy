@@ -15,7 +15,9 @@ Waveshare QR scanner is recommended as it has a good quality/price ratio.
 
 ## *Is specter-DIY safe to use?*
 
-Do not use it on mainnet yet unless it's only being used as one of the signers in multisig setup! But feel free to experiment with it on testnet, regtest or signet.
+Yes, kinda. The security level of Specter-DIY is comparable to commercial hardware wallets present on the market. We implemented a secure bootloader that verifies firmware upgrades, so you can be sure that only signed firmware can be uploaded to the device after initial setup.
+
+Note that *initial* firmware installation is *not verified* and the security of this process is limited to the security of your computer. During initial installation make sure you verified PGP signatures and flash the firmware from a secure computer.
 
 ## *I'm wondering what if someone takes the device? How does Specter-DIY approach this scenario?*
 
