@@ -21,9 +21,11 @@ Note that *initial* firmware installation is *not verified* and the security of 
 
 ## *I'm wondering what if someone takes the device? How does Specter-DIY approach this scenario?*
 
-It supports passphrases as an additional security layer, but currently it has two modes of operation - agnostic when your secrets are not stored on the device and you need to enter recovery phrase every time you use the device, and reckless when it is stored on flash and can be extracted. 
+There are no known attacks that would allow extraction of the keys from the device - our secure bootloader sets a security flag of the microcontroller and the only thing the attacker can do is erase the device completely and install malicious firmware.
 
-We are working on smart card support so you could store your keys on removable secure element in a credit card form factor, as well as an option to encrypt secrets with a key stored on the SD card. See this recently opened [issue](https://github.com/cryptoadvance/specter-diy/issues/64) thanks to @Thomas1378 in the Telegram chat!
+To mitigate this attack Specter-DIY has "anti-phishing words" on the PIN screen that are displayed when you start entering the PIN code. These words are unique for every device and will change if the device is erased. So make sure these words remain the same when you are entering the PIN code.
+
+By default the device operates in amnesic mode - it forgets your recovery phrase when you power it off. This means you need to enter your recovery phrase every time when you use the device. Optionally you can save the recovery phrase on the device itself, or on the SD card. In the latter case, the SD card works as a second factor - you can access your keys only if you have both the device and the SD card.
 
 ## *Currently there is a `specter_hwi.py` file, which implements the HWIClient for Specter-DIY. Is there any reason you didn't add that directly to HWI?*
 
