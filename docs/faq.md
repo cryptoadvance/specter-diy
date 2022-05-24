@@ -77,9 +77,6 @@ https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/remove_prote
 
 Use the smallest powerbank possible. Check out the [gallery](https://github.com/cryptoadvance/specter-diy/blob/master/docs/pictures/gallery/README.md) to see how people do it.
 
-## *With achow's HWI tool, input and output PSBT are the same. And with Electrum 4, I get a rawtransaction, not a base64 PSBT.*
-
-I solved my issue, it turns out my PSBT needed bip32 hints (whatever that means) included. I can now open lightning channels straight from hardware wallet!
 
 # TECHNICAL QUESTIONS (not dev related)
 
