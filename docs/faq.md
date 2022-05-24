@@ -1,14 +1,13 @@
 # General Questions
 
-## *What does the Specter-DIY consist of?*
+## *What do I need to build Specter-DIY?*
 
-It consists of:
+To build Specter yourself you need:
 
  - STM32F469 discovery board
  - QR Code scanner from Waveshare
- - Power Bank (small)
- - miniUSB and microUSB cable
- - Prototype Shield
+ - Power Bank
+ - miniUSB cable
  - A few pin connectors 
 
 [Shopping list link](https://github.com/cryptoadvance/specter-diy/blob/master/docs/shopping.md) + [assembly link](https://github.com/cryptoadvance/specter-diy/blob/master/docs/assembly.md)
