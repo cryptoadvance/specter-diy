@@ -59,7 +59,7 @@ With the secure element you will have three options:
  - store key on the smartcard but do all crypto on application MCU
  - store key and do crypto on the secure element
 
-Last seems to be the most secure, but then you trust proprietary crypto implementation. Second option saves private key on the secure element under pin protection, but also encrypted, so secure element never knows the private key.
+At the moment, we have implementation for the first two options. Last seems to be the most secure, but then you need to trust proprietary crypto implementation. The second option saves the private key on the secure element under pin protection, and it can be encrypted, so the secure element never knows the private keys.
 
 # Troubleshooting questions
 
