@@ -75,7 +75,7 @@ https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/remove_prote
 
 ## *Does anyone have any tips on mounting the power bank and QR code scanner to the STM32 board in a somewhat ergonomic manner?*
 
-Use the smallest powerbank possible.
+Use the smallest powerbank possible. Check out the [gallery](https://github.com/cryptoadvance/specter-diy/blob/master/docs/pictures/gallery/README.md) to see how people do it.
 
 ## *With achow's HWI tool, input and output PSBT are the same. And with Electrum 4, I get a rawtransaction, not a base64 PSBT.*
 
