@@ -39,7 +39,7 @@ We also have support for secure smartcards as key storage, but it requires a spe
 
 ## *Is there a simulator I can try the Specter-DIY with?*
 
-Yes. Specter-DIY in simulator-mode simulates QR code scanner over TCP, see [here](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/4_miniwallet/main.py)
+Yes. Specter-DIY has a [simulator](https://github.com/cryptoadvance/specter-diy/blob/master/docs/simulator.md).
 
 ## *How do I load firmware updates to Specter-DIY?*
 
