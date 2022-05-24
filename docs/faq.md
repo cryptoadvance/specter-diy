@@ -29,9 +29,7 @@ By default the device operates in amnesic mode - it forgets your recovery phrase
 
 ## *Currently there is a `specter_hwi.py` file, which implements the HWIClient for Specter-DIY. Is there any reason you didn't add that directly to HWI?*
 
-Putting it into HWI means: "this is a hardware wallet people should consider using for real". Currently, we would strongly advice NOT to use USB with Specter-DIY, but to use QR codes instead.
-
-We will make a pull request to HWI when we think it's safe enough. In particular when we will have a secure bootloader that verifies signatures of the firmware, and USB communication is more reliable. 
+We do not plan to add Specter-DIY to HWI - we discourage USB as a communication channel for Specter-DIY. Use QR codes or SD card instead.
 
 ## *Do you have a physical security design?*
 
