@@ -78,14 +78,5 @@ https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/remove_prote
 Use the smallest powerbank possible. Check out the [gallery](https://github.com/cryptoadvance/specter-diy/blob/master/docs/pictures/gallery/README.md) to see how people do it.
 
 
-# TECHNICAL QUESTIONS (not dev related)
-
-## *Does specter-desktop require `txindex=1` to be set in your `bitcoin.conf`?*
-
-No, but you need to enable wallets! `disablewallet=0`
-
-## *Does specter-desktop specify an RPC wallet in the `bitcoin.conf` or append wallet name to node url?*
-
-It specifes `-rpcwallet` with every call to `bitcoin-cli`
 
 
