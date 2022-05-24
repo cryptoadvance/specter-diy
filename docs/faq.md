@@ -43,10 +43,9 @@ We also have support for secure smartcards as key storage, but it requires a spe
 
 Yes. Specter-DIY in simulator-mode simulates QR code scanner over TCP, see [here](https://diybitcoinhardware.com/f469-disco/simulator/?script=https://raw.githubusercontent.com/diybitcoinhardware/f469-disco/master/docs/tutorial/4_miniwallet/main.py)
 
-## *Is there a goal to get Specter-DIY loading firmware updates from the SD card?*
+## *How do I load firmware updates to Specter-DIY?*
 
-At the moment we don't have a proper bootloader and secure element integration yet, but we're moving in that direction! 
-I think SD card is a good choice, also QR codes might be possible, but we need to experiment with them a bit.
+Initial setup on an empty board happens over miniUSB, but this is the only time you need to connect your device to the computer. After that you need to use SD card for upgrades - insert an SD card with upgrade file to the device and turn it on. Integrity and signatures of the upgrade file are checked by the secure bootloader.
 
 ## *Can Specter-DIY register cosigner xpubs like ColdCard? I know you wipe private keys on shutdown, but do you save stuff like that?*
 
