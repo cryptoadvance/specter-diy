@@ -35,7 +35,9 @@ We will make a pull request to HWI when we think it's safe enough. In particular
 
 ## *Do you have a physical security design?*
 
-No security at the moment, but it also doesn't store the private key. Working on integration of secure element similar to the ColdCard's (mikroe secure chip). At the moment it's more like a toy.
+Physical security of Specter-DIY is limited to the security features available on the microcontroller. It theoretically can be hacked using glitching attacks, but they were not demonstrated on this MCU series.
+
+We also have support for secure smartcards as key storage, but it requires a special adaptor board (Specter Shield). We are planning to add support for off-the-shelf smartcard readers, but no time estimates here.
 
 ## *Is there a simulator I can try the Specter-DIY with?*
 
