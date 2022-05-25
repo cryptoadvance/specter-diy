@@ -23,11 +23,7 @@ Most of the firmware is written in MicroPython which makes the code easy to audi
 
 ## DISCLAIMER
 
-This project is not very mature yet, **USE AT YOUR OWN RISK**. Some error messages might be not very user friendly, but they help to debug and fix issues. If you see an unexpected error message please open an issue and we will try to fix it. Sometimes reboot helps.
-
-This wallet is a **FUNCTIONAL PROTOTYPE**. This means we use it to experiment with user interface, communication methods and new interesting features (like miniscript, CoinJoin and Lightning). 
-
-**By default the wallet doesn't store your private keys** - you need to explicitly go to storage menu and click "Save". If you don't do that the device will forget your key as soon as you turn it off.
+The project has significantly matured, to the extent that the security level of Specter-DIY is now comparable to commercial hardware wallets on the market. We implemented a secure bootloader that verifies firmware upgrades, so you can be sure that only signed firmware can be uploaded to the device after initial setup. However, unlike with commercial signing devices the bootloader has to be installed manually by the user and is not set in the factory of the device vendor. Thus, pay extra attention during the initial firmware installation and make sure you verified PGP signatures and flash the firmware from a secure computer.
 
 If something doesn't work open an issue here or ask a question in our [Telegram group](https://t.me/+VEinVSYkW5TUl5Ai).
 
