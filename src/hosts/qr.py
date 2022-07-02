@@ -9,6 +9,9 @@ from gui.screens.settings import HostSettings
 from gui.screens import Alert
 from helpers import read_until, read_write
 
+from ur.ur_decoder import URDecoder
+from urtypes.crypto import PSBT as UR_PSBT
+
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
 SUCCESS = b"\x02\x00\x00\x01\x00\x33\x31"
@@ -283,6 +286,8 @@ class QRHost(Host):
         self.animated = False
         self.parts = None
         self.bcur = False
+        self.bcur2 = False
+        self.decoder = URDecoder()
         self.bcur_hash = b""
         gc.collect()
         while self.scanning:
@@ -293,6 +298,7 @@ class QRHost(Host):
         if self.parts is not None:
             del self.parts
             self.parts = None
+        self.decoder = None
         gc.collect()
         if self.cancelled:
             return None
@@ -346,13 +352,29 @@ class QRHost(Host):
             if c!=SUCCESS:
                 f.seek(-len(c), 1)
             # check if it's bcur encoding
-            start = f.read(9)
+            start = f.read(9).upper()
             f.seek(-len(start), 1)
-            if start.upper() == b"UR:BYTES/":
+            if start == b"UR:BYTES/":
                 self.bcur = True
                 return self.process_bcur(f)
+            # bcur2 encoding
+            elif start == b"UR:CRYPTO":
+                self.bcur2 = True
+                return self.process_bcur2(f)
             else:
                 return self.process_normal(f)
+
+    def process_bcur2(self, f):
+        data = f.read().decode()
+        self.decoder.receive_part(data)
+        if self.decoder.is_complete():
+            if self.decoder.is_failure():
+                raise HostError("Failed to decode QR sequence")
+            fname = self.path + "/data.txt"
+            with open(fname, "wb") as fout:
+                fout.write(UR_PSBT.from_cbor(self.decoder.result.cbor).data)
+            return True
+        return False
 
     def process_bcur(self, f):
         # check if starts with UR:BYTES/
@@ -510,18 +532,25 @@ class QRHost(Host):
 
     async def send_data(self, stream, meta):
         # if it's str - it's a file
-        if isinstance(stream, str):
-            with open(stream, "r") as f:
-                response = f.read()
-        else:
-            response = stream.read().decode()
         title = "Your data:"
         note = None
         if "title" in meta:
             title = meta["title"]
         if "note" in meta:
             note = meta["note"]
-        msg = response
+        if self.bcur2:
+            # binary data here
+            if isinstance(stream, str):
+                with open(stream, "rb") as f:
+                    response = f.read()
+            else:
+                response = stream.read()
+        elif isinstance(stream, str):
+            with open(stream, "r") as f:
+                response = f.read()
+        else:
+            response = stream.read().decode()
+        msg = response if not self.bcur2 else ""
         if "message" in meta:
             msg = meta["message"]
         await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
@@ -537,6 +566,10 @@ class QRHost(Host):
         - either as a number between 0 and 1
         - or a list of True False for checkboxes
         """
+        if self.bcur2 and self.decoder:
+            if self.decoder.is_complete():
+                return 1
+            return self.decoder.fountain_decoder.estimated_percent_complete()
         if not self.in_progress:
             return 1
         if not self.animated:

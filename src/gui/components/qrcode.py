@@ -6,6 +6,11 @@ import gc
 import asyncio
 import platform
 
+from ur.ur import UR
+from ur.ur_encoder import UREncoder
+from urtypes.crypto import PSBT as UR_PSBT
+
+
 qr_style = lv.style_t()
 qr_style.body.main_color = lv.color_hex(0xFFFFFF)
 qr_style.body.grad_color = lv.color_hex(0xFFFFFF)
@@ -33,6 +38,7 @@ class QRCode(lv.obj):
         style.text.font = lv.font_roboto_16
         style.text.color = lv.color_hex(0x192432)
 
+        self.encoder = None
         self._autoplay = True
 
         self.qr = lvqr.QRCode(self)
@@ -216,6 +222,13 @@ class QRCode(lv.obj):
         self.check_controls()
 
     def set_text(self, text="Text", set_first_frame=False):
+        if text[:5] == b"psbt\xff":
+            data = UR("crypto-psbt", UR_PSBT(text).to_cbor())
+            self.encoder = UREncoder(data, 100)
+            self._text = text
+            self.idx = 0
+            self.set_frame()
+            return
         if platform.simulator and self._text != text:
             print("QR on screen:", text)
         self._text = text
@@ -236,17 +249,22 @@ class QRCode(lv.obj):
         self.update_note()
 
     def set_frame(self):
-        if self._text.startswith("UR:BYTES/"):
-            arr = self._text.split("/")
-            payload = arr[-1]
-            prefix = arr[0] + "/%dOF%d/" % (self.idx + 1, self.frame_num)
-            prefix += arr[1] + "/"
+        if self.encoder:
+            payload = self.encoder.next_part().upper()
+            self._set_text(payload)
+            note = ""
         else:
-            payload = self._text
-            prefix = "p%dof%d " % (self.idx + 1, self.frame_num)
-        offset = self.frame_size * self.idx
-        self._set_text(prefix + payload[offset : offset + self.frame_size])
-        note = "Part %d of %d." % (self.idx + 1, self.frame_num)
+            if self._text.startswith("UR:BYTES/"):
+                arr = self._text.split("/")
+                payload = arr[-1]
+                prefix = arr[0] + "/%dOF%d/" % (self.idx + 1, self.frame_num)
+                prefix += arr[1] + "/"
+            else:
+                payload = self._text
+                prefix = "p%dof%d " % (self.idx + 1, self.frame_num)
+            offset = self.frame_size * self.idx
+            self._set_text(prefix + payload[offset : offset + self.frame_size])
+            note = "Part %d of %d." % (self.idx + 1, self.frame_num)
         if self.is_fullscreen:
             note += " Click to shrink."
         else:
@@ -256,9 +274,14 @@ class QRCode(lv.obj):
         self.check_controls()
 
     def check_controls(self):
-        self.controls.set_hidden((not self.is_fullscreen) or (self.idx is None))
-        self.playback.set_hidden((not self.is_fullscreen) or (self.idx is None))
-        self.play.set_hidden((not self.is_fullscreen) or (self.idx is not None) or (len(self._text) <= self.MIN_SIZE))
+        if self.encoder:
+            self.controls.set_hidden(True)
+            self.playback.set_hidden(True)
+            self.play.set_hidden(True)
+        else:
+            self.controls.set_hidden((not self.is_fullscreen) or (self.idx is None))
+            self.playback.set_hidden((not self.is_fullscreen) or (self.idx is None))
+            self.play.set_hidden((not self.is_fullscreen) or (self.idx is not None) or (len(self._text) <= self.MIN_SIZE))
 
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
