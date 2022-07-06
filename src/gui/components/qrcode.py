@@ -6,10 +6,8 @@ import gc
 import asyncio
 import platform
 
-from ur.ur import UR
-from ur.ur_encoder import UREncoder
-from urtypes.crypto import PSBT as UR_PSBT
-
+from microur.encoder import UREncoder
+from io import BytesIO
 
 qr_style = lv.style_t()
 qr_style.body.main_color = lv.color_hex(0xFFFFFF)
@@ -223,12 +221,12 @@ class QRCode(lv.obj):
 
     def set_text(self, text="Text", set_first_frame=False):
         if text[:5] == b"psbt\xff":
-            data = UR("crypto-psbt", UR_PSBT(text).to_cbor())
-            self.encoder = UREncoder(data, 100)
+            self.encoder = UREncoder(UREncoder.CRYPTO_PSBT, BytesIO(text), 100)
             self._text = text
             self.idx = 0
             self.set_frame()
             return
+        self.encoder = None
         if platform.simulator and self._text != text:
             print("QR on screen:", text)
         self._text = text
@@ -250,7 +248,7 @@ class QRCode(lv.obj):
 
     def set_frame(self):
         if self.encoder:
-            payload = self.encoder.next_part().upper()
+            payload = self.encoder.next_part()
             self._set_text(payload)
             note = ""
         else:

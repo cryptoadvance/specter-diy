@@ -8,9 +8,8 @@ import gc
 from gui.screens.settings import HostSettings
 from gui.screens import Alert
 from helpers import read_until, read_write
-
-from ur.ur_decoder import URDecoder
-from urtypes.crypto import PSBT as UR_PSBT
+from microur.decoder import FileURDecoder
+from microur.util import cbor
 
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
@@ -287,7 +286,7 @@ class QRHost(Host):
         self.parts = None
         self.bcur = False
         self.bcur2 = False
-        self.decoder = URDecoder()
+        self.decoder = FileURDecoder(self.path)
         self.bcur_hash = b""
         gc.collect()
         while self.scanning:
@@ -365,14 +364,12 @@ class QRHost(Host):
                 return self.process_normal(f)
 
     def process_bcur2(self, f):
-        data = f.read().decode()
-        self.decoder.receive_part(data)
-        if self.decoder.is_complete():
-            if self.decoder.is_failure():
-                raise HostError("Failed to decode QR sequence")
+        if self.decoder.read_part(f):
             fname = self.path + "/data.txt"
-            with open(fname, "wb") as fout:
-                fout.write(UR_PSBT.from_cbor(self.decoder.result.cbor).data)
+            with self.decoder.result() as b:
+                msglen = cbor.read_bytes_len(b)
+                with open(fname, "wb") as fout:
+                    read_write(b, fout)
             return True
         return False
 
@@ -567,9 +564,7 @@ class QRHost(Host):
         - or a list of True False for checkboxes
         """
         if self.bcur2 and self.decoder:
-            if self.decoder.is_complete():
-                return 1
-            return self.decoder.fountain_decoder.estimated_percent_complete()
+            return self.decoder.progress
         if not self.in_progress:
             return 1
         if not self.animated:
