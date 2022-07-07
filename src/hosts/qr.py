@@ -364,6 +364,7 @@ class QRHost(Host):
                 return self.process_normal(f)
 
     def process_bcur2(self, f):
+        gc.collect()
         if self.decoder.read_part(f):
             fname = self.path + "/data.txt"
             with self.decoder.result() as b:
