@@ -297,6 +297,7 @@ class QRHost(Host):
         if self.parts is not None:
             del self.parts
             self.parts = None
+        del self.decoder
         self.decoder = None
         gc.collect()
         if self.cancelled:
@@ -371,6 +372,7 @@ class QRHost(Host):
                 msglen = cbor.read_bytes_len(b)
                 with open(fname, "wb") as fout:
                     read_write(b, fout)
+            gc.collect()
             return True
         return False
 
