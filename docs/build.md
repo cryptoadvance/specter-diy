@@ -6,6 +6,10 @@ Clone the repository recursively `git clone https://github.com/cryptoadvance/spe
 
 ## Prerequisities
 
+### Nix shell
+
+The easiest way to get all necessary tools is to run `nix-shell` from the root of the repository. You need to have [Nix](https://nixos.org/) installed.
+
 ### Prerequisities: Board
 
 To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler.
