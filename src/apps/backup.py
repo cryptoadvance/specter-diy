@@ -6,7 +6,7 @@ from app import BaseApp, AppError
 from io import BytesIO
 from binascii import hexlify
 from rng import get_random_bytes
-from bitcoin import bip39
+from embit import bip39
 from gui.screens import Prompt
 from gui.components.mnemonic import MnemonicTable
 import lvgl as lv

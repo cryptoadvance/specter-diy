@@ -1,12 +1,12 @@
 from ..manager import *
 from gui.common import format_addr
 
-from bitcoin import script, bip32, ec, compact, hashes
-from bitcoin.liquid.psetview import PSETView, ser_string
-from bitcoin.liquid.networks import NETWORKS
-from bitcoin.liquid.transaction import LSIGHASH as SIGHASH
-from bitcoin.liquid.addresses import address as liquid_address
-from bitcoin.liquid.addresses import to_unconfidential
+from embit import script, bip32, ec, compact, hashes
+from embit.liquid.psetview import PSETView, ser_string
+from embit.liquid.networks import NETWORKS
+from embit.liquid.transaction import LSIGHASH as SIGHASH
+from embit.liquid.addresses import address as liquid_address
+from embit.liquid.addresses import to_unconfidential
 from .wallet import WalletError, LWallet
 from helpers import is_liquid
 import secp256k1

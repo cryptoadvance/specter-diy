@@ -1,7 +1,7 @@
 from app import BaseApp, AppError
 from gui.screens import QRAlert, Prompt
 
-from bitcoin.liquid.networks import NETWORKS
+from embit.liquid.networks import NETWORKS
 from helpers import is_liquid
 from io import BytesIO
 

@@ -1,7 +1,7 @@
 from unittest import TestCase
 from .util import get_keystore, get_wallets_app, clear_testdir
-from bitcoin.psbt import PSBT
-from bitcoin.psbtview import PSBTView
+from embit.psbt import PSBT
+from embit.psbtview import PSBTView
 from apps.wallets.wallet import Wallet, WalletError
 from io import BytesIO
 

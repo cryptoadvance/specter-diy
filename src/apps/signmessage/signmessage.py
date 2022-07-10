@@ -4,8 +4,8 @@ Demo of a simple app that extends Specter with custom functionality.
 from app import BaseApp, AppError
 from gui.screens import Prompt
 
-from bitcoin import ec, bip32, script, compact
-from bitcoin.liquid.networks import NETWORKS
+from embit import ec, bip32, script, compact
+from embit.liquid.networks import NETWORKS
 from hashlib import sha256
 from binascii import b2a_base64, unhexlify, a2b_base64, hexlify
 import secp256k1

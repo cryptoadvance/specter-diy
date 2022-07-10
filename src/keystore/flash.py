@@ -10,7 +10,7 @@ from .ram import RAMKeyStore
 from platform import CriticalErrorWipeImmediately
 from binascii import hexlify, unhexlify
 from rng import get_random_bytes
-from bitcoin import ec, bip39, bip32
+from embit import ec, bip39, bip32
 from helpers import tagged_hash
 from gui.screens import Alert, PinScreen, Menu, MnemonicScreen
 

@@ -5,11 +5,11 @@ from .screens import WalletScreen, ConfirmWalletScreen
 import platform
 import os
 from binascii import hexlify, unhexlify, a2b_base64
-from bitcoin import script, bip32, compact
-from bitcoin.psbt import DerivationPath
-from bitcoin.psbtview import PSBTView, read_write, PSBTError
-from bitcoin.networks import NETWORKS
-from bitcoin.transaction import SIGHASH
+from embit import script, bip32, compact
+from embit.psbt import DerivationPath, CompressMode
+from embit.psbtview import PSBTView, read_write, PSBTError
+from embit.networks import NETWORKS
+from embit.transaction import SIGHASH
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
@@ -779,7 +779,7 @@ class WalletManager(BaseApp):
             raise WalletError("We didn't add any signatures!\n\nMaybe you forgot to import the wallet?\n\nScan the wallet descriptor to import it.")
         # remove unnecessary stuff:
         with open(self.tempdir+"/sigs", "rb") as sig_stream:
-            psbtv.write_to(out_stream, compress=True, extra_input_streams=[sig_stream])
+            psbtv.write_to(out_stream, compress=CompressMode.PARTIAL, extra_input_streams=[sig_stream])
 
     def wipe(self):
         """Deletes all wallets info"""

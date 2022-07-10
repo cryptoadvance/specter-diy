@@ -4,9 +4,9 @@ import platform
 from rng import get_random_bytes
 import hashlib
 import hmac
-from bitcoin import ec, bip39, bip32
-from bitcoin.liquid import slip77
-from bitcoin.transaction import SIGHASH
+from embit import ec, bip39, bip32
+from embit.liquid import slip77
+from embit.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
 from gui.screens import Alert, PinScreen, MnemonicScreen, Prompt

@@ -2,7 +2,7 @@ from .core import KeyStoreError, PinError
 from .flash import FlashKeyStore
 import platform
 from rng import get_random_bytes
-from bitcoin import bip39
+from embit import bip39
 from gui.screens import Alert, Progress, Menu, MnemonicScreen, InputScreen, Prompt
 import asyncio
 from io import BytesIO

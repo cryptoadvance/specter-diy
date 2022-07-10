@@ -1,10 +1,10 @@
 from ..wallet import *
 from platform import maybe_mkdir, delete_recursively, get_preallocated_ram
-from bitcoin import ec, hashes, script, compact
-from bitcoin.liquid.networks import NETWORKS
-from bitcoin.liquid.descriptor import LDescriptor
-from bitcoin.descriptor.arguments import AllowedDerivation
-from bitcoin.liquid.pset import LInputScope, LOutputScope
+from embit import ec, hashes, script, compact
+from embit.liquid.networks import NETWORKS
+from embit.liquid.descriptor import LDescriptor
+from embit.descriptor.arguments import AllowedDerivation
+from embit.liquid.pset import LInputScope, LOutputScope
 import hashlib
 import secp256k1
 

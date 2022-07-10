@@ -2,13 +2,13 @@ from app import AppError
 import platform
 from platform import maybe_mkdir, delete_recursively
 import json
-from bitcoin import ec, hashes, script
-from bitcoin.networks import NETWORKS
-from bitcoin.psbt import DerivationPath
-from bitcoin.descriptor import Descriptor
-from bitcoin.descriptor.checksum import add_checksum
-from bitcoin.descriptor.arguments import AllowedDerivation
-from bitcoin.transaction import SIGHASH
+from embit import ec, hashes, script
+from embit.networks import NETWORKS
+from embit.psbt import DerivationPath
+from embit.descriptor import Descriptor
+from embit.descriptor.checksum import add_checksum
+from embit.descriptor.arguments import AllowedDerivation
+from embit.transaction import SIGHASH
 import hashlib
 from .screens import WalletScreen, WalletInfoScreen
 from .commands import DELETE, EDIT, MENU, INFO, EXPORT

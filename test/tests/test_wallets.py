@@ -1,6 +1,6 @@
 from unittest import TestCase
 from apps.wallets.wallet import Wallet
-from bitcoin.descriptor import Key
+from embit.descriptor import Key
 import os, json
 import platform
 

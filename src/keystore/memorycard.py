@@ -5,7 +5,7 @@ from .javacard.util import get_connection
 from platform import CriticalErrorWipeImmediately
 import platform
 from rng import get_random_bytes
-from bitcoin import bip39
+from embit import bip39
 from helpers import tagged_hash, aead_encrypt, aead_decrypt
 import hmac
 from gui.screens import Alert, Progress, Menu, MnemonicScreen, Prompt

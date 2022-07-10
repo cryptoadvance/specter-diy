@@ -7,7 +7,7 @@ from app import BaseApp, AppError
 from io import BytesIO
 import json
 from helpers import read_until
-from bitcoin import bip32
+from embit import bip32
 from binascii import unhexlify
 
 CC_TYPES = {"BIP45": "sh", "P2WSH-P2SH": "sh-wsh", "P2WSH": "wsh"}

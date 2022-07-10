@@ -17,8 +17,8 @@ from platform import (
 )
 from hosts import Host, HostError
 from app import BaseApp
-from bitcoin import bip39
-from bitcoin.liquid.networks import NETWORKS
+from embit import bip39
+from embit.liquid.networks import NETWORKS
 from gui.screens.settings import HostSettings
 
 # small helper functions

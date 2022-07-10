@@ -1,10 +1,10 @@
 from unittest import TestCase
 from .util import get_keystore, get_wallets_app, clear_testdir
-from bitcoin.liquid.networks import NETWORKS
-from bitcoin.liquid.pset import PSET
-from bitcoin.psbt import PSBT
-from bitcoin.psbtview import PSBTView
-from bitcoin.liquid.psetview import PSETView
+from embit.liquid.networks import NETWORKS
+from embit.liquid.pset import PSET
+from embit.psbt import PSBT
+from embit.psbtview import PSBTView
+from embit.liquid.psetview import PSETView
 from apps.wallets.wallet import WalletError
 from io import BytesIO
 

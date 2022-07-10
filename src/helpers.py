@@ -1,4 +1,4 @@
-from bitcoin import bip39, compact
+from embit import bip39, compact
 import hashlib
 import hmac
 from ucryptolib import aes
@@ -6,7 +6,7 @@ from io import BytesIO
 import rng
 import platform
 from binascii import b2a_base64, a2b_base64
-from bitcoin.liquid.networks import NETWORKS
+from embit.liquid.networks import NETWORKS
 
 AES_BLOCK = 16
 IV_SIZE = 16
