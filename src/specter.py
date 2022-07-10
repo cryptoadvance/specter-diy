@@ -231,7 +231,7 @@ class Specter:
         host = await self.gui.menu(title="What to use for import?", note="\n",
             buttons=[(host, host.button) for host in self.hosts if host.button],
             last=(255, None))
-        if host is None:
+        if host == 255:
             return
         stream = await host.get_data()
         if not stream:
