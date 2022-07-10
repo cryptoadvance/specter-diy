@@ -3,7 +3,7 @@ from platform import fpath
 from io import BytesIO
 import os
 import platform
-from binascii import b2a_base64
+from binascii import b2a_base64, a2b_base64
 
 class SDHost(Host):
     """
@@ -125,13 +125,28 @@ class SDHost(Host):
         # if it's str - it's a file
         if isinstance(stream, str):
             with open(stream, "rb") as f:
-                response = f.read()
-        else:
-            response = stream.read()
-        try:
-            res = response.decode()
-        except:
-            res = b2a_base64(response).decode()
+                await self._show_qr(f, meta, *args, **kwargs)
+            return
+        qrfmt = 1
+        response = stream.read()
+        start = response[:4]
+        if start in [b"psbt", b"cHNi"]:
+            qrfmt = await self.manager.gui.menu(buttons=[
+                (1, "Text"),
+                (2, "Crypto-psbt"),
+                (3, "Legacy BCUR"),
+            ], title="What format to use?")
+        if qrfmt == 1:
+            try:
+                res = response.decode()
+            except:
+                res = b2a_base64(response).decode()
+        elif qrfmt == 2: # we need binary
+            res = response if start == b"psbt" else a2b_base64(response)
+        elif qrfmt == 3:
+            from bcur import bcur_encode
+            payload, hsh = bcur_encode(repsonse) if start == b"psbt" else bcur_encode(a2b_base64(response))
+            res = "UR:BYTES/"+hsh.decode()+"/"+payload.decode()
         title = "Your data:"
         note = None
         if "title" in meta:
