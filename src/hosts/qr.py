@@ -8,6 +8,8 @@ import gc
 from gui.screens.settings import HostSettings
 from gui.screens import Alert
 from helpers import read_until, read_write
+from microur.decoder import FileURDecoder
+from microur.util import cbor
 
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
@@ -249,12 +251,15 @@ class QRHost(Host):
     def clean_uart(self):
         self.uart.read()
 
-    def stop_scanning(self):
-        self.scanning = False
+    def _stop_scanner(self):
         if self.trigger is not None:
             self.trigger.on()
         else:
             self.set_setting(SETTINGS_ADDR, self.CMD_MODE)
+
+    def stop_scanning(self):
+        self.scanning = False
+        self._stop_scanner()
 
     def abort(self):
         with open(self.tmpfile,"wb"):
@@ -283,6 +288,8 @@ class QRHost(Host):
         self.animated = False
         self.parts = None
         self.bcur = False
+        self.bcur2 = False
+        self.decoder = FileURDecoder(self.path)
         self.bcur_hash = b""
         gc.collect()
         while self.scanning:
@@ -293,6 +300,8 @@ class QRHost(Host):
         if self.parts is not None:
             del self.parts
             self.parts = None
+        del self.decoder
+        self.decoder = None
         gc.collect()
         if self.cancelled:
             return None
@@ -343,16 +352,34 @@ class QRHost(Host):
         # should not be there if trigger mode or simulator
         with open(self.tmpfile, "rb") as f:
             c = f.read(len(SUCCESS))
-            if c!=SUCCESS:
-                f.seek(-len(c), 1)
+            while c == SUCCESS:
+                c = f.read(len(SUCCESS))
+            f.seek(-len(c), 1)
             # check if it's bcur encoding
-            start = f.read(9)
+            start = f.read(9).upper()
             f.seek(-len(start), 1)
-            if start.upper() == b"UR:BYTES/":
+            if start == b"UR:BYTES/":
                 self.bcur = True
                 return self.process_bcur(f)
+            # bcur2 encoding
+            elif start == b"UR:CRYPTO":
+                self.bcur2 = True
+                return self.process_bcur2(f)
             else:
                 return self.process_normal(f)
+
+    def process_bcur2(self, f):
+        gc.collect()
+        if self.decoder.read_part(f):
+            self._stop_scanner()
+            fname = self.path + "/data.txt"
+            with self.decoder.result() as b:
+                msglen = cbor.read_bytes_len(b)
+                with open(fname, "wb") as fout:
+                    read_write(b, fout)
+            gc.collect()
+            return True
+        return False
 
     def process_bcur(self, f):
         # check if starts with UR:BYTES/
@@ -413,6 +440,7 @@ class QRHost(Host):
         self.parts[m - 1] = fname
         # all have non-zero len
         if None not in self.parts:
+            self._stop_scanner()
             fname = self.path + "/data.txt"
             with open(fname, "wb") as fout:
                 fout.write(b"UR:BYTES/")
@@ -478,6 +506,7 @@ class QRHost(Host):
         self.parts[m - 1] = fname
         # all have non-zero len
         if None not in self.parts:
+            self._stop_scanner()
             fname = self.path + "/data.txt"
             with open(fname, "wb") as fout:
                 for part in self.parts:
@@ -510,18 +539,25 @@ class QRHost(Host):
 
     async def send_data(self, stream, meta):
         # if it's str - it's a file
-        if isinstance(stream, str):
-            with open(stream, "r") as f:
-                response = f.read()
-        else:
-            response = stream.read().decode()
         title = "Your data:"
         note = None
         if "title" in meta:
             title = meta["title"]
         if "note" in meta:
             note = meta["note"]
-        msg = response
+        if self.bcur2:
+            # binary data here
+            if isinstance(stream, str):
+                with open(stream, "rb") as f:
+                    response = f.read()
+            else:
+                response = stream.read()
+        elif isinstance(stream, str):
+            with open(stream, "r") as f:
+                response = f.read()
+        else:
+            response = stream.read().decode()
+        msg = response if not self.bcur2 else ""
         if "message" in meta:
             msg = meta["message"]
         await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
@@ -537,6 +573,8 @@ class QRHost(Host):
         - either as a number between 0 and 1
         - or a list of True False for checkboxes
         """
+        if self.bcur2 and self.decoder:
+            return self.decoder.progress
         if not self.in_progress:
             return 1
         if not self.animated:
