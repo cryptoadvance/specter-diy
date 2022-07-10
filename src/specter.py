@@ -534,7 +534,7 @@ class Specter:
                     if app.can_process(stream):
                         matching_apps.append(app)
             if len(matching_apps) == 0:
-                raise HostError("Can't find matching app for this request")
+                raise HostError("Can't find matching app for this request:\n\n %r" % stream.read(100))
             # TODO: if more than one - ask which one to use
             if len(matching_apps) > 1:
                 raise HostError(

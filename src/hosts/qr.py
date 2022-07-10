@@ -251,12 +251,15 @@ class QRHost(Host):
     def clean_uart(self):
         self.uart.read()
 
-    def stop_scanning(self):
-        self.scanning = False
+    def _stop_scanner(self):
         if self.trigger is not None:
             self.trigger.on()
         else:
             self.set_setting(SETTINGS_ADDR, self.CMD_MODE)
+
+    def stop_scanning(self):
+        self.scanning = False
+        self._stop_scanner()
 
     def abort(self):
         with open(self.tmpfile,"wb"):
@@ -349,8 +352,9 @@ class QRHost(Host):
         # should not be there if trigger mode or simulator
         with open(self.tmpfile, "rb") as f:
             c = f.read(len(SUCCESS))
-            if c!=SUCCESS:
-                f.seek(-len(c), 1)
+            while c == SUCCESS:
+                c = f.read(len(SUCCESS))
+            f.seek(-len(c), 1)
             # check if it's bcur encoding
             start = f.read(9).upper()
             f.seek(-len(start), 1)
@@ -367,6 +371,7 @@ class QRHost(Host):
     def process_bcur2(self, f):
         gc.collect()
         if self.decoder.read_part(f):
+            self._stop_scanner()
             fname = self.path + "/data.txt"
             with self.decoder.result() as b:
                 msglen = cbor.read_bytes_len(b)
@@ -435,6 +440,7 @@ class QRHost(Host):
         self.parts[m - 1] = fname
         # all have non-zero len
         if None not in self.parts:
+            self._stop_scanner()
             fname = self.path + "/data.txt"
             with open(fname, "wb") as fout:
                 fout.write(b"UR:BYTES/")
@@ -500,6 +506,7 @@ class QRHost(Host):
         self.parts[m - 1] = fname
         # all have non-zero len
         if None not in self.parts:
+            self._stop_scanner()
             fname = self.path + "/data.txt"
             with open(fname, "wb") as fout:
                 for part in self.parts:
