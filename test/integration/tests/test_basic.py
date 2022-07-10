@@ -1,14 +1,19 @@
 from unittest import TestCase
 from util.controller import sim
+from embit.psbt import PSBT
 
 class BasicTest(TestCase):
 
     def test_sign_psbt(self):
         unsigned = b"cHNidP8BAHECAAAAAQWaIPxj7qSA0cbaKKz5Lk43V/8/FZeQw+IQ2tV6eJnbAAAAAAD9////AgfVTQUAAAAAFgAUUzfXvW1SC/+493dPMkR+9Ua1+7mAlpgAAAAAABYAFCwSoUTerJLG437IpfbWF8DgWx6kAAAAAAABAR8Kl+YFAAAAABYAFC80qhzwClOwVaKRoDp9RfCmmItSIgYDXUnszVTQCZ5DZ2J3x6bUYl1hHaiKXfSb+VF6d5Gnd6UYc8XaClQAAIABAACAAAAAgAEAAAAAAAAAACICAzra7/AYOHv1KHXP0Kgv8paA8ELhUBDLW3FrKXZzZpg2GHPF2gpUAACAAQAAgAAAAIABAAAAAgAAAAAA"
+        signed = b"cHNidP8BAHECAAAAAQWaIPxj7qSA0cbaKKz5Lk43V/8/FZeQw+IQ2tV6eJnbAAAAAAD9////AgfVTQUAAAAAFgAUUzfXvW1SC/+493dPMkR+9Ua1+7mAlpgAAAAAABYAFCwSoUTerJLG437IpfbWF8DgWx6kAAAAAAAiAgNdSezNVNAJnkNnYnfHptRiXWEdqIpd9Jv5UXp3kad3pUcwRAIgDf80duROzcio5iPQ/RbThlXHzr2tmqFaIHR1SOMHHT8CIDGUwTINLkmIk6onOGtlFSQYibQfjhIkRxmx1LJa0NNGAQAAAA=="
         # confirm signing
         res = sim.query(b"sign "+unsigned, [True])
         # signed tx
-        self.assertEqual(res, b"cHNidP8BAHECAAAAAQWaIPxj7qSA0cbaKKz5Lk43V/8/FZeQw+IQ2tV6eJnbAAAAAAD9////AgfVTQUAAAAAFgAUUzfXvW1SC/+493dPMkR+9Ua1+7mAlpgAAAAAABYAFCwSoUTerJLG437IpfbWF8DgWx6kAAAAAAAiAgNdSezNVNAJnkNnYnfHptRiXWEdqIpd9Jv5UXp3kad3pUcwRAIgDf80duROzcio5iPQ/RbThlXHzr2tmqFaIHR1SOMHHT8CIDGUwTINLkmIk6onOGtlFSQYibQfjhIkRxmx1LJa0NNGAQAAAA==")
+        self.assertEqual(
+            [inp.partial_sigs for inp in PSBT.from_string(res.decode()).inputs],
+            [inp.partial_sigs for inp in PSBT.from_string(signed.decode()).inputs]
+        )
 
         # cancel signing
         res = sim.query(b"sign "+unsigned, [False])

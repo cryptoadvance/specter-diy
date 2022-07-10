@@ -366,12 +366,14 @@ class RAMKeyStore(KeyStore):
         )
 
     async def show_mnemonic(self):
-        if await self.show(Prompt("Warning",
+        if not await self.show(Prompt("Warning",
                                   "You need to confirm your PIN code "
                                   "to display your recovery phrase.\n\n"
                                   "Continue?")):
-            self.lock()
-            await self.unlock()
+            return
+        self.lock()
+        await self.unlock()
+        while True:
             v = await self.show(ExportMnemonicScreen(self.mnemonic))
             if v == ExportMnemonicScreen.QR:
                 v = await self.show(
@@ -403,3 +405,5 @@ class RAMKeyStore(KeyStore):
                         f.write(self.mnemonic)
                     platform.unmount_sdcard()
                     await self.show(Alert(title="Mnemonic is saved!", message="You mnemonic is saved in plaintext to\n\n%s\n\nPlease keep it safe." % fname))
+            else:
+                return

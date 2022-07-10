@@ -35,19 +35,37 @@ class RPCTest(TestCase):
         d2 = rpc.getdescriptorinfo(d2)["descriptor"]
         rpc.createwallet(wname, True, True)
         w = rpc.wallet(wname)
-        res = w.importmulti([{
-                "desc": d1,
-                "internal": False,
-                "timestamp": "now",
-                "watchonly": True,
-                "range": 10,
-            },{
-                "desc": d2,
-                "internal": True,
-                "timestamp": "now",
-                "watchonly": True,
-                "range": 10,
-            }],{"rescan": False})
+        info = w.getwalletinfo()
+        # bitcoin core uses descriptor wallets by default so importmulti may fail
+        use_descriptors = info.get("descriptors", False)
+        if not use_descriptors:
+            res = w.importmulti([{
+                    "desc": d1,
+                    "internal": False,
+                    "timestamp": "now",
+                    "watchonly": True,
+                    "range": 10,
+                },{
+                    "desc": d2,
+                    "internal": True,
+                    "timestamp": "now",
+                    "watchonly": True,
+                    "range": 10,
+                }],{"rescan": False})
+        else:
+            res = w.importdescriptors([{
+                    "desc": d1,
+                    "internal": False,
+                    "timestamp": "now",
+                    "watchonly": True,
+                    "active": True,
+                },{
+                    "desc": d2,
+                    "internal": True,
+                    "timestamp": "now",
+                    "watchonly": True,
+                    "active": True,
+                }])
         self.assertTrue(all([k["success"] for k in res]))
         wdefault.sendtoaddress(addr1, 0.1)
         rpc.mine()
@@ -224,7 +242,11 @@ class RPCTest(TestCase):
         # check it's found
         self.assertFalse(b"Can't find wallet" in res)
 
-        rpc.createwallet(wname, True, True)
+        has_descriptor_support = "6. descriptors" in rpc.help("createwallet")
+        if has_descriptor_support:
+            rpc.createwallet(wname, True, True, "", False, False)
+        else:
+            rpc.createwallet(wname, True, True)
         w = rpc.wallet(wname)
         res = w.importmulti([{
                 "scriptPubKey": {"address": addr1},#d1.script_pubkey().data.hex(),

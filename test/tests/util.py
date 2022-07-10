@@ -6,6 +6,9 @@ import platform
 
 TEST_DIR = "testdir"
 
+def check_sigs(psbt1, psbt2):
+    return [inp.partial_sigs for inp in psbt1.inputs] == [inp.partial_sigs for inp in psbt2.inputs]
+
 def clear_testdir():
     try:
         platform.delete_recursively(TEST_DIR, include_self=True)

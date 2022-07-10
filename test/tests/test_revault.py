@@ -1,5 +1,5 @@
 from unittest import TestCase
-from .util import get_keystore, get_wallets_app, clear_testdir
+from .util import get_keystore, get_wallets_app, clear_testdir, check_sigs
 from embit.psbt import PSBT
 from embit.psbtview import PSBTView
 from apps.wallets.wallet import Wallet, WalletError
@@ -87,4 +87,4 @@ class RevaultTest(TestCase):
                         sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, None)
                 elif i == mnemonic_idx[0]:
                     sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, None)
-                    self.assertEqual(PSBT.parse(b.getvalue()).to_string(), signed)
+                    self.assertTrue(check_sigs(PSBT.parse(b.getvalue()), PSBT.from_base64(signed)))

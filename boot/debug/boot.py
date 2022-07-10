@@ -9,7 +9,7 @@ pwr.on()
 # v1.6.2-rc1 - use odd rc for main firmware and even for debug
 # so it's possible to upgrade from debug to main firmware.
 # (rc99 is final version for production)
-version = "<version:tag10>0100600201</version:tag10>"
+version = "<version:tag10>0100700001</version:tag10>"
 
 leds = [pyb.LED(i) for i in range(1,5)]
 # poweroff on button press

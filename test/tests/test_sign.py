@@ -1,5 +1,5 @@
 from unittest import TestCase
-from .util import get_keystore, get_wallets_app, clear_testdir
+from .util import get_keystore, get_wallets_app, clear_testdir, check_sigs
 from embit.liquid.networks import NETWORKS
 from embit.liquid.pset import PSET
 from embit.psbt import PSBT
@@ -12,7 +12,7 @@ PSBTS = {
     # type: (unsigned, signed)
     "wpkh": (
         "cHNidP8BAHECAAAAAWzGfenb3RfMnjMnbG3ma7oQc2hXxtwJfVVmgrnWm+4UAQAAAAD9////AtYbLAQAAAAAFgAUrNujDLwLZgayRWvplXj9l9JCeCWAlpgAAAAAABYAFCwSoUTerJLG437IpfbWF8DgWx6kAAAAAAABAHECAAAAAYWnVTba+0vAveezgcq1RYQ/kgJWaR18whFlaiyB21+IAQAAAAD9////AoCWmAAAAAAAFgAULBKhRN6sksbjfsil9tYXwOBbHqTkssQEAAAAABYAFB8nluuilYNXa/NkD0Yl26S/P0uNAAAAAAEBH+SyxAQAAAAAFgAUHyeW66KVg1dr82QPRiXbpL8/S40iBgIaiZEUrL8SsjMa8kjotFVJqjhEQ9YTjOUqkhEyemGmNhj7fB8RVAAAgAEAAIAAAACAAQAAAAIAAAAAIgID2bmiDcc2vHCuHg7T/C0YXLPanHBaS665367wqdHd9AgY+3wfEVQAAIABAACAAAAAgAEAAAAEAAAAAAA=",
-        "cHNidP8BAHECAAAAAWzGfenb3RfMnjMnbG3ma7oQc2hXxtwJfVVmgrnWm+4UAQAAAAD9////AtYbLAQAAAAAFgAUrNujDLwLZgayRWvplXj9l9JCeCWAlpgAAAAAABYAFCwSoUTerJLG437IpfbWF8DgWx6kAAAAAAAiAgIaiZEUrL8SsjMa8kjotFVJqjhEQ9YTjOUqkhEyemGmNkcwRAIgNOT0EGYtB5Qk/sbVAJ0PDZzDcRekwbrayYYUrl3UNgwCIB0hXw26uT9UkyfUSHnSoRJmBi1XZxOYKhH30TrAUi8NAQAAAA=="
+        "cHNidP8BAHECAAAAAWzGfenb3RfMnjMnbG3ma7oQc2hXxtwJfVVmgrnWm+4UAQAAAAD9////AtYbLAQAAAAAFgAUrNujDLwLZgayRWvplXj9l9JCeCWAlpgAAAAAABYAFCwSoUTerJLG437IpfbWF8DgWx6kAAAAAAABAR/kssQEAAAAABYAFB8nluuilYNXa/NkD0Yl26S/P0uNIgICGomRFKy/ErIzGvJI6LRVSao4REPWE4zlKpIRMnphpjZHMEQCIDTk9BBmLQeUJP7G1QCdDw2cw3EXpMG62smGFK5d1DYMAiAdIV8Nurk/VJMn1Eh50qESZgYtV2cTmCoR99E6wFIvDQEAAAA="
     ),
     "sh-wpkh": (
         "cHNidP8BAHICAAAAAWBIbAlD3qho0taVR9yfW3WJwbKcYRv/xyk9I+abUvlCAQAAAAD9////AkBLTAAAAAAAFgAUb6AWUAo8anN+uyYOLdyni6kjRViZSkwAAAAAABepFHnJuo6ORHutCRGwIDdTRBY6M8EuhwAAAAAAAQByAgAAAAHVQM5/vQoGMhr7e/PH4p2Tf9gXHVPtHJfiO1EqDWQMngEAAAAA/v///wJ9xOAKAAAAABYAFNxjOYrYgc0vzoyl79Z63hqrE3QBgJaYAAAAAAAXqRQ8MfB0SM8tY2KH5v3Ga0t2tM7ooIcAAAAAAQEggJaYAAAAAAAXqRQ8MfB0SM8tY2KH5v3Ga0t2tM7ooIcBBBYAFK6BTdJzSK7KokJmZ1fjLTNWu8qjIgYDioMVrQaIBFMr18KKVcfo+ceMcVxDLl97yc2tXBbAHI8Y+3wfETEAAIABAACAAAAAgAAAAAAAAAAAAAABABYAFFUnXeVBP1OyELX2i5VjTnCna9PLIgICrnKgjc/Cy02bVPD8jfANnmyDUdVA78RKcxyHA+zIRy4Y+3wfETEAAIABAACAAAAAgAEAAAAAAAAAAA==",
@@ -74,7 +74,7 @@ class SignTest(TestCase):
 
         b = BytesIO()
         sig_count = wapp.manager.sign_psbtview(psbtv, b, wallets, None)
-        self.assertEqual(PSBT.parse(b.getvalue()).to_string(), signed)
+        self.assertTrue(check_sigs(PSBT.parse(b.getvalue()), PSBT.from_string(signed)))
 
     def test_pset(self):
         clear_testdir()
