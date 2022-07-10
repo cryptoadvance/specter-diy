@@ -217,34 +217,7 @@ class Specter:
         elif menuitem == 3:
             await self.update_devsettings()
         elif menuitem == 777:
-            host = await self.gui.menu(title="What to use for import?", note="\n",
-                buttons=[(host, host.button) for host in self.hosts if host.button],
-                last=(255, None))
-            if host is None:
-                return
-            else:
-                stream = await host.get_data()
-                if not stream:
-                    return
-                data = stream.read()
-                # digital mnemonic
-                if len(data) >= 4*12 and len(data) <= 4*24 and len(data) % 12 == 0 and (b" " not in data):
-                    mnemonic = " ".join([bip39.WORDLIST[int(data[4*i:4*i+4])] for i in range(len(data)//4)])
-                # binary mnemonic
-                elif len(data) >= 16 and len(data) <= 32:
-                    mnemonic = bip39.mnemonic_from_bytes(data)
-                else:
-                    mnemonic = data.decode()
-                    if not bip39.mnemonic_is_valid(mnemonic):
-                        raise SpecterError("Invalid data")
-                scr = MnemonicPrompt(title="Imported mnemonic:", mnemonic=mnemonic)
-                res = await self.gui.show_screen()(scr)
-                if not res:
-                    return
-                self.keystore.set_mnemonic(mnemonic, "")
-                self.init_apps()
-                self.current_menu = self.mainmenu
-                return self.mainmenu
+            return await self.import_mnemonic()
         # lock device
         elif menuitem == 5:
             await self.lock()
@@ -253,6 +226,36 @@ class Specter:
         else:
             print(menuitem, "menu is not implemented yet")
             raise SpecterError("Not implemented")
+
+    async def import_mnemonic(self):
+        host = await self.gui.menu(title="What to use for import?", note="\n",
+            buttons=[(host, host.button) for host in self.hosts if host.button],
+            last=(255, None))
+        if host is None:
+            return
+        stream = await host.get_data()
+        if not stream:
+            return
+        data = stream.read()
+        # digital mnemonic
+        if len(data) >= 4*12 and len(data) <= 4*24 and len(data) % 12 == 0 and (b" " not in data):
+            mnemonic = " ".join([bip39.WORDLIST[int(data[4*i:4*i+4])] for i in range(len(data)//4)])
+        # binary mnemonic
+        elif len(data) >= 16 and len(data) <= 32:
+            mnemonic = bip39.mnemonic_from_bytes(data)
+        # text mnemonic
+        else:
+            mnemonic = data.decode()
+            if not bip39.mnemonic_is_valid(mnemonic):
+                raise SpecterError("Invalid data")
+        scr = MnemonicPrompt(title="Imported mnemonic:", mnemonic=mnemonic)
+        # confirm mnemonic
+        if not await self.gui.show_screen()(scr):
+            return
+        self.keystore.set_mnemonic(mnemonic, "")
+        self.init_apps()
+        self.current_menu = self.mainmenu
+        return self.mainmenu
 
     async def mainmenu(self):
         # interactive hosts are enabled later
