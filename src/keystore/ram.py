@@ -9,7 +9,8 @@ from embit.liquid import slip77
 from embit.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
-from gui.screens import Alert, PinScreen, MnemonicScreen, Prompt
+from gui.screens import Alert, PinScreen, Prompt, Menu, QRAlert
+from gui.screens.mnemonic import ExportMnemonicScreen
 from binascii import hexlify
 
 class RAMKeyStore(KeyStore):
@@ -371,4 +372,34 @@ class RAMKeyStore(KeyStore):
                                   "Continue?")):
             self.lock()
             await self.unlock()
-            await self.show(MnemonicScreen(self.mnemonic))
+            v = await self.show(ExportMnemonicScreen(self.mnemonic))
+            if v == ExportMnemonicScreen.QR:
+                v = await self.show(
+                        Menu([(1, "SeedQR (digits)"), (2, "Compact SeedQR (binary)"), (3, "Plaintext")],
+                        last=(255, None),
+                        title="Select encoding format",
+                        note="Compact QR is smaller but not human-readable\n")
+                    )
+                if v == 255:
+                    return
+                elif v == 1:
+                    nums = [bip39.WORDLIST.index(w) for w in self.mnemonic.split()]
+                    qr_msg = "".join([("000"+str(n))[-4:] for n in nums])
+                    msg = qr_msg
+                elif v == 2:
+                    qr_msg = bip39.mnemonic_to_bytes(self.mnemonic)
+                    msg = hexlify(qr_msg).decode()
+                elif v == 3:
+                    qr_msg = self.mnemonic
+                    msg = self.mnemonic
+                await self.show(QRAlert(title="Your mnemonic as QR code", message=msg, qr_message=qr_msg))
+            elif v == ExportMnemonicScreen.SD:
+                if not platform.is_sd_present:
+                    raise KeyStoreError("SD card is not present")
+                if await self.show(Prompt("Are you sure?", message="Your mnemonic will be saved as a simple plaintext file.\n\nAnyone with access to it will be able to read your key.\n\nContinue?")):
+                    platform.mount_sdcard()
+                    fname = "/sd/%s.txt" % self.mnemonic.split()[0]
+                    with open(platform.fpath(fname), "w") as f:
+                        f.write(self.mnemonic)
+                    platform.unmount_sdcard()
+                    await self.show(Alert(title="Mnemonic is saved!", message="You mnemonic is saved in plaintext to\n\n%s\n\nPlease keep it safe." % fname))

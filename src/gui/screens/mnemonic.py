@@ -4,9 +4,11 @@ from ..common import *
 from ..decorators import *
 from ..components import MnemonicTable, HintKeyboard
 from .screen import Screen
-
+from .prompt import Prompt
 
 class MnemonicScreen(Screen):
+    QR = 1
+    SD = 2
     def __init__(self, mnemonic="", title="Your recovery phrase:", note=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
@@ -22,6 +24,27 @@ class MnemonicScreen(Screen):
         self.close_label = lv.label(self.close_button)
         self.close_label.set_text("OK")
 
+class MnemonicPrompt(Prompt):
+    def __init__(self, mnemonic="", title="Your recovery phrase:", note=None):
+        super().__init__(title, message="")
+        table = MnemonicTable(self)
+        table.set_mnemonic(mnemonic)
+        table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+
+
+class ExportMnemonicScreen(MnemonicScreen):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.show_qr_btn = add_button(text="Show as QR code", scr=self, callback=on_release(self.select_qr))
+        self.show_qr_btn.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.save_sd_btn = add_button(text="Save to SD card (plaintext)", scr=self, callback=on_release(self.select_sd))
+        self.save_sd_btn.align(self.show_qr_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+
+    def select_sd(self):
+        self.set_value(self.SD)
+
+    def select_qr(self):
+        self.set_value(self.QR)
 
 class NewMnemonicScreen(MnemonicScreen):
     def __init__(
