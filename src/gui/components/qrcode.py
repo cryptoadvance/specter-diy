@@ -6,8 +6,8 @@ import gc
 import asyncio
 import platform
 
-from microur.encoder import UREncoder
 from io import BytesIO
+from qrencoder import QREncoder
 
 qr_style = lv.style_t()
 qr_style.body.main_color = lv.color_hex(0xFFFFFF)
@@ -135,18 +135,28 @@ class QRCode(lv.obj):
             if self.idx is not None:
                 self.set_frame()
                 if self._autoplay:
-                    self.idx = (self.idx + 1) % self.frame_num
+                    self.idx += 1
+                if not (self.encoder and self.encoder.is_infinite):
+                    self.idx = self.idx % self.frame_num
             await asyncio.sleep_ms(self.RATE)
 
     def on_plus(self, obj, event):
         if event == lv.EVENT.RELEASED and (self.version + 1) < len(QR_SIZES):
             self.version += 1
-            self.set_text(self._text, set_first_frame=True)
+            if self.idx is not None:
+                self.idx = 0
+            if self.encoder:
+                self.encoder.part_len = QR_SIZES[self.version]
+                self.frame_num = len(self.encoder)
 
     def on_minus(self, obj, event):
         if event == lv.EVENT.RELEASED and self.version > 0:
             self.version -= 1
-            self.set_text(self._text, set_first_frame=True)
+            if self.idx is not None:
+                self.idx = 0
+            if self.encoder:
+                self.encoder.part_len = QR_SIZES[self.version]
+                self.frame_num = len(self.encoder)
 
     def on_pause(self, obj, event):
         if event == lv.EVENT.RELEASED:
@@ -155,6 +165,8 @@ class QRCode(lv.obj):
 
     def on_stop(self, obj, event):
         if event == lv.EVENT.RELEASED:
+            if not self._text: # can't stop
+                return
             self.idx = None
             self._set_text(self._text)
             self.check_controls()
@@ -212,7 +224,7 @@ class QRCode(lv.obj):
         if self.is_fullscreen:
             self.note.set_text("Click to shrink.")
         else:
-            self.note.set_text("Click to expand and control.")
+            self.note.set_text("Click to expand%s." % (" and control" if self.encoder else ""))
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
         self.controls.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -40)
         self.playback.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -150)
@@ -220,71 +232,47 @@ class QRCode(lv.obj):
         self.check_controls()
 
     def set_text(self, text="Text", set_first_frame=False):
-        if text[:5] == b"psbt\xff":
-            self.encoder = UREncoder(UREncoder.CRYPTO_PSBT, BytesIO(text), 100)
-            self._text = text
-            self.idx = 0
-            self.set_frame()
-            return
-        self.encoder = None
         if platform.simulator and self._text != text:
             print("QR on screen:", text)
+        self.encoder = None
         self._text = text
+        if isinstance(text, QREncoder):
+            self.encoder = text
+            self._text = text.get_full(self.MAX_SIZE)
+            self.frame_num = len(self.encoder)
+            if not self._text: # we can't get full data in one QR
+                self.idx = 0
+                self.set_frame()
+                self._autoplay = True
+                return
         self.idx = None
-        prefix_len = 10 # p99of99
-        if text.startswith("UR:BYTES/"):
-            payload = text.split("/")[-1]
-        else:
-            payload = text
-        self.frame_num = math.ceil(len(payload) / (QR_SIZES[self.version] - prefix_len))
-        self.frame_size = math.ceil(len(payload) / self.frame_num)
-        # if too large - we have to animate -> set first frame
-        if len(self._text) > self.MAX_SIZE or set_first_frame:
-            self.idx = 0
-            self.set_frame()
-        else:
-            self._set_text(text)
+        self._set_text(self._text)
         self.update_note()
 
     def set_frame(self):
         if self.encoder:
-            payload = self.encoder.next_part()
+            payload = self.encoder[self.idx]
             self._set_text(payload)
-            note = ""
+            note = "Part %d of %d." % (self.idx + 1, len(self.encoder))
         else:
-            if self._text.startswith("UR:BYTES/"):
-                arr = self._text.split("/")
-                payload = arr[-1]
-                prefix = arr[0] + "/%dOF%d/" % (self.idx + 1, self.frame_num)
-                prefix += arr[1] + "/"
-            else:
-                payload = self._text
-                prefix = "p%dof%d " % (self.idx + 1, self.frame_num)
-            offset = self.frame_size * self.idx
-            self._set_text(prefix + payload[offset : offset + self.frame_size])
-            note = "Part %d of %d." % (self.idx + 1, self.frame_num)
+            self._set_text(self._text)
+            note = ""
         if self.is_fullscreen:
             note += " Click to shrink."
         else:
-            note += " Click to expand and control."
+            note += " Click to expand%s." % (" and control" if self.encoder else "")
         self.note.set_text(note)
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
         self.check_controls()
 
     def check_controls(self):
-        if self.encoder:
-            self.controls.set_hidden(True)
-            self.playback.set_hidden(True)
-            self.play.set_hidden(True)
-        else:
-            self.controls.set_hidden((not self.is_fullscreen) or (self.idx is None))
-            self.playback.set_hidden((not self.is_fullscreen) or (self.idx is None))
-            self.play.set_hidden((not self.is_fullscreen) or (self.idx is not None) or (len(self._text) <= self.MIN_SIZE))
+        self.controls.set_hidden((not self.is_fullscreen) or (self.idx is None) or (self.encoder is None))
+        self.playback.set_hidden((not self.is_fullscreen) or (self.idx is None))
+        self.play.set_hidden((not self.is_fullscreen) or (self.idx is not None) or (self.encoder is None))
 
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
-        if text.startswith("UR:BYTES/") and text.count("/") == 2:
-            text = "UR:BYTES/" + text.split("/")[-1]
+        print(text)
         self.set_style(qr_style)
         self.qr.set_text(text)
         self.qr.align(self, lv.ALIGN.CENTER, 0, -100 if self.is_fullscreen else 0)
@@ -299,5 +287,5 @@ class QRCode(lv.obj):
     def set_size(self, size):
         self.qr.set_size(size)
         super().set_size(size, size)
-        self.set_text(self._text)
+        self.set_text(self.encoder or self._text)
         self.set_width(self.get_height())

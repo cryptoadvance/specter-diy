@@ -124,19 +124,22 @@ def load_apps(module="apps", whitelist=None, blacklist=None):
     return apps
 
 def a2b_base64_stream(sin, sout):
+    l = 0
     while True:
-        chunk = sin.read(64).strip() # 16 quants 4 chars each
+        chunk = sin.read(64).strip() # 16 chunks 4 chars each
         if len(chunk) == 0:
             break
-        sout.write(a2b_base64(chunk))
+        l += sout.write(a2b_base64(chunk))
+    return l
 
 def b2a_base64_stream(sin, sout):
+    l = 0
     while True:
-        chunk = sin.read(48) # 16 quants 3 bytes each
+        chunk = sin.read(48) # 16 chunks 3 bytes each
         if len(chunk) == 0:
             break
-        sout.write(b2a_base64(chunk).strip())
-
+        l += sout.write(b2a_base64(chunk).strip())
+    return l
 
 def read_until(s, chars=b"\n\r", max_len=100, return_on_max_len=False):
     """Reads from stream until one of the chars"""

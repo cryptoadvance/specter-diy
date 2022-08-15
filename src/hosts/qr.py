@@ -7,7 +7,7 @@ from io import BytesIO
 import gc
 from gui.screens.settings import HostSettings
 from gui.screens import Alert
-from helpers import read_until, read_write
+from helpers import read_until, read_write, a2b_base64_stream
 from microur.decoder import FileURDecoder
 from microur.util import cbor
 
@@ -537,30 +537,35 @@ class QRHost(Host):
         if stream is not None:
             return stream
 
-    async def send_data(self, stream, meta):
+    async def send_data(self, stream, meta, *args, **kwargs):
         # if it's str - it's a file
-        title = "Your data:"
-        note = None
-        if "title" in meta:
-            title = meta["title"]
-        if "note" in meta:
-            note = meta["note"]
-        if self.bcur2:
-            # binary data here
-            if isinstance(stream, str):
-                with open(stream, "rb") as f:
-                    response = f.read()
-            else:
-                response = stream.read()
-        elif isinstance(stream, str):
-            with open(stream, "r") as f:
-                response = f.read()
-        else:
+        if isinstance(stream, str):
+            with open(stream, "rb") as f:
+                return await self.send_data(f, meta, *args, **kwargs)
+        title = meta.get("title", "Your data:")
+        note = meta.get("note")
+        start = stream.read(4)
+        stream.seek(-len(start), 1)
+        if start in [b"cHNi", b"cHNl"]: # convert from base64 for QR encoder
+            with open(self.tmpfile, "wb") as f:
+                a2b_base64_stream(stream, f)
+            with open(self.tmpfile, "rb") as f:
+                return await self.send_data(f, meta, *args, **kwargs)
+
+        if start not in [b"psbt", b"pset"]:
             response = stream.read().decode()
-        msg = response if not self.bcur2 else ""
-        if "message" in meta:
-            msg = meta["message"]
-        await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
+            msg = meta.get("message", response)
+            return await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
+
+        EncoderCls = None
+        if self.bcur2: # we need binary
+            from qrencoder import CryptoPSBTEncoder as EncoderCls
+        elif self.bcur:
+            from qrencoder import LegacyBCUREncoder as EncoderCls
+        else:
+            from qrencoder import Base64QREncoder as EncoderCls
+        with EncoderCls(stream, tempfile=self.path+"/qrtmp") as enc:
+            await self.manager.gui.qr_alert(title, "", enc, note=note, qr_width=480)
 
     @property
     def in_progress(self):
