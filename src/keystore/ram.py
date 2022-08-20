@@ -394,7 +394,7 @@ class RAMKeyStore(KeyStore):
                 elif v == 3:
                     qr_msg = self.mnemonic
                     msg = self.mnemonic
-                await self.show(QRAlert(title="Your mnemonic as QR code", message=msg, qr_message=qr_msg))
+                await self.show(QRAlert(title="Your mnemonic as QR code", message=msg, qr_message=qr_msg, transcribe=True))
             elif v == ExportMnemonicScreen.SD:
                 if not platform.is_sd_present:
                     raise KeyStoreError("SD card is not present")
