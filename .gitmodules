@@ -3,4 +3,4 @@
 	url = ../../diybitcoinhardware/f469-disco
 [submodule "bootloader"]
 	path = bootloader
-	url = ../specter-bootloader
+	url = ../../cryptoadvance/specter-bootloader
