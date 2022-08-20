@@ -108,8 +108,8 @@ class CryptoPSBTEncoder(QREncoder):
     MAX_PREFIX_LEN = 22
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.encoder = None
+        super().__init__(*args, **kwargs)
 
     def __len__(self):
         return self.encoder.seq_len
@@ -128,3 +128,20 @@ class CryptoPSBTEncoder(QREncoder):
 
     def __getitem__(self, idx):
         return self.encoder.get_part(idx)
+
+    @property
+    def part_len(self):
+        if self.encoder:
+            return self.encoder.part_len
+        else:
+            return self._part_len
+
+    @part_len.setter
+    def part_len(self, part_len):
+        if part_len > 2 * self.MAX_PREFIX_LEN:
+            part_len -= self.MAX_PREFIX_LEN
+        if self.encoder:
+            self.encoder.part_len = part_len
+            self._part_len = self.encoder.part_len
+        else:
+            self._part_len = math.ceil(self._len / math.ceil(self._len / part_len))
