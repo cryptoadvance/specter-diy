@@ -86,6 +86,8 @@ class QRHost(Host):
             self.is_configured = True
         self.scanning = False
         self.parts = None
+        self.raw = False
+        self.chunk_timeout = 0.1
 
     @property
     def MASK(self):
@@ -271,8 +273,10 @@ class QRHost(Host):
     def tmpfile(self):
         return self.path+"/tmp"
 
-    async def scan(self):
+    async def scan(self, raw=False, chunk_timeout=0.1):
         self.clean_uart()
+        self.raw = raw
+        self.chunk_timeout = chunk_timeout
         if self.trigger is not None:
             self.trigger.off()
         else:
@@ -314,38 +318,50 @@ class QRHost(Host):
             return
         # read all available data
         if self.uart.any() > 0:
-            d = self.uart.read()
-            num_lines = d.count(self.EOL)
-            # no new lines - just write and continue
-            if num_lines == 0:
-                with open(self.tmpfile,"ab") as f:
-                    f.write(d)
+            if self.raw: # read only one QR code
+                await asyncio.sleep(self.chunk_timeout)
+                d = self.uart.read()
+                if d[-len(self.EOL):] == self.EOL:
+                    d = d[:-len(self.EOL)]
+                self._stop_scanner()
+                fname = self.path + "/data.txt"
+                with open(fname, "wb") as fout:
+                    fout.write(d)
+                self.stop_scanning()
                 return
-            # slice to write
-            start = 0
-            end = len(d)
-            while num_lines >= 1: # last one is incomplete
-                end = d.index(self.EOL, start)
-                with open(self.tmpfile,"ab") as f:
-                    f.write(d[start:end])
-                try:
-                    if self.process_chunk():
+            else:
+                d = self.uart.read()
+                num_lines = d.count(self.EOL)
+                # no new lines - just write and continue
+                if num_lines == 0:
+                    with open(self.tmpfile,"ab") as f:
+                        f.write(d)
+                    return
+                # slice to write
+                start = 0
+                end = len(d)
+                while num_lines >= 1: # last one is incomplete
+                    end = d.index(self.EOL, start)
+                    with open(self.tmpfile,"ab") as f:
+                        f.write(d[start:end])
+                    try:
+                        if self.process_chunk():
+                            self.stop_scanning()
+                            break
+                        # animated in trigger mode
+                        elif self.trigger is not None:
+                            self.trigger.on()
+                            await asyncio.sleep_ms(30)
+                            self.trigger.off()
+                    except Exception as e:
+                        print("QR exception", e)
                         self.stop_scanning()
-                        break
-                    # animated in trigger mode
-                    elif self.trigger is not None:
-                        self.trigger.on()
-                        await asyncio.sleep_ms(30)
-                        self.trigger.off()
-                except Exception as e:
-                    print("QR exception", e)
-                    self.stop_scanning()
-                    raise e
-                num_lines -= 1
-                start = end + len(self.EOL)
-                # erase the content of the file
-                with open(self.tmpfile, "wb") as f:
-                    pass
+                        raise e
+                    num_lines -= 1
+                    start = end + len(self.EOL)
+                    # erase the content of the file
+                    with open(self.tmpfile, "wb") as f:
+                        pass
 
     def process_chunk(self):
         """Returns true when scanning complete"""
@@ -526,14 +542,14 @@ class QRHost(Host):
             raise HostError("Invalid prefix")
         return m, n
 
-    async def get_data(self):
+    async def get_data(self, raw=False, chunk_timeout=0.1):
         delete_recursively(self.path)
         if self.manager is not None:
             # pass self so user can abort
             await self.manager.gui.show_progress(
                 self, "Scanning...", "Point scanner to the QR code"
             )
-        stream = await self.scan()
+        stream = await self.scan(raw=raw, chunk_timeout=chunk_timeout)
         if stream is not None:
             return stream
 
