@@ -233,7 +233,7 @@ class Specter:
             last=(255, None))
         if host == 255:
             return
-        stream = await host.get_data()
+        stream = await host.get_data(raw=True)
         if not stream:
             return
         data = stream.read()
@@ -247,7 +247,7 @@ class Specter:
         else:
             mnemonic = data.decode()
             if not bip39.mnemonic_is_valid(mnemonic):
-                raise SpecterError("Invalid data")
+                raise SpecterError("Invalid data: %r" % mnemonic)
         scr = MnemonicPrompt(title="Imported mnemonic:", mnemonic=mnemonic)
         # confirm mnemonic
         if not await self.gui.show_screen()(scr):

@@ -41,9 +41,9 @@ class SDHost(Host):
                 break
             fout.write(b, l)
 
-    async def get_data(self):
+    async def get_data(self, raw=False, chunk_timeout=0.1):
         """
-        Loads psbt transaction from the SD card.
+        Loads host command from the SD card.
         """
         self.reset_and_mount()
         try:
