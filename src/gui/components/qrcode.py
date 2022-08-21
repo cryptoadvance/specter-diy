@@ -58,6 +58,18 @@ class QRCode(lv.obj):
         self.task = asyncio.create_task(self.animate())
         self.set_event_cb(self.cb)
 
+        self._spacing = 0
+
+    @property
+    def spacing(self):
+        return self._spacing
+
+    @spacing.setter
+    def spacing(self, spacing):
+        qr_style = lv.style_t()
+        qr_style.body.border.width = spacing
+        self.qr.set_style(0, qr_style)
+        self._spacing = spacing
 
     def create_playback_controls(self, style):
         self.playback = lv.obj(self)

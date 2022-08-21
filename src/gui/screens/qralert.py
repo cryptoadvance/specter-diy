@@ -1,6 +1,7 @@
 import lvgl as lv
 from .alert import Alert
-from ..common import add_qrcode
+from ..common import add_qrcode, add_button
+from ..decorators import on_release
 
 
 class QRAlert(Alert):
@@ -12,6 +13,7 @@ class QRAlert(Alert):
         qr_width=None,
         button_text="Close",
         note=None,
+        transcribe=False,
     ):
         if qr_message is None:
             qr_message = message
@@ -19,3 +21,9 @@ class QRAlert(Alert):
         self.qr = add_qrcode(qr_message, scr=self, width=qr_width)
         self.qr.align(self.page, lv.ALIGN.IN_TOP_MID, 0, 20)
         self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+        if transcribe:
+            btn = add_button("Toggle transcribe", on_release(self.toggle_transcribe), scr=self)
+            btn.align(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+
+    def toggle_transcribe(self):
+        self.qr.spacing = 0 if self.qr.spacing else 3
