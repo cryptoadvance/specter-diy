@@ -142,7 +142,7 @@ class Host:
         """
         self.enabled = False
 
-    async def get_data(self):
+    async def get_data(self, raw=False, chunk_timeout=0.1):
         """Implement how to get transaction from unidirectional host"""
         raise HostError("Data loading is not implemented for this class")
 

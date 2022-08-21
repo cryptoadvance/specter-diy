@@ -4,6 +4,7 @@ from io import BytesIO
 import os
 import platform
 from binascii import b2a_base64, a2b_base64
+from helpers import a2b_base64_stream
 
 class SDHost(Host):
     """
@@ -40,9 +41,9 @@ class SDHost(Host):
                 break
             fout.write(b, l)
 
-    async def get_data(self):
+    async def get_data(self, raw=False, chunk_timeout=0.1):
         """
-        Loads psbt transaction from the SD card.
+        Loads host command from the SD card.
         """
         self.reset_and_mount()
         try:
@@ -121,40 +122,45 @@ class SDHost(Host):
         if show_qr:
             await self._show_qr(stream, *args, **kwargs)
 
+    @property
+    def tmpfile(self):
+        return self.path+"/tmp"
+
     async def _show_qr(self, stream, meta, *args, **kwargs):
         # if it's str - it's a file
         if isinstance(stream, str):
             with open(stream, "rb") as f:
                 await self._show_qr(f, meta, *args, **kwargs)
             return
-        qrfmt = 1
-        response = stream.read()
-        start = response[:4]
-        if start in [b"psbt", b"cHNi"]:
+        qrfmt = 0
+        start = stream.read(4)
+        stream.seek(-len(start), 1)
+        if start in [b"cHNi", b"cHNl"]: # convert from base64 for QR encoder
+            with open(self.tmpfile, "wb") as f:
+                a2b_base64_stream(stream, f)
+            with open(self.tmpfile, "rb") as f:
+                await self._show_qr(f, meta, *args, **kwargs)
+                return
+        if start in [b"psbt", b"pset"]:
             qrfmt = await self.manager.gui.menu(buttons=[
                 (1, "Text"),
                 (2, "Crypto-psbt"),
                 (3, "Legacy BCUR"),
             ], title="What format to use?")
-        if qrfmt == 1:
-            try:
-                res = response.decode()
-            except:
-                res = b2a_base64(response).decode()
-        elif qrfmt == 2: # we need binary
-            res = response if start == b"psbt" else a2b_base64(response)
-        elif qrfmt == 3:
-            from bcur import bcur_encode
-            payload, hsh = bcur_encode(repsonse) if start == b"psbt" else bcur_encode(a2b_base64(response))
-            res = "UR:BYTES/"+hsh.decode()+"/"+payload.decode()
-        title = "Your data:"
-        note = None
-        if "title" in meta:
-            title = meta["title"]
-        if "note" in meta:
-            note = meta["note"]
-        msg = res
-        if "message" in meta:
-            msg = meta["message"]
-        await self.manager.gui.qr_alert(title, msg, res, note=note, qr_width=480)
 
+        title = meta.get("title", "Your data:")
+        note = meta.get("note")
+        msg = ""
+        if qrfmt == 0: # not psbt
+            res = stream.read().decode()
+            msg = meta.get("message", res)
+            await self.manager.gui.qr_alert(title, msg, res, note=note, qr_width=480)
+        EncoderCls = None
+        if qrfmt == 1:
+            from qrencoder import Base64QREncoder as EncoderCls
+        elif qrfmt == 2: # we need binary
+            from qrencoder import CryptoPSBTEncoder as EncoderCls
+        elif qrfmt == 3:
+            from qrencoder import LegacyBCUREncoder as EncoderCls
+        with EncoderCls(stream, tempfile=self.path+"/qrtmp") as enc:
+            await self.manager.gui.qr_alert(title, msg, enc, note=note, qr_width=480)

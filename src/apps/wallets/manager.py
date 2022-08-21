@@ -225,31 +225,12 @@ class WalletManager(BaseApp):
             with open(self.tempdir+"/raw", "rb") as f:
                 res = await self.sign_psbt(f, show_screen, encoding=RAW_STREAM)
             if res is not None:
-                # bcur-encode to temp data file
-                with open(self.tempdir+"/bcur_data", "wb") as fout:
-                    if isinstance(res, str):
-                        with open(res, "rb") as fin:
-                            l, hsh = bcur_encode_stream(fin, fout, upper=True)
-                    else:
-                        l, hsh = bcur_encode_stream(res, fout, upper=True)
-                # add prefix and hash
-                with open(self.tempdir+"/bcur_full", "wb") as fout:
-                    fout.write(b"UR:BYTES/")
-                    fout.write(hsh)
-                    fout.write(b"/")
-                    with open(self.tempdir+"/bcur_data", "rb") as fin:
-                        b = bytearray(100)
-                        while True:
-                            l = fin.readinto(b)
-                            if l == 0:
-                                break
-                            fout.write(b, l)
+                # encoding will be handled by the host class
                 obj = {
                     "title": "Transaction is signed!",
                     "message": "Scan it with your wallet",
                 }
-                gc.collect()
-                return self.tempdir+"/bcur_full", obj
+                return res, obj
             return
         elif cmd == LIST_WALLETS:
             wnames = json.dumps([w.name for w in self.wallets])

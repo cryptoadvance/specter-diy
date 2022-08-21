@@ -7,7 +7,7 @@ from io import BytesIO
 import gc
 from gui.screens.settings import HostSettings
 from gui.screens import Alert
-from helpers import read_until, read_write
+from helpers import read_until, read_write, a2b_base64_stream
 from microur.decoder import FileURDecoder
 from microur.util import cbor
 
@@ -86,6 +86,8 @@ class QRHost(Host):
             self.is_configured = True
         self.scanning = False
         self.parts = None
+        self.raw = False
+        self.chunk_timeout = 0.1
 
     @property
     def MASK(self):
@@ -271,8 +273,10 @@ class QRHost(Host):
     def tmpfile(self):
         return self.path+"/tmp"
 
-    async def scan(self):
+    async def scan(self, raw=False, chunk_timeout=0.1):
         self.clean_uart()
+        self.raw = raw
+        self.chunk_timeout = chunk_timeout
         if self.trigger is not None:
             self.trigger.off()
         else:
@@ -314,38 +318,50 @@ class QRHost(Host):
             return
         # read all available data
         if self.uart.any() > 0:
-            d = self.uart.read()
-            num_lines = d.count(self.EOL)
-            # no new lines - just write and continue
-            if num_lines == 0:
-                with open(self.tmpfile,"ab") as f:
-                    f.write(d)
+            if self.raw: # read only one QR code
+                await asyncio.sleep(self.chunk_timeout)
+                d = self.uart.read()
+                if d[-len(self.EOL):] == self.EOL:
+                    d = d[:-len(self.EOL)]
+                self._stop_scanner()
+                fname = self.path + "/data.txt"
+                with open(fname, "wb") as fout:
+                    fout.write(d)
+                self.stop_scanning()
                 return
-            # slice to write
-            start = 0
-            end = len(d)
-            while num_lines >= 1: # last one is incomplete
-                end = d.index(self.EOL, start)
-                with open(self.tmpfile,"ab") as f:
-                    f.write(d[start:end])
-                try:
-                    if self.process_chunk():
+            else:
+                d = self.uart.read()
+                num_lines = d.count(self.EOL)
+                # no new lines - just write and continue
+                if num_lines == 0:
+                    with open(self.tmpfile,"ab") as f:
+                        f.write(d)
+                    return
+                # slice to write
+                start = 0
+                end = len(d)
+                while num_lines >= 1: # last one is incomplete
+                    end = d.index(self.EOL, start)
+                    with open(self.tmpfile,"ab") as f:
+                        f.write(d[start:end])
+                    try:
+                        if self.process_chunk():
+                            self.stop_scanning()
+                            break
+                        # animated in trigger mode
+                        elif self.trigger is not None:
+                            self.trigger.on()
+                            await asyncio.sleep_ms(30)
+                            self.trigger.off()
+                    except Exception as e:
+                        print("QR exception", e)
                         self.stop_scanning()
-                        break
-                    # animated in trigger mode
-                    elif self.trigger is not None:
-                        self.trigger.on()
-                        await asyncio.sleep_ms(30)
-                        self.trigger.off()
-                except Exception as e:
-                    print("QR exception", e)
-                    self.stop_scanning()
-                    raise e
-                num_lines -= 1
-                start = end + len(self.EOL)
-                # erase the content of the file
-                with open(self.tmpfile, "wb") as f:
-                    pass
+                        raise e
+                    num_lines -= 1
+                    start = end + len(self.EOL)
+                    # erase the content of the file
+                    with open(self.tmpfile, "wb") as f:
+                        pass
 
     def process_chunk(self):
         """Returns true when scanning complete"""
@@ -526,41 +542,46 @@ class QRHost(Host):
             raise HostError("Invalid prefix")
         return m, n
 
-    async def get_data(self):
+    async def get_data(self, raw=False, chunk_timeout=0.1):
         delete_recursively(self.path)
         if self.manager is not None:
             # pass self so user can abort
             await self.manager.gui.show_progress(
                 self, "Scanning...", "Point scanner to the QR code"
             )
-        stream = await self.scan()
+        stream = await self.scan(raw=raw, chunk_timeout=chunk_timeout)
         if stream is not None:
             return stream
 
-    async def send_data(self, stream, meta):
+    async def send_data(self, stream, meta, *args, **kwargs):
         # if it's str - it's a file
-        title = "Your data:"
-        note = None
-        if "title" in meta:
-            title = meta["title"]
-        if "note" in meta:
-            note = meta["note"]
-        if self.bcur2:
-            # binary data here
-            if isinstance(stream, str):
-                with open(stream, "rb") as f:
-                    response = f.read()
-            else:
-                response = stream.read()
-        elif isinstance(stream, str):
-            with open(stream, "r") as f:
-                response = f.read()
-        else:
+        if isinstance(stream, str):
+            with open(stream, "rb") as f:
+                return await self.send_data(f, meta, *args, **kwargs)
+        title = meta.get("title", "Your data:")
+        note = meta.get("note")
+        start = stream.read(4)
+        stream.seek(-len(start), 1)
+        if start in [b"cHNi", b"cHNl"]: # convert from base64 for QR encoder
+            with open(self.tmpfile, "wb") as f:
+                a2b_base64_stream(stream, f)
+            with open(self.tmpfile, "rb") as f:
+                return await self.send_data(f, meta, *args, **kwargs)
+
+        if start not in [b"psbt", b"pset"]:
             response = stream.read().decode()
-        msg = response if not self.bcur2 else ""
-        if "message" in meta:
-            msg = meta["message"]
-        await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
+            msg = meta.get("message", response)
+            return await self.manager.gui.qr_alert(title, msg, response, note=note, qr_width=480)
+
+        EncoderCls = None
+        if self.bcur2: # we need binary
+            from qrencoder import CryptoPSBTEncoder as EncoderCls
+        elif self.bcur:
+            from qrencoder import LegacyBCUREncoder as EncoderCls
+        else:
+            from qrencoder import Base64QREncoder as EncoderCls
+        with EncoderCls(stream, tempfile=self.path+"/qrtmp") as enc:
+            await self.manager.gui.qr_alert(title, "", enc, note=note, qr_width=480)
 
     @property
     def in_progress(self):
