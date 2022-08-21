@@ -1,6 +1,6 @@
 [submodule "f469-disco"]
 	path = f469-disco
-	url = ../../diybitcoinhardware/f469-disco
+	url = https://github.com/diybitcoinhardware/f469-disco
 [submodule "bootloader"]
 	path = bootloader
-	url = ../specter-bootloader
+	url = https://github.com/cryptoadvance/specter-bootloader
