@@ -5,8 +5,8 @@ ENDCOLOR="\e[0m"
 echo -e "${INFO}
 ══════════════════════ Building main firmware ═════════════════════════════
 ${ENDCOLOR}"
-make clean
-make disco USE_DBOOT=1
+#make clean
+#make disco USE_DBOOT=1
 
 echo -e "${INFO}
 ═════════════════════ Building secure bootloader ══════════════════════════
@@ -16,50 +16,52 @@ make clean
 make stm32f469disco READ_PROTECTION=1 WRITE_PROTECTION=1
 cd -
 
-echo -e "${INFO}
-══════════════════════ Assembling final binaries ══════════════════════════
-${ENDCOLOR}"
-mkdir -p release
+sha256sum ./bootloader/build/stm32f469disco/startup/release/startup.hex
+sha256sum ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex
+# echo -e "${INFO}
+# ══════════════════════ Assembling final binaries ══════════════════════════
+# ${ENDCOLOR}"
+# mkdir -p release
 
-python3 ./bootloader/tools/make-initial-firmware.py -s ./bootloader/build/stm32f469disco/startup/release/startup.hex -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex -f ./bin/specter-diy.hex -bin ./release/initial_firmware.bin
-echo -e "Initial firmware saved to release/initial_firmware.bin"
+# python3 ./bootloader/tools/make-initial-firmware.py -s ./bootloader/build/stm32f469disco/startup/release/startup.hex -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex -f ./bin/specter-diy.hex -bin ./release/initial_firmware.bin
+# echo -e "Initial firmware saved to release/initial_firmware.bin"
 
-python3 ./bootloader/tools/upgrade-generator.py gen -f ./bin/specter-diy.hex -p stm32f469disco ./release/specter_upgrade.bin
-echo "Unsigned upgrate file saved to release/specter_upgrade.bin"
+# python3 ./bootloader/tools/upgrade-generator.py gen -f ./bin/specter-diy.hex -p stm32f469disco ./release/specter_upgrade.bin
+# echo "Unsigned upgrate file saved to release/specter_upgrade.bin"
 
-HASH=$(python3 ./bootloader/tools/upgrade-generator.py message ./release/specter_upgrade.bin)
+# HASH=$(python3 ./bootloader/tools/upgrade-generator.py message ./release/specter_upgrade.bin)
 
-echo "
-╔═════════════════════════════════════════════════════════════════════════╗
-║                   Message to sign with vendor keys:                     ║
-║                                                                         ║
-║    ${HASH}    ║
-║                                                                         ║
-╚═════════════════════════════════════════════════════════════════════════╝
-"
+# echo "
+# ╔═════════════════════════════════════════════════════════════════════════╗
+# ║                   Message to sign with vendor keys:                     ║
+# ║                                                                         ║
+# ║    ${HASH}    ║
+# ║                                                                         ║
+# ╚═════════════════════════════════════════════════════════════════════════╝
+# "
 
 
-echo -e "${INFO}
-═════════════════════ Adding signature to the binary ══════════════════════
-${ENDCOLOR}"
+# echo -e "${INFO}
+# ═════════════════════ Adding signature to the binary ══════════════════════
+# ${ENDCOLOR}"
 
-while true; do
-  echo "Provide a signature to add to the upgrade file, or just hit enter to stop."
-  read SIGNATURE
-  if [ -z $SIGNATURE ]; then
-    break
-  fi
-  echo "Signature is added: ${SIGNATURE}"
-done
+# while true; do
+#   echo "Provide a signature to add to the upgrade file, or just hit enter to stop."
+#   read SIGNATURE
+#   if [ -z $SIGNATURE ]; then
+#     break
+#   fi
+#   echo "Signature is added: ${SIGNATURE}"
+# done
 
-echo -e "${INFO}
-═════════════════════════ Hashes of the binaries: ═════════════════════════
-${ENDCOLOR}"
+# echo -e "${INFO}
+# ═════════════════════════ Hashes of the binaries: ═════════════════════════
+# ${ENDCOLOR}"
 
-cd release
-sha256sum *.bin > sha256.txt
-cat sha256.txt
+# cd release
+# sha256sum *.bin > sha256.txt
+# cat sha256.txt
 
-echo "
-Hashes saved to release/sha256.txt file.
-"
+# echo "
+# Hashes saved to release/sha256.txt file.
+# "
