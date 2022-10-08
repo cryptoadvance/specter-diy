@@ -25,7 +25,8 @@ python3 ./bootloader/tools/make-initial-firmware.py -s ./bootloader/build/stm32f
 echo -e "Initial firmware saved to release/initial_firmware.bin"
 
 python3 ./bootloader/tools/upgrade-generator.py gen -f ./bin/specter-diy.hex -p stm32f469disco ./release/specter_upgrade.bin
-echo "Unsigned upgrate file saved to release/specter_upgrade.bin"
+cp ./release/specter_upgrade.bin ./release/specter_upgrade_unsigned.bin
+echo "Unsigned upgrate file saved to release/specter_upgrade_unsigned.bin"
 
 HASH=$(python3 ./bootloader/tools/upgrade-generator.py message ./release/specter_upgrade.bin)
 
@@ -49,6 +50,7 @@ while true; do
   if [ -z $SIGNATURE ]; then
     break
   fi
+  python3 ./bootloader/tools/upgrade-generator.py import-sig -s $SIGNATURE ./release/specter_upgrade.bin
   echo "Signature is added: ${SIGNATURE}"
 done
 
