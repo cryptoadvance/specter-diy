@@ -16,14 +16,14 @@ RUN apt-get update && apt-get upgrade -qy && \
 
 # ARM Embedded Toolchain
 # Integrity is checked using the MD5 checksum provided by ARM at https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
-RUN curl -sSfL -o arm-toolchain.tar.bz2 "https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu-rm/10.3-2021.10/gcc-arm-none-eabi-10.3-2021.10-x86_64-linux.tar.bz2" && \
-    echo 2383e4eb4ea23f248d33adc70dc3227e arm-toolchain.tar.bz2 > /tmp/arm-toolchain.md5 && \
+RUN curl -sSfL -o arm-toolchain.tar.bz2 "https://developer.arm.com/-/media/Files/downloads/gnu-rm/9-2020q2/gcc-arm-none-eabi-9-2020-q2-update-x86_64-linux.tar.bz2?revision=05382cca-1721-44e1-ae19-1e7c3dc96118&rev=05382cca172144e1ae191e7c3dc96118&hash=3ACFE672E449EBA7A21773EE284A88BC7DFA5044" && \
+    echo 2b9eeccc33470f9d3cda26983b9d2dc6 arm-toolchain.tar.bz2 > /tmp/arm-toolchain.md5 && \
     md5sum --check /tmp/arm-toolchain.md5 && rm /tmp/arm-toolchain.md5 && \
     tar xf arm-toolchain.tar.bz2 -C /opt && \
     rm arm-toolchain.tar.bz2
 
 # Adding GCC to PATH and defining rustup/cargo home directories
-ENV PATH=/opt/gcc-arm-none-eabi-10.3-2021.10/bin:$PATH
+ENV PATH=/opt/gcc-arm-none-eabi-9-2020-q2-update/bin:$PATH
 
 # Installing python requirements
 COPY bootloader/tools/requirements.txt .
