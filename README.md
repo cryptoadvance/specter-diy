@@ -34,6 +34,7 @@ All the docs are stored in the [`docs/`](./docs) folder:
 - [`shopping.md`](./docs/shopping.md) explains what to buy
 - [`assembly.md`](./docs/assembly.md) shows how to put everything together.
 - [`quickstart.md`](./docs/quickstart.md) guides you through the initial steps how to get firmware on the board
+- [`reproducible-build.md`](./docs/reproducible-build.md) describes how to build the initial firmware and upgrade files with the same hash as in the release using Docker
 - [`build.md`](./docs/build.md) describes how to build the firmware and the simulator yourself
 - [`security.md`](./docs/security.md) explains possible attack vectors and security model of the project
 - [`development.md`](./docs/development.md) explains how to start developing on Specter
