@@ -480,7 +480,7 @@ class Specter:
         ] + [
             (1, "Communication"),
             # (2, "Applications"),
-            (3, "Experimental"),
+            # (3, "Experimental"),
         ] + [
             (None, "Global settings"),
         ]
