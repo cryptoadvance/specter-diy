@@ -55,13 +55,10 @@ class XpubApp(BaseApp):
                     "Multisig Native Segwit\nm/48h/%dh/%dh/2h" % (coin, self.account),
                 ),
                 (None, "Other keys"),
-            ]
-            if self.is_taproot_enabled:
-                buttons.append((
+                (
                     "m/86h/%dh/%dh" % (coin, self.account),
                     "Single Taproot\nm/86h/%dh/%dh" % (coin, self.account)
-                ))
-            buttons.extend([
+                ),
                 (
                     "m/49h/%dh/%dh" % (coin, self.account),
                     "Single Nested Segwit\nm/49h/%dh/%dh" % (coin, self.account)
@@ -70,7 +67,7 @@ class XpubApp(BaseApp):
                     "m/48h/%dh/%dh/1h" % (coin, self.account),
                     "Multisig Nested Segwit\nm/48h/%dh/%dh/1h" % (coin, self.account),
                 ),
-            ])
+            ]
         # wait for menu selection
         menuitem = await show_screen(Menu(buttons, last=(255, None),
                                           title="Select the key",
@@ -207,10 +204,6 @@ class XpubApp(BaseApp):
                       button_text="Close")
             )
 
-    @property
-    def is_taproot_enabled(self):
-        return self.GLOBAL.get("experimental",{}).get("taproot", False)
-
     async def create_wallet(self, derivation, xpub, prefix, version, show_screen):
         """Shows a wallet creation menu and passes descriptor to the wallets app"""
         net = NETWORKS[self.network]
@@ -218,10 +211,9 @@ class XpubApp(BaseApp):
             "zpub": ("wpkh(%s%s/{0,1}/*)" % (prefix, xpub), "Native Segwit"),
             "ypub": ("sh(wpkh(%s%s/{0,1}/*))" % (prefix, xpub), "Nested Segwit"),
             "legacy": ("pkh(%s%s/{0,1}/*)" % (prefix, xpub), "Legacy"),
+            "taproot": ("tr(%s%s/{0,1}/*)" % (prefix, xpub), "Taproot"),
             # multisig is not supported yet - requires cosigners app
         })
-        if self.is_taproot_enabled:
-            descriptors["taproot"] = ("tr(%s%s/{0,1}/*)" % (prefix, xpub), "Taproot")
 
         if version == net["ypub"]:
             buttons = [
@@ -235,7 +227,7 @@ class XpubApp(BaseApp):
                 descriptors.pop("zpub"),
                 (None, "Other"),
             ]
-        elif "/86h/" in derivation and self.is_taproot_enabled:
+        elif "/86h/" in derivation:
             buttons = [
                 (None, "Recommended"),
                 descriptors.pop("taproot"),

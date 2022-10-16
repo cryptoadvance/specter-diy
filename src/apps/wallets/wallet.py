@@ -168,10 +168,14 @@ class Wallet:
         """
         return self.descriptor.owns(psbt_scope)
 
-    def get_derivation(self, bip32_derivations):
+    def get_derivation(self, bip32_derivations={}, taproot_bip32_derivations={}):
         # otherwise we need standard derivation
-        for pub in bip32_derivations:
-            der = self.descriptor.check_derivation(bip32_derivations[pub])
+        for derivation in bip32_derivations.values():
+            der = self.descriptor.check_derivation(derivation)
+            if der is not None:
+                return der
+        for leafs, derivation in taproot_bip32_derivations.values():
+            der = self.descriptor.check_derivation(derivation)
             if der is not None:
                 return der
 
@@ -182,7 +186,7 @@ class Wallet:
             for i in range(psbtv.num_inputs+psbtv.num_outputs):
                 sc = psbtv.input(i) if i < psbtv.num_inputs else psbtv.output(i-psbtv.num_inputs)
                 if self.owns(sc):
-                    res = self.get_derivation(sc.bip32_derivations)
+                    res = self.get_derivation(sc.bip32_derivations, sc.taproot_bip32_derivations)
                     if res is not None:
                         idx, branch_idx = res
                         if idx + self.GAP_LIMIT > gaps[branch_idx]:
@@ -199,7 +203,7 @@ class Wallet:
         """Fills derivation paths in inputs"""
         if not self.owns(scope):
             return False
-        der = self.get_derivation(scope.bip32_derivations)
+        der = self.get_derivation(scope.bip32_derivations, scope.taproot_bip32_derivations)
         if der is None:
             return False
         idx, branch_idx = der
@@ -256,7 +260,7 @@ class Wallet:
         # psbt may not have derivation for other keys
         # and in case of WIF key there is no derivation whatsoever
         for i, inp in enumerate(psbt.inputs):
-            der = self.get_derivation(inp.bip32_derivations)
+            der = self.get_derivation(inp.bip32_derivations, inp.taproot_bip32_derivations)
             if der is None:
                 continue
             idx, branch = der
@@ -271,7 +275,7 @@ class Wallet:
             return 0
         inp = psbtv.input(i)
         inp.update(extra_scope_data)
-        der = self.get_derivation(inp.bip32_derivations)
+        der = self.get_derivation(inp.bip32_derivations, inp.taproot_bip32_derivations)
         if der is None:
             return 0
         idx, branch = der

@@ -610,10 +610,8 @@ class WalletManager(BaseApp):
 
         fingerprint = self.keystore.fingerprint
         # We need to detect wallets owning inputs and outputs,
-        # in case of liquid - unblind them.
         # Fill all necessary information:
-        # For Bitcoin: bip32 derivations, witness script, redeem script
-        # For Liquid: same + values, assets, commitments, proofs etc.
+        # bip32 derivations, witness script, redeem script
         # At the end we should have the most complete PSBT / PSET possible
         for i in range(psbtv.num_inputs):
             self.show_loader(title="Parsing input %d..." % i)

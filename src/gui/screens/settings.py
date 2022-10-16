@@ -4,7 +4,7 @@ from ..common import add_label, add_button
 from ..decorators import on_release
 
 class HostSettings(Prompt):
-    def __init__(self, controls, title="Host setttings", note=None):
+    def __init__(self, controls, title="Host setttings", note=None, controls_empty_text="No settings available"):
         super().__init__(title, "")
         y = 40
         if note is not None:
@@ -29,7 +29,8 @@ class HostSettings(Prompt):
                 switch.on(lv.ANIM.OFF)
             self.switches.append(switch)
             y = lbl.get_y() + 80
-
+        else:
+            label = add_label(controls_empty_text, y, scr=self.page)
         self.confirm_button.set_event_cb(on_release(self.update))
         self.cancel_button.set_event_cb(on_release(lambda: self.set_value(None)))
 
