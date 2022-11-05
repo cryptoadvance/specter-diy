@@ -3,13 +3,9 @@ ENV LANG C.UTF-8
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get upgrade -qy && \
+RUN apt-get update && \
     apt-get install -qy \
-        curl \
-        git \
-        make \
-        python3 \
-        python3-pip && \
+        curl python3 python3-pip && \
     apt-get autoclean -y && \
     apt-get autoremove -y && \
     apt-get clean
