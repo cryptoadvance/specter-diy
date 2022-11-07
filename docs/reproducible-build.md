@@ -27,3 +27,12 @@ At the end of the build you will be presented with a base32 encoded hash of the 
 Get signatures from the description of the github release and enter one by one in the same order as provided in the release.
 
 After adding signatures binaries in the `release` folder should be exactly the same as in github release. Hashes of the binaries will be saved to `release/sha256.txt`.
+
+# Apple M1 users
+
+For Apple M1 add a plafrom flag to the docker commands:
+
+```sh
+docker build -t diy . --platform linux/x86_64
+docker run --platform linux/amd64 -ti -v `pwd`:/app diy
+```
