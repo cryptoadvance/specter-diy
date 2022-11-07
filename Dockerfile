@@ -1,14 +1,7 @@
-FROM ubuntu:20.04
+FROM python:3.9.15@sha256:b5f024fa682187ef9305a2b5d2c4bb583bef83356259669fc80273bb2222f5ed
 ENV LANG C.UTF-8
 
 ARG DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && \
-    apt-get install -qy \
-        curl python3 python3-pip && \
-    apt-get autoclean -y && \
-    apt-get autoremove -y && \
-    apt-get clean
 
 # ARM Embedded Toolchain
 # Integrity is checked using the MD5 checksum provided by ARM at https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
