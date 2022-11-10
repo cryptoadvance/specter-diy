@@ -39,7 +39,7 @@ You can find some cheap scanners in China. Their quality is often not that great
 
 **Option 4.** No scanner. 
 
-Then you can only use Specter with USB.
+Then you can only use Specter with USB / SD Card.
 
 Unless you build your own communication module that uses something else instead of QR codes - audiomodem, bluetooth or whatever else. As soon as it can be triggered and send the data over serial you can do whatever you want.
 
