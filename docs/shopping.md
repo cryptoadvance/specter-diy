@@ -11,7 +11,7 @@ Main part of the device is the developer board:
 - Standard MicroUSB cable to communicate over USB
 
 Optional but recommended:
-- [Waveshare QR code scanner](https://www.waveshare.com/barcode-scanner-module.htm) with long pin headers like [these](https://eu.mouser.com/ProductDetail/Samtec/DW-02-10-T-S-571?qs=sGAEpiMZZMvlX3nhDDO4AE5PKXAQeC6NPk%2FcLBS9yKI%3D) or [these](https://www.amazon.com/gp/product/B015KA0RRU/) to connect the scanner to the board
+- [Waveshare QR code scanner](https://www.waveshare.com/barcode-scanner-module.htm) with long pin headers like [these](https://eu.mouser.com/ProductDetail/Samtec/DW-02-10-T-S-571?qs=sGAEpiMZZMvlX3nhDDO4AE5PKXAQeC6NPk%2FcLBS9yKI%3D) or [these](https://www.amazon.com/gp/product/B015KA0RRU/) to connect the scanner to the board (4 pin headers needed).
 
 Check out the assembly video [on youtube](https://youtu.be/1H7FqG_FmCw)
 
