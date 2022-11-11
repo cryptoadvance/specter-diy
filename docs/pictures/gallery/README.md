@@ -60,4 +60,9 @@ Created 3d printed storage box for this setup with small battery attached and wa
 ![davewhiiite](./davewhiiite2.jpg)
 ![davewhiiite](./davewhiiite3.jpg)
 
+### Re-use the original packaging of the STM32F469I-DISCO @henrik
+![henrik](./org_packaging_signer_1.jpg)
+![henrik](./org_packaging_signer_2.jpg)
+![henrik](./org_packaging_signer_3.jpg)
+
 ### @you?

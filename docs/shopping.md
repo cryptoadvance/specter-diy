@@ -11,7 +11,7 @@ Main part of the device is the developer board:
 - Standard MicroUSB cable to communicate over USB
 
 Optional but recommended:
-- [Waveshare QR code scanner](https://www.waveshare.com/barcode-scanner-module.htm) with long pin headers like [these](https://eu.mouser.com/ProductDetail/Samtec/DW-02-10-T-S-571?qs=sGAEpiMZZMvlX3nhDDO4AE5PKXAQeC6NPk%2FcLBS9yKI%3D) or [these](https://www.amazon.com/gp/product/B015KA0RRU/) to connect the scanner to the board
+- [Waveshare QR code scanner](https://www.waveshare.com/barcode-scanner-module.htm) with long pin headers like [these](https://eu.mouser.com/ProductDetail/Samtec/DW-02-10-T-S-571?qs=sGAEpiMZZMvlX3nhDDO4AE5PKXAQeC6NPk%2FcLBS9yKI%3D) or [these](https://www.amazon.com/gp/product/B015KA0RRU/) to connect the scanner to the board (4 pin headers needed).
 
 Check out the assembly video [on youtube](https://youtu.be/1H7FqG_FmCw)
 
@@ -39,7 +39,7 @@ You can find some cheap scanners in China. Their quality is often not that great
 
 **Option 4.** No scanner. 
 
-Then you can only use Specter with USB.
+Then you can only use Specter with USB / SD Card.
 
 Unless you build your own communication module that uses something else instead of QR codes - audiomodem, bluetooth or whatever else. As soon as it can be triggered and send the data over serial you can do whatever you want.
 
