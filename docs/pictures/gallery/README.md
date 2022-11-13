@@ -4,13 +4,19 @@ Here are a few pictures from people who assembled their own Specter.
 
 If you did it as well we will be happy to put it here.
 
+### @kayth21
+
+![](./snap-case-double-1.jpg)
+
+Created with a Prusa MK3s using the template from [enclosures/snapcase](../../enclosures/snapcase).
+
 ### @davewhiiite
 
 ![davewhiiite](./davewhiiite.jpg)
 
 ### @seedsigner
 
-![seedsigner](./seedsigner.jpg)
+![seedsigner](./barebones_v2.png)
 
 ### @lunaticoin
 
