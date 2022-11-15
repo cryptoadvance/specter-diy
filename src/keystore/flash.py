@@ -238,7 +238,7 @@ class FlashKeyStore(RAMKeyStore):
         await super().init(show_fn, show_loader)
 
     async def storage_menu(self):
-        """Manage storage"""
+        """Manage storage, return True if new key was loaded"""
         buttons = [
             # id, text
             (None, "Key management"),
@@ -254,7 +254,7 @@ class FlashKeyStore(RAMKeyStore):
             # process the menu button:
             # back button
             if menuitem == 255:
-                return
+                return False
             elif menuitem == 0:
                 await self.save_mnemonic()
                 await self.show(
@@ -267,6 +267,7 @@ class FlashKeyStore(RAMKeyStore):
                 await self.show(
                     Alert("Success!", "Your key is loaded.", button_text="OK")
                 )
+                return True
             elif menuitem == 2:
                 await self.delete_mnemonic()
                 await self.show(

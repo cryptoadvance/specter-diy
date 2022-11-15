@@ -339,7 +339,10 @@ class Specter:
         if menuitem == 255:
             return self.mainmenu
         elif menuitem == 1:
-            await self.keystore.storage_menu()
+            res = await self.keystore.storage_menu()
+            # storage_menu returns True if app reinit is required
+            if res:
+                self.init_apps()
         elif menuitem == 2:
             pwd = await self.gui.get_input()
             if pwd is None:

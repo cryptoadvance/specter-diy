@@ -332,7 +332,7 @@ In this mode device can only operate when the smartcard is inserted!"""
         return hexlify(tagged_hash("smartcard/pubkey", self.applet.card_pubkey)[:4]).decode()
 
     async def storage_menu(self):
-        """Manage storage"""
+        """Manage storage, return True if new key was loaded"""
         enabled = self.connection.isCardInserted()
         buttons = [
             # id, text, enabled, color
@@ -356,7 +356,7 @@ In this mode device can only operate when the smartcard is inserted!"""
             # process the menu button:
             # back button
             if menuitem == 255:
-                return
+                return False
             elif menuitem == 0:
                 await self.save_mnemonic()
                 await self.show(
@@ -371,6 +371,7 @@ In this mode device can only operate when the smartcard is inserted!"""
                 await self.show(
                     Alert("Success!", "Your key is loaded.", button_text="OK")
                 )
+                return True
             elif menuitem == 2:
                 if await self.show(Prompt(
                     "Are you sure?",

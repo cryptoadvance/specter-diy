@@ -237,7 +237,7 @@ class SDKeyStore(FlashKeyStore):
 
 
     async def storage_menu(self):
-        """Manage storage"""
+        """Manage storage, return True if new key was loaded"""
         buttons = [
             # id, text
             (None, "Manage keys on SD card and internal flash"),
@@ -256,7 +256,7 @@ class SDKeyStore(FlashKeyStore):
             # process the menu button:
             # back button
             if menuitem == 255:
-                return
+                return False
             elif menuitem == 0:
                 filename = await self.save_mnemonic()
                 if filename:
@@ -268,6 +268,7 @@ class SDKeyStore(FlashKeyStore):
                     await self.show(
                         Alert("Success!", "Your key is loaded.", button_text="OK")
                     )
+                return True
             elif menuitem == 2:
                 if await self.delete_mnemonic():
                     await self.show(
