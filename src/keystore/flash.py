@@ -12,7 +12,7 @@ from binascii import hexlify, unhexlify
 from rng import get_random_bytes
 from embit import ec, bip39, bip32
 from helpers import tagged_hash
-from gui.screens import Alert, PinScreen, Menu, MnemonicScreen
+from gui.screens import Alert, PinScreen, Menu, MnemonicScreen, InputScreen
 
 
 class FlashKeyStore(RAMKeyStore):
@@ -30,7 +30,7 @@ class FlashKeyStore(RAMKeyStore):
     NOTE = "Uses internal memory of the microcontroller for all keys."
     # Button to go to storage menu
     # Menu is implemented in async storage_menu function
-    storage_button = "Reckless"
+    storage_button = "Flash storage"
     load_button = "Load key from internal memory"
 
     def __init__(self):
@@ -187,42 +187,10 @@ class FlashKeyStore(RAMKeyStore):
         # call unlock now
         self._unlock(pin)
 
-    async def save_mnemonic(self):
-        if self.is_locked:
-            raise KeyStoreError("Keystore is locked")
-        if self.mnemonic is None:
-            raise KeyStoreError("Recovery phrase is not loaded")
-        self.save_aead(
-            self.flashpath, plaintext=self.mnemonic.encode(), key=self.enc_secret
-        )
-        # check it's ok
-        await self.load_mnemonic()
-
     @property
     def flashpath(self):
         """Path to store bitcoin key"""
         return self.path
-
-    @property
-    def is_key_saved(self):
-        return platform.file_exists(self.flashpath)
-
-    async def load_mnemonic(self):
-        if self.is_locked:
-            raise KeyStoreError("Keystore is locked")
-        if not platform.file_exists(self.flashpath):
-            raise KeyStoreError("Key is not saved")
-        _, data = self.load_aead(self.flashpath, self.enc_secret)
-        self.set_mnemonic(data.decode(), "")
-        return True
-
-    async def delete_mnemonic(self):
-        if not platform.file_exists(self.flashpath):
-            raise KeyStoreError("Secret is not saved. No need to delete anything.")
-        try:
-            os.remove(self.flashpath)
-        except:
-            raise KeyStoreError("Failed to delete from memory")
 
     async def init(self, show_fn, show_loader):
         """
@@ -237,14 +205,126 @@ class FlashKeyStore(RAMKeyStore):
         # the rest we can get from parent
         await super().init(show_fn, show_loader)
 
-    async def storage_menu(self):
+    def fileprefix(self, path):
+        if path is self.flashpath:
+            return 'reckless'
+
+        hexid = hexlify(tagged_hash("sdid", self.secret)[:4]).decode()
+        return "specterdiy%s" % hexid
+
+
+    async def save_mnemonic(self):
+        if self.is_locked:
+            raise KeyStoreError("Keystore is locked")
+        if self.mnemonic is None:
+            raise KeyStoreError("Recovery phrase is not loaded")
+
+        path = self.flashpath
+        filename = await self.get_input(suggestion=self.mnemonic.split()[0])
+        if filename is None:
+            return
+
+        fullpath = "%s/%s.%s" % (path, self.fileprefix(path), filename)
+
+        if platform.file_exists(fullpath):
+            scr = Prompt(
+                "\n\nFile already exists: %s\n" % filename,
+                "Would you like to overwrite this file?",
+            )
+            res = await self.show(scr)
+            if res is False:
+                return
+
+        self.save_aead(fullpath, plaintext=self.mnemonic.encode(),
+                       key=self.enc_secret)
+        # check it's ok
+        await self.load_mnemonic(fullpath)
+        # return the full file name incl. prefix if saved to SD card, just the name if on flash
+        return filename
+
+    @property
+    def is_key_saved(self):
+        flash_files = [
+            f[0] for f in os.ilistdir(self.flashpath)
+            if f[0].lower().startswith(self.fileprefix(self.flashpath))
+        ]
+        flash_exists = (len(flash_files) > 0)
+        return flash_exists
+
+    async def load_mnemonic(self, file=None):
+        if self.is_locked:
+            raise KeyStoreError("Keystore is locked")
+
+        if file is None:
+            file = await self.select_file()
+            if file is None:
+                return False
+
+        if not platform.file_exists(file):
+            raise KeyStoreError("Key is not saved")
+        _, data = self.load_aead(file, self.enc_secret)
+
+        self.set_mnemonic(data.decode(), "")
+        return True
+
+    async def select_file(self):
+
+        buttons = [(None, 'Internal storage')]
+        buttons += self.load_files(self.flashpath)
+
+        return await self.show(Menu(buttons, title="Select a file", last=(None, "Cancel")))
+
+    def load_files(self, path):
+        buttons = []
+        files = [f[0] for f in os.ilistdir(path) if f[0].startswith(self.fileprefix(path))]
+
+        if len(files) == 0:
+            buttons += [(None, 'No files found')]
+        else:
+            files.sort()
+            for file in files:
+                displayname = file.replace(self.fileprefix(path), "")
+                if displayname is "":
+                    displayname = "Default"
+                else:
+                    displayname = displayname[1:]  # strip first character
+                buttons += [("%s/%s" % (path, file), displayname)]
+        return buttons
+
+    async def delete_mnemonic(self):
+        file = await self.select_file()
+        if file is None:
+            return False
+        if not platform.file_exists(file):
+            raise KeyStoreError("File not found.")
+        try:
+            os.remove(file)
+        except Exception as e:
+            print(e)
+            raise KeyStoreError("Failed to delete file '%s'" % file)
+        finally:
+            return True
+
+    async def get_input(
+            self,
+            title="Enter a name for this seed",
+            note="Naming your seeds allows you to store multiple.\n"
+                 "Give each seed a unique name!",
+            suggestion="",
+    ):
+        scr = InputScreen(title, note, suggestion, min_length=1, strip=True)
+        await self.show(scr)
+        return scr.get_value()
+
+
+    async def storage_menu(self, title="Manage keys on internal flash"):
         """Manage storage, return True if new key was loaded"""
         buttons = [
             # id, text
-            (None, "Key management"),
-            (0, "Save key to flash"),
-            (1, "Load key from flash"),
-            (2, "Delete key from flash"),
+            (None, title),
+            (0, "Save key"),
+            (1, "Load key"),
+            (2, "Delete key"),
         ]
 
         # we stay in this menu until back is pressed
@@ -256,23 +336,19 @@ class FlashKeyStore(RAMKeyStore):
             if menuitem == 255:
                 return False
             elif menuitem == 0:
-                await self.save_mnemonic()
-                await self.show(
-                    Alert(
-                        "Success!", "Your key is stored in flash now.", button_text="OK"
+                filename = await self.save_mnemonic()
+                if filename:
+                    await self.show(
+                        Alert("Success!", "Your key is stored now.\n\nName: %s" % filename, button_text="OK")
                     )
-                )
             elif menuitem == 1:
-                await self.load_mnemonic()
-                await self.show(
-                    Alert("Success!", "Your key is loaded.", button_text="OK")
-                )
+                if await self.load_mnemonic():
+                    await self.show(
+                        Alert("Success!", "Your key is loaded.", button_text="OK")
+                    )
                 return True
             elif menuitem == 2:
-                await self.delete_mnemonic()
-                await self.show(
-                    Alert(
-                        "Success!", "Your key is deleted from flash.", button_text="OK"
+                if await self.delete_mnemonic():
+                    await self.show(
+                        Alert("Success!", "Your key is deleted.", button_text="OK")
                     )
-                )
-                

@@ -3,7 +3,7 @@ from .flash import FlashKeyStore
 import platform
 from rng import get_random_bytes
 from embit import bip39
-from gui.screens import Alert, Progress, Menu, MnemonicScreen, InputScreen, Prompt
+from gui.screens import Alert, Progress, Menu, MnemonicScreen, Prompt
 import asyncio
 from io import BytesIO
 from helpers import tagged_hash
@@ -102,11 +102,8 @@ class SDKeyStore(FlashKeyStore):
 
     @property
     def is_key_saved(self):
-        flash_files = [
-            f[0] for f in os.ilistdir(self.flashpath)
-            if f[0].lower().startswith(self.fileprefix(self.flashpath))
-        ]
-        flash_exists = (len(flash_files) > 0)
+        flash_exists = super().is_key_saved
+
         if not platform.is_sd_present():
             return flash_exists
 
@@ -157,23 +154,6 @@ class SDKeyStore(FlashKeyStore):
 
         return await self.show(Menu(buttons, title="Select a file", last=(None, "Cancel")))
 
-    def load_files(self, path):
-        buttons = []
-        files = [f[0] for f in os.ilistdir(path) if f[0].startswith(self.fileprefix(path))]
-
-        if len(files) == 0:
-            buttons += [(None, 'No files found')]
-        else:
-            files.sort()
-            for file in files:
-                displayname = file.replace(self.fileprefix(path), "")
-                if displayname is "":
-                    displayname = "Default"
-                else:
-                    displayname = displayname[1:]  # strip first character
-                buttons += [("%s/%s" % (path, file), displayname)]
-        return buttons
-
     async def delete_mnemonic(self):
 
         file = await self.select_file()
@@ -194,85 +174,6 @@ class SDKeyStore(FlashKeyStore):
                 platform.unmount_sdcard()
             return True
 
-    async def get_input(
-            self,
-            title="Enter a name for this seed",
-            note="Naming your seeds allows you to store multiple.\n"
-                 "Give each seed a unique name!",
-            suggestion="",
-    ):
-        scr = InputScreen(title, note, suggestion, min_length=1, strip=True)
-        await self.show(scr)
-        return scr.get_value()
-
-    async def export_mnemonic(self):
-        if await self.show(Prompt("Warning",
-                                  "You need to confirm your PIN code "
-                                  "to export your recovery phrase.\n\n"
-                                  "Your recovery phrase will be saved "
-                                  "to the SD card as plain text.\n\n"
-                                  "Anybody who has access to this SD card "
-                                  "will be able to read your recovery phrase!\n\n"
-                                  "Continue?")):
-            self.lock()
-            await self.unlock()
-
-            filename = "seed-export-%s.txt" % self.mnemonic.split()[0]
-            filepath = "%s/%s" % (self.sdpath, filename)
-
-            if not platform.is_sd_present():
-                raise KeyStoreError("SD card is not present")
-
-            platform.mount_sdcard()
-
-            with open(filepath, "w") as f:
-                f.write("bip39: ")
-                f.write(self.mnemonic)
-
-            platform.unmount_sdcard()
-
-            await self.show(
-                Alert("Success!", "Your seed is exported.\n\nName: %s" % filename, button_text="OK")
-            )
-
-
     async def storage_menu(self):
         """Manage storage, return True if new key was loaded"""
-        buttons = [
-            # id, text
-            (None, "Manage keys on SD card and internal flash"),
-            (0, "Save key"),
-            (1, "Load key"),
-            (2, "Delete key"),
-        ]
-
-        # disabled if SD card is not present
-        buttons.append((3, "Export recovery phrase to SD", platform.is_sd_present()))
-
-        # we stay in this menu until back is pressed
-        while True:
-            # wait for menu selection
-            menuitem = await self.show(Menu(buttons, last=(255, None)))
-            # process the menu button:
-            # back button
-            if menuitem == 255:
-                return False
-            elif menuitem == 0:
-                filename = await self.save_mnemonic()
-                if filename:
-                    await self.show(
-                        Alert("Success!", "Your key is stored now.\n\nName: %s" % filename, button_text="OK")
-                    )
-            elif menuitem == 1:
-                if await self.load_mnemonic():
-                    await self.show(
-                        Alert("Success!", "Your key is loaded.", button_text="OK")
-                    )
-                return True
-            elif menuitem == 2:
-                if await self.delete_mnemonic():
-                    await self.show(
-                        Alert("Success!", "Your key is deleted.", button_text="OK")
-                    )
-            elif menuitem == 3:
-                await self.export_mnemonic()
+        return await super().storage_menu(title="Manage keys on SD card and internal flash")
