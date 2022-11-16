@@ -28,6 +28,8 @@ class Host:
     button = None
     # button text for settings menu, None if nothing to configure
     settings_button = None
+    # link to specter instance
+    parent = None
 
     def __init__(self, path):
         # storage for data

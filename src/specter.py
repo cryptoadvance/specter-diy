@@ -41,6 +41,8 @@ class Specter:
     GLOBAL = {}
 
     def __init__(self, gui, keystores, hosts, apps, settings_path, network="main"):
+        # so hosts can call methods of Specter
+        Host.parent = self
         self.hosts = hosts
         self.keystores = keystores
         self.keystore = None
@@ -530,6 +532,10 @@ class Specter:
             else:
                 print(menuitem)
                 raise SpecterError("Not implemented")
+
+    @property
+    def fingerprint(self):
+        return self.keystore.fingerprint
 
     def wipe(self):
         # TODO: wipe the smartcard as well?

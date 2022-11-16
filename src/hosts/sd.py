@@ -3,7 +3,7 @@ from platform import fpath
 from io import BytesIO
 import os
 import platform
-from binascii import b2a_base64, a2b_base64
+from binascii import b2a_base64, a2b_base64, hexlify
 from helpers import a2b_base64_stream
 
 class SDHost(Host):
@@ -90,22 +90,25 @@ class SDHost(Host):
         fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
         return fname
 
+    def completed_filename(self, filename):
+        suffix = "" if self.parent is None else ("."+hexlify(self.parent.fingerprint).decode())
+        if filename.endswith(".psbt"):
+            return filename.replace(".psbt", ".signed%s.psbt" % suffix)
+        arr = filename.split(".")
+        if len(arr) == 1:
+            arr.append("completed%s" % suffix)
+        else:
+            arr = arr[:-1] + ["completed%s" % suffix, arr[-1]]
+        return ".".join(arr)
+
+
     async def send_data(self, stream, *args, **kwargs):
         """
         Saves transaction in base64 encoding to SD card
         as psbt.signed.<suffix> file
         Returns a success message to display
         """
-        # only psbt files are coming from the device right now
-        if self.sd_file.endswith(".psbt"):
-            new_fname = self.sd_file.replace(".psbt", ".signed.psbt")
-        else:
-            arr = self.sd_file.split(".")
-            if len(arr) == 1:
-                arr.append("completed")
-            else:
-                arr = arr[:-1] + ["completed", arr[-1]]
-            new_fname = ".".join(arr)
+        new_fname = self.completed_filename(self.sd_file)
         self.reset_and_mount()
         try:
             if isinstance(stream, str):
