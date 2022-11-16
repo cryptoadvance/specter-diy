@@ -331,6 +331,19 @@ class WalletManager(BaseApp):
         if sighash == False:
             return
 
+        if meta.get("signed_inputs", 0) == len(meta.get("inputs", [])):
+            scr = Prompt(
+                "Warning!",
+                "\nThe transaction is already signed!\n\n\n"
+                "All inputs in this transaction\n"
+                "contain final witness or scriptsig.\n\n\n"
+                "There is no need to add any extra signatures.\n\n\n"
+                "Proceed anyway?",
+            )
+            proceed = await show_screen(scr)
+            if not proceed:
+                return
+
         # ask if we want to continue with unknown wallets
         if not await self.confirm_wallets(wallets, show_screen):
             return
@@ -579,6 +592,21 @@ class WalletManager(BaseApp):
                 if self.keystore.get_xpub(scope.bip32_derivations[pub].derivation).key == pub:
                     scope.bip32_derivations[pub].fingerprint = self.keystore.fingerprint
 
+    def check_signed_inputs(self, psbtv):
+        """Goes through all input scopes and checks if they are already signed"""
+        signed_inputs = 0
+        for i in range(psbtv.num_inputs):
+            psbtv.seek_to_scope(i)
+            off = psbtv.seek_to_value(b"\x07", from_current=True) # final scriptsig
+            if off is not None:
+                signed_inputs += 1
+                continue
+            psbtv.seek_to_scope(i)
+            off = psbtv.seek_to_value(b"\x08", from_current=True) # final scriptwitness
+            if off is not None:
+                signed_inputs += 1
+                continue
+        return signed_inputs
 
     def preprocess_psbt(self, stream, fout):
         """
@@ -591,6 +619,9 @@ class WalletManager(BaseApp):
 
         # compress = True flag will make sure large fields won't be loaded to RAM
         psbtv = self.PSBTViewClass.view(stream, compress=True)
+
+        # check if inputs are already signed
+        signed_inputs = self.check_signed_inputs(psbtv)
 
         # Write global scope first
         psbtv.stream.seek(psbtv.offset)
@@ -606,6 +637,7 @@ class WalletManager(BaseApp):
             "inputs": [{} for i in range(psbtv.num_inputs)],
             "outputs": [{} for i in range(psbtv.num_outputs)],
             "default_asset": "BTC" if self.network == "main" else "tBTC",
+            "signed_inputs": signed_inputs,
         }
 
         fingerprint = self.keystore.fingerprint

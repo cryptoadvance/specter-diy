@@ -249,6 +249,8 @@ class LWalletManager(WalletManager):
         # compress = True flag will make sure large fields won't be loaded to RAM
         psbtv = self.PSBTViewClass.view(stream, compress=True)
 
+        signed_inputs = self.check_signed_inputs(psbtv)
+
         # Start with global fields of PSBT
 
         # On Liquid we check if txseed is provided (for deterministic blinding)
@@ -273,6 +275,7 @@ class LWalletManager(WalletManager):
             "inputs": [{} for i in range(psbtv.num_inputs)],
             "outputs": [{} for i in range(psbtv.num_outputs)],
             "issuance": False, "reissuance": False,
+            "signed_inputs": signed_inputs,
         }
 
         fingerprint = self.keystore.fingerprint
