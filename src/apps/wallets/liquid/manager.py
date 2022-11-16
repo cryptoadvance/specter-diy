@@ -40,7 +40,7 @@ class LWalletManager(WalletManager):
     B64PSBT_PREFIX = b"cHNl"
     WalletClass = LWallet
     # supported networks
-    Networks = {"liquidv1": NETWORKS["liquidv1"], "elementsregtest": NETWORKS["elementsregtest"]}
+    Networks = {k: v for k, v in NETWORKS.items() if v.get("blech32")}
     DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
 
 

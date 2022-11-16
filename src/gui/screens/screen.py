@@ -14,6 +14,7 @@ class Screen(lv.obj):
         "signet": lv.color_hex(0xBD10E0),
         "liquidv1": lv.color_hex(0x46B4A5),
         "elementsregtest": lv.color_hex(0x00CAF1),
+        "liquidtestnet": lv.color_hex(0xC0F100),
     }
     mbox = None
     def __init__(self):
