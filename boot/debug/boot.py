@@ -6,7 +6,7 @@ import pyb, os, micropython, time
 pwr = pyb.Pin("B15", pyb.Pin.OUT)
 pwr.on()
 
-version = "<version:tag10>0100800201</version:tag10>"
+version = "<version:tag10>0100800301</version:tag10>"
 
 leds = [pyb.LED(i) for i in range(1,5)]
 # poweroff on button press
