@@ -235,7 +235,7 @@ class Specter:
             last=(255, None))
         if host == 255:
             return
-        stream = await host.get_data(raw=True, chunk_timeout=0.5)
+        stream = await host.get_data()
         if not stream:
             return
         data = stream.read()
@@ -563,6 +563,35 @@ class Specter:
         self.GLOBAL = settings
         BaseApp.GLOBAL = settings
 
+    async def maybe_import_mnemonic(self, stream, popup=False, show_fn=None):
+        if show_fn is None:
+            show_fn = self.gui.show_screen(popup)
+        data = stream.read(240) # one word is at most 8 chars, so total len is < 240 even if it has prefix of some kind (for future)
+        mnemonic_type = ""
+        # digital mnemonic
+        d = data.strip()
+        if len(d) >= 4*12 and len(d) <= 4*24 and len(d) % 12 == 0 and (b" " not in d):
+            mnemonic = " ".join([bip39.WORDLIST[int(d[4*i:4*i+4])] for i in range(len(d)//4)])
+            mnemonic_type = "digital"
+        # binary mnemonic
+        elif len(data) >= 16 and len(data) <= 32:
+            mnemonic = bip39.mnemonic_from_bytes(data)
+            mnemonic_type = "binary"
+        # text mnemonic
+        else:
+            mnemonic = data.decode()
+            # split on \n and \r to avoid double-scan
+            mnemonic = mnemonic.split("\r")[0].split("\n")[0]
+            if not bip39.mnemonic_is_valid(mnemonic):
+                raise SpecterError("Invalid data: %r" % mnemonic)
+            mnemonic_type = "text"
+        scr = MnemonicPrompt(title="Imported mnemonic:", mnemonic=mnemonic, note="Data looks like a %s mnemonic.\nDo you want to use it?" % mnemonic_type)
+        # confirm mnemonic
+        if not await show_fn(scr):
+            return
+        self.keystore.set_mnemonic(mnemonic, "")
+        self.init_apps()
+
     async def process_host_request(self, stream, popup=True, appname=None, show_fn=None):
         """
         This method is called whenever we got data from the host.
@@ -585,7 +614,13 @@ class Specter:
                     if app.can_process(stream):
                         matching_apps.append(app)
             if len(matching_apps) == 0:
-                raise HostError("Can't find matching app for this request:\n\n %r" % stream.read(100))
+                stream.seek(0)
+                try:
+                    await self.maybe_import_mnemonic(stream, popup, show_fn)
+                    return
+                except Exception as e:
+                    print(e)
+                    raise HostError("Can't find matching app for this request:\n\n %r" % stream.read(100))
             # TODO: if more than one - ask which one to use
             if len(matching_apps) > 1:
                 raise HostError(

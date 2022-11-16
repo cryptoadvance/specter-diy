@@ -26,10 +26,10 @@ class MnemonicScreen(Screen):
 
 class MnemonicPrompt(Prompt):
     def __init__(self, mnemonic="", title="Your recovery phrase:", note=None):
-        super().__init__(title, message="")
+        super().__init__(title, message="", note=note)
         table = MnemonicTable(self)
         table.set_mnemonic(mnemonic)
-        table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
 
 class ExportMnemonicScreen(MnemonicScreen):

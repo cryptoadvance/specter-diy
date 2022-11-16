@@ -87,7 +87,7 @@ class QRHost(Host):
         self.scanning = False
         self.parts = None
         self.raw = False
-        self.chunk_timeout = 0.1
+        self.chunk_timeout = 0.5
 
     @property
     def MASK(self):
@@ -255,9 +255,24 @@ class QRHost(Host):
 
     def _stop_scanner(self):
         if self.trigger is not None:
-            self.trigger.on()
+            self.trigger.on() # trigger is reversed, so on means disable
         else:
-            self.set_setting(SETTINGS_ADDR, self.CMD_MODE)
+            self.set_setting(SCAN_ADDR, 0)
+
+    def _start_scanner(self):
+        self.clean_uart()
+        if self.trigger is not None:
+            self.trigger.off()
+        else:
+            self.set_setting(SCAN_ADDR, 1)
+
+    async def _restart_scanner(self):
+        if self.trigger is not None:
+            self.trigger.on()
+            await asyncio.sleep_ms(30)
+            self.trigger.off()
+        else:
+            self.set_setting(SCAN_ADDR, 1)
 
     def stop_scanning(self):
         self.scanning = False
@@ -273,14 +288,10 @@ class QRHost(Host):
     def tmpfile(self):
         return self.path+"/tmp"
 
-    async def scan(self, raw=False, chunk_timeout=0.1):
-        self.clean_uart()
+    async def scan(self, raw=True, chunk_timeout=0.5):
         self.raw = raw
         self.chunk_timeout = chunk_timeout
-        if self.trigger is not None:
-            self.trigger.off()
-        else:
-            self.set_setting(SETTINGS_ADDR, self.CONT_MODE)
+        self._start_scanner()
         # clear the data
         with open(self.tmpfile,"wb") as f:
             pass
@@ -312,56 +323,63 @@ class QRHost(Host):
         self.f = open(self.path+"/data.txt", "rb")
         return self.f
 
+    def check_animated(self, data: bytes):
+        try:
+            # should be only ascii characters
+            d = data.decode().strip().lower()
+            if d.startswith("ur:"): # ur:bytes or ur:crypto-psbt
+                return True
+            # this will raise if it's not a valid prefix
+            self.parse_prefix(data.split(b" ")[0])
+            return True
+        except Exception as e:
+            print("Exception at check animated", e)
+            return False
+        return False
+
     async def update(self):
         if not self.scanning:
             self.clean_uart()
             return
         # read all available data
         if self.uart.any() > 0:
-            if self.raw: # read only one QR code
+            if not self.animated: # read only one QR code
+                # let all data to come on the first QR code
                 await asyncio.sleep(self.chunk_timeout)
                 d = self.uart.read()
-                if d[-len(self.EOL):] == self.EOL:
-                    d = d[:-len(self.EOL)]
-                self._stop_scanner()
-                fname = self.path + "/data.txt"
-                with open(fname, "wb") as fout:
-                    fout.write(d)
-                self.stop_scanning()
-                return
-            else:
-                d = self.uart.read()
-                num_lines = d.count(self.EOL)
-                # no new lines - just write and continue
-                if num_lines == 0:
-                    with open(self.tmpfile,"ab") as f:
-                        f.write(d)
+                # if not animated -> stop and return
+                if not self.check_animated(d):
+                    if d[-len(self.EOL):] == self.EOL:
+                        d = d[:-len(self.EOL)]
+                    self._stop_scanner()
+                    fname = self.path + "/data.txt"
+                    with open(fname, "wb") as fout:
+                        fout.write(d)
+                    self.stop_scanning()
                     return
-                # slice to write
-                start = 0
-                end = len(d)
-                while num_lines >= 1: # last one is incomplete
-                    end = d.index(self.EOL, start)
-                    with open(self.tmpfile,"ab") as f:
-                        f.write(d[start:end])
-                    try:
-                        if self.process_chunk():
-                            self.stop_scanning()
-                            break
-                        # animated in trigger mode
-                        elif self.trigger is not None:
-                            self.trigger.on()
-                            await asyncio.sleep_ms(30)
-                            self.trigger.off()
-                    except Exception as e:
-                        print("QR exception", e)
-                        self.stop_scanning()
-                        raise e
-                    num_lines -= 1
-                    start = end + len(self.EOL)
-                    # erase the content of the file
-                    with open(self.tmpfile, "wb") as f:
-                        pass
+            else:
+                # if animated - we process chunks one at a time
+                d = self.uart.read()
+            # no new lines - just write and continue
+            if d[-len(self.EOL):] != self.EOL:
+                with open(self.tmpfile,"ab") as f:
+                    f.write(d)
+                return
+            # restart scan while processing data
+            await self._restart_scanner()
+            # slice to write
+            d = d[:-len(self.EOL)]
+            with open(self.tmpfile,"ab") as f:
+                f.write(d)
+            try:
+                if self.process_chunk():
+                    self.stop_scanning()
+            except Exception as e:
+                self.stop_scanning()
+                raise e
+            # erase the content of the file
+            with open(self.tmpfile, "wb") as f:
+                pass
 
     def process_chunk(self):
         """Returns true when scanning complete"""
@@ -532,9 +550,10 @@ class QRHost(Host):
         else:
             return False
 
-    def parse_prefix(self, prefix):
+    def parse_prefix(self, prefix: bytes):
+        print(prefix)
         if not prefix.startswith(b"p") or b"of" not in prefix:
-            raise HostError("Invalid prefix")
+            raise HostError("Invalid prefix, should be in pMofN format")
         m, n = prefix[1:].split(b"of")
         m = int(m)
         n = int(n)
@@ -542,7 +561,7 @@ class QRHost(Host):
             raise HostError("Invalid prefix")
         return m, n
 
-    async def get_data(self, raw=False, chunk_timeout=0.1):
+    async def get_data(self, raw=True, chunk_timeout=0.5):
         delete_recursively(self.path)
         if self.manager is not None:
             # pass self so user can abort
