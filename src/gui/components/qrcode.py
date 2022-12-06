@@ -265,7 +265,9 @@ class QRCode(lv.obj):
         if self.encoder:
             payload = self.encoder[self.idx]
             self._set_text(payload)
-            note = "Part %d of %d." % (self.idx + 1, len(self.encoder))
+            frameCount = len(self.encoder)
+            currentFrame = (self.idx % frameCount) + 1
+            note = "Part %d of %d." % (currentFrame, frameCount)
         else:
             self._set_text(self._text)
             note = ""
