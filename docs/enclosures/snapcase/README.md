@@ -45,7 +45,7 @@ Please note that this manual assumes that you are familiar with the basic assemb
 
 ## Contact
 
-Contact me if you have any questions or suggestions. Success stories are also very welcome. :) You can reach me at @kayth21 (Twitter) or @SeedSticks (Telegram).
+Contact me if you have any questions or suggestions. Success stories are also very welcome. :) You can reach me on [Twitter (@kayth21)](https://twitter.com/kayth21) or on [Telegram (@SeedSticks)](https://t.me/SeedSticks).
 
 ## Shop
 
