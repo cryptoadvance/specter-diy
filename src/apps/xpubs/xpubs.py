@@ -42,6 +42,7 @@ class XpubApp(BaseApp):
                 (2, "Change account number"),
                 (1, "Enter custom derivation"),
                 (3, "Export all keys to SD"),
+                (4, "Export multiple accounts XPubs"),
             ]
         else:
             buttons = [
@@ -93,6 +94,15 @@ class XpubApp(BaseApp):
                           "Public keys are saved to the file:\n\n%s" % filename,
                           button_text="Close")
                 )
+	elif menuitem == 4:
+	    from_account = await show_screen(NumericScreen(title="Enter FROM account number", current_val=str(self.account)))
+	    to_account = await show_screen(NumericScreen(title="Enter TO account number", current_val=str(self.account)))
+	    if from_account is None or to_account is None:
+	        return 
+	    from_account = int(from_account)
+	    to_account = int(to_account)
+	    file_format = await self.save_menu(show_screen)
+	    await self.export_multiple_accounts_xpubs(from_account, to_account, file_format, show_screen)
         elif menuitem == 2:
             account = await show_screen(NumericScreen(current_val=str(self.account)))
             if account and int(account) > 0x80000000:
@@ -306,6 +316,33 @@ class XpubApp(BaseApp):
         elif menuitem == 1:
             return self.export_coldcard
         return None
+
+    async def export_multiple_accounts_xpubs(self, from_account, to_account, file_format, show_screen):
+        if from_account > to_account:
+            await show_screen(Alert("Invalid Input!", "From account number should be less than or equal to To account number", button_text="Close"))
+            return
+        if to_account > 0x80000000:
+            raise AppError('Account number too large')
+        filedata = ""
+        for account in range(from_account, to_account+1):
+            self.account = account
+            fingerprint = hexlify(self.keystore.fingerprint).decode()
+            coin = NETWORKS[self.network]["bip32"]
+            derivations = [
+                ('bip84', "p2wpkh", "m/84'/%d'/%d'" % (coin, self.account)),
+                ('bip86', "p2tr", "m/86'/%d'/%d'" % (coin, self.account)),
+                ('bip49', "p2sh-p2wpkh", "m/49'/%d'/%d'" % (coin, self.account)),
+                ('bip44', "p2pkh", "m/44'/%d'/%d'" % (coin, self.account)),
+                ('bip48_1', "p2sh-p2wsh", "m/48'/%d'/%d'/1'" % (coin, self.account)),
+                ('bip48_2', "p2wsh", "m/48'/%d'/%d'/2'" % (coin, self.account)),
+            ]
+            for der in derivations:
+                xpub = self.keystore.get_xpub(der[2])
+                filedata += "[%s/%s]%s\n" % (fingerprint, der[2][2:].replace("'","h"), xpub.to_base58(NETWORKS[self.network]["xpub"]))
+        filename = "%s-%s-%d-%d.txt" % (self.export_specter_diy, fingerprint, from_account, to_account)
+        self.write_file(filename, filedata)
+        await show_screen(Alert("Success!", "File was successfully saved under:\n\n%s" % filename, button_text="OK"))
+
 
     def wipe(self):
         # nothing to delete
