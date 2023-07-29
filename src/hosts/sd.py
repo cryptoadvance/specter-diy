@@ -135,7 +135,7 @@ class SDHost(Host):
             with open(stream, "rb") as f:
                 await self._show_qr(f, meta, *args, **kwargs)
             return
-        qrfmt = 0
+        qrfmt = 1 # always offer simple text animation for qr codes
         start = stream.read(4)
         stream.seek(-len(start), 1)
         if start in [b"cHNi", b"cHNl"]: # convert from base64 for QR encoder
@@ -145,6 +145,7 @@ class SDHost(Host):
                 await self._show_qr(f, meta, *args, **kwargs)
                 return
         if start in [b"psbt", b"pset"]:
+            # psbt has more options for QR format
             qrfmt = await self.manager.gui.menu(buttons=[
                 (1, "Text"),
                 (2, "Crypto-psbt"),
@@ -154,10 +155,10 @@ class SDHost(Host):
         title = meta.get("title", "Your data:")
         note = meta.get("note")
         msg = ""
-        if qrfmt == 0: # not psbt
-            res = stream.read().decode()
-            msg = meta.get("message", res)
-            await self.manager.gui.qr_alert(title, msg, res, note=note, qr_width=480)
+        # if qrfmt == 0: # not psbt
+        #     res = stream.read().decode()
+        #     msg = meta.get("message", res)
+        #     await self.manager.gui.qr_alert(title, msg, res, note=note, qr_width=480)
         EncoderCls = None
         if qrfmt == 1:
             from qrencoder import Base64QREncoder as EncoderCls
@@ -165,5 +166,6 @@ class SDHost(Host):
             from qrencoder import CryptoPSBTEncoder as EncoderCls
         elif qrfmt == 3:
             from qrencoder import LegacyBCUREncoder as EncoderCls
-        with EncoderCls(stream, tempfile=self.path+"/qrtmp") as enc:
-            await self.manager.gui.qr_alert(title, msg, enc, note=note, qr_width=480)
+        if EncoderCls is not None:
+            with EncoderCls(stream, tempfile=self.path+"/qrtmp") as enc:
+                await self.manager.gui.qr_alert(title, msg, enc, note=note, qr_width=480)
