@@ -5,3 +5,6 @@ fs
 testdir
 __pycache__
 release
+.idea
+.vscode
+.DS_Store
