@@ -14,10 +14,17 @@ The easiest way to get all necessary tools is to run `nix-shell` from the root o
 
 To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler.
 
-**Linux**:
+**Debian/Ubuntu**:
 ```sh
 sudo apt-get install build-essential gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd
 ```
+
+**Archlinux**:
+```sh
+sudo pacman -S arm-none-eabi-gcc arm-none-eabi-binutils openocd base-devel python-case
+```
+You might need change default gcc flag settings with `CFLAGS_EXTRA="-w"`. Export it or set the variable before of `make`
+to avoid warnings being raised as errors.
 
 **MacOS**:
 ```sh
