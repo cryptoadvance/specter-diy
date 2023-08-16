@@ -41,8 +41,8 @@ class XpubApp(BaseApp):
                 (0, "Show more keys"),
                 (2, "Change account number"),
                 (1, "Enter custom derivation"),
-                (3, "Export all keys to SD"),
-                (4, "Export multiple accounts XPubs"),
+                (3, "Export all keys for this account"),
+                (4, "Export multiple accounts"),
             ]
         else:
             buttons = [
@@ -99,7 +99,7 @@ class XpubApp(BaseApp):
 	    to_account = await show_screen(NumericScreen(title="Enter TO account number", current_val=str(self.account)))
 	    if from_account is None or to_account is None:
 	        return 
-	    from_account = int(from_account)
+	    from_account = int(from_account or self.account)
 	    to_account = int(to_account)
 	    file_format = await self.save_menu(show_screen)
 	    await self.export_multiple_accounts_xpubs(from_account, to_account, file_format, show_screen)
