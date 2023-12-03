@@ -1,6 +1,6 @@
 from unittest import TestCase
 from keystore import FlashKeyStore
-import os, json
+import os
 import platform
 
 TEST_DIR = "testdir"

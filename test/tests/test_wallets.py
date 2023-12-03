@@ -1,8 +1,6 @@
 from unittest import TestCase
 from apps.wallets.wallet import Wallet
 from embit.descriptor import Key
-import os, json
-import platform
 
 TEST_DIR = "testdir"
 
@@ -60,3 +58,7 @@ class WalletsTest(TestCase):
                 Key.parse(k)
                 print(k)
 
+    def test_taptree(self):
+        d = "tr([73c5da0a/2/2/2]tpubDCPwGho2toLmdSELZ3o8v1D6RUUK7Y5keCjMyrSfE75aX2Mcx4MNEM6MnXDZR87GQ1ot4YNn2GGtiN5SvM12c6cvYMrt6avwtYNcRab2HFv/<0;1>/*,or_b(pk([73c5da0a/1/2/3]tpubDCpEkdSHkygNaquCRtW8Fuo3TchAXFSWUuYB9aryim58T4CWM9vLgt26uUV5wdtuvbSk7rWmQQCpcYhGjbHiBzWCYXeyRMJ98zSBWekaJJm/<0;1>/*),s:pk([73c5da0a/3/2/1]tpubDDrLDbxjL1d5FK8djVqUjD3xL1gkhaTXTL1rHzEavwA2ss4YpF8Qm82cKN89PEBRYk6JVTZULA872LuFGENTGdNYASDCrXKKZkU86A8HLqA/<0;1>/*)))"
+        w = Wallet.parse(d)
+        print(w)

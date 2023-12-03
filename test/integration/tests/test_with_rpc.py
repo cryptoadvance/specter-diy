@@ -1,13 +1,11 @@
-from unittest import TestCase, skip
+from unittest import TestCase
 from util.controller import sim
 from util.rpc import prepare_rpc
 import random
-import time
 from embit.descriptor import Descriptor
-from embit.bip32 import HDKey
 from embit.networks import NETWORKS
 from embit.psbt import PSBT, DerivationPath
-from embit.transaction import Transaction, TransactionInput, TransactionOutput, SIGHASH
+from embit.transaction import Transaction, SIGHASH
 from embit import ec, bip32
 from embit.script import Witness
 

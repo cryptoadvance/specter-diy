@@ -1,5 +1,5 @@
 import lvgl as lv
-from gui.common import add_label, add_button, HOR_RES, format_addr, PADDING
+from gui.common import add_label, add_button, HOR_RES, format_addr
 from gui.decorators import on_release
 from gui.screens import QRAlert, Prompt, Alert
 from .commands import DELETE, EDIT, MENU
@@ -123,10 +123,10 @@ class WalletScreen(QRAlert):
 
 
 class ConfirmWalletScreen(Prompt):
-    def __init__(self, name, policy, keys, is_miniscript=True):
+    def __init__(self, name, policy, keys, is_complex=True):
         super().__init__('Add wallet "%s"?' % name, "")
         self.policy = add_label("Policy: " + policy, y=75, scr=self)
-        self.is_miniscript = is_miniscript
+        self.is_complex = is_complex
 
         lbl = lv.label(self)
         lbl.set_text("Canonical xpub                     SLIP-132             ")
@@ -145,10 +145,12 @@ class ConfirmWalletScreen(Prompt):
         msg = ""
         arg = "slip132" if self.slip_switch.get_state() else "canonical"
         for i, k in enumerate(self.keys):
-            alias = "" if not self.is_miniscript else " (%s)" % chr(65+i)
+            alias = "" if not self.is_complex else " (%s)" % chr(65+i)
             kstr = str(k[arg]).replace("]","]\n")
             if k["mine"]:
                 msg += "#7ED321 My key%s: #\n%s\n\n" % (alias, kstr)
+            elif k["is_nums"]:
+                msg += "#00CAF1 NUMS key%s: #\nNobody knows private key\n\n" % alias
             elif k["is_private"]:
                 msg += "#F51E2D Private key%s: #\n%s\n\n" % (alias, kstr)
             else:
@@ -157,10 +159,10 @@ class ConfirmWalletScreen(Prompt):
 
 # TODO: refactor to remove duplication
 class WalletInfoScreen(Alert):
-    def __init__(self, name, policy, keys, is_miniscript=True):
+    def __init__(self, name, policy, keys, is_complex=True):
         super().__init__(name, "")
         self.policy = add_label("Policy: " + policy, y=75, scr=self)
-        self.is_miniscript = is_miniscript
+        self.is_complex = is_complex
 
         lbl = lv.label(self)
         lbl.set_text("Canonical xpub                     SLIP-132             ")
@@ -179,10 +181,12 @@ class WalletInfoScreen(Alert):
         msg = ""
         arg = "slip132" if self.slip_switch.get_state() else "canonical"
         for i, k in enumerate(self.keys):
-            alias = "" if not self.is_miniscript else " (%s)" % chr(65+i)
+            alias = "" if not self.is_complex else " (%s)" % chr(65+i)
             kstr = str(k[arg]).replace("]","]\n")
             if k["mine"]:
                 msg += "#7ED321 My key%s: #\n%s\n\n" % (alias, kstr)
+            elif k["is_nums"]:
+                msg += "#AAAAAA NUMS key%s: #\nNobody knows private key\n\n" % alias
             elif k["is_private"]:
                 msg += "#F51E2D Private key%s: #\n%s\n\n" % (alias, kstr)
             else:

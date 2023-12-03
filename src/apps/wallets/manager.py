@@ -13,7 +13,7 @@ from embit.transaction import SIGHASH
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
-from bcur import bcur_decode_stream, bcur_encode_stream
+from bcur import bcur_decode_stream
 from helpers import a2b_base64_stream, b2a_base64_stream
 import gc
 import json
@@ -439,7 +439,7 @@ class WalletManager(BaseApp):
                            "None of the keys belong to the device.\n\n"
                            "Are you sure you still want to add the wallet?")):
                 return False
-        return await show_screen(ConfirmWalletScreen(w.name, w.full_policy, keys, w.is_miniscript))
+        return await show_screen(ConfirmWalletScreen(w.name, w.full_policy, keys, w.is_complex))
 
     async def showaddr(
         self, paths: list, script_type: str, redeem_script=None, show_screen=None
@@ -791,6 +791,7 @@ class WalletManager(BaseApp):
         # remove unnecessary stuff:
         with open(self.tempdir+"/sigs", "rb") as sig_stream:
             psbtv.write_to(out_stream, compress=CompressMode.PARTIAL, extra_input_streams=[sig_stream])
+
 
     def wipe(self):
         """Deletes all wallets info"""

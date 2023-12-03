@@ -1,7 +1,6 @@
 from keystore.ram import RAMKeyStore
 from app import BaseApp
 from apps.wallets import App as WalletsApp
-import os, json
 import platform
 
 TEST_DIR = "testdir"

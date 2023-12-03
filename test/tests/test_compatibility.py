@@ -1,5 +1,5 @@
 from unittest import TestCase
-from apps.compatibility import *
+from apps.compatibility import parse_software_wallet_json, parse_cc_wallet_txt
 import json
 from io import BytesIO
 
