@@ -174,3 +174,38 @@ def read_write(fin, fout, chunk_size=32):
         chunk = fin.read(chunk_size)
         total += fout.write(chunk)
     return total
+
+class SDCardFile:
+    """open file on SD card, mount card on enter, unmount on exit
+
+    Usage:
+
+    with SDCardFile("/sd/blah", "w") as f:
+        f.write("blah")
+    """
+    def __init__(self, filename, *args, **kwargs):
+        self._filename = filename
+        self._args = args
+        self._kwargs = kwargs
+        self.file = None
+
+    def mount(self):
+        platform.mount_sdcard()
+
+    def unmount(self):
+        platform.unmount_sdcard()
+
+    def __enter__(self):
+        self.mount()
+        self.file = open(
+            platform.fpath("/sd/" + self._filename),
+            *self._args, **self._kwargs
+        )
+        return self.file
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.file:
+            self.file.close()
+            self.file = None
+        self.unmount()
+
