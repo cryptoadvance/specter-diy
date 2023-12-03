@@ -2,14 +2,13 @@ from app import AppError
 import platform
 from platform import maybe_mkdir, delete_recursively
 import json
-from embit import ec, hashes, script
+from embit import ec, hashes
 from embit.networks import NETWORKS
 from embit.psbt import DerivationPath
 from embit.descriptor import Descriptor
 from embit.descriptor.checksum import add_checksum
 from embit.descriptor.arguments import AllowedDerivation
 from embit.transaction import SIGHASH
-import hashlib
 from .screens import WalletScreen, WalletInfoScreen
 from .commands import DELETE, EDIT, MENU, INFO, EXPORT
 from gui.screens import Menu, QRAlert, Alert
@@ -57,7 +56,7 @@ class Wallet:
                     keys = self.get_key_dicts(network)
                     for k in keys:
                         k["mine"] = True if self.keystore and self.keystore.owns(k["key"]) else False
-                    await show_screen(WalletInfoScreen(self.name, self.full_policy, keys, self.is_miniscript))
+                    await show_screen(WalletInfoScreen(self.name, self.full_policy, keys, self.is_complex))
                     continue
                 elif cmd == EXPORT:
                     await self.export_menu(show_screen)
@@ -252,6 +251,7 @@ class Wallet:
             k["slip132"] = k["key"].to_string(self.Networks[network][ver])
             ver = canonical_ver.replace("pub", "prv") if k["is_private"] else canonical_ver
             k["canonical"] = k["key"].to_string(self.Networks[network][ver])
+            k["is_nums"] = (k["key"].sec() == ec.NUMS_PUBKEY.sec()) # nothing up my sleeve
         return keys
 
     def sign_psbt(self, psbt, sighash=SIGHASH.ALL):
@@ -348,15 +348,24 @@ class Wallet:
         else:
             p = "Legacy\n"
         pp = self.descriptor.full_policy
-        if not self.is_miniscript:
+        if not self.is_complex:
             p += pp
         else:
-            p += "Miniscript:\n"+pp.replace(",",", ")
+            prefix = "Miniscript:\n" if self.is_miniscript else "\n"
+            p += prefix+pp.replace(",",", ")
         return p
 
     @property
     def is_miniscript(self):
         return not (self.descriptor.is_basic_multisig or self.descriptor.is_pkh or self.descriptor.is_taproot)
+
+    @property
+    def is_taptree(self):
+        return bool(self.descriptor.taptree)
+
+    @property
+    def is_complex(self):
+        return self.is_miniscript or self.is_taptree
 
     def __str__(self):
         return "%s&%s" % (self.name, self.descriptor)
