@@ -6,11 +6,8 @@ import asyncio
 
 from platform import (
     CriticalErrorWipeImmediately,
-    set_usb_mode,
     reboot,
-    fpath,
     maybe_mkdir,
-    file_exists,
     wipe,
     get_version,
     get_battery_status,
@@ -23,7 +20,7 @@ from gui.screens.settings import HostSettings
 from gui.screens.mnemonic import MnemonicPrompt
 
 # small helper functions
-from helpers import gen_mnemonic, fix_mnemonic, load_apps, is_liquid
+from helpers import gen_mnemonic, fix_mnemonic
 from errors import BaseError
 
 
