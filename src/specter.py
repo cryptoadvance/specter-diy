@@ -140,7 +140,7 @@ class Specter:
             b = BytesIO()
             sys.print_exception(e, b)
             msg = b.getvalue().decode()
-        res = await self.gui.error(msg, popup=True)
+        await self.gui.error(msg, popup=True)
 
     async def main(self):
         while True:
@@ -163,6 +163,22 @@ class Specter:
             app.init(self.keystore, self.network, self.gui.show_loader, self.cross_app_communicate)
 
     async def cross_app_communicate(self, stream, app:str=None, show_fn=None):
+        if app == "": # root
+            data = stream.read()
+            if data.startswith(b"set_mnemonic "):
+                mnemonic = data[len("set_mnemonic "):].decode()
+                confirm = await self.gui.prompt(
+                        "Load new mnemonic?",
+                        "\nApp requested to load new mnemonic\n"
+                        "Do you want to continue?\n\n"
+                        "You will need to reboot the device to get back"
+                        " to your current mnemonic.",
+                )
+                if confirm:
+                    return self.set_mnemonic(mnemonic)
+                else:
+                    return True
+            raise SpecterError("Invalid command '%s'" % data)
         return await self.process_host_request(stream, popup=False, appname=app, show_fn=show_fn)
 
     async def initmenu(self):
@@ -191,9 +207,7 @@ class Specter:
             mnemonic = await self.gui.new_mnemonic(gen_mnemonic, bip39.WORDLIST, fix_mnemonic)
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
-                self.keystore.set_mnemonic(mnemonic.strip(), "")
-                self.init_apps()
-                return self.mainmenu
+                return self.set_mnemonic(mnemonic, "")
         # recover
         elif menuitem == 1:
             mnemonic = await self.gui.recover(
@@ -201,10 +215,7 @@ class Specter:
             )
             if mnemonic is not None:
                 # load keys using mnemonic and empty password
-                self.keystore.set_mnemonic(mnemonic, "")
-                self.init_apps()
-                self.current_menu = self.mainmenu
-                return self.mainmenu
+                return self.set_mnemonic(mnemonic, "")
         elif menuitem == 2:
             # try to load key, if user cancels -> return
             res = await self.keystore.load_mnemonic()
@@ -253,7 +264,10 @@ class Specter:
         # confirm mnemonic
         if not await self.gui.show_screen()(scr):
             return
-        self.keystore.set_mnemonic(mnemonic, "")
+        return self.set_mnemonic(mnemonic, "")
+
+    def set_mnemonic(self, mnemonic, password=""):
+        self.keystore.set_mnemonic(mnemonic.strip(), password)
         self.init_apps()
         self.current_menu = self.mainmenu
         return self.mainmenu

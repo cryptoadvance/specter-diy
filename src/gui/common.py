@@ -169,6 +169,7 @@ def align_button_pair(btn1, btn2):
     w = (HOR_RES - 3 * PADDING) // 2
     btn1.set_width(w)
     btn2.set_width(w)
+    btn1.set_x(PADDING)
     btn2.set_x(HOR_RES // 2 + PADDING // 2)
 
 
