@@ -7,4 +7,5 @@ __all__ = [
     "backup", # creates and loads backups (only loads for now)
     "blindingkeys", # blinding keys for liquid wallets
     "compatibility", # compatibility layer that converts json/files to Specter format
+    "bip85", # bip85 derivation of new mnemonics, xprvs etc
 ]

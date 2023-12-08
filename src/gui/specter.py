@@ -7,7 +7,6 @@ from .screens import (
     RecoverMnemonicScreen,
     DevSettings,
 )
-import rng
 import asyncio
 
 

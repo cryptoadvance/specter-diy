@@ -1,8 +1,7 @@
-from .core import KeyStore, KeyStoreError, PinError
+from .core import KeyStore, KeyStoreError
 from platform import CriticalErrorWipeImmediately
 import platform
 from rng import get_random_bytes
-import hashlib
 import hmac
 from embit import ec, bip39, bip32
 from embit.liquid import slip77

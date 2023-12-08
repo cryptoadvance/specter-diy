@@ -414,12 +414,15 @@ class NumericScreen(Screen):
     def __init__(
             self,
             title="Enter account number",
+            note=None,
             current_val='0'
     ):
         super().__init__()
+        if note is None:
+            note = "Current account number: %s" % current_val
         self.title = add_label(title, scr=self, y=PADDING, style="title")
 
-        self.note = add_label("Current account number: %s" % current_val, scr=self, style="hint")
+        self.note = add_label(note, scr=self, style="hint")
         self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
 
         self.kb = lv.btnm(self)
