@@ -1,9 +1,8 @@
 from .core import Host, HostError
 from platform import fpath
-from io import BytesIO
 import os
 import platform
-from binascii import b2a_base64, a2b_base64, hexlify
+from binascii import hexlify
 from helpers import a2b_base64_stream
 
 class SDHost(Host):
@@ -70,7 +69,13 @@ class SDHost(Host):
         return fname[:18]+"..."+fname[-12:]
 
     async def select_file(self, extensions):
-        files = sum([[f[0] for f in os.ilistdir(self.sdpath) if f[0].lower().endswith(ext) and f[1] == 0x8000] for ext in extensions], [])
+        files = sum([
+            [
+                f[0] for f in os.ilistdir(self.sdpath)
+                if f[0].lower().endswith(ext)
+                and f[1] == 0x8000
+            ] for ext in extensions
+        ], [])
         
         if len(files) == 0:
             raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
@@ -81,7 +86,11 @@ class SDHost(Host):
         buttons = []
         for ext in extensions:
             title = [(None, ext+" files")]
-            barr = [(self.sdpath+"/"+f, self.truncate(f)) for f in files if f.lower().endswith(ext)]
+            barr = [
+                (self.sdpath+"/"+f, self.truncate(f))
+                for f in files
+                if f.lower().endswith(ext)
+            ]
             if len(barr) == 0:
                 buttons += [(None, "%s files - No files" % ext)]
             else:

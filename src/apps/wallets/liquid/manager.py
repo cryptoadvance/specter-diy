@@ -136,7 +136,7 @@ class LWalletManager(WalletManager):
                 asset = bytes(reversed(unhexlify(hexasset)))
                 self.assets[asset] = assetlbl
                 self.save_assets()
-            return BytesIO(b"success"), {}
+            return True
         elif cmd == DUMP_ASSETS:
             return BytesIO(self.assets_json()), {}
         else:

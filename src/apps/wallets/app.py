@@ -3,7 +3,6 @@ import platform
 from .manager import WalletManager
 from .liquid.manager import LWalletManager
 from helpers import is_liquid
-import gc
 
 class WalletsApp(BaseApp):
     # This is a dummy app that can switch between Bitcoin and Liquid wallet managers

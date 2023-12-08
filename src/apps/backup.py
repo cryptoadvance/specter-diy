@@ -3,9 +3,6 @@ Backup app - can load secrets from a text file or qr code that starts with
 bip39: <recovery phrase>
 """
 from app import BaseApp, AppError
-from io import BytesIO
-from binascii import hexlify
-from rng import get_random_bytes
 from embit import bip39
 from gui.screens import Prompt
 from gui.components.mnemonic import MnemonicTable
@@ -30,6 +27,7 @@ class App(BaseApp):
         table = MnemonicTable(scr)
         table.align(scr.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         table.set_mnemonic(mnemonic)
-        if await show_fn(scr):
+        confirm = await show_fn(scr)
+        if confirm:
             self.keystore.set_mnemonic(mnemonic)
-        return None
+        return confirm

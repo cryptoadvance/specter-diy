@@ -324,7 +324,7 @@ class Specter:
             if stream is not None:
                 # check against all apps
                 res = await self.process_host_request(stream, popup=False)
-                if res is not None:
+                if res not in [True, False, None]:
                     await host.send_data(*res)
         else:
             print(menuitem)
