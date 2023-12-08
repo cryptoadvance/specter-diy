@@ -8,7 +8,7 @@ class WalletsTest(TestCase):
 
     def test_descriptors(self):
         """Test initial config creation"""
-        k = "[8cce63f8/84h/1h/0h]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2/{0,1}/*"
+        k = "[8cce63f8/84h/1h/0h]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2/<0;1>/*"
         descriptors = [
             "wpkh(%s)" % k,
             "sh(wpkh(%s))" % k,
