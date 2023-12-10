@@ -28,9 +28,9 @@ class SDHost(Host):
             self.f.close()
             os.remove(self.fram)
             self.f = None
-        if not platform.is_sd_present:
+        if not platform.sdcard.is_present:
             raise HostError("SD card is not inserted")
-        platform.mount_sdcard()
+        platform.sdcard.mount()
 
     def copy(self, fin, fout):
         b = bytearray(100)
@@ -60,7 +60,7 @@ class SDHost(Host):
                     self.copy(fin, fout)
             self.f = open(self.fram,"rb")
         finally:
-            platform.unmount_sdcard()
+            platform.sdcard.unmount()
         return self.f
 
     def truncate(self, fname):
@@ -120,6 +120,13 @@ class SDHost(Host):
         new_fname = self.completed_filename(self.sd_file)
         self.reset_and_mount()
         try:
+            if platform.file_exists(new_fname):
+                confirm = await self.manager.gui.prompt("Overwrite?",
+                    "File %s exists. Overwrite?" % new_fname.split("/")[-1]
+                )
+                if not confirm:
+                    platform.sdcard.unmount()
+                    return
             if isinstance(stream, str):
                 with open(stream, "rb") as fin:
                     with open(new_fname, "wb") as fout:
@@ -129,7 +136,7 @@ class SDHost(Host):
                     self.copy(stream, fout)
                 stream.seek(0)
         finally:
-            platform.unmount_sdcard()
+            platform.sdcard.unmount()
         show_qr = await self.manager.gui.prompt("Success!", "\n\nProcessed request is saved to\n\n%s\n\nShow as QR code?" % new_fname.split("/")[-1])
         if show_qr:
             await self._show_qr(stream, *args, **kwargs)

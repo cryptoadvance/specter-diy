@@ -1,11 +1,11 @@
 from app import BaseApp, AppError
-from gui.screens import Menu, DerivationScreen, NumericScreen, Alert, InputScreen
+from gui.screens import Menu, DerivationScreen, NumericScreen, Alert, InputScreen, Prompt
 from .screens import XPubScreen
 import json
 from binascii import hexlify
 from embit.liquid.networks import NETWORKS
 from embit import bip32
-from helpers import is_liquid, SDCardFile
+from helpers import is_liquid
 from io import BytesIO
 import platform
 from collections import OrderedDict
@@ -101,12 +101,13 @@ class XpubApp(BaseApp):
         elif menuitem == 3:
             file_format = await self.save_menu(show_screen)
             if file_format:
-                filename = self.save_all_to_sd(file_format)
-                await show_screen(
-                    Alert("Saved!",
-                          "Public keys are saved to the file:\n\n%s" % filename,
-                          button_text="Close")
-                )
+                filename = await self.save_all_to_sd(file_format, self.account, show_screen)
+                if filename is not None:
+                    await show_screen(
+                        Alert("Saved!",
+                              "Public keys are saved to the file:\n\n%s" % filename,
+                              button_text="Close")
+                    )
         elif menuitem == 4:
             from_account = await show_screen(
                 NumericScreen(
@@ -137,9 +138,7 @@ class XpubApp(BaseApp):
             return True
         return False
 
-    def save_all_to_sd(self, file_format, account=None):
-        if account is None:
-            account = self.account
+    async def save_all_to_sd(self, file_format, account, show_screen):
 
         fingerprint = hexlify(self.keystore.fingerprint).decode()
 
@@ -148,11 +147,16 @@ class XpubApp(BaseApp):
             file_format, fingerprint, account, extension,
         )
 
-        if not platform.is_sd_present():
+        if not platform.sdcard.is_present:
             raise AppError("Please insert SD card")
 
-        with SDCardFile(filename, "w") as f:
-            self._dump_account(f, file_format, account)
+        with platform.sdcard as sd:
+            if sd.file_exists(filename):
+                confirm = await show_screen(Prompt("Overwrite?", message="File %s already exists on the SD card. Overwrite?" % filename))
+                if not confirm:
+                    return
+            with sd.open(filename, "w") as f:
+                self._dump_account(f, file_format, account)
 
         return filename
 
@@ -173,10 +177,15 @@ class XpubApp(BaseApp):
             filename = "%s-%s-%d-%d.txt" % (
                 file_format, fingerprint, from_account, to_account
             )
-            with SDCardFile(filename, "w") as f:
-                for account in range(from_account, to_account+1):
-                    self.show_loader(title="Exporting account %d..." % account)
-                    self._dump_account(f, file_format, account)
+            with platform.sdcard as sd:
+                if sd.file_exists(filename):
+                    confirm = await show_screen(Prompt("Overwrite?", message="File %s already exists on the SD card. Overwrite?" % filename))
+                    if not confirm:
+                        return
+                with sd.open(filename, "w") as f:
+                    for account in range(from_account, to_account+1):
+                        self.show_loader(title="Exporting account %d..." % account)
+                        self._dump_account(f, file_format, account)
             await show_screen(
                 Alert(
                     "Success!",
@@ -187,7 +196,7 @@ class XpubApp(BaseApp):
         else: # cc format - one file per account
             for account in range(from_account, to_account+1):
                 self.show_loader(title="Exporting account %d..." % account)
-                self.save_all_to_sd(file_format, account)
+                await self.save_all_to_sd(file_format, account, show_screen)
             await show_screen(
                 Alert(
                     "Success!",
@@ -290,8 +299,9 @@ class XpubApp(BaseApp):
             await self.create_wallet(derivation, canonical, prefix, ver, show_screen)
         elif res:
             filename = "%s-%s.txt" % (fingerprint, derivation[2:].replace("/", "-"))
-            with SDCardFile(filename, "w") as f:
-                f.write(res)
+            with platform.sdcard as sd:
+                with sd.open(filename, "w") as f:
+                    f.write(res)
             await show_screen(
                 Alert("Saved!",
                       "Extended public key is saved to the file:\n\n%s" % filename,

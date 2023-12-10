@@ -395,14 +395,17 @@ class RAMKeyStore(KeyStore):
                     msg = self.mnemonic
                 await self.show(QRAlert(title="Your mnemonic as QR code", message=msg, qr_message=qr_msg, transcribe=True))
             elif v == ExportMnemonicScreen.SD:
-                if not platform.is_sd_present:
+                if not platform.sdcard.is_present:
                     raise KeyStoreError("SD card is not present")
                 if await self.show(Prompt("Are you sure?", message="Your mnemonic will be saved as a simple plaintext file.\n\nAnyone with access to it will be able to read your key.\n\nContinue?")):
-                    platform.mount_sdcard()
-                    fname = "/sd/%s.txt" % self.mnemonic.split()[0]
-                    with open(platform.fpath(fname), "w") as f:
-                        f.write(self.mnemonic)
-                    platform.unmount_sdcard()
+                    with platform.sdcard as sd:
+                        fname = "%s.txt" % self.mnemonic.split()[0]
+                        if sd.file_exists(fname):
+                            confirm = await self.show(Prompt("Overwrite?", message="File %s already exists on the SD card. Overwrite?" % fname))
+                            if not confirm:
+                                return
+                        with sd.open(fname, "w") as f:
+                            f.write(self.mnemonic)
                     await self.show(Alert(title="Mnemonic is saved!", message="You mnemonic is saved in plaintext to\n\n%s\n\nPlease keep it safe." % fname))
             else:
                 return

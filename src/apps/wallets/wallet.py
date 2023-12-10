@@ -11,7 +11,7 @@ from embit.descriptor.arguments import AllowedDerivation
 from embit.transaction import SIGHASH
 from .screens import WalletScreen, WalletInfoScreen
 from .commands import DELETE, EDIT, MENU, INFO, EXPORT
-from gui.screens import Menu, QRAlert, Alert
+from gui.screens import Menu, QRAlert, Alert, Prompt
 import lvgl as lv
 
 class WalletError(AppError):
@@ -69,7 +69,7 @@ class Wallet:
             buttons = [
                 (None, "Export options"),
                 (1, "Show QR code"),
-                (2, "Save to SD card", platform.is_sd_present()),
+                (2, "Save to SD card", platform.sdcard.is_present),
             ]
             menuitem = await show_screen(Menu(buttons, last=(255, None), title="Export wallet %s" % self.name))
             desc = add_checksum(str(self.descriptor.branch(0)))
@@ -83,13 +83,16 @@ class Wallet:
                 await show_screen(QRAlert(title="Export wallet %s" % self.name, qr_width=450,
                         message="Scan this QR code with compatible software wallet", qr_message=json.dumps(obj)))
             elif menuitem == 2:
-                if not platform.is_sd_present():
+                if not platform.sdcard.is_present:
                     raise WalletError("SD card is not present")
-                platform.mount_sdcard()
-                fname = "/sd/%s.json" % self.name
-                with open(platform.fpath(fname), "w") as f:
-                    json.dump(obj, f)
-                platform.unmount_sdcard()
+                with platform.sdcard as sd:
+                    fname = "%s.json" % (self.name or "wallet")
+                    if sd.file_exists(fname):
+                        confirm = await show_screen(Prompt("Overwrite?", message="File %s already exists on the SD card. Overwrite?" % fname))
+                        if not confirm:
+                            return
+                    with sd.open(fname, "w") as f:
+                        json.dump(obj, f)
                 await show_screen(Alert("Success!", "Wallet descriptor is written to\n\n%s" % fname))
             else:
                 return
