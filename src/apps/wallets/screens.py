@@ -10,7 +10,11 @@ class WalletScreen(QRAlert):
         self.wallet = wallet
         self.network = network
         self.idx = wallet.unused_recv
-        addr, gap = wallet.get_address(self.idx, network=network, branch_index=branch_index)
+        addr, gap = wallet.get_address(
+            self.idx,
+            network=network,
+            branch_index=branch_index,
+        )
         super().__init__(
             "    " + wallet.name + "  #708092 " + lv.SYMBOL.EDIT,
             format_addr(addr, words=4),
@@ -121,74 +125,80 @@ class WalletScreen(QRAlert):
             self.warning.set_text("")
         self.hide_loader()
 
+# micropython doesn't support mixins :(
+def _build_screen(scr, policy, keys):
+    scr.policy = add_label("Policy: " + policy, y=75, scr=scr)
+
+    # check if we need slip132 switch
+    need_slip132_switch = any(
+        k["canonical"] != k["slip132"]
+        for k in keys
+    )
+    if need_slip132_switch:
+        lbl = lv.label(scr)
+        lbl.set_text("Canonical xpub                     SLIP-132             ")
+        lbl.align(scr.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        scr.slip_switch = lv.sw(scr)
+        scr.slip_switch.align(lbl, lv.ALIGN.CENTER, 0, 0)
+        scr.slip_switch.set_event_cb(on_release(scr.fill_message))
+    else:
+        scr.slip_switch = None
+
+    scr.page.align(
+        scr.policy,
+        lv.ALIGN.OUT_BOTTOM_MID,
+        0,
+        30 + 40*int(need_slip132_switch)
+    )
+    scr.message.set_recolor(True)
+    scr.page.set_height(500)
+
+def _fill_message(keys, is_complex, use_slip132=False):
+    msg = ""
+    arg = "slip132" if use_slip132 else "canonical"
+    for i, k in enumerate(keys):
+        alias = "" if not is_complex else " (%s)" % chr(65+i)
+        kstr = str(k[arg]).replace("]","]\n")
+        if k["mine"]:
+            msg += "#7ED321 My key%s: #\n%s\n\n" % (alias, kstr)
+        elif k["is_nums"]:
+            msg += "#00CAF1 NUMS key%s: #\nNobody knows private key\n\n" % alias
+        elif k["is_private"]:
+            msg += "#F51E2D Private key%s: #\n%s\n\n" % (alias, kstr)
+        else:
+            msg += "#F5A623 External key%s:\n# %s\n\n" % (alias, kstr)
+    return msg
+
 
 class ConfirmWalletScreen(Prompt):
     def __init__(self, name, policy, keys, is_complex=True):
         super().__init__('Add wallet "%s"?' % name, "")
-        self.policy = add_label("Policy: " + policy, y=75, scr=self)
+        _build_screen(self, policy, keys)
         self.is_complex = is_complex
-
-        lbl = lv.label(self)
-        lbl.set_text("Canonical xpub                     SLIP-132             ")
-        lbl.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        self.slip_switch = lv.sw(self)
-        self.slip_switch.align(lbl, lv.ALIGN.CENTER, 0, 0)
-        self.slip_switch.set_event_cb(on_release(self.fill_message))
-
-        self.page.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 70)
-        self.message.set_recolor(True)
-        self.page.set_height(500)
         self.keys = keys
         self.fill_message()
 
+    @property
+    def use_slip132(self):
+        return self.slip_switch.get_state() if self.slip_switch is not None else False
+
     def fill_message(self):
-        msg = ""
-        arg = "slip132" if self.slip_switch.get_state() else "canonical"
-        for i, k in enumerate(self.keys):
-            alias = "" if not self.is_complex else " (%s)" % chr(65+i)
-            kstr = str(k[arg]).replace("]","]\n")
-            if k["mine"]:
-                msg += "#7ED321 My key%s: #\n%s\n\n" % (alias, kstr)
-            elif k["is_nums"]:
-                msg += "#00CAF1 NUMS key%s: #\nNobody knows private key\n\n" % alias
-            elif k["is_private"]:
-                msg += "#F51E2D Private key%s: #\n%s\n\n" % (alias, kstr)
-            else:
-                msg += "#F5A623 External key%s:\n# %s\n\n" % (alias, kstr)
+        msg = _fill_message(self.keys, self.is_complex, self.use_slip132)
         self.message.set_text(msg)
 
-# TODO: refactor to remove duplication
+
 class WalletInfoScreen(Alert):
     def __init__(self, name, policy, keys, is_complex=True):
         super().__init__(name, "")
-        self.policy = add_label("Policy: " + policy, y=75, scr=self)
+        _build_screen(self, policy, keys)
         self.is_complex = is_complex
-
-        lbl = lv.label(self)
-        lbl.set_text("Canonical xpub                     SLIP-132             ")
-        lbl.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        self.slip_switch = lv.sw(self)
-        self.slip_switch.align(lbl, lv.ALIGN.CENTER, 0, 0)
-        self.slip_switch.set_event_cb(on_release(self.fill_message))
-
-        self.page.align(self.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 70)
-        self.message.set_recolor(True)
-        self.page.set_height(500)
         self.keys = keys
         self.fill_message()
 
+    @property
+    def use_slip132(self):
+        return self.slip_switch.get_state() if self.slip_switch is not None else False
+
     def fill_message(self):
-        msg = ""
-        arg = "slip132" if self.slip_switch.get_state() else "canonical"
-        for i, k in enumerate(self.keys):
-            alias = "" if not self.is_complex else " (%s)" % chr(65+i)
-            kstr = str(k[arg]).replace("]","]\n")
-            if k["mine"]:
-                msg += "#7ED321 My key%s: #\n%s\n\n" % (alias, kstr)
-            elif k["is_nums"]:
-                msg += "#AAAAAA NUMS key%s: #\nNobody knows private key\n\n" % alias
-            elif k["is_private"]:
-                msg += "#F51E2D Private key%s: #\n%s\n\n" % (alias, kstr)
-            else:
-                msg += "#F5A623 External key%s:\n# %s\n\n" % (alias, kstr)
+        msg = _fill_message(self.keys, self.is_complex, self.use_slip132)
         self.message.set_text(msg)

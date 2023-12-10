@@ -47,10 +47,11 @@ class XPubScreen(QRAlert):
             self.prefix_switch.set_event_cb(on_release(self.toggle_event))
         if slip132 is not None:
             self.slip_switch.set_event_cb(on_release(self.toggle_event))
-        btn = add_button_pair(
-                lv.SYMBOL.SAVE + " Save to SD", on_release(self.save_to_sd),
-                lv.SYMBOL.PLUS + " Create wallet", on_release(self.create_wallet),
-                y=610, scr=self)
+        add_button_pair(
+            lv.SYMBOL.SAVE + " Save to SD", on_release(self.save_to_sd),
+            lv.SYMBOL.PLUS + " Create wallet", on_release(self.create_wallet),
+            y=610, scr=self,
+        )
 
     def save_to_sd(self):
         """
