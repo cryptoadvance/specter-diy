@@ -1,15 +1,10 @@
-from .core import KeyStoreError, PinError
+from .core import KeyStoreError
 from .flash import FlashKeyStore
 import platform
-from rng import get_random_bytes
-from embit import bip39
-from gui.screens import Alert, Progress, Menu, MnemonicScreen, Prompt
-import asyncio
-from io import BytesIO
+from gui.screens import Menu, Prompt
 from helpers import tagged_hash
 from binascii import hexlify
 import os
-from hashlib import sha256
 
 
 class SDKeyStore(FlashKeyStore):
@@ -45,10 +40,9 @@ class SDKeyStore(FlashKeyStore):
         # enable / disable buttons
         enable_flash = (not only_if_exist) or platform.file_exists(self.flashpath)
         enable_sd = False
-        if platform.is_sd_present():
-            platform.mount_sdcard()
-            enable_sd = (not only_if_exist) or platform.file_exists(self.sdpath)
-            platform.unmount_sdcard()
+        if platform.sdcard.is_present:
+            with platform.sdcard:
+                enable_sd = (not only_if_exist) or platform.file_exists(self.sdpath)
         buttons = [
             (None, "Make your choice"),
             (self.flashpath, "Internal flash", enable_flash),
@@ -76,9 +70,7 @@ class SDKeyStore(FlashKeyStore):
         fullpath = "%s/%s.%s" % (path, self.fileprefix(path), filename)
 
         if fullpath.startswith(self.sdpath):
-            if not platform.is_sd_present():
-                raise KeyStoreError("SD card is not present")
-            platform.mount_sdcard()
+            platform.sdcard.mount()
 
         if platform.file_exists(fullpath):
             scr = Prompt(
@@ -88,13 +80,13 @@ class SDKeyStore(FlashKeyStore):
             res = await self.show(scr)
             if res is False:
                 if fullpath.startswith(self.sdpath):
-                    platform.unmount_sdcard()
+                    platform.sdcard.unmount()
                 return
 
         self.save_aead(fullpath, plaintext=self.mnemonic.encode(),
                        key=self.enc_secret)
         if fullpath.startswith(self.sdpath):
-            platform.unmount_sdcard()
+            platform.sdcard.unmount()
         # check it's ok
         await self.load_mnemonic(fullpath)
         # return the full file name incl. prefix if saved to SD card, just the name if on flash
@@ -104,16 +96,15 @@ class SDKeyStore(FlashKeyStore):
     def is_key_saved(self):
         flash_exists = super().is_key_saved
 
-        if not platform.is_sd_present():
+        if not platform.sdcard.is_present:
             return flash_exists
 
-        platform.mount_sdcard()
-        sd_files = [
-            f[0] for f in os.ilistdir(self.sdpath)
-            if f[0].lower().startswith(self.fileprefix(self.sdpath))
-        ]
+        with platform.sdcard:
+            sd_files = [
+                f[0] for f in os.ilistdir(self.sdpath)
+                if f[0].lower().startswith(self.fileprefix(self.sdpath))
+            ]
         sd_exists = (len(sd_files) > 0)
-        platform.unmount_sdcard()
         return sd_exists or flash_exists
 
     async def load_mnemonic(self, file=None):
@@ -125,15 +116,15 @@ class SDKeyStore(FlashKeyStore):
             if file is None:
                 return False
 
-        if file.startswith(self.sdpath) and platform.is_sd_present():
-            platform.mount_sdcard()
+        if file.startswith(self.sdpath) and platform.sdcard.is_present:
+            platform.sdcard.mount()
 
         if not platform.file_exists(file):
             raise KeyStoreError("Key is not saved")
         _, data = self.load_aead(file, self.enc_secret)
 
-        if file.startswith(self.sdpath) and platform.is_sd_present():
-            platform.unmount_sdcard()
+        if file.startswith(self.sdpath) and platform.sdcard.is_present:
+            platform.sdcard.unmount()
         self.set_mnemonic(data.decode(), "")
         return True
 
@@ -145,10 +136,9 @@ class SDKeyStore(FlashKeyStore):
         buttons += self.load_files(self.flashpath)
 
         buttons += [(None, 'SD card')]
-        if platform.is_sd_present():
-            platform.mount_sdcard()
-            buttons += self.load_files(self.sdpath)
-            platform.unmount_sdcard()
+        if platform.sdcard.is_present:
+            with platform.sdcard:
+                buttons += self.load_files(self.sdpath)
         else:
             buttons += [(None, 'No SD card present')]
 
@@ -160,8 +150,8 @@ class SDKeyStore(FlashKeyStore):
         if file is None:
             return False
         # mount sd before check
-        if platform.is_sd_present() and file.startswith(self.sdpath):
-            platform.mount_sdcard()
+        if platform.sdcard.is_present and file.startswith(self.sdpath):
+            platform.sdcard.mount()
         if not platform.file_exists(file):
             raise KeyStoreError("File not found.")
         try:
@@ -170,8 +160,8 @@ class SDKeyStore(FlashKeyStore):
             print(e)
             raise KeyStoreError("Failed to delete file '%s'" % file)
         finally:
-            if platform.is_sd_present() and file.startswith(self.sdpath):
-                platform.unmount_sdcard()
+            if platform.sdcard.is_present and file.startswith(self.sdpath):
+                platform.sdcard.unmount()
             return True
 
     async def storage_menu(self):

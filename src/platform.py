@@ -17,9 +17,6 @@ if not simulator:
 else:
     _PREALLOCATED = bytes(0x100000)
 
-sdcard = None  # SD card instance
-sdled = None  # LED to show we are working with SD card
-
 # injected by the boot.py
 i2c = None # I2C to talk to the battery
 
@@ -42,23 +39,83 @@ def maybe_mkdir(path):
         os.sync()
 
 
+class SDCard:
+    _mounted = False
+
+    def __init__(self, sd = None, led = None):
+        self._sd = sd
+        self._led = led
+        if led is not None:
+            led.off()
+
+    @property
+    def is_present(self):
+        """
+        Checks if SD card is inserted
+        """
+        # simulator
+        if self._sd is None:
+            return True
+        return self._sd.present()
+
+    def mount(self):
+        """Mounts SD card"""
+        if not self.is_present:
+            raise RuntimeError("SD card is not present")
+        if self._sd is None:
+            return
+        if self._led is not None:
+            self._led.on()
+        self._sd.power(True)
+        os.mount(self._sd, "/sd")
+        self._mounted = True
+
+    def open(self, filename, *args, **kwargs):
+        return open(
+            fpath("/sd/" + filename.lstrip("/")),
+            *args, **kwargs
+        )
+
+    def file_exists(self, filename) -> bool:
+        return file_exists(fpath("/sd/" + filename.lstrip("/")))
+
+    def unmount(self):
+        """Unmounts SD card"""
+        # sync file system before unmounting
+        if not self._mounted:
+            return
+        self._mounted = False
+        if self._sd is None:
+            return
+        os.sync()
+        os.umount("/sd")
+        self._sd.power(False)
+        if self._led is not None:
+            self._led.off()
+
+    def __enter__(self):
+        self.mount()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.unmount()
+
+
 def fpath(fname):
     """A small function to avoid % storage_root everywhere"""
     return "%s%s" % (config.storage_root, fname)
 
 
-# path to store #reckless entropy
 if simulator:
     # create folders for simulator
     maybe_mkdir(config.storage_root)
     maybe_mkdir(fpath("/flash"))
     maybe_mkdir(fpath("/qspi"))
     maybe_mkdir(fpath("/sd"))
+    sdcard = SDCard(None, None)
 else:
     storage_root = ""
-    sdcard = pyb.SDCard()
-    sdled = pyb.LED(4)
-    sdled.off()
+    sdcard = SDCard(pyb.SDCard(), pyb.LED(4))
 
 def get_version() -> str:
     # version is coming from boot.py if running on the hardware
@@ -74,38 +131,6 @@ def get_version() -> str:
         return ver
     except:
         return "unknown"
-
-def is_sd_present() -> bool:
-    """
-    Checks if SD card is inserted
-    """
-    # simulator
-    if sdcard is None:
-        return True
-    return sdcard.present()
-
-
-def mount_sdcard() -> bool:
-    """Mounts SD card"""
-    if not is_sd_present():
-        raise RuntimeError("SD card is not present")
-    if sdcard is not None:
-        sdled.on()
-        sdcard.power(True)
-        os.mount(sdcard, "/sd")
-
-
-def unmount_sdcard() -> bool:
-    """Unmounts SD card"""
-    # sync file system before unmounting
-    if not is_sd_present():
-        raise RuntimeError("SD card is not present")
-    if sdcard is not None:
-        os.sync()
-        os.umount("/sd")
-        sdcard.power(False)
-        sdled.off()
-
 
 def mount_sdram():
     path = fpath("/ramdisk")
@@ -137,7 +162,7 @@ def sync():
 
 def file_exists(fname: str) -> bool:
     try:
-        with open(fname, "rb") as f:
+        with open(fname, "rb"):
             pass
         return True
     except:
