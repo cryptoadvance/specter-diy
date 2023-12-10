@@ -3,7 +3,6 @@ import pyb
 import time
 import asyncio
 from platform import simulator, config, delete_recursively
-from io import BytesIO
 import gc
 from gui.screens.settings import HostSettings
 from gui.screens import Alert

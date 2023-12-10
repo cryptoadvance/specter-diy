@@ -208,7 +208,7 @@ class WalletManager(BaseApp):
                     "message": "Scan it with your wallet",
                 }
                 return res, obj
-            return
+            return False
         if cmd == SIGN_BCUR:
             # move to the end of UR:BYTES/
             stream.seek(9, 1)
@@ -231,7 +231,7 @@ class WalletManager(BaseApp):
                     "message": "Scan it with your wallet",
                 }
                 return res, obj
-            return
+            return False
         elif cmd == LIST_WALLETS:
             wnames = json.dumps([w.name for w in self.wallets])
             return BytesIO(wnames.encode()), {}
@@ -239,10 +239,10 @@ class WalletManager(BaseApp):
             # read content, it's small
             desc = stream.read().decode().strip()
             w = self.parse_wallet(desc)
-            res = await self.confirm_new_wallet(w, show_screen)
-            if res:
+            confirm = await self.confirm_new_wallet(w, show_screen)
+            if confirm:
                 self.add_wallet(w)
-            return
+            return bool(confirm)
         elif cmd == VERIFY_ADDRESS:
             data = stream.read().decode().replace("bitcoin:", "")
             # should be of the form addr?index=N or similar
@@ -257,7 +257,7 @@ class WalletManager(BaseApp):
                     break
             w, _ = self.find_wallet_from_address(addr, index=idx)
             await show_screen(WalletScreen(w, self.network, idx))
-            return
+            return True
         elif cmd == DERIVE_ADDRESS:
             arr = stream.read().split(b" ")
             redeem_script = None

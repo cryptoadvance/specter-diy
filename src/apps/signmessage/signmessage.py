@@ -72,7 +72,7 @@ class MessageApp(BaseApp):
         )
         res = await show_screen(scr)
         if res is False:
-            return None
+            return False
         sig = self.sign_message(derivation_path, message)
         # for GUI we can also return an object with helpful data
         pub = self.keystore.get_xpub(derivation_path).get_public_key()

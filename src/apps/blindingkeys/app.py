@@ -45,7 +45,7 @@ class BlindingKeysApp(BaseApp):
                        "Send master blinding private key\nto the host?\n\n"
                        "Host is requesting your\nSLIP-77 blinding key.\n\n"
                        "It will be able to watch your funds and unblind transactions.")):
-                return
+                return False
             return BytesIO(self.keystore.slip77_key.wif(NETWORKS[self.network])), {}
         raise AppError("Unknown command")
 

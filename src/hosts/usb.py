@@ -1,4 +1,3 @@
-from io import BytesIO
 from errors import BaseError
 from .core import Host, HostError
 import sys
@@ -65,7 +64,7 @@ class USBHost(Host):
         platform.delete_recursively(self.path)
 
     async def process_command(self, stream):
-        if self.manager == None:
+        if self.manager is None:
             raise HostError("Device is busy")
         # all commands are pretty short
         b = stream.read(20)
@@ -76,8 +75,10 @@ class USBHost(Host):
         stream.seek(0)
         # res should be a stream as well
         res = await self.manager.process_host_request(stream)
-        if res is None:
+        if res is None or res is False:
             self.respond(b"error: User cancelled")
+        elif res is True:
+            self.respond(b"success")
         else:
             stream, meta = res
             # if it's str - it's a filename
@@ -148,7 +149,7 @@ class USBHost(Host):
         return self.path + "/data"
 
     async def update(self):
-        if self.manager == None:
+        if self.manager is None:
             return await asyncio.sleep_ms(100)
         if self.usb is None:
             return await asyncio.sleep_ms(100)
