@@ -4,14 +4,12 @@ from .javacard.applets.memorycard import MemoryCardApplet, SecureError
 from .javacard.util import get_connection
 from platform import CriticalErrorWipeImmediately
 import platform
-from rng import get_random_bytes
 from embit import bip39
 from helpers import tagged_hash, aead_encrypt, aead_decrypt
 import hmac
-from gui.screens import Alert, Progress, Menu, MnemonicScreen, Prompt
+from gui.screens import Alert, Progress, Menu, Prompt
 import asyncio
 from io import BytesIO
-from uscard import SmartcardException
 from binascii import hexlify
 import lvgl as lv
 
@@ -228,6 +226,21 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def save_mnemonic(self):
         await self.check_card(check_pin=True)
+        key_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
+        if key_saved:
+            if not decryptable:
+                msg = "Some data saved to the card,\nbut it can't be decrypted"
+            elif same_mnemonic:
+                msg = "Same mnemonic is saved to the card\nin "
+                msg += "encrypted" if encrypted else "plaintext"
+                msg += " form.\n"
+            else:
+                msg = "A different mnemonic is saved to the card"
+            confirm = await self.show(Prompt("Overwrite existing data?",
+                    "\n%s" % msg + "\n\nContinue?"
+            ))
+            if not confirm:
+                return
         encrypt = await self.show(Prompt("Encrypt the secret?",
                     "\nIf you encrypt the secret on the card "
                     "it will only work with this device.\n\n"
@@ -407,10 +420,7 @@ In this mode device can only operate when the smartcard is inserted!"""
             else:
                 raise KeyStoreError("Invalid menu")
 
-    async def show_card_info(self):
-        note = "Card fingerprint: %s" % self.hexid
-        version = "%s v%s" % (self.applet.NAME, self.applet.version)
-        platform = self.applet.platform
+    def get_secret_info(self):
         data = self.applet.get_secret()
         key_saved = len(data) > 0
         encrypted = True
@@ -422,8 +432,15 @@ In this mode device can only operate when the smartcard is inserted!"""
                 if "entropy" in d:
                     self._is_key_saved = True
                 same_mnemonic = (self.mnemonic == bip39.mnemonic_from_bytes(d["entropy"]))
-            except KeyStoreError as e:
+            except KeyStoreError:
                 decryptable = False
+        return key_saved, encrypted, decryptable, same_mnemonic
+
+    async def show_card_info(self):
+        note = "Card fingerprint: %s" % self.hexid
+        version = "%s v%s" % (self.applet.NAME, self.applet.version)
+        platform = self.applet.platform
+        key_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
         # yes = lv.SYMBOL.OK+" Yes"
         # no = lv.SYMBOL.CLOSE+" No"
         yes = "Yes"
