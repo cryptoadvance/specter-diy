@@ -259,6 +259,13 @@ In this mode device can only operate when the smartcard is inserted!"""
         self._is_key_saved = True
         # check it's ok
         await self.load_mnemonic()
+        await self.show(
+            Alert(
+                "Success!",
+                "Your key is stored on the smartcard now.",
+                button_text="OK",
+            )
+        )
 
     @property
     def is_key_saved(self):
@@ -372,13 +379,6 @@ In this mode device can only operate when the smartcard is inserted!"""
                 return False
             elif menuitem == 0:
                 await self.save_mnemonic()
-                await self.show(
-                    Alert(
-                        "Success!",
-                        "Your key is stored on the smartcard now.",
-                        button_text="OK",
-                    )
-                )
             elif menuitem == 1:
                 await self.load_mnemonic()
                 await self.show(
