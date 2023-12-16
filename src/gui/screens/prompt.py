@@ -17,7 +17,9 @@ class Prompt(Screen):
         self.page.set_size(480, 600)
         self.message = add_label(message, scr=self.page)
         self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
+        # Initialize an empty icon label. It will display nothing until a symbol is set.
         self.icon = lv.label(self)
+        self.icon.set_text("")
 
         (self.cancel_button, self.confirm_button) = add_button_pair(
             cancel_text,
@@ -29,6 +31,7 @@ class Prompt(Screen):
 
         if warning:
             self.warning = add_label(warning, scr=self, style="warning")
+            # Display warning symbol in the icon label 
             self.icon.set_text(lv.SYMBOL.WARNING)
             
             # Align warning text
