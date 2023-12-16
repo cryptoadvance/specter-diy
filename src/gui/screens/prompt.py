@@ -6,7 +6,7 @@ from ..decorators import on_release, cb_with_args
 
 class Prompt(Screen):
     def __init__(self, title="Are you sure?", message="Make a choice",
-                 confirm_text="Confirm", cancel_text="Cancel", note=None):
+                 confirm_text="Confirm", cancel_text="Cancel", note=None, warning=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
@@ -25,3 +25,10 @@ class Prompt(Screen):
             on_release(cb_with_args(self.set_value, True)),
             scr=self,
         )
+
+        if warning:
+            self.warning = add_label(warning, scr=self, style="warning")
+             # Align warning text
+            y_pos = self.cancel_button.get_y() - 60 # above the buttons
+            x_pos = self.get_width() // 2 - self.warning.get_width() // 2 # in the center of the prompt
+            self.warning.set_pos(x_pos, y_pos)
