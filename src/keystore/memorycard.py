@@ -226,8 +226,8 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def save_mnemonic(self):
         await self.check_card(check_pin=True)
-        key_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
-        if key_saved:
+        data_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
+        if data_saved:
             if not decryptable:
                 msg = ("There is data on the card, but its nature is unknown since we are unable to decrypt it.\n\n"
                     "Thus, we cannot confirm whether a mnemonic is already saved on your card or if it matches the one you are about to save.")
@@ -426,11 +426,11 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     def get_secret_info(self):
         data = self.applet.get_secret()
-        key_saved = len(data) > 0
+        data_saved = len(data) > 0
         encrypted = True
         decryptable = True
         same_mnemonic = False
-        if key_saved:
+        if data_saved:
             try:
                 d, encrypted = self.parse_data(data)
                 if "entropy" in d:
@@ -438,13 +438,13 @@ In this mode device can only operate when the smartcard is inserted!"""
                 same_mnemonic = (self.mnemonic == bip39.mnemonic_from_bytes(d["entropy"]))
             except KeyStoreError:
                 decryptable = False
-        return key_saved, encrypted, decryptable, same_mnemonic
+        return data_saved, encrypted, decryptable, same_mnemonic
 
     async def show_card_info(self):
         note = "Card fingerprint: %s" % self.hexid
         version = "%s v%s" % (self.applet.NAME, self.applet.version)
         platform = self.applet.platform
-        key_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
+        data_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
         # yes = lv.SYMBOL.OK+" Yes"
         # no = lv.SYMBOL.CLOSE+" No"
         yes = "Yes"
@@ -454,9 +454,9 @@ In this mode device can only operate when the smartcard is inserted!"""
             "Implementation: %s" % platform,
             "Version: %s" % version,
             "\n#7f8fa4 KEY INFO: #",
-            "Key saved: " + (yes if key_saved else no),
+            "Card has data: " + (yes if data_saved else no),
         ]
-        if key_saved:
+        if data_saved:
             if decryptable:
                 props.append("Same as current key: " + (yes if same_mnemonic else no))
             props.append("Encrypted: " + (yes if encrypted else no))
