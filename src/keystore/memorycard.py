@@ -242,18 +242,19 @@ In this mode device can only operate when the smartcard is inserted!"""
 
             confirm = await self.show(Prompt("Overwrite data?",
                     "\n%s" % msg + "\n\nDo you want to continue?", 'Continue', warning="Irreversibly overwrite the data on the card"
-            ))
+                ))
             if not confirm:
                 return
-        encrypt = await self.show(Prompt("Encrypt the secret?",
+        keep_as_plain_text = await self.show(Prompt("Encrypt the secret?",
                     "\nIf you encrypt the secret on the card "
-                    "it will only work with this device.\n\n"
-                    "Otherwise it will be readable on any device "
+                    "it will only work with the device you are currently using.\n\n"
+                    "If you keep it as plain text, it will be readable on any Specter DIY device "
                     "after you enter the PIN code.\n\n"
-                    "Keep in mind that with encryption enabled "
-                    "wiping the device makes the secret unusable!",
-                    confirm_text="Yes, encrypt",
-                    cancel_text="Keep as plain text"))
+                    "Activating encryption means that if the device is wiped, the stored secret on the card becomes inaccessible.",
+                    confirm_text="Keep as plain text",
+                    cancel_text="Encrypt",
+                ))
+        encrypt = not keep_as_plain_text
         self.show_loader("Saving secret to the card...")
         d = self.serialize_data(
             {"entropy": bip39.mnemonic_to_bytes(self.mnemonic)},
