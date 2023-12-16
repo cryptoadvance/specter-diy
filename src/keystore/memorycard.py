@@ -229,15 +229,19 @@ In this mode device can only operate when the smartcard is inserted!"""
         key_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
         if key_saved:
             if not decryptable:
-                msg = "Some data saved to the card,\nbut it can't be decrypted"
+                msg = ("There is data on the card, but its nature is unknown since we are unable to decrypt it.\n\n"
+                    "Thus, we cannot confirm whether a mnemonic is already saved on your card or if it matches the one you are about to save.")
             elif same_mnemonic:
-                msg = "Same mnemonic is saved to the card\nin "
-                msg += "encrypted" if encrypted else "plaintext"
-                msg += " form.\n"
+                msg = ("The mnemonic you are about to save is already stored on the smart card.\n"
+                    "If you proceed, the existing data will be overwritten with the same mnemonic.\n\n"
+                    "This can be useful if you want to store this mnemonic in a different form (plaintext vs. encrypted) on the card.\n\n"
+                    "Currently, your mnemonic is saved in {} form on the card.".format('encrypted' if encrypted else 'plaintext'))
             else:
-                msg = "A different mnemonic is saved to the card"
-            confirm = await self.show(Prompt("Overwrite existing data?",
-                    "\n%s" % msg + "\n\nContinue?"
+                msg = ("A different mnemonic is already saved on the card.\n\n"
+                    "Continuing will replace the existing mnemonic with the one you are about to save.")
+
+            confirm = await self.show(Prompt("Overwrite data?",
+                    "\n%s" % msg + "\n\nDo you want to continue?", 'Continue', warning="Irreversibly overwrite the data on the card"
             ))
             if not confirm:
                 return
