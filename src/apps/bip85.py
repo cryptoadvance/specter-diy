@@ -6,9 +6,9 @@ from app import BaseApp, AppError
 from embit import bip85
 from gui.common import add_button, add_button_pair, align_button_pair
 from gui.decorators import on_release
-from gui.screens import Menu, NumericScreen, QRAlert, Alert
+from gui.screens import Menu, NumericScreen, QRAlert, Alert, Prompt
 from gui.screens.mnemonic import MnemonicScreen
-from helpers import SDCardFile
+import platform
 
 class QRWithSD(QRAlert):
     SAVE = 1
@@ -119,8 +119,14 @@ class App(BaseApp):
                 fname = "bip85-%s-mnemonic-%d-%d.txt" % (
                     fgp, num_words, index
                 )
-                with SDCardFile(fname, "w") as f:
-                    f.write(mnemonic)
+                with platform.sdcard as sd:
+                    if sd.file_exists(fname):
+                        scr = Prompt("Overwrite?", message="File %s already exists on the SD card. Overwrite?" % fname)
+                        confirm = await show_screen(scr)
+                        if not confirm:
+                            return True
+                    with sd.open(fname, "w") as f:
+                        f.write(mnemonic)
                 await show_screen(
                     Alert(
                         title="Success",
@@ -169,8 +175,9 @@ class App(BaseApp):
         )
         if action == QRWithSD.SAVE:
             fname = "bip85-%s-%s-%d.txt" % (fgp, file_suffix, index)
-            with SDCardFile(fname, "w") as f:
-                f.write(res)
+            with platform.sdcard as sd:
+                with sd.open(fname, "w") as f:
+                    f.write(res)
             await show_screen(
                 Alert(
                     title="Success",
