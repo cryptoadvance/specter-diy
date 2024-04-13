@@ -6,15 +6,15 @@ There are a few case designs made by the community:
 
 ![](../pictures/gallery/snap-case-double-2.jpg)
 
-Print it yourself snap case with the waveshare scanner on the backside. 
+Print it yourself enclosure with the waveshare scanner on the backside. 
 
 The printable STL files are available for download in the [snapcase](./snapcase/) folder.
 
 Please note that the prints are quite tight around the hardware components. They are well tested with a Prusa MK3s and Specter hardware components from late 2022. Other printers or newer or older hardware may produce results that do not fit. Please check carefully that the prints do not exert pressure on any hardware components and don't exert any pressure yourself. 
 
-Contact me if you have any questions or suggestions. Success stories are also very welcome. :) You can reach me on [Twitter (@kayth21)](https://twitter.com/kayth21) or on [Telegram (@SeedSticks)](https://t.me/SeedSticks).
+Contact me if you have any questions or suggestions. Success stories are also very welcome. :) You can reach me on [X (@kayth21)](https://x.com/kayth21) or on [Telegram (@kayth_21)](https://t.me/kayth_21).
 
-You can also buy a snap case, or a fully assembled Specter-DIY, from [bitcoin-store.org](https://bitcoin-store.org).
+You can also buy a Snap Case, or a fully assembled Specter-DIY, from [bitcoin-store.org](https://bitcoin-store.org).
 
 ## SeedSigner's "Barebones" enclosure, v2
 

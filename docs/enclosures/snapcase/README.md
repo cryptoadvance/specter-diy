@@ -2,7 +2,7 @@
 
 ![](../../pictures/gallery/snap-case-bronze-black-1.jpg)
 
-Specter-DIY Snap Case is a print it yourself snap case with the waveshare scanner on the backside. It consists of a scanner part, in which the scanner is held and the cables are fixed, and a frontside and a backside part, which can be plugged together. 
+Specter-DIY Snap Case is a print it yourself enclosure with the waveshare scanner on the backside. It consists of a scanner part, in which the scanner is held and the cables are fixed, and a frontside and a backside part, which can be plugged together. 
 
 ## Please note
 
@@ -45,8 +45,8 @@ Please note that this manual assumes that you are familiar with the basic assemb
 
 ## Contact
 
-Contact me if you have any questions or suggestions. Success stories are also very welcome. :) You can reach me on [Twitter (@kayth21)](https://twitter.com/kayth21) or on [Telegram (@SeedSticks)](https://t.me/SeedSticks).
+Contact me if you have any questions or suggestions. Success stories are also very welcome. :) You can reach me on [X (@kayth21)](https://x.com/kayth21) or on [Telegram (@kayth_21)](https://t.me/kayth_21).
 
 ## Shop
 
-You can also buy a snap case, or a fully assembled Specter-DIY, from [bitcoin-store.org](https://bitcoin-store.org).
+You can also buy a Snap Case, or a fully assembled Specter-DIY, from [bitcoin-store.org](https://bitcoin-store.org).
