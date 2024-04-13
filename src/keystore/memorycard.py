@@ -4,14 +4,12 @@ from .javacard.applets.memorycard import MemoryCardApplet, SecureError
 from .javacard.util import get_connection
 from platform import CriticalErrorWipeImmediately
 import platform
-from rng import get_random_bytes
 from embit import bip39
 from helpers import tagged_hash, aead_encrypt, aead_decrypt
 import hmac
-from gui.screens import Alert, Progress, Menu, MnemonicScreen, Prompt
+from gui.screens import Alert, Progress, Menu, Prompt
 import asyncio
 from io import BytesIO
-from uscard import SmartcardException
 from binascii import hexlify
 import lvgl as lv
 
@@ -228,15 +226,35 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     async def save_mnemonic(self):
         await self.check_card(check_pin=True)
-        encrypt = await self.show(Prompt("Encrypt the secret?",
+        data_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
+        if data_saved:
+            if not decryptable:
+                msg = ("There is data on the card, but its nature is unknown since we are unable to decrypt it.\n\n"
+                    "Thus, we cannot confirm whether a mnemonic is already saved on your card or if it matches the one you are about to save.")
+            elif same_mnemonic:
+                msg = ("The mnemonic you are about to save is already stored on the smart card.\n"
+                    "If you proceed, the existing data will be overwritten with the same mnemonic.\n\n"
+                    "This can be useful if you want to store this mnemonic in a different form (plaintext vs. encrypted) on the card.\n\n"
+                    "Currently, your mnemonic is saved in {} form on the card.".format('encrypted' if encrypted else 'plaintext'))
+            else:
+                msg = ("A different mnemonic is already saved on the card.\n\n"
+                    "Continuing will replace the existing mnemonic with the one you are about to save.")
+
+            confirm = await self.show(Prompt("Overwrite data?",
+                    "\n%s" % msg + "\n\nDo you want to continue?", 'Continue', warning="Irreversibly overwrite the data on the card"
+                ))
+            if not confirm:
+                return
+        keep_as_plain_text = await self.show(Prompt("Encrypt the secret?",
                     "\nIf you encrypt the secret on the card "
-                    "it will only work with this device.\n\n"
-                    "Otherwise it will be readable on any device "
+                    "it will only work with the device you are currently using.\n\n"
+                    "If you keep it as plain text, it will be readable on any Specter DIY device "
                     "after you enter the PIN code.\n\n"
-                    "Keep in mind that with encryption enabled "
-                    "wiping the device makes the secret unusable!",
-                    confirm_text="Yes, encrypt",
-                    cancel_text="Keep as plain text"))
+                    "Activating encryption means that if the device is wiped, the stored secret on the card becomes inaccessible.",
+                    confirm_text="Keep as plain text",
+                    cancel_text="Encrypt",
+                ))
+        encrypt = not keep_as_plain_text
         self.show_loader("Saving secret to the card...")
         d = self.serialize_data(
             {"entropy": bip39.mnemonic_to_bytes(self.mnemonic)},
@@ -246,6 +264,13 @@ In this mode device can only operate when the smartcard is inserted!"""
         self._is_key_saved = True
         # check it's ok
         await self.load_mnemonic()
+        await self.show(
+            Alert(
+                "Success!",
+                "Your key is stored on the smartcard now.",
+                button_text="OK",
+            )
+        )
 
     @property
     def is_key_saved(self):
@@ -359,13 +384,6 @@ In this mode device can only operate when the smartcard is inserted!"""
                 return False
             elif menuitem == 0:
                 await self.save_mnemonic()
-                await self.show(
-                    Alert(
-                        "Success!",
-                        "Your key is stored on the smartcard now.",
-                        button_text="OK",
-                    )
-                )
             elif menuitem == 1:
                 await self.load_mnemonic()
                 await self.show(
@@ -407,23 +425,27 @@ In this mode device can only operate when the smartcard is inserted!"""
             else:
                 raise KeyStoreError("Invalid menu")
 
-    async def show_card_info(self):
-        note = "Card fingerprint: %s" % self.hexid
-        version = "%s v%s" % (self.applet.NAME, self.applet.version)
-        platform = self.applet.platform
+    def get_secret_info(self):
         data = self.applet.get_secret()
-        key_saved = len(data) > 0
+        data_saved = len(data) > 0
         encrypted = True
         decryptable = True
         same_mnemonic = False
-        if key_saved:
+        if data_saved:
             try:
                 d, encrypted = self.parse_data(data)
                 if "entropy" in d:
                     self._is_key_saved = True
                 same_mnemonic = (self.mnemonic == bip39.mnemonic_from_bytes(d["entropy"]))
-            except KeyStoreError as e:
+            except KeyStoreError:
                 decryptable = False
+        return data_saved, encrypted, decryptable, same_mnemonic
+
+    async def show_card_info(self):
+        note = "Card fingerprint: %s" % self.hexid
+        version = "%s v%s" % (self.applet.NAME, self.applet.version)
+        platform = self.applet.platform
+        data_saved, encrypted, decryptable, same_mnemonic = self.get_secret_info()
         # yes = lv.SYMBOL.OK+" Yes"
         # no = lv.SYMBOL.CLOSE+" No"
         yes = "Yes"
@@ -433,9 +455,9 @@ In this mode device can only operate when the smartcard is inserted!"""
             "Implementation: %s" % platform,
             "Version: %s" % version,
             "\n#7f8fa4 KEY INFO: #",
-            "Key saved: " + (yes if key_saved else no),
+            "Card has data: " + (yes if data_saved else no),
         ]
-        if key_saved:
+        if data_saved:
             if decryptable:
                 props.append("Same as current key: " + (yes if same_mnemonic else no))
             props.append("Encrypted: " + (yes if encrypted else no))
