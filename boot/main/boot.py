@@ -13,7 +13,7 @@ for p in sys.path:
 pwr = pyb.Pin("B15", pyb.Pin.OUT)
 pwr.on()
 
-version = "<version:tag10>0100800399</version:tag10>"
+version = "<version:tag10>0100900099</version:tag10>"
 
 # get i2c
 i2c = pyb.I2C(1)
