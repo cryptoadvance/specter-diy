@@ -340,7 +340,7 @@ class Specter:
         ]
         if self.keystore.storage_button is not None:
             buttons.append((1, self.keystore.storage_button))
-        buttons.append((2, "Enter Passphrase"))
+        buttons.append((2, "Enter passphrase"))
         if hasattr(self.keystore, "show_mnemonic"):
             buttons.append((3, "Show recovery phrase"))
         buttons.extend([(None, "Security"), (4, "Device settings")])  # delimiter
