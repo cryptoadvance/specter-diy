@@ -64,7 +64,8 @@ unix: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/unix
 	make -C $(MPY_DIR)/ports/unix \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_UNIX) && \
-	cp $(MPY_DIR)/ports/unix/micropython $(TARGET_DIR)/micropython_unix
+		CFLAGS_EXTRA='-DMP_CONFIGFILE="<mpconfigport_specter.h>"' && \
+	cp $(MPY_DIR)/ports/unix/build-standard/micropython $(TARGET_DIR)/micropython_unix
 
 simulate: unix
 	$(TARGET_DIR)/micropython_unix simulate.py
@@ -77,7 +78,7 @@ all: mpy-cross disco unix
 clean:
 	rm -rf $(TARGET_DIR)
 	make -C $(MPY_DIR)/mpy-cross clean
-	rm $(MPY_DIR)/mpy-cross/mpy-cross
+	rm -rf $(MPY_DIR)/mpy-cross/mpy-cross
 	make -C $(MPY_DIR)/ports/unix \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_UNIX) clean
