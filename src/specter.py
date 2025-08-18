@@ -18,6 +18,7 @@ from embit import bip39
 from embit.liquid.networks import NETWORKS
 from gui.screens.settings import HostSettings
 from gui.screens.mnemonic import MnemonicPrompt
+from stresstest import StressTest, StressTestScreen
 
 # small helper functions
 from helpers import gen_mnemonic, fix_mnemonic
@@ -500,6 +501,9 @@ class Specter:
             # (2, "Applications"),
             # (3, "Experimental"),
         ] + [
+            (None, "Testing"),
+            (999, "Stress test"),
+        ] + [
             (None, "Global settings"),
         ]
         if hasattr(self.keystore, "lock"):
@@ -540,6 +544,8 @@ class Specter:
                 return
             elif menuitem == 1:
                 await self.communication_settings()
+            elif menuitem == 999:
+                await self.stress_test_menu()
             else:
                 print(menuitem)
                 raise SpecterError("Not implemented")
@@ -552,6 +558,27 @@ class Specter:
         # TODO: wipe the smartcard as well?
         # platform.wipe
         wipe()
+
+    async def stress_test_menu(self):
+        """Show stress test interface"""
+        try:
+            print("=== STARTING STRESS TEST MENU ===")
+            # Create stress test instance with RAM path
+            rampath = "/ramdisk"  # Use the same RAM path as main
+            stress_test = StressTest(rampath)
+
+            # Create and show stress test screen
+            screen = StressTestScreen(stress_test)
+            await self.gui.load_screen(screen)
+            await screen.result()
+
+        except Exception as e:
+            print("=== STRESS TEST MENU ERROR ===")
+            print("Error:", str(e))
+            import sys
+            sys.print_exception(e)
+            print("==============================")
+            await self.gui.alert("Stress Test Error", "Failed to start stress test:\n\n" + str(e))
 
     async def lock(self):
         # lock the keystore
