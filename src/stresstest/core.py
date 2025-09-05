@@ -221,9 +221,14 @@ class StressTest(Screen):
                     return
 
                 try:
-                    # Test smartcard reading
+                    current_data = await tester._read_smartcard()
+                    print("Smartcard read:", repr(current_data))
                     self.statistics['smartcard_reads'] += 1
-                    # Add actual smartcard test here if needed
+
+                    # Compare with initial value (like original stress test)
+                    if current_data != self.initial_values.get('smartcard'):
+                        self.statistics['mismatches'] += 1
+
                 except Exception as e:
                     self.statistics['smartcard_errors'] += 1
                     print("Smartcard read error:", str(e))
@@ -233,9 +238,13 @@ class StressTest(Screen):
                     return
 
                 try:
-                    # Test storage operations
+                    current_data = await tester._read_storage()
                     self.statistics['storage_reads'] += 1
-                    # Add actual storage test here if needed
+
+                    # Compare with initial value (like original stress test)
+                    if current_data != self.initial_values.get('storage'):
+                        self.statistics['mismatches'] += 1
+
                 except Exception as e:
                     self.statistics['storage_errors'] += 1
                     print("Storage read error:", str(e))
@@ -245,9 +254,13 @@ class StressTest(Screen):
                     return
 
                 try:
-                    # Test SD card operations
+                    current_data = await tester._read_sdcard()
                     self.statistics['sdcard_reads'] += 1
-                    # Add actual SD card test here if needed
+
+                    # Compare with initial value (like original stress test)
+                    if current_data != self.initial_values.get('sdcard'):
+                        self.statistics['mismatches'] += 1
+
                 except Exception as e:
                     self.statistics['sdcard_errors'] += 1
                     print("SD card read error:", str(e))
