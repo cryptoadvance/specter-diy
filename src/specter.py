@@ -18,7 +18,8 @@ from embit import bip39
 from embit.liquid.networks import NETWORKS
 from gui.screens.settings import HostSettings
 from gui.screens.mnemonic import MnemonicPrompt
-from stresstest import StressTest, StressTestScreen
+from stresstest import StressTest
+from stresstest_modular import ModularStressTestScreen as StressTestScreen
 
 # small helper functions
 from helpers import gen_mnemonic, fix_mnemonic
