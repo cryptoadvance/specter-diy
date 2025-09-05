@@ -12,14 +12,13 @@ import time
 import os
 import gc
 import sys
-import platform
 from keystore.javacard.util import get_connection
-from hosts.qr import QRHost
 from gui.screens import Menu, Alert, Prompt
 from gui.screens.screen import Screen
 from gui.common import add_label, add_button
 from gui.decorators import on_release
 import lvgl as lv
+import platform
 
 
 class StressTestError(Exception):
@@ -214,9 +213,16 @@ class StressTestScreen(Screen):
 class StressTest:
     """Main stress test implementation"""
     
-    def __init__(self, rampath="/ramdisk"):
-        self.rampath = rampath
+    def __init__(self, rampath=None):
+        # Use the same rampath as main.py if not provided
+        if rampath is None:
+            self.rampath = platform.mount_sdram()
+        else:
+            self.rampath = rampath
+            # Ensure the rampath directory exists
+            platform.maybe_mkdir(self.rampath)
         self.qr_host = None
+        self.specter_instance = None
         self.initial_values = {}
         self.statistics = {
             'qr_reads': 0,
@@ -231,26 +237,71 @@ class StressTest:
             'start_time': None
         }
         self.running = False
-        
+
+    def _get_existing_qr_host(self):
+        """Try to get the existing QRHost instance from the Specter application"""
+        try:
+            # Access the Specter instance through Host.parent
+            from hosts.core import Host
+            if Host.parent is not None:
+                specter = Host.parent
+                print("Found Specter instance with", len(specter.hosts), "hosts")
+
+                # Look for QRHost in the hosts list
+                for host in specter.hosts:
+                    if host.__class__.__name__ == 'QRHost':
+                        print("Found QRHost instance:", host)
+                        return host
+
+                print("No QRHost found in hosts list")
+            else:
+                print("No Specter instance found (Host.parent is None)")
+
+        except Exception as e:
+            print("Error getting existing QRHost:", str(e))
+            sys.print_exception(e)
+
+        return None
+
     async def initialize(self):
         """Initialize by reading initial values from all sources"""
         print("=== STRESS TEST INITIALIZATION ===")
         self.initial_values = {}
 
-        # Initialize QR scanner
+        # Initialize QR scanner by using existing QRHost instance
         try:
-            print("Initializing QR scanner...")
-            self.qr_host = QRHost(self.rampath + "/qr")
-            self.qr_host.init()
+            print("Looking for existing QR scanner...")
 
-            # Read QR code
-            print("Reading initial QR data...")
-            qr_data = await self._read_qr_code()
-            self.initial_values['qr'] = qr_data
-            print("QR data:", repr(qr_data))
+            # Try to get the existing QRHost instance from the Specter application
+            self.qr_host = self._get_existing_qr_host()
+
+            if self.qr_host is not None:
+                print("Found existing QRHost instance")
+                print("QRHost path:", self.qr_host.path)
+                print("QRHost enabled:", self.qr_host.enabled)
+                print("QRHost initialized:", self.qr_host.initialized)
+
+                # Make sure the QRHost is enabled and initialized
+                if not self.qr_host.initialized:
+                    print("QRHost not initialized, calling init()...")
+                    self.qr_host.init()
+
+                if not self.qr_host.enabled:
+                    print("QRHost not enabled, enabling...")
+                    await self.qr_host.enable()
+
+                # Read QR code - in stress test we assume there's always something to scan
+                print("Reading initial QR data...")
+                qr_data = await self._read_qr_code()
+                self.initial_values['qr'] = qr_data
+                print("QR data:", repr(qr_data))
+            else:
+                print("No existing QRHost instance found")
+                self.initial_values['qr'] = None
 
         except Exception as e:
             print("WARNING: QR scanner not available:", str(e))
+            sys.print_exception(e)
             self.initial_values['qr'] = None
             self.qr_host = None
             print("Continuing without QR scanner...")
@@ -367,55 +418,41 @@ class StressTest:
         self.running = False
         
     async def _read_qr_code(self):
-        """Read data from QR code"""
+        """Read data from QR code for stress testing"""
         try:
             print("QR read: Starting...")
             if self.qr_host is None:
                 raise StressTestError("QR host not initialized")
 
-            # Enable QR scanner
-            print("QR read: Enabling QR host...")
-            await self.qr_host.enable()
-            print("QR read: QR host enabled")
+            # Get data from QR scanner with a short timeout for stress testing
+            print("QR read: Getting data from QR host...")
 
-            # Try to get data with a short timeout
-            # For stress testing, we'll use a test file if no QR is scanned
-            test_data = "QR_TEST_DATA_" + str(int(time.time()))
-            print("QR read: Generated test data:", test_data)
+            # Use a shorter chunk_timeout for stress testing
+            stream = await self.qr_host.get_data(raw=True, chunk_timeout=0.1)
 
-            # Create a test file for QR simulation
-            test_file = self.rampath + "/qr/data.txt"
-            print("QR read: Creating test file at:", test_file)
-            try:
-                # Create directory if it doesn't exist (MicroPython compatible)
+            if stream is None:
+                raise StressTestError("No QR data received")
+
+            # Read the data from the stream
+            data = stream.read()
+            stream.close()
+
+            # Convert bytes to string if needed
+            if isinstance(data, bytes):
                 try:
-                    os.mkdir(os.path.dirname(test_file))
-                    print("QR read: Created directory")
+                    data = data.decode('utf-8')
                 except:
-                    print("QR read: Directory already exists or creation failed")
-                    pass  # Directory might already exist
-                with open(test_file, "w") as f:
-                    f.write(test_data)
-                print("QR read: Test file created successfully")
-            except Exception as e:
-                print("QR read: Test file creation failed:", str(e))
-                pass
+                    # If it's not valid UTF-8, keep as bytes representation
+                    data = str(data)
 
-            print("QR read: Returning test data")
-            return test_data
+            print("QR read: Received data:", repr(data))
+            return data
 
         except Exception as e:
             print("QR read: Exception occurred:", str(e))
             sys.print_exception(e)
             raise StressTestError("QR read failed: " + str(e))
-        finally:
-            try:
-                print("QR read: Disabling QR host...")
-                await self.qr_host.disable()
-                print("QR read: QR host disabled")
-            except Exception as e:
-                print("QR read: Failed to disable QR host:", str(e))
-        
+            
     async def _read_smartcard(self):
         """Read data from smartcard"""
         try:
