@@ -416,7 +416,7 @@ class StressTest(Screen):
                         print("Stats callback error:", str(e))
 
                 # Brief pause between iterations
-                await asyncio.sleep_ms(1000)
+                await asyncio.sleep_ms(3000)
 
                 # Garbage collection
                 gc.collect()

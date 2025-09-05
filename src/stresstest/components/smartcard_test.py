@@ -36,23 +36,41 @@ class SmartcardTester:
             # Try to get smartcard connection
             print("Smartcard read: Getting connection...")
             connection = get_connection()
-            
+
             if connection is None:
                 raise StressTestError("No smartcard connection available")
-            
-            # Try to read some basic info from the card
-            print("Smartcard read: Reading card info...")
-            
-            # This is a basic test - just check if we can communicate
-            # In a real stress test, you might want to read specific data
-            card_info = {
-                "connection_type": str(type(connection)),
-                "timestamp": get_timestamp(),
-                "status": "connected"
-            }
-            
+
+            # Check if card is inserted
+            if not connection.isCardInserted():
+                raise StressTestError("Smartcard not inserted")
+
+            # Try to connect only if not already connected
+            print("Smartcard read: Checking connection status...")
+            try:
+                # Try to get ATR first - if connection is already established, this should work
+                atr = connection.getATR()
+                if atr is not None:
+                    print("Smartcard read: Using existing connection")
+                else:
+                    # No ATR available, need to connect
+                    print("Smartcard read: Connecting to card...")
+                    connection.connect(connection.T1_protocol)
+                    atr = connection.getATR()
+            except Exception as e:
+                if "already connected" in str(e):
+                    # Connection already exists, just get the ATR
+                    print("Smartcard read: Connection already established")
+                    atr = connection.getATR()
+                else:
+                    # Some other connection error
+                    raise e
+
+            print("Smartcard read: Reading ATR...")
+            if atr is None:
+                raise StressTestError("Could not get ATR from smartcard")
+
             print("Smartcard read: Success")
-            return card_info
+            return str(atr)
             
         except Exception as e:
             print("Smartcard read: Exception occurred:", str(e))
