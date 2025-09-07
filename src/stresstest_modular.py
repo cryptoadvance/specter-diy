@@ -6,91 +6,11 @@ Modular Stress Test for Specter DIY Hardware
 This is the new modular implementation of the stress test system.
 It uses the stresstest package with separate components for each hardware part.
 
-Usage: 
+Usage:
 - From menu: Import this instead of stresstest.py
-- Programmatically: from stresstest_modular import run_stress_test
 """
 
-import asyncio
 from stresstest import StressTest
-
-
-async def run_stress_test():
-    """
-    Main entry point for running the modular stress test
-    """
-    print("Starting Modular Stress Test...")
-    
-    # Create stress test instance
-    stress_test = StressTest()
-    
-    # Initialize all components
-    await stress_test.initialize()
-    
-    # Create and show GUI
-    stress_test.create_gui()
-    
-    # Return the screen for the GUI system
-    return stress_test
-
-
-# For backward compatibility, create a simple function-based interface
-async def quick_test():
-    """
-    Run a quick test of all components without GUI
-    """
-    print("=== QUICK STRESS TEST ===")
-    
-    stress_test = StressTest()
-    await stress_test.initialize()
-    
-    # Run basic component tests
-    await stress_test.run_component_tests()
-    
-    print("=== QUICK TEST COMPLETE ===")
-    return stress_test.test_results
-
-
-# Example of how to test individual components
-async def test_qr_only():
-    """Test only the QR scanner component"""
-    from stresstest.components import QRTester
-    
-    print("=== QR SCANNER TEST ===")
-    qr_tester = QRTester()
-    
-    success = await qr_tester.initialize()
-    if success:
-        print("QR Scanner available:", qr_tester.get_status())
-        # Could run specific QR tests here
-        result = await qr_tester.test_qr_scanning(iterations=3)
-        print("QR Test Result:", result)
-    else:
-        print("QR Scanner not available")
-
-
-async def test_storage_only():
-    """Test only the storage components"""
-    from stresstest.components import StorageTester, SDCardTester
-    
-    print("=== STORAGE TEST ===")
-    
-    # Test internal storage
-    storage_tester = StorageTester()
-    storage_success = await storage_tester.initialize()
-    if storage_success:
-        print("Internal Storage:", storage_tester.get_status())
-        result = await storage_tester.test_storage_performance(iterations=3)
-        print("Storage Performance:", result)
-    
-    # Test SD card
-    sdcard_tester = SDCardTester()
-    sdcard_success = await sdcard_tester.initialize()
-    if sdcard_success:
-        print("SD Card:", sdcard_tester.get_status())
-        result = await sdcard_tester.test_sdcard_performance(iterations=3)
-        print("SD Card Performance:", result)
-
 
 # For integration with the existing menu system
 from gui.screens.screen import Screen
@@ -319,11 +239,4 @@ class ModularStressTestScreen(Screen):
         return await super().result()
 
 
-# Main execution for testing
-if __name__ == "__main__":
-    # This won't work in MicroPython, but shows the concept
-    print("Modular Stress Test Module")
-    print("Use: await run_stress_test() to start the full test")
-    print("Use: await quick_test() for a command-line test")
-    print("Use: await test_qr_only() to test just QR scanner")
-    print("Use: await test_storage_only() to test just storage")
+

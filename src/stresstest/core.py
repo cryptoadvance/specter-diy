@@ -250,16 +250,28 @@ class StressTest(Screen):
                     print("Storage read error:", str(e))
 
             elif component_name == 'sdcard':
-                if self.initial_values.get('sdcard') is None:
+                print("DEBUG: Testing SD card component")
+                # Check if SD card was successfully initialized
+                if not self.initial_values.get('sd_card'):
+                    print("DEBUG: SD card not initialized, skipping")
                     return
 
+                # Use the actual initial data from the tester
+                initial_value = tester.initial_data
+                if initial_value is None:
+                    print("DEBUG: SD card initial data is None, skipping")
+                    return
+
+                print("DEBUG: SD card initial data:", repr(initial_value))
                 try:
                     current_data = await tester._read_sdcard()
                     self.statistics['sdcard_reads'] += 1
+                    print("DEBUG: SD card read successful, count now:", self.statistics['sdcard_reads'])
 
                     # Compare with initial value (like original stress test)
-                    if current_data != self.initial_values.get('sdcard'):
+                    if current_data != initial_value:
                         self.statistics['mismatches'] += 1
+                        print("DEBUG: SD card data mismatch - expected:", repr(initial_value), "got:", repr(current_data))
 
                 except Exception as e:
                     self.statistics['sdcard_errors'] += 1
