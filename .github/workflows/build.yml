@@ -1,0 +1,43 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v14
+
+      - name: Cache Nix store
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/nix
+            /nix/store
+          key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-keys: |
+            nix-${{ runner.os }}-
+
+      - name: Build Unix simulator
+        run: nix develop -c make unix
+
+      - name: Build STM32F469 Discovery firmware
+        run: nix develop -c make disco
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-binaries
+          path: |
+            bin/specter-diy.bin
+            bin/specter-diy.hex
