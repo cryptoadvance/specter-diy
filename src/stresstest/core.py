@@ -234,7 +234,13 @@ class StressTest(Screen):
                     print("Smartcard read error:", str(e))
 
             elif component_name == 'storage':
-                if self.initial_values.get('storage') is None:
+                # Check if storage was successfully initialized
+                if not self.initial_values.get('internal_storage'):
+                    return
+
+                # Use the actual initial data from the tester
+                initial_value = tester.initial_data
+                if initial_value is None:
                     return
 
                 try:
@@ -242,7 +248,7 @@ class StressTest(Screen):
                     self.statistics['storage_reads'] += 1
 
                     # Compare with initial value (like original stress test)
-                    if current_data != self.initial_values.get('storage'):
+                    if current_data != initial_value:
                         self.statistics['mismatches'] += 1
 
                 except Exception as e:
