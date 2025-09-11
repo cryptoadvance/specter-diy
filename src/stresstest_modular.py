@@ -107,7 +107,7 @@ class ModularStressTestScreen(Screen):
         self.config_btn = add_button(
             lv.SYMBOL.SETTINGS + " Config",
             on_release(self.show_config_sync),
-            y=550,  # Fixed position
+            y=590,  # Fixed position - proper 80px spacing
             scr=self
         )
 
@@ -116,7 +116,7 @@ class ModularStressTestScreen(Screen):
         self.back_btn = add_button(
             lv.SYMBOL.LEFT + " Back",
             on_release(self.go_back),
-            y=590,  # Fixed position
+            y=670,  # Fixed position - proper 80px spacing
             scr=self
         )
 

@@ -28,7 +28,7 @@ class StressTestConfigScreen(Screen):
         self.reset_btn = add_button(
             "Reset to 500ms",
             on_release(self.reset_duration),
-            y=160,
+            y=180,  # Starting position with more space from value label
             scr=self
         )
 
@@ -36,35 +36,35 @@ class StressTestConfigScreen(Screen):
         self.decrease_100_btn = add_button(
             "-100ms",
             on_release(self.decrease_100),
-            y=200,
+            y=260,  # 80px spacing
             scr=self
         )
 
         self.increase_100_btn = add_button(
             "+100ms",
             on_release(self.increase_100),
-            y=250,
+            y=340,  # 80px spacing
             scr=self
         )
 
         self.decrease_500_btn = add_button(
             "-500ms",
             on_release(self.decrease_500),
-            y=300,
+            y=420,  # 80px spacing
             scr=self
         )
 
         self.increase_500_btn = add_button(
             "+500ms",
             on_release(self.increase_500),
-            y=350,
+            y=500,  # 80px spacing
             scr=self
         )
         
         # Info label
         self.info_label = add_label(
             "Range: 100ms - 10000ms\nLower = faster testing",
-            y=410,
+            y=580,  # 80px spacing from last button
             scr=self,
             style="hint"
         )
@@ -73,7 +73,7 @@ class StressTestConfigScreen(Screen):
         self.back_btn = add_button(
             lv.SYMBOL.LEFT + " Back",
             on_release(self.go_back),
-            y=480,
+            y=660,  # 80px spacing from info label
             scr=self
         )
         
