@@ -568,8 +568,8 @@ class Specter:
             rampath = "/ramdisk"  # Use the same RAM path as main
             stress_test = StressTest(rampath)
 
-            # Create and show stress test screen
-            screen = StressTestScreen(stress_test)
+            # Create and show stress test screen with show_screen function (popup=True for sub-screens)
+            screen = StressTestScreen(stress_test, self.gui.show_screen(popup=True))
             await self.gui.load_screen(screen)
             await screen.result()
 

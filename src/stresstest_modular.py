@@ -20,7 +20,7 @@ class ModularStressTestScreen(Screen):
     Wrapper class to integrate with existing Specter menu system
     """
 
-    def __init__(self, stress_test_instance=None):
+    def __init__(self, stress_test_instance=None, show_screen_fn=None):
         print("=== MODULAR STRESS TEST SCREEN INIT ===")
         try:
             print("Calling super().__init__()...")
@@ -31,6 +31,7 @@ class ModularStressTestScreen(Screen):
             self.old_stress_test = stress_test_instance  # Keep reference to old one if needed
             self.stress_test = StressTest()
             self.initialized = False
+            self.show_screen_fn = show_screen_fn  # Function to show sub-screens
 
             # Create GUI immediately (like the original)
             print("Creating GUI elements...")
@@ -98,6 +99,15 @@ class ModularStressTestScreen(Screen):
             "Stop Test",
             on_release(self.stop_test_sync),
             y=510,  # Fixed position
+            scr=self
+        )
+
+        print("Creating config button...")
+        # Configuration button
+        self.config_btn = add_button(
+            lv.SYMBOL.SETTINGS + " Config",
+            on_release(self.show_config_sync),
+            y=550,  # Fixed position
             scr=self
         )
 
@@ -220,6 +230,31 @@ class ModularStressTestScreen(Screen):
         if self.stress_test:
             self.stress_test.running = False
             self.status_label.set_text("Stopping test...")
+
+    def show_config_sync(self):
+        """Show configuration screen"""
+        print("Config button pressed")
+        import asyncio
+        asyncio.create_task(self.show_config_async())
+
+    async def show_config_async(self):
+        """Show the configuration screen"""
+        try:
+            from stresstest.config_screen import StressTestConfigScreen
+            config_screen = StressTestConfigScreen(self.stress_test)
+
+            if self.show_screen_fn:
+                # Use the provided show_screen function
+                result = await self.show_screen_fn(config_screen)
+                print("Configuration screen closed with result:", result)
+                print("Returning to main stress test screen")
+                # The main screen should automatically be reactivated by the GUI system
+            else:
+                print("No show_screen function available")
+        except Exception as e:
+            print("Error showing config screen:", str(e))
+            import sys
+            sys.print_exception(e)
 
     def go_back(self):
         """Go back to main menu"""

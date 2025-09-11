@@ -30,14 +30,17 @@ class StressTest(Screen):
         self.smartcard_tester = SmartcardTester()
         self.storage_tester = StorageTester()
         self.sdcard_tester = SDCardTester()
-        
+
         # Test state
         self.initial_values = {}
         self.test_results = {}
         self.running = False
         self.start_time = None
         self.stats_update_callback = None
-        
+
+        # Configuration
+        self.sleep_duration_ms = 1000  # Default 1 second between iterations
+
         # GUI elements
         self.status_label = None
         self.memory_label = None
@@ -68,6 +71,19 @@ class StressTest(Screen):
             sys.print_exception(e)
 
         return None
+
+    def set_sleep_duration(self, duration_ms):
+        """Set the sleep duration between test iterations in milliseconds"""
+        if duration_ms < 100:  # Minimum 100ms
+            duration_ms = 100
+        elif duration_ms > 10000:  # Maximum 10 seconds
+            duration_ms = 10000
+        self.sleep_duration_ms = duration_ms
+        print("Sleep duration set to " + str(duration_ms) + "ms")
+
+    def get_sleep_duration(self):
+        """Get the current sleep duration in milliseconds"""
+        return self.sleep_duration_ms
 
     async def initialize(self):
         """Initialize all test components"""
@@ -178,7 +194,7 @@ class StressTest(Screen):
                         print("Stats callback error:", str(e))
 
                 # Brief pause between iterations
-                await asyncio.sleep_ms(3000)
+                await asyncio.sleep_ms(self.sleep_duration_ms)
 
                 # Garbage collection
                 gc.collect()
