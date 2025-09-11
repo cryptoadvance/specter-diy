@@ -28,8 +28,16 @@ to avoid warnings being raised as errors.
 
 **MacOS**:
 ```sh
-brew tap ArmMbed/homebrew-formulae
 brew install arm-none-eabi-gcc
+brew install sdl2
+```
+
+To make the SDL2 library available to your C/C++ toolchain, ensure that Homebrew’s include and library paths are added to the compiler and linker flags. If they are not already set, you can add the following lines to your shell profile (commonly `~/.zprofile` or `~/.bash_profile`) or configure them in another way before making the Unix build:
+
+```sh
+export LDFLAGS="-L/opt/homebrew/lib $LDFLAGS"
+export CPPFLAGS="-I/opt/homebrew/include $CPPFLAGS"
+export CFLAGS="-I/opt/homebrew/include $CFLAGS"
 ```
 
 On **Windows**: Install linux subsystem and follow Linux instructions.
