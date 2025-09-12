@@ -84,14 +84,6 @@ class ModularStressTestScreen(Screen):
             y=430,  # Fixed position
             scr=self
         )
-        # Disable button initially
-        try:
-            self.start_btn.add_state(lv.STATE.DISABLED)
-        except:
-            try:
-                self.start_btn.set_state(lv.btn.STATE.INA)
-            except:
-                print("Could not disable start button initially")
 
         print("Creating stop button...")
         # Stop button
