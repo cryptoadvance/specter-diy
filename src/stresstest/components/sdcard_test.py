@@ -20,24 +20,26 @@ class SDCardTester:
             if not platform.sdcard.is_present:
                 raise StressTestError("SD card not present")
 
-            # Check if SD card directory exists and is accessible
-            sd_path = platform.fpath("/sd")
-            try:
-                # Try to list the directory to see if it exists and is accessible
-                list(os.ilistdir(sd_path))
-            except OSError as e:
+            # Mount SD card and test operations
+            with platform.sdcard:
+                # Check if SD card directory exists and is accessible
+                sd_path = platform.fpath("/sd")
                 try:
-                    platform.maybe_mkdir(sd_path)
-                except Exception as create_error:
-                    raise StressTestError("SD card directory not accessible and cannot create: " + str(create_error))
+                    # Try to list the directory to see if it exists and is accessible
+                    list(os.ilistdir(sd_path))
+                except OSError as e:
+                    try:
+                        platform.maybe_mkdir(sd_path)
+                    except Exception as create_error:
+                        raise StressTestError("SD card directory not accessible and cannot create: " + str(create_error))
 
-            # Create test directory
-            platform.maybe_mkdir(self.test_path)
+                # Create test directory
+                platform.maybe_mkdir(self.test_path)
 
-            # Test basic file operations
-            sdcard_data = await self._test_sdcard_operations()
-            self.initial_data = sdcard_data
-            return True
+                # Test basic file operations
+                sdcard_data = await self._test_sdcard_operations()
+                self.initial_data = sdcard_data
+                return True
 
         except Exception as e:
             print("WARNING: SD card not available:", str(e))
@@ -87,23 +89,25 @@ class SDCardTester:
     async def _read_sdcard(self):
         """Read SD card data for continuous stress testing"""
         try:
-            # Create a quick test file and read it back
-            test_file = self.test_path + "/stress_test_" + get_timestamp() + ".txt"
-            test_data = self.initial_data  # Use the initial data for comparison
+            # Mount SD card for operations
+            with platform.sdcard:
+                # Create a quick test file and read it back
+                test_file = self.test_path + "/stress_test_" + get_timestamp() + ".txt"
+                test_data = self.initial_data  # Use the initial data for comparison
 
-            # Write and read back the data
-            result = safe_file_operation(self._write_test_file, test_file, test_data)
-            if result is None:
-                raise StressTestError("Failed to write stress test file")
+                # Write and read back the data
+                result = safe_file_operation(self._write_test_file, test_file, test_data)
+                if result is None:
+                    raise StressTestError("Failed to write stress test file")
 
-            read_data = safe_file_operation(self._read_test_file, test_file)
-            if read_data is None:
-                raise StressTestError("Failed to read stress test file")
+                read_data = safe_file_operation(self._read_test_file, test_file)
+                if read_data is None:
+                    raise StressTestError("Failed to read stress test file")
 
-            # Clean up
-            safe_file_operation(self._delete_test_file, test_file)
+                # Clean up
+                safe_file_operation(self._delete_test_file, test_file)
 
-            return read_data
+                return read_data
 
         except Exception as e:
             raise StressTestError("SD card stress read failed: " + str(e))
