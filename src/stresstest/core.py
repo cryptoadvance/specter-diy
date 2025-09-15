@@ -92,8 +92,8 @@ class StressTest(Screen):
 
         # Initialize each component
         components = [
-            #("QR Scanner", self.qr_tester),
-            ("Smartcard", self.smartcard_tester),
+            ("QR Scanner", self.qr_tester),
+            #("Smartcard", self.smartcard_tester),
             ("Internal Storage", self.storage_tester),
             ("SD Card", self.sdcard_tester)
         ]
@@ -132,8 +132,8 @@ class StressTest(Screen):
     async def run_component_tests(self):
         """Run basic component functionality tests"""
         components = [
-            #("qr_scanner", self.qr_tester),
-            ("smartcard", self.smartcard_tester),
+            ("qr_scanner", self.qr_tester),
+            #("smartcard", self.smartcard_tester),
             ("storage", self.storage_tester),
             ("sdcard", self.sdcard_tester)
         ]
@@ -178,8 +178,8 @@ class StressTest(Screen):
                 self.statistics['iterations'] += 1
 
                 # Test each available component
-                #await self._test_component_continuously('qr_scanner', self.qr_tester)
-                await self._test_component_continuously('smartcard', self.smartcard_tester)
+                await self._test_component_continuously('qr_scanner', self.qr_tester)
+                #await self._test_component_continuously('smartcard', self.smartcard_tester)
                 await self._test_component_continuously('storage', self.storage_tester)
                 await self._test_component_continuously('sdcard', self.sdcard_tester)
 
@@ -319,8 +319,8 @@ class StressTest(Screen):
 
             # Component statistics
             components = [
-                #('QR Scanner', 'qr', self.qr_tester),
-                ('Smartcard', 'smartcard', self.smartcard_tester),
+                ('QR Scanner', 'qr', self.qr_tester),
+                #('Smartcard', 'smartcard', self.smartcard_tester),
                 ('Storage', 'storage', self.storage_tester),
                 ('SD Card', 'sdcard', self.sdcard_tester)
             ]
