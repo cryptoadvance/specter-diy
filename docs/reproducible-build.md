@@ -45,3 +45,18 @@ For Apple M1 add a platform flag to the docker commands:
 docker build -t diy . --platform linux/x86_64
 docker run --platform linux/amd64 -ti -v `pwd`:/app -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) diy
 ```
+
+# Simplified build without signing
+
+If you just need a HEX file without bootloader and signatures you can use this command:
+
+```sh
+docker run -ti -v `pwd`:/app diy bash -c "make clean && make disco"
+```
+
+This will generate the binaries of the main firmware, which can be flashed into the Discovery board via ST-LINK or ROM bootloader.
+
+```txt
+bin/specter-diy.bin
+bin/specter-diy.hex
+```
