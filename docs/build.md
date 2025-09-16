@@ -76,8 +76,8 @@ To make the SDL2 library available to your C/C++ toolchain, ensure that Homebrew
 
 ```sh
 export LDFLAGS="-L/opt/homebrew/lib $LDFLAGS"
-export CPPFLAGS="-I/opt/homebrew/include $CPPFLAGS"
-export CFLAGS="-I/opt/homebrew/include $CFLAGS"
+export CPPFLAGS="-idirafter /opt/homebrew/include $CPPFLAGS"
+export CFLAGS="-idirafter /opt/homebrew/include $CFLAGS"
 ```
 
 #### Windows
