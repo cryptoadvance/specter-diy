@@ -11,10 +11,10 @@ If that's too complicated for you, you can use the traditional `nix-shell` or in
 
 ### Nix flake (Recommended)
 
-The easiest way to get all necessary tools is to use the Nix flake from the root of the repository. You need to have [Nix](https://nixos.org/) (on Mac use [determinate](https://github.com/DeterminateSystems/nix-installer)) with flakes enabled.
+The easiest way to get all necessary tools is to use the Nix flake from the root of the repository. You need to have [Nix](https://nixos.org/) (on Mac use [determinate](https://github.com/DeterminateSystems/nix-installer)) with flakes enabled. This only works with Nix >2.7 (check with `nix --version`).
 Install direnv with `brew install direnv` (on Mac) or `sudo apt install direnv` (on Linux).
 
-Make sure that [flakes are enabled](https://nixos.wiki/wiki/Flakes) in your Nix config.
+Make sure that [flakes are enabled](https://nixos.wiki/wiki/Flakes) in your Nix config. On Linux systems, your user might need to be added to the nix-users group.
 
 ```sh
 # Enter development shell
