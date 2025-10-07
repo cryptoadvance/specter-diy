@@ -21,7 +21,7 @@ jobs:
       - name: Run native unit tests
         working-directory: test
         run: |
-          python3 run_tests.py
+          python3 run_native_tests.py
           python3 -m compileall ../src ../test
 
   tests:
