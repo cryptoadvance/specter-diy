@@ -126,7 +126,8 @@ class SignTest(TestCase):
 
         for inp in psbt.inputs:
             inp.range_proof = None
-        psbt2 = PSET.parse(fout.getvalue())
+        fout.seek(0)
+        psbt2 = PSET.read_from(fout)
         for inp1, inp2 in zip(psbt.inputs, psbt2.inputs):
             self.assertEqual(inp1, inp2)
         for out1, out2 in zip(psbt.outputs, psbt2.outputs):
