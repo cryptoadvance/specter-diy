@@ -6,11 +6,35 @@ Clone the repository recursively `git clone https://github.com/cryptoadvance/spe
 
 ## Prerequisities
 
+There are multiple ways to get all necessary tools. The recommended way is to use the Nix flake with direnv.
+If that's too complicated for you, you can use the traditional `nix-shell` or install the tools manually (which mighty be tricky to get the dependencies right).
+
+### Nix flake (Recommended)
+
+The easiest way to get all necessary tools is to use the Nix flake from the root of the repository. You need to have [Nix](https://nixos.org/) (on Mac use [determinate](https://github.com/DeterminateSystems/nix-installer)) with flakes enabled. This only works with Nix >2.7 (check with `nix --version`).
+Install direnv with `brew install direnv` (on Mac) or `sudo apt install direnv` (on Linux).
+
+Make sure that [flakes are enabled](https://nixos.wiki/wiki/Flakes) in your Nix config. On Linux systems, your user might need to be added to the nix-users group.
+
+```sh
+# Enter development shell
+nix develop
+
+# Or use with direnv for automatic activation
+direnv allow
+```
+
+
 ### Nix shell
 
-The easiest way to get all necessary tools is to run `nix-shell` from the root of the repository. You need to have [Nix](https://nixos.org/) installed.
+Alternatively, you can use the traditional `shell.nix`:
 
-### Prerequisities: Board
+```sh
+nix-shell
+```
+You'll need to have [Nix](https://nixos.org/) installed as well.
+
+### Prerequisities (Manually): Board
 
 To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler.
 
@@ -34,7 +58,7 @@ brew install arm-none-eabi-gcc
 
 On **Windows**: Install linux subsystem and follow Linux instructions.
 
-### Prerequisities: Simulator
+### Prerequisities (Manually): Simulator
 
 You may need to install SDL2 library to simulate the screen of the device.
 
@@ -54,6 +78,8 @@ brew install sdl2
 - set `export DISPLAY=:0` on linux part
 
 ## Build
+
+All build commands might need a prefix like `nix develop -c` or need to be run from `nix develop` shell. If you use direnv, you don't need to do anything, apart from an initial `direnv allow`.
 
 To build custom bootloader and firmware that you will be able to sign check out the bootloader doc on [self-signed firmware](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/selfsigned.md). To wipe flash and remove protections on the device with the secure bootloader check out [this doc](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/remove_protection.md).
 
