@@ -5,6 +5,25 @@ on:
   pull_request:
 
 jobs:
+  native-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt -r test/integration/requirements.txt
+      - name: Run native unit tests
+        working-directory: test
+        run: |
+          python3 run_native_tests.py
+          python3 -m compileall ../src ../test
+
   tests:
     runs-on: ubuntu-latest
     steps:
