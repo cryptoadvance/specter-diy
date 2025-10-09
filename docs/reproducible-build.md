@@ -28,11 +28,17 @@ Get signatures from the description of the github release and enter one by one i
 
 After adding signatures binaries in the `release` folder should be exactly the same as in github release. Hashes of the binaries will be saved to `release/sha256.txt`.
 
-# Apple M1 users
+# Simplified build without signing
 
-For Apple M1 add a plafrom flag to the docker commands:
+If you just need a HEX file without bootloader and signatures you can use this command:
 
 ```sh
-docker build -t diy . --platform linux/x86_64
-docker run --platform linux/amd64 -ti -v `pwd`:/app diy
+docker run -ti -v `pwd`:/app diy bash -c "make clean && make disco"
+```
+
+This will generate the binaries of the main firmware, which can be flashed into the Discovery board via ST-LINK or ROM bootloader.
+
+```txt
+bin/specter-diy.bin
+bin/specter-diy.hex
 ```
