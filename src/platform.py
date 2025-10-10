@@ -117,6 +117,28 @@ else:
     storage_root = ""
     sdcard = SDCard(pyb.SDCard(), pyb.LED(4))
 
+def get_git_info():
+    """Return repository metadata embedded into the firmware build."""
+
+    repo = "unknown"
+    branch = "unknown"
+    commit = "unknown"
+
+    try:
+        from git_info import REPOSITORY, BRANCH, COMMIT
+
+        if REPOSITORY:
+            repo = REPOSITORY
+        if BRANCH:
+            branch = BRANCH
+        if COMMIT:
+            commit = COMMIT
+    except:
+        pass
+
+    return repo, branch, commit
+
+
 def get_version() -> str:
     # version is coming from boot.py if running on the hardware
     try:
