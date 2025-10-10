@@ -8,6 +8,7 @@ FROZEN_MANIFEST_DEBUG ?= ../../../../manifests/debug.py
 FROZEN_MANIFEST_UNIX ?= ../../../../manifests/unix.py
 DEBUG ?= 0
 USE_DBOOT ?= 0
+GIT_INFO ?= src/git_info.py
 
 $(TARGET_DIR):
 	mkdir -p $(TARGET_DIR)
@@ -23,8 +24,13 @@ mpy-cross: $(TARGET_DIR) $(MPY_DIR)/mpy-cross/Makefile
 	DEBUG=$(DEBUG) && \
 	cp $(MPY_DIR)/mpy-cross/mpy-cross $(TARGET_DIR)
 
+# embed git metadata for firmware builds
+.PHONY: git-info
+git-info:
+	./tools/embed_git_info.py $(GIT_INFO)
+
 # disco board with bitcoin library
-disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
+disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
@@ -40,7 +46,7 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 		$(TARGET_DIR)/specter-diy.hex
 
 # disco board with bitcoin library
-debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
+debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
@@ -57,7 +63,7 @@ debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 
 
 # unixport (simulator)
-unix: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/unix
+unix: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/unix git-info
 	@echo Building binary with frozen files
 	make -C $(MPY_DIR)/ports/unix \
 		USER_C_MODULES=$(USER_C_MODULES) \
@@ -83,4 +89,4 @@ clean:
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) clean
 
-.PHONY: all clean
+.PHONY: all clean git-info

@@ -10,6 +10,7 @@ from platform import (
     maybe_mkdir,
     wipe,
     get_version,
+    get_git_info,
     get_battery_status,
 )
 from hosts import Host, HostError
@@ -52,6 +53,20 @@ class Specter:
         self.current_menu = self.initmenu
         self.dev = False
         self.apps = apps
+
+    def _firmware_note(self):
+        repo, branch, commit = get_git_info()
+        note = "Firmware version %s" % get_version()
+        details = []
+        if repo != "unknown":
+            details.append("Repo: %s" % repo)
+        if branch != "unknown":
+            details.append("Branch: %s" % branch)
+        if commit != "unknown":
+            details.append("Commit: %s" % commit)
+        if details:
+            note += "\n" + "\n".join(details)
+        return note
 
     def start(self):
         # register battery monitor (runs every 3 seconds)
@@ -344,8 +359,9 @@ class Specter:
         if hasattr(self.keystore, "show_mnemonic"):
             buttons.append((3, "Show recovery phrase"))
         buttons.extend([(None, "Security"), (4, "Device settings")])  # delimiter
+        buttons.extend([(None, "About"), (6, "About this device")])
         # wait for menu selection
-        menuitem = await self.gui.menu(buttons, last=(255, None), note="Firmware version %s" % get_version())
+        menuitem = await self.gui.menu(buttons, last=(255, None), note=self._firmware_note())
 
         # process the menu button:
         # back button
@@ -368,6 +384,8 @@ class Specter:
             await self.update_devsettings()
         elif menuitem == 5:
             await self.select_network()
+        elif menuitem == 6:
+            await self.show_about()
         else:
             print(menuitem)
             raise SpecterError("Not implemented")
@@ -410,6 +428,13 @@ class Specter:
             pass
         self.set_network(network)
 
+    async def show_about(self):
+        await self.gui.alert(
+            "About this device",
+            self._firmware_note(),
+            button_text="Close",
+        )
+
     async def communication_settings(self):
         buttons = [
             (None, "Communication channels")
@@ -421,7 +446,7 @@ class Specter:
         while True:
             menuitem = await self.gui.menu(buttons,
                                       title="Communication settings",
-                                      note="Firmware version %s" % get_version(),
+                                      note=self._firmware_note(),
                                       last=(255, None)
             )
             if menuitem == 255:
@@ -511,7 +536,7 @@ class Specter:
         while True:
             menuitem = await self.gui.menu(buttons,
                                       title="Device settings",
-                                      note="Firmware version %s" % get_version(),
+                                      note=self._firmware_note(),
                                       last=(255, None)
             )
             if menuitem == 255:
