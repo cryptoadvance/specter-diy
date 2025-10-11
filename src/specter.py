@@ -12,6 +12,8 @@ from platform import (
     get_version,
     get_git_info,
     get_battery_status,
+    get_bootloader_lock_status,
+    get_build_type,
 )
 from hosts import Host, HostError
 from app import BaseApp
@@ -54,19 +56,35 @@ class Specter:
         self.dev = False
         self.apps = apps
 
-    def _firmware_note(self):
+    def _firmware_note(self, include_details=False):
+        note_lines = ["Firmware version %s" % get_version()]
+
+        if not include_details:
+            return note_lines[0]
+
         repo, branch, commit = get_git_info()
-        note = "Firmware version %s" % get_version()
-        details = []
         if repo != "unknown":
-            details.append("Repo: %s" % repo)
+            note_lines.append("Repo: %s" % repo)
         if branch != "unknown":
-            details.append("Branch: %s" % branch)
+            note_lines.append("Branch: %s" % branch)
         if commit != "unknown":
-            details.append("Commit: %s" % commit)
-        if details:
-            note += "\n" + "\n".join(details)
-        return note
+            note_lines.append("Commit: %s" % commit)
+
+        bootloader_status = get_bootloader_lock_status()
+        if bootloader_status != "unknown":
+            bootloader_note = "Bootloader lock: %s" % bootloader_status.capitalize()
+        else:
+            bootloader_note = "Bootloader lock: Unknown"
+        note_lines.append(bootloader_note)
+
+        build_type = get_build_type()
+        if build_type == "unknown":
+            build_note = "Build type: Unknown"
+        else:
+            build_note = "Build type: %s" % build_type.capitalize()
+        note_lines.append(build_note)
+
+        return "\n".join(note_lines)
 
     def start(self):
         # register battery monitor (runs every 3 seconds)
@@ -431,7 +449,7 @@ class Specter:
     async def show_about(self):
         await self.gui.alert(
             "About this device",
-            self._firmware_note(),
+            self._firmware_note(include_details=True),
             button_text="Close",
         )
 

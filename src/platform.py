@@ -6,6 +6,16 @@ import gc
 
 simulator = (sys.platform in ["linux", "darwin"])
 
+
+# Build metadata injected at boot time. Defaults represent the minimum
+# information we can know without platform-specific boot scripts.
+bootloader_locked = None
+build_type = "unknown"
+
+if simulator:
+    build_type = "unix"
+    bootloader_locked = False
+
 try:
     import config
 except:
@@ -153,6 +163,18 @@ def get_version() -> str:
         return ver
     except:
         return "unknown"
+
+
+def get_bootloader_lock_status() -> str:
+    if bootloader_locked is True:
+        return "locked"
+    if bootloader_locked is False:
+        return "unlocked"
+    return "unknown"
+
+
+def get_build_type() -> str:
+    return build_type
 
 def mount_sdram():
     path = fpath("/ramdisk")
