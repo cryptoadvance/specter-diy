@@ -70,9 +70,14 @@ class Specter:
         if commit != "unknown":
             note_lines.append("Commit: %s" % commit)
 
+        def _format_status(value):
+            if isinstance(value, str) and value:
+                return value[0].upper() + value[1:]
+            return value
+
         bootloader_status = get_bootloader_lock_status()
         if bootloader_status != "unknown":
-            bootloader_note = "Bootloader lock: %s" % bootloader_status.capitalize()
+            bootloader_note = "Bootloader lock: %s" % _format_status(bootloader_status)
         else:
             bootloader_note = "Bootloader lock: Unknown"
         note_lines.append(bootloader_note)
@@ -81,7 +86,7 @@ class Specter:
         if build_type == "unknown":
             build_note = "Build type: Unknown"
         else:
-            build_note = "Build type: %s" % build_type.capitalize()
+            build_note = "Build type: %s" % _format_status(build_type)
         note_lines.append(build_note)
 
         return "\n".join(note_lines)
