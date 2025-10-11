@@ -12,8 +12,10 @@ from platform import (
     get_version,
     get_git_info,
     get_battery_status,
-    get_bootloader_lock_status,
     get_build_type,
+    get_firmware_boot_mode,
+    get_flash_read_protection_status,
+    get_flash_write_protection_status,
 )
 from hosts import Host, HostError
 from app import BaseApp
@@ -80,12 +82,26 @@ class Specter:
                 return value[0].upper() + value[1:]
             return value
 
-        bootloader_status = get_bootloader_lock_status()
-        if bootloader_status != "unknown":
-            bootloader_note = "Bootloader lock: %s" % _format_status(bootloader_status)
+        boot_mode = get_firmware_boot_mode()
+        if boot_mode != "unknown":
+            boot_mode_note = "Firmware mode: %s" % _format_status(boot_mode)
         else:
-            bootloader_note = "Bootloader lock: Unknown"
-        sections.append(bootloader_note)
+            boot_mode_note = "Firmware mode: Unknown"
+        sections.append(boot_mode_note)
+
+        read_protect = get_flash_read_protection_status()
+        if read_protect != "unknown":
+            read_note = "Read protection: %s" % _format_status(read_protect)
+        else:
+            read_note = "Read protection: Unknown"
+        sections.append(read_note)
+
+        write_protect = get_flash_write_protection_status()
+        if write_protect != "unknown":
+            write_note = "Write protection: %s" % _format_status(write_protect)
+        else:
+            write_note = "Write protection: Unknown"
+        sections.append(write_note)
 
         build_type = get_build_type()
         if build_type == "unknown":
