@@ -135,25 +135,44 @@ class QRHost(Host):
         res = self.uart.read(7)
         return res
 
-    def get_setting(self, addr):
+    def _get_setting_once(self, addr):
         # only for 1 byte settings
         res = self.query(b"\x7E\x00\x07\x01" + addr + b"\x01\xAB\xCD")
         if res is None or len(res) != 7:
             return None
         return res[-3]
 
-    def set_setting(self, addr, value):
+    def get_setting(self, addr, retries=3, retry_delay_ms=50):
+        for attempt in range(retries):
+            val = self._get_setting_once(addr)
+            if val is not None:
+                return val
+            time.sleep_ms(retry_delay_ms)
+        return None
+
+    def _set_setting_once(self, addr, value):
         # only for 1 byte settings
         res = self.query(b"\x7E\x00\x08\x01" + addr + bytes([value]) + b"\xAB\xCD")
         if res is None:
             return False
         return res == SUCCESS
 
-    def save_settings_on_scanner(self):
-        res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
-        if res is None:
-            return False
-        return res == SUCCESS
+    def set_setting(self, addr, value, retries=3, retry_delay_ms=50):
+        for attempt in range(retries):
+            if self._set_setting_once(addr, value):
+                return True
+            time.sleep_ms(retry_delay_ms)
+            self.clean_uart()
+        return False
+
+    def save_settings_on_scanner(self, retries=3, retry_delay_ms=100):
+        for attempt in range(retries):
+            res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
+            if res == SUCCESS:
+                return True
+            time.sleep_ms(retry_delay_ms)
+            self.clean_uart()
+        return False
 
     def configure(self):
         """Tries to configure scanner, returns True on success"""
@@ -218,6 +237,18 @@ class QRHost(Host):
             if val != RAW_MODE_VALUE:
                 if not self.set_setting(RAW_MODE_ADDR, RAW_MODE_VALUE):
                     return False
+                # Re-read to confirm the scanner accepted the value, retrying
+                # once more if necessary. Some scanners take a short while to
+                # commit this particular setting right after power-on.
+                val_check = self.get_setting(RAW_MODE_ADDR)
+                if val_check is None:
+                    return False
+                if val_check != RAW_MODE_VALUE:
+                    if not self.set_setting(RAW_MODE_ADDR, RAW_MODE_VALUE, retries=1, retry_delay_ms=100):
+                        return False
+                    val_check = self.get_setting(RAW_MODE_ADDR)
+                    if val_check is None or val_check != RAW_MODE_VALUE:
+                        return False
                 save_required = True
             if not raw_fix_applied:
                 raw_fix_applied = True
