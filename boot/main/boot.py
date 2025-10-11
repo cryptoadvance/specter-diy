@@ -62,3 +62,5 @@ os.dupterm(None,1)
 import platform
 platform.version = version
 platform.i2c = i2c
+platform.bootloader_locked = True
+platform.build_type = "disco"
