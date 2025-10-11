@@ -78,6 +78,9 @@ class QRHost(Host):
             "aim": True,
             "light": False,
             "sound": True,
+            # internal flag that indicates whether RAW compatibility fix
+            # has been applied and persisted on the scanner
+            "raw_fix_applied": False,
         }
 
         if simulator:
@@ -132,36 +135,58 @@ class QRHost(Host):
         res = self.uart.read(7)
         return res
 
-    def get_setting(self, addr):
+    def _get_setting_once(self, addr):
         # only for 1 byte settings
         res = self.query(b"\x7E\x00\x07\x01" + addr + b"\x01\xAB\xCD")
         if res is None or len(res) != 7:
             return None
         return res[-3]
 
-    def set_setting(self, addr, value):
+    def get_setting(self, addr, retries=3, retry_delay_ms=50):
+        for attempt in range(retries):
+            val = self._get_setting_once(addr)
+            if val is not None:
+                return val
+            time.sleep_ms(retry_delay_ms)
+        return None
+
+    def _set_setting_once(self, addr, value):
         # only for 1 byte settings
         res = self.query(b"\x7E\x00\x08\x01" + addr + bytes([value]) + b"\xAB\xCD")
         if res is None:
             return False
         return res == SUCCESS
 
-    def save_settings_on_scanner(self):
-        res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
-        if res is None:
-            return False
-        return res == SUCCESS
+    def set_setting(self, addr, value, retries=3, retry_delay_ms=50):
+        for attempt in range(retries):
+            if self._set_setting_once(addr, value):
+                return True
+            time.sleep_ms(retry_delay_ms)
+            self.clean_uart()
+        return False
+
+    def save_settings_on_scanner(self, retries=3, retry_delay_ms=100):
+        for attempt in range(retries):
+            res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
+            if res == SUCCESS:
+                return True
+            time.sleep_ms(retry_delay_ms)
+            self.clean_uart()
+        return False
 
     def configure(self):
         """Tries to configure scanner, returns True on success"""
         save_required = False
+        settings_changed = False
+        raw_fix_applied = self.settings.get("raw_fix_applied", False)
 
         # Set Serial Output Mode
         val = self.get_setting(SERIAL_ADDR)
         if val is None:
             return False
         if val & 0x3 != 0:
-            self.set_setting(SERIAL_ADDR, val & 0xFC)
+            if not self.set_setting(SERIAL_ADDR, val & 0xFC):
+                return False
             save_required = True
 
         # Set Command Mode
@@ -169,7 +194,8 @@ class QRHost(Host):
         if val is None:
             return False
         if val != self.CMD_MODE:
-            self.set_setting(SETTINGS_ADDR, self.CMD_MODE)
+            if not self.set_setting(SETTINGS_ADDR, self.CMD_MODE):
+                return False
             save_required = True
 
         # Set scanning timeout
@@ -177,7 +203,8 @@ class QRHost(Host):
         if val is None:
             return False
         if val != 0:
-            self.set_setting(TIMOUT_ADDR, 0)
+            if not self.set_setting(TIMOUT_ADDR, 0):
+                return False
             save_required = True
 
         # Set interval between scans
@@ -185,7 +212,8 @@ class QRHost(Host):
         if val is None:
             return False
         if val != INTERVAL_OF_SCANNING:
-            self.set_setting(INTERVAL_OF_SCANNING_ADDR, INTERVAL_OF_SCANNING)
+            if not self.set_setting(INTERVAL_OF_SCANNING_ADDR, INTERVAL_OF_SCANNING):
+                return False
             save_required = True
 
         # Set delay beteen re-reading the same barcode
@@ -193,7 +221,8 @@ class QRHost(Host):
         if val is None:
             return False
         if val != DELAY_OF_SAME_BARCODES:
-            self.set_setting(DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES)
+            if not self.set_setting(DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES):
+                return False
             save_required = True
 
         # Check the module software and enable "RAW" mode if required
@@ -206,14 +235,55 @@ class QRHost(Host):
             if val is None:
                 return False
             if val != RAW_MODE_VALUE:
-                self.set_setting(RAW_MODE_ADDR, RAW_MODE_VALUE)
+                if not self.set_setting(RAW_MODE_ADDR, RAW_MODE_VALUE):
+                    return False
+                # Re-read to confirm the scanner accepted the value, retrying
+                # once more if necessary. Some scanners take a short while to
+                # commit this particular setting right after power-on.
+                val_check = self.get_setting(RAW_MODE_ADDR)
+                if val_check is None:
+                    return False
+                if val_check != RAW_MODE_VALUE:
+                    if not self.set_setting(RAW_MODE_ADDR, RAW_MODE_VALUE, retries=1, retry_delay_ms=100):
+                        return False
+                    val_check = self.get_setting(RAW_MODE_ADDR)
+                    if val_check is None or val_check != RAW_MODE_VALUE:
+                        return False
                 save_required = True
+            if not raw_fix_applied:
+                raw_fix_applied = True
+                settings_changed = True
+        elif raw_fix_applied:
+            # Clear the flag if we are no longer dealing with a scanner that
+            # requires the RAW mode compatibility tweak.
+            raw_fix_applied = False
+            settings_changed = True
 
         # Save settings to EEPROM if anything has changed.
         if save_required:
             val = self.save_settings_on_scanner()
             if not val:
                 return False
+            settings_changed = True
+
+        if settings_changed and self.manager is not None:
+            keystore = getattr(self.manager, "keystore", None)
+            if keystore is not None:
+                # persist the updated host settings (including the
+                # compatibility flag) so the device keeps track of whether
+                # the RAW mode fix has already been applied
+                self.settings["raw_fix_applied"] = raw_fix_applied
+                try:
+                    self.save_settings(keystore)
+                except Exception as e:
+                    print("Failed to persist QR host settings:", e)
+            else:
+                # still update the in-memory settings to reflect the current
+                # state even if we cannot persist them yet
+                self.settings["raw_fix_applied"] = raw_fix_applied
+        else:
+            # keep the internal flag in sync if no persistence step occurred
+            self.settings["raw_fix_applied"] = raw_fix_applied
 
         # Set 115200 bps: this query is special - it has a payload of 2 bytes
         ret = self.query(b"\x7E\x00\x08\x02" + BAUD_RATE_ADDR + BAUD_RATE + b"\xAB\xCD")
@@ -273,14 +343,18 @@ class QRHost(Host):
         res = await show_screen(scr)
         if res:
             enabled, sound, aim, light = res
+            raw_fix_applied = self.settings.get("raw_fix_applied", False)
             self.settings = {
                 "enabled": enabled,
                 "aim": aim,
                 "light": light,
                 "sound": sound,
+                "raw_fix_applied": raw_fix_applied,
             }
             self.save_settings(keystore)
-            self.configure()
+            if not self.configure():
+                await show_screen(Alert("Error", "\n\nFailed to configure scanner!", button_text="Close"))
+                return
             await show_screen(Alert("Success!", "\n\nSettings updated!", button_text="Close"))
 
     def clean_uart(self):
