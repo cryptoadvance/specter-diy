@@ -57,18 +57,23 @@ class Specter:
         self.apps = apps
 
     def _firmware_note(self, include_details=False):
-        note_lines = ["Firmware version %s" % get_version()]
+        primary_note = "Firmware version %s" % get_version()
 
         if not include_details:
-            return note_lines[0]
+            return primary_note
+
+        sections = [primary_note]
 
         repo, branch, commit = get_git_info()
+        repo_details = []
         if repo != "unknown":
-            note_lines.append("Repo: %s" % repo)
+            repo_details.append("Repo: %s" % repo)
         if branch != "unknown":
-            note_lines.append("Branch: %s" % branch)
+            repo_details.append("Branch: %s" % branch)
         if commit != "unknown":
-            note_lines.append("Commit: %s" % commit)
+            repo_details.append("Commit: %s" % commit)
+        if repo_details:
+            sections.append("\n".join(repo_details))
 
         def _format_status(value):
             if isinstance(value, str) and value:
@@ -80,16 +85,16 @@ class Specter:
             bootloader_note = "Bootloader lock: %s" % _format_status(bootloader_status)
         else:
             bootloader_note = "Bootloader lock: Unknown"
-        note_lines.append(bootloader_note)
+        sections.append(bootloader_note)
 
         build_type = get_build_type()
         if build_type == "unknown":
             build_note = "Build type: Unknown"
         else:
             build_note = "Build type: %s" % _format_status(build_type)
-        note_lines.append(build_note)
+        sections.append(build_note)
 
-        return "\n".join(note_lines)
+        return "\n\n".join(sections)
 
     def start(self):
         # register battery monitor (runs every 3 seconds)
@@ -549,6 +554,7 @@ class Specter:
             # (3, "Experimental"),
         ] + [
             (None, "Global settings"),
+            (42, "About this device"),
         ]
         if hasattr(self.keystore, "lock"):
             buttons.extend([(777, "Change PIN code")])
@@ -585,6 +591,9 @@ class Specter:
                 return
             elif menuitem == 777:
                 await self.keystore.change_pin()
+                return
+            elif menuitem == 42:
+                await self.show_about()
                 return
             elif menuitem == 1:
                 await self.communication_settings()
