@@ -438,8 +438,15 @@ class QRHost(Host):
             "value": self.settings.get("light", False)
         }]
         scr = HostSettings(controls, title=title, note=note)
-        info = add_label(self._format_scanner_info(), scr=scr.page, style="hint")
-        info.align(scr.page, lv.ALIGN.IN_BOTTOM_MID, 0, -10)
+        info_y = scr.next_y + 20
+        info = add_label(
+            self._format_scanner_info(),
+            y=info_y,
+            scr=scr.page,
+            style="hint",
+        )
+
+        reset_y = info.get_y() + info.get_height() + 30
 
         def trigger_factory_reset():
             scr.show_loader(
@@ -451,9 +458,9 @@ class QRHost(Host):
         reset_btn = add_button(
             lv.SYMBOL.REFRESH + " Factory reset",
             on_release(trigger_factory_reset),
-            scr=scr,
+            scr=scr.page,
+            y=reset_y,
         )
-        reset_btn.align(scr, lv.ALIGN.IN_BOTTOM_MID, 0, -80)
         res = await show_screen(scr)
         if res == "factory_reset":
             scr.hide_loader()
