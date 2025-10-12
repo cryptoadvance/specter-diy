@@ -21,7 +21,7 @@ SERIAL_ADDR = b"\x00\x0D"
 SERIAL_VALUE = 0xA0  # use serial port for data
 
 # factory reset command (restore defaults)
-FACTORY_RESET_CMD = b"\x7E\x00\x09\x01\x00\x00\x02\xFE\x8A"
+FACTORY_RESET_CMD = b"\x7E\x00\x08\x01\x00\xD9\x55\xAB\xCD"
 
 """ We switch the scanner to continuous mode to initiate scanning and
 to command mode to stop scanning. No external trigger is necessary """
