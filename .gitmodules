@@ -1,6 +1,6 @@
 [submodule "f469-disco"]
 	path = f469-disco
-	url = https://github.com/miketlk/f469-disco.git
+	url = https://github.com/diybitcoinhardware/f469-disco.git
 	branch = micropython-upgrade
 [submodule "bootloader"]
 	path = bootloader
