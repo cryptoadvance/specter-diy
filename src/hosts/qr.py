@@ -2,8 +2,11 @@ from .core import Host, HostError
 import pyb
 import time
 import asyncio
-from platform import simulator, config, delete_recursively
+from platform import simulator, config, delete_recursively, file_exists, sync
 import gc
+import lvgl as lv
+from gui.common import add_button, add_label
+from gui.decorators import on_release
 from gui.screens.settings import HostSettings
 from gui.screens import Alert
 from helpers import read_until, read_write, a2b_base64_stream
@@ -16,6 +19,9 @@ SUCCESS = b"\x02\x00\x00\x01\x00\x33\x31"
 # serial port mode
 SERIAL_ADDR = b"\x00\x0D"
 SERIAL_VALUE = 0xA0  # use serial port for data
+
+# factory reset command (restore defaults)
+FACTORY_RESET_CMD = b"\x7E\x00\x08\x01\x00\xD9\x55\xAB\xCD"
 
 """ We switch the scanner to continuous mode to initiate scanning and
 to command mode to stop scanning. No external trigger is necessary """
@@ -83,12 +89,25 @@ class QRHost(Host):
             "raw_fix_applied": False,
         }
 
+        self._initial_reset_marker = None
+        self._boot_reset_pending = False
+        if self.SETTINGS_DIR:
+            marker = self.SETTINGS_DIR + "/.qr_factory_reset_done"
+            self._initial_reset_marker = marker
+            try:
+                self._boot_reset_pending = not file_exists(marker)
+            except Exception as e:
+                # Avoid repeated attempts if storage is unavailable.
+                print("QRHost: failed to check reset marker:", e)
+                self._boot_reset_pending = False
+
         if simulator:
             self.EOL = b"\r\n"
         else:
             self.EOL = b"\r"
 
         self.f = None
+        self.software_version = None
         self.uart_bus = uart
         self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
         if simulator:
@@ -229,6 +248,7 @@ class QRHost(Host):
         val = self.get_setting(VERSION_ADDR)
         if val is None:
             return False
+        self.software_version = val
         self.version_str = "Detected GM65 Scanner, SW:" + str(val)
         if val == VERSION_NEEDS_RAW:
             val = self.get_setting(RAW_MODE_ADDR)
@@ -296,6 +316,13 @@ class QRHost(Host):
     def init(self):
         if self.is_configured:
             return
+        if self._boot_reset_pending:
+            success = self._factory_reset_scanner_on_boot()
+            self._boot_reset_pending = False
+            if success:
+                return
+            else:
+                print("QRHost: automatic factory reset failed, continuing with configuration")
         # if failed to configure - probably a different scanner
         # in this case fallback to PIN trigger mode FIXME
         self.clean_uart()
@@ -319,6 +346,77 @@ class QRHost(Host):
         self.is_configured = True
         pyb.LED(3).on()
 
+    def _format_scanner_info(self):
+        version = self.software_version
+        version_text = "unknown" if version is None else str(version)
+        raw_fix_applied = self.settings.get("raw_fix_applied", False)
+        if version is None:
+            raw_fix = "Unknown"
+        elif version == VERSION_NEEDS_RAW:
+            raw_fix = "Applied" if raw_fix_applied else "Not applied"
+        else:
+            raw_fix = "Not needed"
+        return "Scanner: GM65 | Firmware: {} | CompactQR fix: {}".format(
+            version_text,
+            raw_fix,
+        )
+
+    def _mark_initial_reset_done(self):
+        if not self._initial_reset_marker:
+            return
+        try:
+            with open(self._initial_reset_marker, "wb") as f:
+                f.write(b"1")
+            sync()
+        except Exception as e:
+            print("QRHost: failed to persist reset marker:", e)
+
+    def _apply_post_reset_configuration(self, settings_snapshot, previous_settings):
+        self.uart.deinit()
+        self.uart.init(baudrate=9600, read_buf_len=2048)
+        self.clean_uart()
+        self.settings = settings_snapshot
+        configured = self.configure()
+        if not configured:
+            self.settings = previous_settings
+            return False
+        self.is_configured = True
+        return True
+
+    def _send_factory_reset(self):
+        res = self.query(FACTORY_RESET_CMD)
+        return res == SUCCESS
+
+    def _factory_reset_scanner_on_boot(self):
+        previous_settings = dict(self.settings)
+        settings_snapshot = dict(previous_settings)
+        settings_snapshot["raw_fix_applied"] = False
+        self.clean_uart()
+        if not self._send_factory_reset():
+            return False
+        time.sleep_ms(200)
+        if not self._apply_post_reset_configuration(settings_snapshot, previous_settings):
+            return False
+        self._mark_initial_reset_done()
+        return True
+
+    async def _factory_reset_scanner(self, keystore):
+        previous_settings = dict(self.settings)
+        settings_snapshot = dict(previous_settings)
+        settings_snapshot["raw_fix_applied"] = False
+        self.clean_uart()
+        if not self._send_factory_reset():
+            return False
+        await asyncio.sleep_ms(200)
+        if not self._apply_post_reset_configuration(settings_snapshot, previous_settings):
+            return False
+        if keystore is not None:
+            try:
+                self.save_settings(keystore)
+            except Exception as e:
+                print("Failed to persist QR host settings:", e)
+        return True
+
     async def settings_menu(self, show_screen, keystore):
         title = "QR scanner"
         note = self.version_str
@@ -340,7 +438,51 @@ class QRHost(Host):
             "value": self.settings.get("light", False)
         }]
         scr = HostSettings(controls, title=title, note=note)
+        info_y = scr.next_y + 20
+        info = add_label(
+            self._format_scanner_info(),
+            y=info_y,
+            scr=scr.page,
+            style="hint",
+        )
+
+        reset_y = info.get_y() + info.get_height() + 30
+
+        def trigger_factory_reset():
+            scr.show_loader(
+                text="Resetting scanner to defaults...",
+                title="Factory reset",
+            )
+            scr.set_value("factory_reset")
+
+        reset_btn = add_button(
+            lv.SYMBOL.REFRESH + " Factory reset",
+            on_release(trigger_factory_reset),
+            scr=scr.page,
+            y=reset_y,
+        )
         res = await show_screen(scr)
+        if res == "factory_reset":
+            scr.hide_loader()
+            success = await self._factory_reset_scanner(keystore)
+            if success:
+                await show_screen(
+                    Alert(
+                        "Success!",
+                        "\n\nScanner restored and settings re-applied.",
+                        button_text="Close",
+                    )
+                )
+            else:
+                await show_screen(
+                    Alert(
+                        "Error",
+                        "\n\nFailed to factory reset scanner!",
+                        button_text="Close",
+                    )
+                )
+            return await self.settings_menu(show_screen, keystore)
+
         if res:
             enabled, sound, aim, light = res
             raw_fix_applied = self.settings.get("raw_fix_applied", False)
