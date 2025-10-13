@@ -4,15 +4,36 @@ Clone the repository recursively `git clone https://github.com/cryptoadvance/spe
 
 `bootloader` folder contains a [secure bootloader](https://github.com/cryptoadvance/specter-bootloader) that you can customize with your own firmware signing keys.
 
-## Prerequisities
+## Prerequisites for the Nix build
 
 There are multiple ways to get all necessary tools. The recommended way is to use the Nix flake with direnv.
 If that's too complicated for you, you can use the traditional `nix-shell` or install the tools manually (which mighty be tricky to get the dependencies right).
 
+### Install Nix on Ubuntu 24.04
+
+```sh
+sudo apt update
+sudo apt install nix
+```
+
+Enable the required experimental features for flakes and the new CLI:
+
+```sh
+sudo mkdir -p /etc/nix
+echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
+```
+
+Add your user to the `nix-users` group so you can access the Nix store:
+
+```sh
+sudo usermod -aG nix-users "$USER"
+newgrp nix-users
+```
+
 ### Nix flake (Recommended)
 
 The easiest way to get all necessary tools is to use the Nix flake from the root of the repository. You need to have [Nix](https://nixos.org/) (on Mac use [determinate](https://github.com/DeterminateSystems/nix-installer)) with flakes enabled. This only works with Nix >2.7 (check with `nix --version`).
-Install direnv with `brew install direnv` (on Mac) or `sudo apt install direnv` (on Linux).
+Install direnv with `brew install direnv` (on Mac) or `sudo apt install direnv` (on Linux). direnv automatically loads and unloads the environment described in `.envrc` when you enter or leave the repository, so the development tooling is ready without extra commands.
 
 Make sure that [flakes are enabled](https://nixos.wiki/wiki/Flakes) in your Nix config. On Linux systems, your user might need to be added to the nix-users group.
 
@@ -81,9 +102,20 @@ brew install sdl2
 
 All build commands might need a prefix like `nix develop -c` or need to be run from `nix develop` shell. If you use direnv, you don't need to do anything, apart from an initial `direnv allow`.
 
+### Starting the build
+
+After entering the development shell (either with `nix develop` or via direnv), start the default firmware build with:
+
+```sh
+make disco
+```
+
+This produces `bin/specter-diy.bin`, which can be flashed by dragging the file onto the board's virtual mass-storage drive or by
+using programming tools such as STM32CubeProgrammer.
+
 To build custom bootloader and firmware that you will be able to sign check out the bootloader doc on [self-signed firmware](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/selfsigned.md). To wipe flash and remove protections on the device with the secure bootloader check out [this doc](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/remove_protection.md).
 
-To build an open firmware (no bootloader and signature verifications) run `make disco`. The result is the `bin/specter-diy.bin` file that you can copy-paste to the board over miniUSB.
+To build an open firmware (no bootloader and signature verifications) run `make disco`. It also produces the `bin/specter-diy.bin` image ready for flashing via the board's virtual drive or external programming tools.
 
 To build a simulator run `make unix` - it will compile a micropython simulator for mac/unix and store it under `bin/micropython_unix`.
 
