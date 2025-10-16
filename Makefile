@@ -21,7 +21,7 @@ mpy-cross: $(TARGET_DIR) $(MPY_DIR)/mpy-cross/Makefile
 	@echo Building cross-compiler
 	make -C $(MPY_DIR)/mpy-cross \
 	DEBUG=$(DEBUG) && \
-	cp $(MPY_DIR)/mpy-cross/mpy-cross $(TARGET_DIR)
+	cp $(MPY_DIR)/mpy-cross/build/mpy-cross $(TARGET_DIR)
 
 # disco board with bitcoin library
 disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
@@ -32,6 +32,7 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 		USE_DBOOT=$(USE_DBOOT) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) \
+		CFLAGS_EXTRA='-DMP_CONFIGFILE="<mpconfigport_specter.h>"' \
 		DEBUG=$(DEBUG) && \
 	arm-none-eabi-objcopy -O binary \
 		$(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
@@ -48,6 +49,7 @@ debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 		USE_DBOOT=$(USE_DBOOT) \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DEBUG) \
+		CFLAGS_EXTRA='-DMP_CONFIGFILE="<mpconfigport_specter.h>"' \
 		DEBUG=$(DEBUG) && \
 	arm-none-eabi-objcopy -O binary \
 		$(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
@@ -61,8 +63,9 @@ unix: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/unix
 	@echo Building binary with frozen files
 	make -C $(MPY_DIR)/ports/unix \
 		USER_C_MODULES=$(USER_C_MODULES) \
-		FROZEN_MANIFEST=$(FROZEN_MANIFEST_UNIX) && \
-	cp $(MPY_DIR)/ports/unix/micropython $(TARGET_DIR)/micropython_unix
+		FROZEN_MANIFEST=$(FROZEN_MANIFEST_UNIX) \
+		CFLAGS_EXTRA='-DMP_CONFIGFILE="<mpconfigport_specter.h>"' && \
+	cp $(MPY_DIR)/ports/unix/build-standard/micropython $(TARGET_DIR)/micropython_unix
 
 simulate: unix
 	$(TARGET_DIR)/micropython_unix simulate.py
@@ -75,6 +78,7 @@ all: mpy-cross disco unix
 clean:
 	rm -rf $(TARGET_DIR)
 	make -C $(MPY_DIR)/mpy-cross clean
+	rm -rf $(MPY_DIR)/mpy-cross/build
 	make -C $(MPY_DIR)/ports/unix \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_UNIX) clean
