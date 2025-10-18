@@ -47,6 +47,10 @@ Specter-Shield documentation and all the files are available in the [`shield/`](
 - [What it looks like](./shield/README.md)
 - [How to print a 3d case](./shield/3dprinting.md)
 
+Specter Shield-Lite documentation is available in the [`shield-lite/`](./shield-lite) folder:
+
+- [Specter Shield-Lite overview](./shield-lite/readme.md)
+
 Supported networks: Mainnet, Testnet, Regtest, Signet.
 
 ## USB communication on Linux
