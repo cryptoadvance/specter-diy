@@ -10,8 +10,8 @@ nav:
   - Hardware:
     - shopping.md
     - assembly.md
-    - 'Shield Lite': ../shield-lite/readme.md
-    - 'Shield': ../shield/README.md
+    - 'Shield Lite': shield-lite.md
+    - 'Shield': shield.md
   - Software:
     - quickstart.md
     - multisig-security-tradeoffs.md
