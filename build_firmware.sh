@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -eu
+
 INFO="\e[1;36m"
 ENDCOLOR="\e[0m"
 
