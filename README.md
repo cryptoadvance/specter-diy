@@ -53,6 +53,20 @@ Specter Shield-Lite documentation is available in the [`shield-lite/`](./shield-
 
 Supported networks: Mainnet, Testnet, Regtest, Signet.
 
+## Running tests
+
+The unit test suite runs on the Unix simulator build. Install the required
+system packages and then run the `make` target:
+
+```
+sudo apt-get update
+sudo apt-get install libsdl2-dev libffi-dev pkg-config libreadline-dev libgmp-dev build-essential python3
+make test
+```
+
+The build system will fetch the necessary submodules and compile the simulator
+before executing the tests.
+
 ## USB communication on Linux
 
 You may need to set up udev rules and add yourself to `dialout` group. Read more in [`udev`](./udev/README.md) folder.
