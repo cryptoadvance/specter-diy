@@ -15,4 +15,3 @@ Documentation:
 Would be nice to add:
 
 - Devkit (WIP)
-- SD card support
