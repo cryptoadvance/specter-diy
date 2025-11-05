@@ -464,7 +464,7 @@ class QRHost(Host):
             scr.set_value("factory_reset")
 
         reset_btn = add_button(
-            lv.SYMBOL.REFRESH + " Factory reset",
+            lv.SYMBOL.REFRESH + " Reset QR Module",
             on_release(trigger_factory_reset),
             scr=scr.page,
             y=reset_y,
