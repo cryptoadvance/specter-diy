@@ -22,6 +22,10 @@ docker build -t diy .
 docker run -ti -v `pwd`:/app diy
 ```
 
+The container runs `./build_firmware.sh`, which now also drops `release/disco-nobootloader.{bin,hex}` alongside the signed
+artifacts. The `disco-nobootloader.bin` image matches the standard `nix build` output and can be flashed directly to a
+development board when you want to skip the secure bootloader during testing.
+
 At the end of the build you will be presented with a base32 encoded hash of the firmware upgrade file that should be signed and asked to provide signatures.
 
 Get signatures from the description of the github release and enter one by one in the same order as provided in the release.

@@ -48,6 +48,7 @@ make disco
 cp ./bin/specter-diy.bin ./release/disco-nobootloader.bin
 cp ./bin/specter-diy.hex ./release/disco-nobootloader.hex
 echo -e "Standard firmware without bootloader saved to release/disco-nobootloader.{bin,hex}"
+echo -e "The BIN image can be flashed directly to a development board without the secure bootloader."
 
 echo -e "${INFO}
 ═════════════════════ Adding signature to the binary ══════════════════════
