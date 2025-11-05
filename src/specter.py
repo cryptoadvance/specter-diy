@@ -73,7 +73,10 @@ class Specter:
             raise exception
         except CriticalErrorWipeImmediately as e:
             # show error
-            await self.gui.error("Critical error, the device will be wiped.\n\n%s" % e)
+            await self.gui.error(
+                "Critical error, the device will be wiped.\n\n%s" % e,
+                button_text="Wipe Specter Device",
+            )
             self.gui.show_loader(title="Wiping the device...")
             # wipe everything and reboot
             self.wipe()
