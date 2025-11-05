@@ -59,6 +59,10 @@ With the secure element you will have three options:
 
 At the moment, we have implementation for the first two options. Last seems to be the most secure, but then you need to trust proprietary crypto implementation. The second option saves the private key on the secure element under pin protection, and it can be encrypted, so the secure element never knows the private keys.
 
+## *What happens if I lock my Specter-Javacard by entering the wrong PIN too many times?*
+
+When the Specter-Javacard applet reaches its PIN retry limit the card is permanently locked and the applet becomes unusable. The only recovery is to uninstall the Specter-Javacard applet and then install it again. This reset process cannot be performed directly on the Specter-DIY hardware, but you can complete it with a SeedSigner device or any computer that has a USB smartcard reader.
+
 # Troubleshooting questions
 
 # I can't flash my device via Mini-USB ?
