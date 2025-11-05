@@ -61,7 +61,7 @@ At the moment, we have implementation for the first two options. Last seems to b
 
 ## *What happens if I lock my Specter-Javacard by entering the wrong PIN too many times?*
 
-When the Specter-Javacard applet reaches its PIN retry limit the card is permanently locked and the applet becomes unusable. The only recovery is to uninstall the Specter-Javacard applet and then install it again. This reset process cannot be performed directly on the Specter-DIY hardware, but you can complete it with a SeedSigner device or any computer that has a USB smartcard reader.
+When the Specter-Javacard applet reaches its PIN retry limit the card is permanently locked and the applet becomes unusable. The only recovery is to uninstall the Specter-Javacard applet and then install it again. This reset process cannot be performed directly on the Specter-DIY hardware, but you can complete it with the [SeedSigner smartcard-compatible fork](https://github.com/3rdIteration/seedsigner) or any computer that has a USB smartcard reader.
 
 # Troubleshooting questions
 
