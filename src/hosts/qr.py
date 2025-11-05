@@ -161,12 +161,18 @@ class QRHost(Host):
             return None
         return res[-3]
 
-    def get_setting(self, addr, retries=3, retry_delay_ms=50):
+    def get_setting(self, addr, retries=3, retry_delay_ms=50, invalid_values=None):
+        if invalid_values:
+            invalid_values = set(invalid_values)
+        else:
+            invalid_values = None
         for attempt in range(retries):
             val = self._get_setting_once(addr)
-            if val is not None:
-                return val
-            time.sleep_ms(retry_delay_ms)
+            if val is None or (invalid_values is not None and val in invalid_values):
+                time.sleep_ms(retry_delay_ms)
+                self.clean_uart()
+                continue
+            return val
         return None
 
     def _set_setting_once(self, addr, value):
@@ -245,7 +251,9 @@ class QRHost(Host):
             save_required = True
 
         # Check the module software and enable "RAW" mode if required
-        val = self.get_setting(VERSION_ADDR)
+        val = self.get_setting(
+            VERSION_ADDR, retries=5, retry_delay_ms=100, invalid_values=(0,)
+        )
         if val is None:
             return False
         self.software_version = val
