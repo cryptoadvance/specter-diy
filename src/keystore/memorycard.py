@@ -16,7 +16,9 @@ import lvgl as lv
 
 SMARTCARD_BLOCKED_MESSAGE = (
     "No more PIN attempts!\n"
-    "Wipe!\n"
+    "\n"
+    "Inserted Specter-Javacard is bricked...\n"
+    "\n"
     "Reinstall the Specter-Javacard applet using the SeedSigner smartcard-compatible fork "
     "or a PC with a USB smartcard reader."
 )
