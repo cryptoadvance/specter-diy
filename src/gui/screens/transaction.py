@@ -85,7 +85,8 @@ class TransactionScreen(Prompt):
             self.warning.set_style(0, style_warning)
             self.warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        lbl = add_label("%d INPUTS" % len(meta["inputs"]), scr=self.page2)
+        meta_inputs_len = len(meta["inputs"])
+        lbl = add_label("%d %s" % (meta_inputs_len, "INPUT" if meta_inputs_len == 1 else "INPUTS"), scr=self.page2)
         lbl.align(self.page2, lv.ALIGN.IN_TOP_MID, 0, 30)
         obj = lbl
         for i, inp in enumerate(meta["inputs"]):
@@ -112,7 +113,8 @@ class TransactionScreen(Prompt):
                 lbl = shlbl
             obj = lbl
 
-        lbl = add_label("%d OUTPUTS" % len(meta["outputs"]), scr=self.page2)
+        meta_outputs_len = len(meta["outputs"])
+        lbl = add_label("%d %s" % (len(meta["outputs"]), "OUTPUT" if meta_outputs_len == 1 else "OUTPUTS"), scr=self.page2)
         lbl.align(self.page2, lv.ALIGN.IN_TOP_MID, 0, 0)
         lbl.set_y(obj.get_y() + obj.get_height() + 30)
         for i, out in enumerate(meta["outputs"]):
