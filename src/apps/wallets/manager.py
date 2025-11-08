@@ -701,6 +701,7 @@ class WalletManager(BaseApp):
             metainp.update({
                 "label": wallet.name if wallet else "Unknown wallet",
                 "value": value,
+                "sequence": inp.sequence,
             })
             if wallet and wallet.is_watchonly:
                 metainp["label"] += " (watch-only)"

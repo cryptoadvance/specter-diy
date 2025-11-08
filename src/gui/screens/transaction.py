@@ -91,7 +91,16 @@ class TransactionScreen(Prompt):
         verlbl.align(self.page2, lv.ALIGN.IN_TOP_LEFT, 0, 30)
         verlbl.set_x(30)
         locktime = meta["locktime"]
-        if locktime <= 499999999:
+        if all(inp["sequence"] == 0xFFFFFFFF for inp in meta["inputs"]):
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_text("Locktime: %d" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+            ltdiabledlbl = lv.label(self.page2)
+            ltdiabledlbl.set_style(0, style_warning)
+            ltdiabledlbl.set_text("All inputs have locktime disabled!" if meta["inputs"] else "No inputs!")
+            ltdiabledlbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
+            obj = ltdiabledlbl
+        elif locktime <= 499999999:
             ltlbl = lv.label(self.page2)
             ltlbl.set_text("Locktime: %d (Block Height)" % locktime)
             ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
@@ -123,6 +132,31 @@ class TransactionScreen(Prompt):
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
+            # https://learnmeabitcoin.com/technical/transaction/input/sequence
+            sequence = inp.get("sequence")
+            if sequence is not None:
+                seqlbl = lv.label(self.page2)
+                is_relative_locktime = False
+                if sequence == 0xFFFFFFFF:
+                    seq_text = "Locktime disabled"
+                elif sequence == 0xFFFFFFFE:
+                    seq_text = 'RBF "disabled"'
+                elif sequence == 0xFFFFFFFD:
+                    seq_text = "RBF enabled"
+                elif meta["tx_version"] >= 2 and sequence <= 0xEFFFFFFF and (sequence | 0x0040FFFF == 0x0040FFFF):
+                    seq_text = "Relative Locktime"
+                    is_relative_locktime = True
+                else:
+                    seq_text = "Non-standard"
+                seqlbl.set_text("Seq: 0x%08X (%s)" % (sequence, seq_text))
+                seqlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+                seqlbl.set_x(60)
+                lbl = seqlbl
+                if is_relative_locktime:
+                    rltlbl = lv.label(self.page2)
+                    rltlbl.set_text(self.relative_locktime_to_text(sequence))
+                    rltlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
+                    lbl = rltlbl
             if inp.get("sighash", ""):
                 shlbl = lv.label(self.page2)
                 shlbl.set_long_mode(lv.label.LONG.BREAK)
@@ -218,3 +252,29 @@ class TransactionScreen(Prompt):
             warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
             obj = warning
         return obj
+
+    def relative_locktime_to_text(self, sequence):
+        if sequence & 0x00400000:
+            # In units of 512 seconds
+            rlt_total = (sequence & 0xFFFF) * 512
+            rlt_parts = [
+                (amount, unit)
+                for amount, unit in [
+                    (rlt_total // 86400, "day"),
+                    ((rlt_total // 3600) % 24, "hour"),
+                    ((rlt_total // 60) % 60, "minute"),
+                    (rlt_total % 60, "second"),
+                ]
+                if amount > 0
+            ]
+            # Break into 2 lines if there are too many parts
+            rlt_lines_parts = [rlt_parts] if len(rlt_parts) < 4 else [rlt_parts[:3], rlt_parts[3:]]
+            return ",\n".join(
+                ", ".join(
+                    "%d %s%s" % (amount, unit, "" if amount == 1 else "s")
+                    for amount, unit in rlt_line_parts
+                )
+                for rlt_line_parts in rlt_lines_parts
+            )
+        else:
+            return "%d %s" % (sequence, "block" if sequence == 1 else "blocks")

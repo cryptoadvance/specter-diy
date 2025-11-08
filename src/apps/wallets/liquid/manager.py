@@ -379,6 +379,7 @@ class LWalletManager(WalletManager):
                 "label": wallet.name if wallet else "Unknown wallet",
                 "value": value,
                 "asset": self.asset_label(asset),
+                "sequence": inp.sequence,
             })
             if wallet and wallet.is_watchonly:
                 metainp["label"] += " (watch-only)"
