@@ -276,6 +276,8 @@ class LWalletManager(WalletManager):
             "outputs": [{} for i in range(psbtv.num_outputs)],
             "issuance": False, "reissuance": False,
             "signed_inputs": signed_inputs,
+            "tx_version": psbtv.tx_version,
+            "locktime": psbtv.locktime,
         }
 
         fingerprint = self.keystore.fingerprint

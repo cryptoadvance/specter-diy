@@ -1,8 +1,9 @@
 import lvgl as lv
+import platform
+from helpers import conv_time
 from .prompt import Prompt
 from ..common import add_label, format_addr
 from ..decorators import on_release
-
 
 class TransactionScreen(Prompt):
     def __init__(self, title, meta):
@@ -85,9 +86,29 @@ class TransactionScreen(Prompt):
             self.warning.set_style(0, style_warning)
             self.warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
+        verlbl = lv.label(self.page2)
+        verlbl.set_text("Transaction Version: %d" % meta["tx_version"])
+        verlbl.align(self.page2, lv.ALIGN.IN_TOP_LEFT, 0, 30)
+        verlbl.set_x(30)
+        locktime = meta["locktime"]
+        if locktime <= 499999999:
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_text("Locktime: %d (Block Height)" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+            obj = ltlbl
+        else:
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_text("Locktime: %d (Timestamp)" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+            mp_time = conv_time(locktime)
+            ltdatelbl = lv.label(self.page2)
+            ltdatelbl.set_text("%04d-%02d-%02d %02d:%02d:%02d UTC" % mp_time[:6])
+            ltdatelbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
+            obj = ltdatelbl
         meta_inputs_len = len(meta["inputs"])
         lbl = add_label("%d %s" % (meta_inputs_len, "INPUT" if meta_inputs_len == 1 else "INPUTS"), scr=self.page2)
         lbl.align(self.page2, lv.ALIGN.IN_TOP_MID, 0, 30)
+        lbl.set_y(obj.get_y() + obj.get_height() + 30)
         obj = lbl
         for i, inp in enumerate(meta["inputs"]):
             idxlbl = lv.label(self.page2)

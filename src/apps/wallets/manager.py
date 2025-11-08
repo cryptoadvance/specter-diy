@@ -641,6 +641,8 @@ class WalletManager(BaseApp):
             "outputs": [{} for i in range(psbtv.num_outputs)],
             "default_asset": "BTC" if self.network == "main" else "tBTC",
             "signed_inputs": signed_inputs,
+            "tx_version": psbtv.tx_version,
+            "locktime": psbtv.locktime,
         }
 
         fingerprint = self.keystore.fingerprint
