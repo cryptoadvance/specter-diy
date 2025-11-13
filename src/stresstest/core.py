@@ -39,7 +39,15 @@ class StressTest(Screen):
         self.stats_update_callback = None
 
         # Configuration
-        self.sleep_duration_ms = 1000  # Default 1 second between iterations
+        self.sleep_duration_ms = 100  # Default 100ms between iterations
+
+        # Component enable/disable states (all enabled by default)
+        self.component_enabled = {
+            'qr_scanner': True,
+            'smartcard': False,  # Disabled by default (was commented out)
+            'storage': True,
+            'sdcard': True
+        }
 
         # GUI elements
         self.status_label = None
@@ -85,20 +93,58 @@ class StressTest(Screen):
         """Get the current sleep duration in milliseconds"""
         return self.sleep_duration_ms
 
+    def set_component_enabled(self, component_name, enabled):
+        """Enable or disable a specific component for testing
+
+        Args:
+            component_name: One of 'qr_scanner', 'smartcard', 'storage', 'sdcard'
+            enabled: True to enable, False to disable
+        """
+        if component_name in self.component_enabled:
+            self.component_enabled[component_name] = enabled
+            print("Component", component_name, "set to", "enabled" if enabled else "disabled")
+        else:
+            print("WARNING: Unknown component name:", component_name)
+
+    def get_component_enabled(self, component_name):
+        """Check if a component is enabled for testing
+
+        Args:
+            component_name: One of 'qr_scanner', 'smartcard', 'storage', 'sdcard'
+
+        Returns:
+            True if enabled, False if disabled
+        """
+        return self.component_enabled.get(component_name, False)
+
+    def get_all_component_states(self):
+        """Get the enabled/disabled state of all components
+
+        Returns:
+            Dictionary with component names as keys and enabled state as values
+        """
+        return self.component_enabled.copy()
+
     async def initialize(self):
         """Initialize all test components"""
         print("=== STRESS TEST INITIALIZATION ===")
         self.start_time = time.time()
 
-        # Initialize each component
+        # Initialize each component (with component key for enable/disable check)
         components = [
-            ("QR Scanner", self.qr_tester),
-            #("Smartcard", self.smartcard_tester),
-            ("Internal Storage", self.storage_tester),
-            ("SD Card", self.sdcard_tester)
+            ("QR Scanner", "qr_scanner", self.qr_tester),
+            ("Smartcard", "smartcard", self.smartcard_tester),
+            ("Internal Storage", "storage", self.storage_tester),
+            ("SD Card", "sdcard", self.sdcard_tester)
         ]
 
-        for name, tester in components:
+        for name, component_key, tester in components:
+            # Skip if component is disabled
+            if not self.component_enabled.get(component_key, False):
+                print(name, "is disabled - skipping initialization")
+                self.initial_values[name.lower().replace(" ", "_")] = False
+                continue
+
             try:
                 print("Initializing", name + "...")
                 success = await tester.initialize()
@@ -115,9 +161,12 @@ class StressTest(Screen):
 
         print("=== INITIALIZATION COMPLETE ===")
         print("Available components:")
-        for name, tester in components:
-            status = "✓" if tester.is_available() else "✗"
-            print(" ", status, name + ":", tester.get_status())
+        for name, component_key, tester in components:
+            if not self.component_enabled.get(component_key, False):
+                print("  [DISABLED]", name)
+            else:
+                status = "✓" if tester.is_available() else "✗"
+                print(" ", status, name + ":", tester.get_status())
     
 
 
@@ -133,7 +182,7 @@ class StressTest(Screen):
         """Run basic component functionality tests"""
         components = [
             ("qr_scanner", self.qr_tester),
-            #("smartcard", self.smartcard_tester),
+            ("smartcard", self.smartcard_tester),
             ("storage", self.storage_tester),
             ("sdcard", self.sdcard_tester)
         ]
@@ -141,6 +190,11 @@ class StressTest(Screen):
         for name, tester in components:
             if not self.running:
                 break
+
+            # Skip if component is disabled
+            if not self.component_enabled.get(name, False):
+                self.test_results[name] = {"status": "skipped", "reason": "disabled"}
+                continue
 
             if tester.is_available():
                 try:
@@ -177,11 +231,15 @@ class StressTest(Screen):
             try:
                 self.statistics['iterations'] += 1
 
-                # Test each available component
-                await self._test_component_continuously('qr_scanner', self.qr_tester)
-                #await self._test_component_continuously('smartcard', self.smartcard_tester)
-                await self._test_component_continuously('storage', self.storage_tester)
-                await self._test_component_continuously('sdcard', self.sdcard_tester)
+                # Test each enabled component
+                if self.component_enabled.get('qr_scanner', False):
+                    await self._test_component_continuously('qr_scanner', self.qr_tester)
+                if self.component_enabled.get('smartcard', False):
+                    await self._test_component_continuously('smartcard', self.smartcard_tester)
+                if self.component_enabled.get('storage', False):
+                    await self._test_component_continuously('storage', self.storage_tester)
+                if self.component_enabled.get('sdcard', False):
+                    await self._test_component_continuously('sdcard', self.sdcard_tester)
 
 
 
@@ -319,14 +377,16 @@ class StressTest(Screen):
 
             # Component statistics
             components = [
-                ('QR Scanner', 'qr', self.qr_tester),
-                #('Smartcard', 'smartcard', self.smartcard_tester),
-                ('Storage', 'storage', self.storage_tester),
-                ('SD Card', 'sdcard', self.sdcard_tester)
+                ('QR Scanner', 'qr', 'qr_scanner', self.qr_tester),
+                ('Smartcard', 'smartcard', 'smartcard', self.smartcard_tester),
+                ('Storage', 'storage', 'storage', self.storage_tester),
+                ('SD Card', 'sdcard', 'sdcard', self.sdcard_tester)
             ]
 
-            for name, key, tester in components:
-                if tester.is_available():
+            for name, key, component_key, tester in components:
+                if not self.component_enabled.get(component_key, False):
+                    lines.append(name + ": Disabled")
+                elif tester.is_available():
                     reads = self.statistics.get(key + '_reads', 0)
                     errors = self.statistics.get(key + '_errors', 0)
                     success_rate = ((reads - errors) / reads * 100) if reads > 0 else 0
