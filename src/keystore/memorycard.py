@@ -2,7 +2,6 @@ from .core import KeyStoreError, PinError
 from .ram import RAMKeyStore
 from .javacard.applets.memorycard import MemoryCardApplet, SecureError
 from .javacard.util import get_connection
-from platform import CriticalErrorWipeImmediately
 import platform
 from embit import bip39
 from helpers import tagged_hash, aead_encrypt, aead_decrypt
@@ -22,6 +21,10 @@ SMARTCARD_BLOCKED_MESSAGE = (
     "Reinstall the Specter-Javacard applet using the SeedSigner smartcard-compatible fork "
     "or a PC with a USB smartcard reader."
 )
+
+
+class SmartcardLockedError(PinError):
+    NAME = "Smartcard locked"
 
 
 class MemoryCard(RAMKeyStore):
@@ -58,7 +61,7 @@ In this mode device can only operate when the smartcard is inserted!"""
 
 
     def _raise_blocked_card(self):
-        raise CriticalErrorWipeImmediately(SMARTCARD_BLOCKED_MESSAGE)
+        raise SmartcardLockedError(SMARTCARD_BLOCKED_MESSAGE)
 
 
     @classmethod
@@ -125,8 +128,8 @@ In this mode device can only operate when the smartcard is inserted!"""
 
     def _unlock(self, pin):
         """
-        Unlock the keystore, raises PinError if PIN is invalid.
-        Raises CriticalErrorWipeImmediately if no attempts left.
+        Unlock the keystore, raises PinError if the PIN is invalid
+        or if the card was permanently locked.
         """
         try:
             self.applet.unlock(pin)
