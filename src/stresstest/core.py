@@ -39,7 +39,7 @@ class StressTest(Screen):
         self.stats_update_callback = None
 
         # Configuration
-        self.sleep_duration_ms = 100  # Default 100ms between iterations
+        self.sleep_duration_ms = 0  # Default 0ms - hardware I/O provides natural delay
 
         # Component enable/disable states (all enabled by default)
         self.component_enabled = {
@@ -82,8 +82,8 @@ class StressTest(Screen):
 
     def set_sleep_duration(self, duration_ms):
         """Set the sleep duration between test iterations in milliseconds"""
-        if duration_ms < 100:  # Minimum 100ms
-            duration_ms = 100
+        if duration_ms < 0:  # Minimum 0ms
+            duration_ms = 0
         elif duration_ms > 10000:  # Maximum 10 seconds
             duration_ms = 10000
         self.sleep_duration_ms = duration_ms
@@ -251,8 +251,12 @@ class StressTest(Screen):
                     except Exception as e:
                         print("Stats callback error:", str(e))
 
-                # Brief pause between iterations
-                await asyncio.sleep_ms(self.sleep_duration_ms)
+                # Brief pause between iterations - break into 100ms chunks to allow responsive stopping
+                remaining_sleep = self.sleep_duration_ms
+                while remaining_sleep > 0 and self.running:
+                    sleep_chunk = min(100, remaining_sleep)
+                    await asyncio.sleep_ms(sleep_chunk)
+                    remaining_sleep -= sleep_chunk
 
                 # Garbage collection
                 gc.collect()

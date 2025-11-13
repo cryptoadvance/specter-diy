@@ -32,6 +32,7 @@ class ModularStressTestScreen(Screen):
             self.stress_test = StressTest()
             self.initialized = False
             self.show_screen_fn = show_screen_fn  # Function to show sub-screens
+            self.test_task = None  # Track the running test task
 
             # Create GUI immediately (like the original)
             print("Creating GUI elements...")
@@ -200,7 +201,17 @@ class ModularStressTestScreen(Screen):
     async def start_test_async(self):
         """Start the continuous stress test"""
         try:
+            # Check if a test is already running
+            if self.test_task is not None:
+                print("WARNING: Test is already running, stopping it first...")
+                await self.stop_test_and_wait()
+
             print("=== STARTING MODULAR STRESS TEST ===")
+
+            # Read and display current sleep duration before starting
+            current_sleep = self.stress_test.get_sleep_duration()
+            print("Starting test with sleep duration:", current_sleep, "ms")
+
             self.status_label.set_text("Running continuous test...")
 
             # Set up the update callback to update our stats display
@@ -211,7 +222,16 @@ class ModularStressTestScreen(Screen):
             # Start the continuous stress test with callback
             self.stress_test.running = True
             self.stress_test.stats_update_callback = update_stats_display
-            await self.stress_test.run_continuous_test()
+
+            # Store the task reference
+            import asyncio
+            self.test_task = asyncio.create_task(self.stress_test.run_continuous_test())
+
+            # Wait for it to complete
+            await self.test_task
+
+            # Clear the task reference
+            self.test_task = None
 
             # Update status when stopped (but keep the last stats)
             self.status_label.set_text("Test stopped")
@@ -223,13 +243,42 @@ class ModularStressTestScreen(Screen):
             print("Stress test failed:", str(e))
             self.status_label.set_text("Test failed")
             self.stats_label.set_text("Error: " + str(e))
+            self.test_task = None
 
     def stop_test_sync(self):
         """Stop the continuous test"""
         print("Stop test button pressed")
+        import asyncio
+        asyncio.create_task(self.stop_test_and_wait())
+
+    async def stop_test_and_wait(self):
+        """Stop the test and wait for it to actually complete"""
         if self.stress_test:
+            print("Setting running flag to False...")
             self.stress_test.running = False
             self.status_label.set_text("Stopping test...")
+
+            # Wait for the test task to actually complete
+            if self.test_task is not None:
+                print("Waiting for test task to complete...")
+                try:
+                    import asyncio
+                    # Wait up to 3 seconds for the test to stop (sleep is now chunked into 100ms pieces)
+                    await asyncio.wait_for(self.test_task, timeout=3.0)
+                    print("Test task completed successfully")
+                    self.status_label.set_text("Test stopped")
+                    print("Test fully stopped")
+                except asyncio.TimeoutError:
+                    print("WARNING: Test task did not stop within timeout")
+                    self.status_label.set_text("Test unstoppable")
+                except Exception as e:
+                    print("Error waiting for test task:", str(e))
+                    self.status_label.set_text("Test stopped (error)")
+                finally:
+                    self.test_task = None
+            else:
+                self.status_label.set_text("Test stopped")
+                print("Test fully stopped")
 
     def show_config_sync(self):
         """Show configuration screen"""
@@ -259,9 +308,15 @@ class ModularStressTestScreen(Screen):
     def go_back(self):
         """Go back to main menu"""
         print("Back button pressed")
-        # Stop any running test first
-        if self.stress_test:
-            self.stress_test.running = False
+        import asyncio
+        asyncio.create_task(self.go_back_async())
+
+    async def go_back_async(self):
+        """Async version of go_back to properly stop test"""
+        # Stop any running test first and wait for it
+        if self.stress_test and self.stress_test.running:
+            print("Stopping test before going back...")
+            await self.stop_test_and_wait()
         self.set_value(None)
 
 

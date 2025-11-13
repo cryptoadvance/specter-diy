@@ -30,7 +30,7 @@ class StressTestSleepConfigScreen(Screen):
 
         # Reset button
         self.reset_btn = add_button(
-            "Reset to 500ms",
+            "Reset to 0ms",
             on_release(self.reset_duration),
             y=y,
             scr=self
@@ -72,7 +72,7 @@ class StressTestSleepConfigScreen(Screen):
 
         # Info label
         self.info_label = add_label(
-            "Range: 100ms - 10000ms\nLower = faster testing",
+            "Range: 0ms - 10000ms\nAdditional delay between tests",
             y=y,
             scr=self,
             style="hint"
@@ -88,8 +88,8 @@ class StressTestSleepConfigScreen(Screen):
         )
 
     def reset_duration(self):
-        """Reset sleep duration to 500ms"""
-        self.stress_test.set_sleep_duration(500)
+        """Reset sleep duration to 0ms (default)"""
+        self.stress_test.set_sleep_duration(0)
         self.update_display()
 
     def increase_100(self):
