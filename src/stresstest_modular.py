@@ -160,16 +160,24 @@ class ModularStressTestScreen(Screen):
         """Update the display to show component status after initialization"""
         lines = []
 
-        # Component status
+        # Sleep duration configuration
+        sleep_duration = self.stress_test.get_sleep_duration()
+        lines.append("Sleep Duration: " + str(sleep_duration) + "ms")
+        lines.append("")
+
+        # Component status - check both enabled state and availability
         components = [
-            ("QR Scanner", self.stress_test.qr_tester),
-            ("Smartcard", self.stress_test.smartcard_tester),
-            ("Storage", self.stress_test.storage_tester),
-            ("SD Card", self.stress_test.sdcard_tester)
+            ("QR Scanner", "qr_scanner", self.stress_test.qr_tester),
+            ("Smartcard", "smartcard", self.stress_test.smartcard_tester),
+            ("Storage", "storage", self.stress_test.storage_tester),
+            ("SD Card", "sdcard", self.stress_test.sdcard_tester)
         ]
 
-        for name, tester in components:
-            if tester.is_available():
+        for name, component_key, tester in components:
+            # Check if component is enabled first
+            if not self.stress_test.get_component_enabled(component_key):
+                status = "○ " + name + ": Disabled"
+            elif tester.is_available():
                 status = "✓ " + name + ": " + tester.get_status()
             else:
                 status = "✗ " + name + ": Not available"
