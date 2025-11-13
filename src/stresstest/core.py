@@ -252,11 +252,15 @@ class StressTest(Screen):
                         print("Stats callback error:", str(e))
 
                 # Brief pause between iterations - break into 100ms chunks to allow responsive stopping
-                remaining_sleep = self.sleep_duration_ms
-                while remaining_sleep > 0 and self.running:
-                    sleep_chunk = min(100, remaining_sleep)
-                    await asyncio.sleep_ms(sleep_chunk)
-                    remaining_sleep -= sleep_chunk
+                if self.sleep_duration_ms > 0:
+                    remaining_sleep = self.sleep_duration_ms
+                    while remaining_sleep > 0 and self.running:
+                        sleep_chunk = min(100, remaining_sleep)
+                        await asyncio.sleep_ms(sleep_chunk)
+                        remaining_sleep -= sleep_chunk
+                else:
+                    # Even with 0ms, yield control to other tasks
+                    await asyncio.sleep_ms(0)
 
                 # Garbage collection
                 gc.collect()
