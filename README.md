@@ -47,7 +47,25 @@ Specter-Shield documentation and all the files are available in the [`shield/`](
 - [What it looks like](./shield/README.md)
 - [How to print a 3d case](./shield/3dprinting.md)
 
+Specter Shield-Lite documentation is available in the [`shield-lite/`](./shield-lite) folder:
+
+- [Specter Shield-Lite overview](./shield-lite/readme.md)
+
 Supported networks: Mainnet, Testnet, Regtest, Signet.
+
+## Running tests
+
+The unit test suite runs on the Unix simulator build. Install the required
+system packages and then run the `make` target:
+
+```
+sudo apt-get update
+sudo apt-get install libsdl2-dev libffi-dev pkg-config libreadline-dev libgmp-dev build-essential python3
+make test
+```
+
+The build system will fetch the necessary submodules and compile the simulator
+before executing the tests.
 
 ## USB communication on Linux
 

@@ -1,20 +1,23 @@
+
 site_name: Specter DIY Documentation
 site_url: https://docs.specter.solutions/diy
 repo_url: https://github.com/cryptoadvance/specter-diy/
 nav:
-    - Home:
-      - 'Introduction': README.md
-      - 'FAQ': faq.md
-      - roadmap.md
-    - Hardware:
-      - shopping.md
-      - assembly.md
-    - Software:
-      - quickstart.md
-      - multisig-security-tradeoffs.md
-    - Development: 
-      - 'Developing': development.md
-      - communication.md
-      - simulator.md
+  - Home:
+    - 'Introduction': README.md
+    - 'FAQ': faq.md
+    - roadmap.md
+  - Hardware:
+    - shopping.md
+    - assembly.md
+    - 'Shield Lite': shield-lite.md
+    - 'Shield': shield.md
+  - Software:
+    - quickstart.md
+    - multisig-security-tradeoffs.md
+  - Development: 
+    - 'Developing': development.md
+    - communication.md
+    - simulator.md
 theme: 
   name: readthedocs

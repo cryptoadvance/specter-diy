@@ -175,7 +175,10 @@ class WalletManager(BaseApp):
             except:
                 pass
         # probably wallet descriptor
-        if b"&" in data and b"?" not in data:
+        # Check for an & Symbol, typically used when descriptor supplied with a name
+        # Also check the most common descriptor types for multisig wallets
+        common_descriptor_markers = [b"&", b"tr(", b"wsh(", b"sh("]
+        if any(marker in data for marker in common_descriptor_markers) and b"?" not in data:
             # rewind
             stream.seek(0)
             return ADD_WALLET, stream
