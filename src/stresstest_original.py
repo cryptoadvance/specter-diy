@@ -1,11 +1,13 @@
 """
 Stress Test Module for Specter DIY
-
+THIS IS CURRENTLY UNUSED
 This module implements stress testing functionality that:
 1. Reads initial values from QR code, smartcard, internal storage, and SD card
 2. Continuously monitors these sources and compares against initial values
 3. Generates statistics on read operations and data consistency
 """
+
+
 
 import asyncio
 import time
