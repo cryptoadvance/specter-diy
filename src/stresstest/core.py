@@ -44,7 +44,7 @@ class StressTest(Screen):
         # Component enable/disable states (all enabled by default)
         self.component_enabled = {
             'qr_scanner': True,
-            'smartcard': False,  # Disabled by default (was commented out)
+            'smartcard': True,
             'storage': True,
             'sdcard': True
         }
