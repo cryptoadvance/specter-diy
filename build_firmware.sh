@@ -26,7 +26,7 @@ mkdir -p release
 python3 ./bootloader/tools/make-initial-firmware.py -s ./bootloader/build/stm32f469disco/startup/release/startup.hex -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex -f ./bin/specter-diy.hex -bin ./release/initial_firmware.bin
 echo -e "Initial firmware saved to release/initial_firmware.bin"
 
-python3 ./bootloader/tools/upgrade-generator.py gen -f ./bin/specter-diy.hex -p stm32f469disco ./release/specter_upgrade.bin
+python3 ./bootloader/tools/upgrade-generator.py gen -f ./bin/specter-diy.hex -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex  -p stm32f469disco ./release/specter_upgrade.bin
 cp ./release/specter_upgrade.bin ./release/specter_upgrade_unsigned.bin
 echo "Unsigned upgrate file saved to release/specter_upgrade_unsigned.bin"
 
