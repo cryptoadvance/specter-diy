@@ -1,7 +1,6 @@
 #!/bin/bash
 
 set -e
-
 INFO="\e[1;36m"
 ENDCOLOR="\e[0m"
 
