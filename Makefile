@@ -3,7 +3,11 @@ BOARD ?= STM32F469DISC
 FLAVOR ?= SPECTER
 USER_C_MODULES ?= ../../../usermods
 MPY_DIR ?= f469-disco/micropython
-MPY_CFLAGS ?= -Wno-dangling-pointer -Wno-enum-int-mismatch
+ifeq ($(shell uname),Linux)
+    MPY_CFLAGS ?= -Wno-dangling-pointer -Wno-enum-int-mismatch
+else
+    MPY_CFLAGS ?=
+endif
 FROZEN_MANIFEST_DISCO ?= ../../../../manifests/disco.py
 FROZEN_MANIFEST_DEBUG ?= ../../../../manifests/debug.py
 FROZEN_MANIFEST_UNIX ?= ../../../../manifests/unix.py
