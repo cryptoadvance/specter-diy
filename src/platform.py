@@ -6,6 +6,16 @@ import gc
 
 simulator = (sys.platform in ["linux", "darwin"])
 
+
+# Build metadata injected at boot time. Defaults represent the minimum
+# information we can know without platform-specific boot scripts.
+bootloader_locked = None
+build_type = "unknown"
+
+if simulator:
+    build_type = "unix"
+    bootloader_locked = False
+
 try:
     import config
 except:
@@ -13,9 +23,12 @@ except:
 
 if not simulator:
     import sdram
+    import stm
+
     sdram.init()
 else:
     _PREALLOCATED = bytes(0x100000)
+    stm = None
 
 # injected by the boot.py
 i2c = None # I2C to talk to the battery
@@ -117,6 +130,28 @@ else:
     storage_root = ""
     sdcard = SDCard(pyb.SDCard(), pyb.LED(4))
 
+def get_git_info():
+    """Return repository metadata embedded into the firmware build."""
+
+    repo = "unknown"
+    branch = "unknown"
+    commit = "unknown"
+
+    try:
+        from git_info import REPOSITORY, BRANCH, COMMIT
+
+        if REPOSITORY:
+            repo = REPOSITORY
+        if BRANCH:
+            branch = BRANCH
+        if COMMIT:
+            commit = COMMIT
+    except:
+        pass
+
+    return repo, branch, commit
+
+
 def get_version() -> str:
     # version is coming from boot.py if running on the hardware
     try:
@@ -131,6 +166,82 @@ def get_version() -> str:
         return ver
     except:
         return "unknown"
+
+
+def get_bootloader_lock_status() -> str:
+    if bootloader_locked is True:
+        return "locked"
+    if bootloader_locked is False:
+        return "unlocked"
+    return "unknown"
+
+
+def get_build_type() -> str:
+    return build_type
+
+
+def get_firmware_boot_mode() -> str:
+    """Return boot mode based on the current vector table address."""
+
+    if simulator:
+        return "simulator"
+
+    try:
+        vtor = stm.mem32[0xE000ED08]
+    except Exception:
+        return "unknown"
+
+    if vtor >= 0x08020000:
+        return "bootloader"
+    if vtor >= 0x08000000:
+        return "open"
+    return "unknown"
+
+
+def get_flash_read_protection_status() -> str:
+    """Return human readable read protection status."""
+
+    if simulator:
+        return "not applicable"
+
+    try:
+        option_control = stm.mem32[0x40023C14]
+    except Exception:
+        return "unknown"
+
+    read_level = (option_control >> 8) & 0xFF
+
+    if read_level == 0xAA:
+        return "disabled"
+    if read_level == 0xCC:
+        return "enabled (level 2)"
+    return "enabled (level 1)"
+
+
+def get_flash_write_protection_status() -> str:
+    """Return human readable write protection status."""
+
+    if simulator:
+        return "not applicable"
+
+    try:
+        option_control = stm.mem32[0x40023C14]
+    except Exception:
+        return "unknown"
+
+    lower = (option_control >> 16) & 0xFFFF
+    upper = 0xFFFF
+
+    if stm is not None:
+        try:
+            option_control_1 = stm.mem32[0x40023C18]
+            upper = option_control_1 & 0xFFFF
+        except Exception:
+            pass
+
+    if lower == 0xFFFF and upper == 0xFFFF:
+        return "disabled"
+    return "enabled"
 
 def mount_sdram():
     path = fpath("/ramdisk")

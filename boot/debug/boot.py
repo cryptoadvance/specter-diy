@@ -39,6 +39,8 @@ pyb.ExtInt(pyb.Pin('B1'), pyb.ExtInt.IRQ_FALLING, pyb.Pin.PULL_NONE, pwrcb)
 # inject version to platform module
 import platform
 platform.version = version
+platform.bootloader_locked = False
+platform.build_type = "debug"
 
 # uncomment to run some custom main:
 pyb.main("hardwaretest.py")
