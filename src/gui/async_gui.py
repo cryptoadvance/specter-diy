@@ -84,13 +84,13 @@ class AsyncGUI:
 
     async def get_input(
         self,
-        title="Enter your BIP-39 password:",
-        note="This password creates a completely different set of keys\n"
+        title="Enter your passphrase:",
+        note="This passphrase creates a completely different set of keys\n"
              "and it is never stored on the device. Don't forget it!",
         suggestion="",
     ):
         """
-        Asks the user for a password
+        Asks the user for a passphrase
         """
         scr = InputScreen(title, note, suggestion)
         await self.load_screen(scr)
