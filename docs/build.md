@@ -123,6 +123,13 @@ To launch a simulator either run `bin/micropython_unix simulate.py` or simly run
 
 If something is not working you can clean up with `make clean`
 
+### Automated build script
+
+The top-level `build_firmware.sh` helper runs the full secure build, including the bootloader and signed upgrade package. It
+also creates `release/disco-nobootloader.{bin,hex}`, which contain the plain firmware without the secure bootloader. The
+`disco-nobootloader.bin` image is identical to the `nix build` output and can be flashed directly to a development board when
+you need a faster iteration loop.
+
 ## Run Unittests
 
 Currently unittests work only on linuxport, and there are... not many... Contributions are very welcome!
