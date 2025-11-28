@@ -1,8 +1,9 @@
 import lvgl as lv
+import platform
+from helpers import conv_time
 from .prompt import Prompt
 from ..common import add_label, format_addr
 from ..decorators import on_release
-
 
 class TransactionScreen(Prompt):
     def __init__(self, title, meta):
@@ -54,9 +55,15 @@ class TransactionScreen(Prompt):
         style_warning.text.color = lv.color_hex(0xFF9A00)
         style_warning.text.font = lv.font_roboto_22
 
+        style_gray = lv.style_t()
+        lv.style_copy(style_gray, self.message.get_style(0))
+        style_gray.text.color = lv.color_hex(0x999999)
+        style_gray.text.font = lv.font_roboto_22
+
         self.style = style
         self.style_secondary = style_secondary
         self.style_warning = style_warning
+        self.style_gray = style_gray
 
         num_change_outputs = 0
         for out in meta["outputs"]:
@@ -66,13 +73,14 @@ class TransactionScreen(Prompt):
                 continue
             obj = self.show_output(out, obj)
 
-        if meta.get("fee"):
+        fee = meta.get("fee")
+        if fee:
             if send_amount > 0:
-                fee_percent = meta["fee"] * 100 / send_amount
-                fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
+                fee_percent = fee * 100 / send_amount
+                fee_txt = "%d satoshi (%.2f%%)" % (fee, fee_percent)
             # back to wallet
             else:
-                fee_txt = "%d satoshi" % (meta["fee"])
+                fee_txt = "%d satoshi" % (fee,)
             fee = add_label("Fee: " + fee_txt, scr=self.page)
             fee.set_style(0, style)
             fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
@@ -85,7 +93,8 @@ class TransactionScreen(Prompt):
             self.warning.set_style(0, style_warning)
             self.warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        lbl = add_label("%d INPUTS" % len(meta["inputs"]), scr=self.page2)
+        meta_inputs_len = len(meta["inputs"])
+        lbl = add_label("%d %s" % (meta_inputs_len, "INPUT" if meta_inputs_len == 1 else "INPUTS"), scr=self.page2)
         lbl.align(self.page2, lv.ALIGN.IN_TOP_MID, 0, 30)
         obj = lbl
         for i, inp in enumerate(meta["inputs"]):
@@ -101,6 +110,33 @@ class TransactionScreen(Prompt):
             lbl.align(idxlbl, lv.ALIGN.IN_TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
+            # https://learnmeabitcoin.com/technical/transaction/input/sequence
+            sequence = inp.get("sequence")
+            if sequence is not None:
+                seqlbl = lv.label(self.page2)
+                is_relative_locktime = False
+                if sequence == 0xFFFFFFFF:
+                    seq_text = "Locktime disabled"
+                elif sequence == 0xFFFFFFFE:
+                    seq_text = 'RBF "disabled"'
+                elif sequence == 0xFFFFFFFD:
+                    seq_text = "RBF enabled"
+                elif meta["tx_version"] >= 2 and sequence <= 0xEFFFFFFF and (sequence | 0x0040FFFF == 0x0040FFFF):
+                    seq_text = "Relative Locktime"
+                    is_relative_locktime = True
+                else:
+                    seq_text = "Non-standard"
+                seqlbl.set_text("Seq: 0x%08X (%s)" % (sequence, seq_text))
+                seqlbl.set_style(0, style_gray)
+                seqlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+                seqlbl.set_x(60)
+                lbl = seqlbl
+                if is_relative_locktime:
+                    rltlbl = lv.label(self.page2)
+                    rltlbl.set_style(0, style_gray)
+                    rltlbl.set_text(self.relative_locktime_to_text(sequence))
+                    rltlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
+                    lbl = rltlbl
             if inp.get("sighash", ""):
                 shlbl = lv.label(self.page2)
                 shlbl.set_long_mode(lv.label.LONG.BREAK)
@@ -112,7 +148,8 @@ class TransactionScreen(Prompt):
                 lbl = shlbl
             obj = lbl
 
-        lbl = add_label("%d OUTPUTS" % len(meta["outputs"]), scr=self.page2)
+        meta_outputs_len = len(meta["outputs"])
+        lbl = add_label("%d %s" % (len(meta["outputs"]), "OUTPUT" if meta_outputs_len == 1 else "OUTPUTS"), scr=self.page2)
         lbl.align(self.page2, lv.ALIGN.IN_TOP_MID, 0, 0)
         lbl.set_y(obj.get_y() + obj.get_height() + 30)
         for i, out in enumerate(meta["outputs"]):
@@ -149,11 +186,47 @@ class TransactionScreen(Prompt):
                 warning.set_x(60)
                 lbl = warning
 
-        if meta.get("fee"):
+        if fee:
             idxlbl = lv.label(self.page2)
             idxlbl.set_text("Fee:  " + fee_txt)
             idxlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
             idxlbl.set_x(30)
+            lbl = idxlbl
+
+        verlbl = lv.label(self.page2)
+        verlbl.set_style(0, style_gray)
+        verlbl.set_text("Transaction Version: %d" % meta["tx_version"])
+        # If the fee label is present, we want to be close to it. Otherwise, we want a larger margin.
+        verlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5 if fee else 30)
+        verlbl.set_x(30)
+        locktime = meta["locktime"]
+        if all(inp["sequence"] == 0xFFFFFFFF for inp in meta["inputs"]):
+            # Locktime disabled. See: https://learnmeabitcoin.com/technical/transaction/input/sequence
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_style(0, style_gray)
+            ltlbl.set_text("Locktime: %d" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+            ltdiabledlbl = lv.label(self.page2)
+            ltdiabledlbl.set_style(0, style_warning)
+            ltdiabledlbl.set_text("All inputs have locktime disabled!" if meta["inputs"] else "No inputs!")
+            ltdiabledlbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
+        elif locktime <= 499999999:
+            # Block height. See: https://learnmeabitcoin.com/technical/transaction/locktime
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_style(0, style_gray)
+            ltlbl.set_text("Locktime: %d (Block Height)" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+        else:
+            # Block timestamp. See: https://learnmeabitcoin.com/technical/transaction/locktime
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_style(0, style_gray)
+            ltlbl.set_text("Locktime: %d (Timestamp)" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+            mp_time = conv_time(locktime)
+            ltdatelbl = lv.label(self.page2)
+            ltdatelbl.set_style(0, style_gray)
+            ltdatelbl.set_text("%04d-%02d-%02d %02d:%02d:%02d UTC" % mp_time[:6])
+            ltdatelbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
 
         self.toggle_details()
 
@@ -195,3 +268,29 @@ class TransactionScreen(Prompt):
             warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
             obj = warning
         return obj
+
+    def relative_locktime_to_text(self, sequence):
+        if sequence & 0x00400000:
+            # In units of 512 seconds
+            rlt_total = (sequence & 0xFFFF) * 512
+            rlt_parts = [
+                (amount, unit)
+                for amount, unit in [
+                    (rlt_total // 86400, "day"),
+                    ((rlt_total // 3600) % 24, "hour"),
+                    ((rlt_total // 60) % 60, "minute"),
+                    (rlt_total % 60, "second"),
+                ]
+                if amount > 0
+            ]
+            # Break into 2 lines if there are too many parts
+            rlt_lines_parts = [rlt_parts] if len(rlt_parts) < 4 else [rlt_parts[:3], rlt_parts[3:]]
+            return ",\n".join(
+                ", ".join(
+                    "%d %s%s" % (amount, unit, "" if amount == 1 else "s")
+                    for amount, unit in rlt_line_parts
+                )
+                for rlt_line_parts in rlt_lines_parts
+            )
+        else:
+            return "%d %s" % (sequence, "block" if sequence == 1 else "blocks")
