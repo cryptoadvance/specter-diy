@@ -67,13 +67,14 @@ class TransactionScreen(Prompt):
                 continue
             obj = self.show_output(out, obj)
 
-        if meta.get("fee"):
+        fee = meta.get("fee")
+        if fee:
             if send_amount > 0:
-                fee_percent = meta["fee"] * 100 / send_amount
-                fee_txt = "%d satoshi (%.2f%%)" % (meta["fee"], fee_percent)
+                fee_percent = fee * 100 / send_amount
+                fee_txt = "%d satoshi (%.2f%%)" % (fee, fee_percent)
             # back to wallet
             else:
-                fee_txt = "%d satoshi" % (meta["fee"])
+                fee_txt = "%d satoshi" % (fee,)
             fee = add_label("Fee: " + fee_txt, scr=self.page)
             fee.set_style(0, style)
             fee.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
@@ -86,38 +87,9 @@ class TransactionScreen(Prompt):
             self.warning.set_style(0, style_warning)
             self.warning.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
-        verlbl = lv.label(self.page2)
-        verlbl.set_text("Transaction Version: %d" % meta["tx_version"])
-        verlbl.align(self.page2, lv.ALIGN.IN_TOP_LEFT, 0, 30)
-        verlbl.set_x(30)
-        locktime = meta["locktime"]
-        if all(inp["sequence"] == 0xFFFFFFFF for inp in meta["inputs"]):
-            ltlbl = lv.label(self.page2)
-            ltlbl.set_text("Locktime: %d" % locktime)
-            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
-            ltdiabledlbl = lv.label(self.page2)
-            ltdiabledlbl.set_style(0, style_warning)
-            ltdiabledlbl.set_text("All inputs have locktime disabled!" if meta["inputs"] else "No inputs!")
-            ltdiabledlbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
-            obj = ltdiabledlbl
-        elif locktime <= 499999999:
-            ltlbl = lv.label(self.page2)
-            ltlbl.set_text("Locktime: %d (Block Height)" % locktime)
-            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
-            obj = ltlbl
-        else:
-            ltlbl = lv.label(self.page2)
-            ltlbl.set_text("Locktime: %d (Timestamp)" % locktime)
-            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
-            mp_time = conv_time(locktime)
-            ltdatelbl = lv.label(self.page2)
-            ltdatelbl.set_text("%04d-%02d-%02d %02d:%02d:%02d UTC" % mp_time[:6])
-            ltdatelbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
-            obj = ltdatelbl
         meta_inputs_len = len(meta["inputs"])
         lbl = add_label("%d %s" % (meta_inputs_len, "INPUT" if meta_inputs_len == 1 else "INPUTS"), scr=self.page2)
         lbl.align(self.page2, lv.ALIGN.IN_TOP_MID, 0, 30)
-        lbl.set_y(obj.get_y() + obj.get_height() + 30)
         obj = lbl
         for i, inp in enumerate(meta["inputs"]):
             idxlbl = lv.label(self.page2)
@@ -206,11 +178,42 @@ class TransactionScreen(Prompt):
                 warning.set_x(60)
                 lbl = warning
 
-        if meta.get("fee"):
+        if fee:
             idxlbl = lv.label(self.page2)
             idxlbl.set_text("Fee:  " + fee_txt)
             idxlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
             idxlbl.set_x(30)
+            lbl = idxlbl
+
+        verlbl = lv.label(self.page2)
+        verlbl.set_text("Transaction Version: %d" % meta["tx_version"])
+        # If the fee label is present, we want to be close to it. Otherwise, we want a larger margin.
+        verlbl.align(lbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5 if fee else 30)
+        verlbl.set_x(30)
+        locktime = meta["locktime"]
+        if all(inp["sequence"] == 0xFFFFFFFF for inp in meta["inputs"]):
+            # Locktime disabled. See: https://learnmeabitcoin.com/technical/transaction/input/sequence
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_text("Locktime: %d" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+            ltdiabledlbl = lv.label(self.page2)
+            ltdiabledlbl.set_style(0, style_warning)
+            ltdiabledlbl.set_text("All inputs have locktime disabled!" if meta["inputs"] else "No inputs!")
+            ltdiabledlbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
+        elif locktime <= 499999999:
+            # Block height. See: https://learnmeabitcoin.com/technical/transaction/locktime
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_text("Locktime: %d (Block Height)" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+        else:
+            # Block timestamp. See: https://learnmeabitcoin.com/technical/transaction/locktime
+            ltlbl = lv.label(self.page2)
+            ltlbl.set_text("Locktime: %d (Timestamp)" % locktime)
+            ltlbl.align(verlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 0, 5)
+            mp_time = conv_time(locktime)
+            ltdatelbl = lv.label(self.page2)
+            ltdatelbl.set_text("%04d-%02d-%02d %02d:%02d:%02d UTC" % mp_time[:6])
+            ltdatelbl.align(ltlbl, lv.ALIGN.OUT_BOTTOM_LEFT, 15, 5)
 
         self.toggle_details()
 
