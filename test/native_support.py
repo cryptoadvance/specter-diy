@@ -23,7 +23,8 @@ def _ensure_submodule(package, name, attrs):
     setattr(parent, name, module)
     return module
 
-
+# The setup_native_stubs() function creates mock/stub implementations of 
+# MicroPython-specific modules that don't exist in regular Python
 def setup_native_stubs():
     if sys.implementation.name == 'micropython':
         return
@@ -188,9 +189,10 @@ def setup_native_stubs():
         BaseApp.get_prefix = _native_get_prefix
 
     try:
+        import embit.util
         from apps.wallets.wallet import Wallet as _Wallet
     except ModuleNotFoundError as exc:
-        if exc.name == "embit":
+        if exc.name.startswith("embit"):
             raise ModuleNotFoundError(
                 "Native test suite requires the 'embit' package. "
                 "Install it with 'pip install -r test/integration/requirements.txt'."
