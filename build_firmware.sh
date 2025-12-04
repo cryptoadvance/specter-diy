@@ -2,6 +2,8 @@
 INFO="\e[1;36m"
 ENDCOLOR="\e[0m"
 
+set -e
+
 echo -e "${INFO}
 ══════════════════════ Building main firmware ═════════════════════════════
 ${ENDCOLOR}"
@@ -56,8 +58,8 @@ ${ENDCOLOR}"
 
 while true; do
   echo "Provide a signature to add to the upgrade file, or just hit enter to stop."
-  read SIGNATURE
-  if [ -z $SIGNATURE ]; then
+  read -r SIGNATURE
+  if [ -z "$SIGNATURE" ]; then
     break
   fi
   python3 ./bootloader/tools/upgrade-generator.py import-sig -s $SIGNATURE ./release/specter_upgrade.bin
