@@ -4,8 +4,6 @@ set -e
 INFO="\e[1;36m"
 ENDCOLOR="\e[0m"
 
-set -e
-
 echo -e "${INFO}
 ══════════════════════ Building main firmware ═════════════════════════════
 ${ENDCOLOR}"
