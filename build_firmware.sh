@@ -114,7 +114,7 @@ fix_ownership() {
     echo -e "${INFO}
 ═════════════════════════ Fixing file ownership ═══════════════════════════
 ${ENDCOLOR}"
-    chown -R "$HOST_UID:$HOST_GID" release
+    chown -R "$HOST_UID:$HOST_GID" release f469-disco/micropython/mpy-cross bin
     echo "File ownership changed to local user/group"
   fi
 }
@@ -127,6 +127,14 @@ dispatch() {
       run_bootloader
       run_assemble
       run_nobootloader
+      run_sign
+      run_hash
+      fix_ownership
+      ;;
+    release)
+      run_main
+      run_bootloader
+      run_assemble
       run_sign
       run_hash
       fix_ownership
