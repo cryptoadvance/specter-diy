@@ -1,79 +1,148 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 INFO="\e[1;36m"
 ENDCOLOR="\e[0m"
 
-echo -e "${INFO}
+usage() {
+  echo "Usage: $0 [all|main|bootloader|assemble|nobootloader|sign|hash|ownership] ..."
+  exit 1
+}
+
+# If no args, default to "all"
+if [ $# -eq 0 ]; then
+  ACTIONS=("all")
+else
+  ACTIONS=("$@")
+fi
+
+run_main() {
+  echo -e "${INFO}
 ══════════════════════ Building main firmware ═════════════════════════════
 ${ENDCOLOR}"
-make clean
-make disco USE_DBOOT=1
+  make clean
+  make disco USE_DBOOT=1
+}
 
-echo -e "${INFO}
+run_bootloader() {
+  echo -e "${INFO}
 ═════════════════════ Building secure bootloader ══════════════════════════
 ${ENDCOLOR}"
-cd bootloader
-make clean
-make stm32f469disco READ_PROTECTION=1 WRITE_PROTECTION=1
-cd -
+  cd bootloader
+  make clean
+  make stm32f469disco READ_PROTECTION=1 WRITE_PROTECTION=1
+  cd -
+}
 
-echo -e "${INFO}
+run_assemble() {
+  echo -e "${INFO}
 ══════════════════════ Assembling final binaries ══════════════════════════
 ${ENDCOLOR}"
-mkdir -p release
+  mkdir -p release
 
-python3 ./bootloader/tools/make-initial-firmware.py -s ./bootloader/build/stm32f469disco/startup/release/startup.hex -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex -f ./bin/specter-diy.hex -bin ./release/initial_firmware.bin
-echo -e "Initial firmware saved to release/initial_firmware.bin"
+  python3 ./bootloader/tools/make-initial-firmware.py \
+    -s ./bootloader/build/stm32f469disco/startup/release/startup.hex \
+    -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex \
+    -f ./bin/specter-diy.hex \
+    -bin ./release/initial_firmware.bin
+  echo -e "Initial firmware saved to release/initial_firmware.bin"
 
-python3 ./bootloader/tools/upgrade-generator.py gen -f ./bin/specter-diy.hex -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex  -p stm32f469disco ./release/specter_upgrade.bin
-cp ./release/specter_upgrade.bin ./release/specter_upgrade_unsigned.bin
-echo "Unsigned upgrate file saved to release/specter_upgrade_unsigned.bin"
+  python3 ./bootloader/tools/upgrade-generator.py gen \
+    -f ./bin/specter-diy.hex \
+    -b ./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex \
+    -p stm32f469disco \
+    ./release/specter_upgrade.bin
 
-HASH=$(python3 ./bootloader/tools/upgrade-generator.py message ./release/specter_upgrade.bin)
+  cp ./release/specter_upgrade.bin ./release/specter_upgrade_unsigned.bin
+  echo "Unsigned upgrade file saved to release/specter_upgrade_unsigned.bin"
 
-echo "
-╔═════════════════════════════════════════════════════════════════════════╗
-║                   Message to sign with vendor keys:                     ║
-║                                                                         ║
+  HASH=$(python3 ./bootloader/tools/upgrade-generator.py message ./release/specter_upgrade.bin)
+  echo "
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                        Message to sign with vendor keys:                       ║
+║                                                                                ║
 ║    ${HASH}    ║
-║                                                                         ║
-╚═════════════════════════════════════════════════════════════════════════╝
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
 "
+}
 
-
-echo -e "${INFO}
+run_nobootloader() {
+  echo -e "${INFO}
 ═════════════════════ Building firmware without bootloader ════════════════
 ${ENDCOLOR}"
-make clean
-make disco
-cp ./bin/specter-diy.bin ./release/disco-nobootloader.bin
-cp ./bin/specter-diy.hex ./release/disco-nobootloader.hex
-echo -e "Standard firmware without bootloader saved to release/disco-nobootloader.{bin,hex}"
-echo -e "The BIN image can be flashed directly to a development board without the secure bootloader."
+  make clean
+  make disco
+  cp ./bin/specter-diy.bin ./release/disco-nobootloader.bin
+  cp ./bin/specter-diy.hex ./release/disco-nobootloader.hex
+  echo -e "Standard firmware without bootloader saved to release/disco-nobootloader.{bin,hex}"
+  echo -e "The BIN image can be flashed directly to a development board without the secure bootloader."
+}
 
-echo -e "${INFO}
+run_sign() {
+  echo -e "${INFO}
 ═════════════════════ Adding signature to the binary ══════════════════════
 ${ENDCOLOR}"
 
-while true; do
-  echo "Provide a signature to add to the upgrade file, or just hit enter to stop."
-  read -r SIGNATURE
-  if [ -z "$SIGNATURE" ]; then
-    break
-  fi
-  python3 ./bootloader/tools/upgrade-generator.py import-sig -s $SIGNATURE ./release/specter_upgrade.bin
-  echo "Signature is added: ${SIGNATURE}"
-done
+  while true; do
+    echo "Provide a signature to add to the upgrade file, or just hit enter to stop."
+    read -r SIGNATURE
+    if [ -z "$SIGNATURE" ]; then
+      break
+    fi
+    python3 ./bootloader/tools/upgrade-generator.py import-sig -s "$SIGNATURE" ./release/specter_upgrade.bin
+    echo "Signature added: ${SIGNATURE}"
+  done
+}
 
-echo -e "${INFO}
+run_hash() {
+  echo -e "${INFO}
 ═════════════════════════ Hashes of the binaries: ═════════════════════════
 ${ENDCOLOR}"
 
-cd release
-sha256sum *.bin > sha256.txt
-cat sha256.txt
-
-echo "
+  cd release
+  sha256sum *.bin > sha256.txt
+  cat sha256.txt
+  echo "
 Hashes saved to release/sha256.txt file.
 "
+  cd -
+}
+
+fix_ownership() {
+  if [ -n "$HOST_UID" ] && [ -n "$HOST_GID" ]; then
+    echo -e "${INFO}
+═════════════════════════ Fixing file ownership ═══════════════════════════
+${ENDCOLOR}"
+    chown -R "$HOST_UID:$HOST_GID" release
+    echo "File ownership changed to local user/group"
+  fi
+}
+
+# Map action_name to function
+dispatch() {
+  case "$1" in
+    all)
+      run_main
+      run_bootloader
+      run_assemble
+      run_nobootloader
+      run_sign
+      run_hash
+      fix_ownership
+      ;;
+    main)          run_main ;;
+    bootloader)    run_bootloader ;;
+    assemble)      run_assemble ;;
+    nobootloader)  run_nobootloader ;;
+    sign)          run_sign ;;
+    hash)          run_hash ;;
+    ownership)     fix_ownership ;;
+    *) echo "Unknown action: $1"; usage ;;
+  esac
+}
+
+# Execute requested actions in order
+for action in "${ACTIONS[@]}"; do
+  dispatch "$action"
+done
