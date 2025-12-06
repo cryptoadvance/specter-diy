@@ -171,6 +171,21 @@ def setup_native_stubs():
         secp256k1.ecdsa_verify = lambda sig, msg, pub: True
         secp256k1.ecdsa_sign_recoverable = lambda msghash, secret: bytes(65)
 
+    utime = _ensure_module("utime")
+    if not hasattr(utime, "time"):
+        import time as _time
+        utime.time = _time.time
+        utime.sleep = _time.sleep
+        utime.sleep_ms = lambda ms: _time.sleep(ms / 1000.0)
+        utime.sleep_us = lambda us: _time.sleep(us / 1000000.0)
+        utime.ticks_ms = lambda: int(_time.time() * 1000)
+        utime.ticks_us = lambda: int(_time.time() * 1000000)
+        utime.ticks_add = lambda ticks, delta: ticks + delta
+        utime.ticks_diff = lambda ticks1, ticks2: ticks1 - ticks2
+        utime.mktime = _time.mktime
+        utime.localtime = _time.localtime
+        utime.gmtime = _time.gmtime
+
     from app import BaseApp
 
     if not hasattr(BaseApp, "_native_original_get_prefix"):

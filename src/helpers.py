@@ -7,6 +7,7 @@ import rng
 import platform
 from binascii import b2a_base64, a2b_base64
 from embit.liquid.networks import NETWORKS
+import utime
 
 AES_BLOCK = 16
 IV_SIZE = 16
@@ -175,3 +176,42 @@ def read_write(fin, fout, chunk_size=32):
         total += fout.write(chunk)
     return total
 
+# The conv_time() function converts a timestamp measured in seconds from 1970-01-01 00:00:00 UTC to
+# humand-readable parameters (year, month, day, hour, minute, second, second, weekday, yeardate) in UTC.
+# "Time Epoch: Unix port uses standard for POSIX systems epoch of 1970-01-01 00:00:00 UTC.
+# However, embedded ports use epoch of 2000-01-01 00:00:00 UTC."
+# (Source: https://micropython.readthedocs.io/en/latest/library/utime.html)
+# Simulator MicroPython case:
+#   utime.mktime() does not exist. utime.localtime() gives result with both timezone offset and DST offset.
+#   To remove the timezone offset, we calculate the offset of EPOCH ZERO timestamp (1970-01-01 00:00:00 UTC),
+#   substract it from the timestamp, and recall utime.localtime() again.
+#   To remove the DST offset, we usually only need to check the dst_offset in the result (in hours), subtract it
+#   and call utime.localtime() again. However, in one case (DST start on March) when the local clocks jump forward,
+#   there is an hour when we don't need to apply the shift - and we correct it manually.
+# Embedded MicroPython case:
+#   utime.gmtime() and utime.localtime() are the same function (in some implementation only utime.localtime()
+#   exists, but does not add timezone/dst offsets). However, timestamp zero is not 1970-01-01 00:00:00 UTC,
+#   but 2000-01-01 00:00:00 UTC. Therefore we reduce the fixed difference from the timestamp before execution.
+if platform.simulator:
+    def conv_time(t):
+        y, m, d, hh, mm, ss, *_ = utime.localtime(0)
+        tz_offset = hh * 3600 + mm * 60 + ss
+        if (y, m) == (1970, 1):
+            tz_offset += 86400 * (d - 1)
+        elif (y, m) == (1969, 12):
+            tz_offset -= 86400 * (32 - d)
+        else:
+            raise ValueError("Failed to calculate simulator timezone offset")
+        adjusted_t = t - tz_offset
+        dst_offset = utime.localtime(adjusted_t)[8]
+        adjusted_t -= dst_offset * 3600
+        new_localtime = utime.localtime(adjusted_t)
+        if new_localtime[8] == 0 and dst_offset == 1 and new_localtime[3] == 1:
+            return (new_localtime[:3] + (2,) + new_localtime[4:])[:8]
+        return new_localtime[:8]
+    conv_time(0) # Check that the function is working
+else:
+    _UNIX_EPOCH_OFFSET = 946684800
+    _conv_time = utime.gmtime if hasattr(utime, "gmtime") else utime.localtime
+    def conv_time(t):
+        return _conv_time(t - _UNIX_EPOCH_OFFSET)
