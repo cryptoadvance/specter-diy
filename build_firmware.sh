@@ -5,7 +5,7 @@ INFO="\e[1;36m"
 ENDCOLOR="\e[0m"
 
 usage() {
-  echo "Usage: $0 [all|main|bootloader|assemble|nobootloader|sign|hash|ownership] ..."
+  echo "Usage: $0 [all|release|main|bootloader|assemble|nobootloader|sign|hash|ownership] ..."
   exit 1
 }
 
@@ -38,6 +38,30 @@ run_assemble() {
   echo -e "${INFO}
 ══════════════════════ Assembling final binaries ══════════════════════════
 ${ENDCOLOR}"
+
+  # --- Dependency checks ---
+  REQUIRED_FILES=(
+    "./bin/specter-diy.hex"
+    "./bootloader/build/stm32f469disco/startup/release/startup.hex"
+    "./bootloader/build/stm32f469disco/bootloader/release/bootloader.hex"
+  )
+
+  MISSING=0
+  for f in "${REQUIRED_FILES[@]}"; do
+    if [ ! -f "$f" ]; then
+      echo -e "\e[1;31mERROR:\e[0m Required file missing: $f"
+      MISSING=1
+    fi
+  done
+
+  if [ "$MISSING" -eq 1 ]; then
+    echo -e "\nOne or more required components were not built."
+    echo -e "Please run: \e[1m./build_firmware.sh main bootloader\e[0m\n"
+    exit 1
+  fi
+  # ---------------------------
+
+
   mkdir -p release
 
   python3 ./bootloader/tools/make-initial-firmware.py \
@@ -71,6 +95,8 @@ run_nobootloader() {
   echo -e "${INFO}
 ═════════════════════ Building firmware without bootloader ════════════════
 ${ENDCOLOR}"
+
+  mkdir -p release
   make clean
   make disco
   cp ./bin/specter-diy.bin ./release/disco-nobootloader.bin
@@ -83,6 +109,26 @@ run_sign() {
   echo -e "${INFO}
 ═════════════════════ Adding signature to the binary ══════════════════════
 ${ENDCOLOR}"
+
+  # --- Dependency checks ---
+  REQUIRED_FILES=(
+    "./release/specter_upgrade.bin"
+  )
+
+  MISSING=0
+  for f in "${REQUIRED_FILES[@]}"; do
+    if [ ! -f "$f" ]; then
+      echo -e "\e[1;31mERROR:\e[0m Required file missing: $f"
+      MISSING=1
+    fi
+  done
+
+  if [ "$MISSING" -eq 1 ]; then
+    echo -e "\nOne or more required components were not built."
+    echo -e "Please run: \e[1m./build_firmware.sh assemble\e[0m\n"
+    exit 1
+  fi
+  # ---------------------------
 
   while true; do
     echo "Provide a signature to add to the upgrade file, or just hit enter to stop."
@@ -100,6 +146,7 @@ run_hash() {
 ═════════════════════════ Hashes of the binaries: ═════════════════════════
 ${ENDCOLOR}"
 
+  mkdir -p release
   cd release
   sha256sum *.bin > sha256.txt
   cat sha256.txt
@@ -110,12 +157,17 @@ Hashes saved to release/sha256.txt file.
 }
 
 fix_ownership() {
-  if [ -n "$HOST_UID" ] && [ -n "$HOST_GID" ]; then
-    echo -e "${INFO}
+  echo -e "${INFO}
 ═════════════════════════ Fixing file ownership ═══════════════════════════
 ${ENDCOLOR}"
-    chown -R "$HOST_UID:$HOST_GID" release f469-disco/micropython/mpy-cross bin
+
+  if [ -n "$HOST_UID" ] && [ -n "$HOST_GID" ]; then
+    chown -R "$HOST_UID:$HOST_GID" bin 2>/dev/null || true
+    chown -R "$HOST_UID:$HOST_GID" release 2>/dev/null || true
+    chown -R "$HOST_UID:$HOST_GID" f469-disco/micropython/mpy-cross 2>/dev/null || true
     echo "File ownership changed to local user/group"
+  else
+    echo "Skipping fix_ownership: HOST_UID and HOST_GID not set."
   fi
 }
 
@@ -126,8 +178,8 @@ dispatch() {
       run_main
       run_bootloader
       run_assemble
-      run_nobootloader
       run_sign
+      run_nobootloader
       run_hash
       fix_ownership
       ;;

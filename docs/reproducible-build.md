@@ -39,7 +39,7 @@ docker run -ti -v `pwd`:/app -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) diy ./bui
 
 # Apple M1 users
 
-For Apple M1 add a plafrom flag to the docker commands:
+For Apple M1 add a platform flag to the docker commands:
 
 ```sh
 docker build -t diy . --platform linux/x86_64

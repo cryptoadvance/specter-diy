@@ -25,7 +25,7 @@ and after flashing, restart the device, go to Device settings > Communication > 
 # Linux
 screen /dev/ttyACM0 115200 # or maybe ttyACM1 or ttyACM2
 # Mac
-screen /dev/tty.usbmodem14403 115200`.
+screen /dev/tty.usbmodem14403 115200
 ```
 
 All `print()` statements will appear in the terminal output. You can keep both the mini-USB and micro-USB connected at the same time, with the power jumper in either position. This makes it easier to flash the firmware and then connect to the device.
