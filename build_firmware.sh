@@ -165,6 +165,7 @@ ${ENDCOLOR}"
     chown -R "$HOST_UID:$HOST_GID" bin 2>/dev/null || true
     chown -R "$HOST_UID:$HOST_GID" release 2>/dev/null || true
     chown -R "$HOST_UID:$HOST_GID" f469-disco/micropython/mpy-cross 2>/dev/null || true
+    chown -R "$HOST_UID:$HOST_GID" bootloader 2>/dev/null || true
     echo "File ownership changed to local user/group"
   else
     echo "Skipping fix_ownership: HOST_UID and HOST_GID not set."
