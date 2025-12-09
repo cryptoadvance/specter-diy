@@ -19,9 +19,23 @@ SUCCESS = b"\x02\x00\x00\x01\x00\x33\x31"
 # serial port mode
 SERIAL_ADDR = b"\x00\x0D"
 SERIAL_VALUE = 0xA0  # use serial port for data
+READ_BUFFER_LEN = 4096 # Increased to avoid error when processing large single QR codes
 
-# factory reset command (restore defaults)
-FACTORY_RESET_CMD = b"\x7E\x00\x08\x01\x00\xD9\x55\xAB\xCD"
+# Consts for identified model
+MODEL_UNKNOWN = 0
+MODEL_GM65 = 1
+MODEL_M3Y = 2
+
+MODEL_UNK_MSG = "QR scanner model unknown, assume GM65"
+
+RETRY_DELAY_MS = 100
+CHUNCK_TIMEOUT = 0.5
+
+# ------ GM65 Scanner
+# Head1:0x7E 0x00 Types:0x08 Lens:0x01 Address:0x00D9 Data:0x55 (Restore to user setting) - 0x50 (Restore to factory setting) CRC: 0xABCD (no checksum)
+HEADER = b"\x7E\x00"
+CRC_NO_CHECKSUM = b"\xAB\xCD"
+FACTORY_RESET_CMD = HEADER + b"\x08\x01\x00\xD9\x55" + CRC_NO_CHECKSUM
 
 """ We switch the scanner to continuous mode to initiate scanning and
 to command mode to stop scanning. No external trigger is necessary """
@@ -57,6 +71,32 @@ VERSION_NEEDS_RAW = 0x69  # A version of GM65 that needs RAW mode to be turned o
 RAW_MODE_ADDR = b"\x00\xBC"
 RAW_MODE_VALUE = 0x08
 
+# ----- M3Y Scanner
+# Resets all blocks except communication in some firmware versions
+M3Y_FACTORY_RESET_CMD = b"S_CMD_FFFF"
+# Communication-related reset
+M3Y_FACTORY_RESET_COMM_CMD = b"C_CMD_E0FF"
+
+# Add Suffix: 0=OFF / 2=ON (1=ON for SOUND)
+M3Y_LIGHT = b"S_CMD_03L"
+M3Y_AIM = b"S_CMD_03A"
+M3Y_SOUND = b"S_CMD_04F"
+
+# Scan Modes
+M3Y_BATCH_MODE = b"S_CMD_MB00"
+M3Y_CMD_MODE = b"S_CMD_020D"
+M3Y_CONT_MODE = b"S_CMD_020E"
+M3Y_TRIGGER_MODE = b"S_CMD_MT00"
+
+# Actions for CMD_MODE
+M3Y_ENABLE_SCAN = b"SR030301"
+M3Y_DISABLE_SCAN = b"SR030300"
+
+M3Y_ENABLE_CONFIG_MODE = b"S_CMD_0001"
+M3Y_GET_VERSION = b"T_OUT_CVER"
+
+# Communication protocol
+M3Y_USB_CDC_PROT = b"S_CMD_01H2"
 
 class QRHost(Host):
     """
@@ -74,6 +114,9 @@ class QRHost(Host):
 
     # Some Information to report device to user
     version_str = "No Scanner Detected"
+
+    # Flag to change code behaviour depending on the scanner
+    scanner_model = MODEL_UNKNOWN
 
     def __init__(self, path, trigger=None, uart="YA", baudrate=9600):
         super().__init__(path)
@@ -109,7 +152,7 @@ class QRHost(Host):
         self.f = None
         self.software_version = None
         self.uart_bus = uart
-        self.uart = pyb.UART(uart, baudrate, read_buf_len=2048)
+        self.uart = pyb.UART(uart, baudrate, read_buf_len=READ_BUFFER_LEN)
         if simulator:
             print("Connect to 127.0.0.1:22849 to send QR code content")
         self.trigger = None
@@ -121,7 +164,7 @@ class QRHost(Host):
         self.scanning = False
         self.parts = None
         self.raw = False
-        self.chunk_timeout = 0.5
+        self.chunk_timeout = CHUNCK_TIMEOUT
 
     @property
     def MASK(self):
@@ -142,7 +185,7 @@ class QRHost(Host):
     def CONT_MODE(self):
         return self.MASK | 2
 
-    def query(self, data, timeout=100):
+    def query(self, data: bytes, timeout=RETRY_DELAY_MS):
         """Blocking query"""
         self.uart.write(data)
         t0 = time.time()
@@ -151,56 +194,168 @@ class QRHost(Host):
             t = time.time()
             if t > t0 + timeout / 1000:
                 return None
-        res = self.uart.read(7)
+        if self.scanner_model == MODEL_M3Y:
+            res = self.uart.read()
+        else:
+            res = self.uart.read(7)
         return res
+    
+    def _compute_bcc(self, data: bytes):
+        """BCC: Block Check Character (1-byte XOR checksum)"""
+        bcc = 0
+        for byte in data:
+            bcc ^= byte
+        return bytes([bcc])
+    
+    def _check_bcc(self, data_with_bcc: bytes):
+        """BCC: Block Check Character (1-byte XOR checksum)"""
+        if len(data_with_bcc) < 2:
+            return False
+        data = data_with_bcc[:-1]
+        received_bcc = data_with_bcc[-1:]
+        calculated_bcc = self._compute_bcc(data)
+        return received_bcc == calculated_bcc
+    
+    def _send_and_parse_m3y(self, command: bytes):
+        command_len = len(command).to_bytes(2, 'big')
+        res = self.query(b"\x5A\x00" + command_len + command + self._compute_bcc(command_len + command) + b"\xA5")
 
-    def _get_setting_once(self, addr):
+        if res is None or res == b"":
+            return None
+        
+        # Strict header check
+        if res[0:2] != b"\x5A\x01":
+            return None
+        
+        header_len = 4
+        data_len = (res[2] << 8) | res[3]
+        if not self._check_bcc(res[1:header_len + data_len + 1]):
+            return None
+        
+        payload = res[header_len:header_len + data_len]
+        if len(payload) == 2:
+            if payload == b"\x90\x00":
+                return True
+            else:
+                return None
+        
+        return payload
+
+    def _get_setting_once(self, addr: bytes):
         # only for 1 byte settings
-        res = self.query(b"\x7E\x00\x07\x01" + addr + b"\x01\xAB\xCD")
+        res = self.query(HEADER + b"\x07\x01" + addr + b"\x01" + CRC_NO_CHECKSUM)
         if res is None or len(res) != 7:
             return None
         return res[-3]
 
-    def get_setting(self, addr, retries=3, retry_delay_ms=50, invalid_values=None):
+    def get_setting(self, addr: bytes, retries=3, retry_delay_ms=RETRY_DELAY_MS>>1, invalid_values=None):
         if invalid_values:
             invalid_values = set(invalid_values)
         else:
             invalid_values = None
-        for attempt in range(retries):
-            val = self._get_setting_once(addr)
+        for _ in range(retries):
+            if self.scanner_model == MODEL_GM65:
+                val = self._get_setting_once(addr)
+            elif self.scanner_model == MODEL_M3Y:
+                val = self._send_and_parse_m3y(addr)
+            else:
+                print(MODEL_UNK_MSG)
+                val = self._get_setting_once(addr)
             if val is None or (invalid_values is not None and val in invalid_values):
                 time.sleep_ms(retry_delay_ms)
                 self.clean_uart()
                 continue
             return val
         return None
-
-    def _set_setting_once(self, addr, value):
+    
+    def _set_setting_once(self, addr: bytes, value: int):
         # only for 1 byte settings
-        res = self.query(b"\x7E\x00\x08\x01" + addr + bytes([value]) + b"\xAB\xCD")
+        res = self.query(HEADER + b"\x08\x01" + addr + bytes([value]) + CRC_NO_CHECKSUM)
         if res is None:
             return False
         return res == SUCCESS
 
-    def set_setting(self, addr, value, retries=3, retry_delay_ms=50):
-        for attempt in range(retries):
-            if self._set_setting_once(addr, value):
-                return True
+    def set_setting(self, addr: bytes, value: int=None, retries=3, retry_delay_ms=RETRY_DELAY_MS>>1):
+        for _ in range(retries):
+            if self.scanner_model == MODEL_GM65:
+                if self._set_setting_once(addr, value):
+                    return True
+            elif self.scanner_model == MODEL_M3Y:
+                if self._send_and_parse_m3y(addr):
+                    return True
+            else:
+                print(MODEL_UNK_MSG)
+                if self._set_setting_once(addr, value):
+                    return True
             time.sleep_ms(retry_delay_ms)
             self.clean_uart()
         return False
 
-    def save_settings_on_scanner(self, retries=3, retry_delay_ms=100):
-        for attempt in range(retries):
-            res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
+    def save_settings_on_scanner(self, retries=3, retry_delay_ms=RETRY_DELAY_MS):
+        if self.scanner_model == MODEL_M3Y:
+            return True
+        
+        for _ in range(retries):
+            res = self.query(HEADER + b"\x09\x01\x00\x00\x00\xDE\xC8")
             if res == SUCCESS:
                 return True
             time.sleep_ms(retry_delay_ms)
             self.clean_uart()
         return False
-
+    
     def configure(self):
-        """Tries to configure scanner, returns True on success"""
+        """Tries to configure the scanner, returns True on success"""
+
+        # Check for M3Y first, else assume GM65
+        self.scanner_model = MODEL_M3Y
+        val = self.get_setting(
+            M3Y_ENABLE_CONFIG_MODE, retries=5, retry_delay_ms=RETRY_DELAY_MS
+        )
+        if val:
+            return self.configure_m3y()
+        
+        self.scanner_model = MODEL_GM65
+        return self.configure_gm65()
+
+    def configure_m3y(self):
+        """Tries to configure M3Y scanner, returns True on success"""
+        val = self.get_setting(
+            M3Y_GET_VERSION, retries=5, retry_delay_ms=RETRY_DELAY_MS
+        )
+        if val is None:
+            return False
+        
+        self.software_version = val.decode().strip()
+        self.version_str = "Detected M3Y Scanner, SW:" + str(self.software_version)
+
+        # Set communication protocol
+        self.get_setting(M3Y_USB_CDC_PROT)
+
+        # Set Command Mode
+        self.get_setting(M3Y_CMD_MODE)
+
+        # Sound
+        if self.settings.get("sound", True):
+            self.get_setting(M3Y_SOUND + b"1")
+        else:
+            self.get_setting(M3Y_SOUND + b"0")
+
+        # Aim
+        if self.settings.get("aim", True):
+            self.get_setting(M3Y_AIM + b"2")
+        else:
+            self.get_setting(M3Y_AIM + b"0")
+        
+        # LED Light
+        if self.settings.get("light", False):
+            self.get_setting(M3Y_LIGHT + b"2")
+        else:
+            self.get_setting(M3Y_LIGHT + b"0")
+        
+        return True
+
+    def configure_gm65(self):
+        """Tries to configure GM65 scanner, returns True on success"""
         save_required = False
         settings_changed = False
         raw_fix_applied = self.settings.get("raw_fix_applied", False)
@@ -252,7 +407,7 @@ class QRHost(Host):
 
         # Check the module software and enable "RAW" mode if required
         val = self.get_setting(
-            VERSION_ADDR, retries=5, retry_delay_ms=100, invalid_values=(0,)
+            VERSION_ADDR, retries=5, retry_delay_ms=RETRY_DELAY_MS, invalid_values=(0,)
         )
         if val is None:
             return False
@@ -272,7 +427,7 @@ class QRHost(Host):
                 if val_check is None:
                     return False
                 if val_check != RAW_MODE_VALUE:
-                    if not self.set_setting(RAW_MODE_ADDR, RAW_MODE_VALUE, retries=1, retry_delay_ms=100):
+                    if not self.set_setting(RAW_MODE_ADDR, RAW_MODE_VALUE, retries=1, retry_delay_ms=RETRY_DELAY_MS):
                         return False
                     val_check = self.get_setting(RAW_MODE_ADDR)
                     if val_check is None or val_check != RAW_MODE_VALUE:
@@ -314,11 +469,11 @@ class QRHost(Host):
             self.settings["raw_fix_applied"] = raw_fix_applied
 
         # Set 115200 bps: this query is special - it has a payload of 2 bytes
-        ret = self.query(b"\x7E\x00\x08\x02" + BAUD_RATE_ADDR + BAUD_RATE + b"\xAB\xCD")
+        ret = self.query(HEADER + b"\x08\x02" + BAUD_RATE_ADDR + BAUD_RATE + CRC_NO_CHECKSUM)
         if ret != SUCCESS:
             return False
         self.uart.deinit()
-        self.uart.init(baudrate=115200, read_buf_len=2048)
+        self.uart.init(baudrate=115200, read_buf_len=READ_BUFFER_LEN)
         return True
 
     def init(self):
@@ -340,7 +495,7 @@ class QRHost(Host):
 
         # Try one more time with different baudrate
         self.uart.deinit()
-        self.uart.init(baudrate=115200, read_buf_len=2048)
+        self.uart.init(baudrate=115200, read_buf_len=READ_BUFFER_LEN)
         self.clean_uart()
         self.is_configured = self.configure()
         if self.is_configured:
@@ -348,7 +503,7 @@ class QRHost(Host):
 
         # PIN trigger mode
         self.uart.deinit()
-        self.uart.init(baudrate=9600, read_buf_len=2048)
+        self.uart.init(baudrate=9600, read_buf_len=READ_BUFFER_LEN)
         self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
         self.trigger.on()
         self.is_configured = True
@@ -364,7 +519,14 @@ class QRHost(Host):
             raw_fix = "Applied" if raw_fix_applied else "Not applied"
         else:
             raw_fix = "Not needed"
-        return "Scanner: GM65 | Firmware: {} | CompactQR fix: {}".format(
+        scanner_name = "unknown"
+        if self.scanner_model == MODEL_GM65:
+            scanner_name = "GM65"
+        elif self.scanner_model == MODEL_M3Y:
+            scanner_name = "M3Y"
+
+        return "Scanner: {} | Firmware: {} | CompactQR fix: {}".format(
+            scanner_name,
             version_text,
             raw_fix,
         )
@@ -381,7 +543,7 @@ class QRHost(Host):
 
     def _apply_post_reset_configuration(self, settings_snapshot, previous_settings):
         self.uart.deinit()
-        self.uart.init(baudrate=9600, read_buf_len=2048)
+        self.uart.init(baudrate=9600, read_buf_len=READ_BUFFER_LEN)
         self.clean_uart()
         self.settings = settings_snapshot
         configured = self.configure()
@@ -392,14 +554,28 @@ class QRHost(Host):
         return True
 
     def _send_factory_reset(self):
+        if self.scanner_model == MODEL_M3Y:
+            val = self.get_setting(
+                M3Y_ENABLE_CONFIG_MODE, retries=5, retry_delay_ms=RETRY_DELAY_MS
+            )
+            if val:
+                res = self.get_setting(M3Y_FACTORY_RESET_CMD)
+            res = self.get_setting(M3Y_FACTORY_RESET_COMM_CMD)
+            return res is not None
+        
+        # GM65
         res = self.query(FACTORY_RESET_CMD)
         return res == SUCCESS
-
-    def _factory_reset_scanner_on_boot(self):
+    
+    def _pre_reset_scanner(self):
         previous_settings = dict(self.settings)
         settings_snapshot = dict(previous_settings)
         settings_snapshot["raw_fix_applied"] = False
         self.clean_uart()
+        return settings_snapshot, previous_settings
+
+    def _factory_reset_scanner_on_boot(self):
+        settings_snapshot, previous_settings = self._pre_reset_scanner()
         if not self._send_factory_reset():
             return False
         time.sleep_ms(200)
@@ -409,10 +585,7 @@ class QRHost(Host):
         return True
 
     async def _factory_reset_scanner(self, keystore):
-        previous_settings = dict(self.settings)
-        settings_snapshot = dict(previous_settings)
-        settings_snapshot["raw_fix_applied"] = False
-        self.clean_uart()
+        settings_snapshot, previous_settings = self._pre_reset_scanner()
         if not self._send_factory_reset():
             return False
         await asyncio.sleep_ms(200)
@@ -514,14 +687,20 @@ class QRHost(Host):
         if self.trigger is not None:
             self.trigger.on()  # trigger is reversed, so on means disable
         else:
-            self.set_setting(SCAN_ADDR, 0)
+            if self.scanner_model == MODEL_M3Y:
+                self.get_setting(M3Y_DISABLE_SCAN)
+            else:
+                self.set_setting(SCAN_ADDR, 0)
 
     def _start_scanner(self):
         self.clean_uart()
         if self.trigger is not None:
             self.trigger.off()
         else:
-            self.set_setting(SCAN_ADDR, 1)
+            if self.scanner_model == MODEL_M3Y:
+                self.get_setting(M3Y_ENABLE_SCAN)
+            else:
+                self.set_setting(SCAN_ADDR, 1)
 
     async def _restart_scanner(self):
         if self.trigger is not None:
@@ -529,7 +708,10 @@ class QRHost(Host):
             await asyncio.sleep_ms(30)
             self.trigger.off()
         else:
-            self.set_setting(SCAN_ADDR, 1)
+            if self.scanner_model == MODEL_M3Y:
+                self.get_setting(M3Y_ENABLE_SCAN)
+            else:
+                self.set_setting(SCAN_ADDR, 1)
 
     def stop_scanning(self):
         self.scanning = False
@@ -545,7 +727,7 @@ class QRHost(Host):
     def tmpfile(self):
         return self.path + "/tmp"
 
-    async def scan(self, raw=True, chunk_timeout=0.5):
+    async def scan(self, raw=True, chunk_timeout=CHUNCK_TIMEOUT):
         self.raw = raw
         self.chunk_timeout = chunk_timeout
         self._start_scanner()
@@ -604,6 +786,23 @@ class QRHost(Host):
                 # let all data to come on the first QR code
                 await asyncio.sleep(self.chunk_timeout)
                 d = self.uart.read()
+                accumulator_d = d
+                # data should end with \r indicating a complete read
+                while d[-len(self.EOL):] != self.EOL:
+                    if not self.scanning:
+                        self.clean_uart()
+                        return
+                    await asyncio.sleep(self.chunk_timeout)
+                    if self.uart.any():
+                        d = self.uart.read()
+                    else:
+                        self.stop_scanning()
+                        if len(accumulator_d) >= READ_BUFFER_LEN:
+                            raise ValueError("QR length exceeds READ_BUFFER_LEN=" + str(READ_BUFFER_LEN))
+                        raise ValueError("Scanner stopped because no end of line found")
+                    accumulator_d += d
+                d = accumulator_d
+                    
                 # if not animated -> stop and return
                 if not self.check_animated(d):
                     if d[-len(self.EOL):] == self.EOL:
@@ -818,7 +1017,7 @@ class QRHost(Host):
             raise HostError("Invalid prefix")
         return m, n
 
-    async def get_data(self, raw=True, chunk_timeout=0.5):
+    async def get_data(self, raw=True, chunk_timeout=CHUNCK_TIMEOUT):
         delete_recursively(self.path)
         if self.manager is not None:
             # pass self so user can abort
