@@ -6,13 +6,7 @@ See the [build documentation](build.md) for instructions on how to compile the c
 
 ## Enabling developer mode
 
-By default developer mode and USB communication are turned off. This means that when you connect the board to the computer it will NOT mount the `PYBFLASH` anymore and there will be no way to connect to debug shell.
-
-
-~~To turn on the developer mode get to the main screen (enter PIN code, generate recovery phrase, enter password), and then go to **Settings - Security - turn on Developer mode - Save**.~~
-(Currently deactivated for securtiy reasons)
-
-~~Now the board will restart and get mounted to the computer as before. You can also connect to the board over miniUSB and get to interactive console (baudrate 115200). You can use `screen` or `putty` or `minicom` for that, i.e. `screen /dev/tty.usbmodem14403 115200`.~~
+By default USB communication is off. This means that when you connect the board to the computer it will NOT mount the `PYBFLASH` anymore and there will be no way to connect to debug shell.
 
 In order to connect to the board, modify those lines in [boot.py](https://github.com/cryptoadvance/specter-diy/blob/2f51e152bcdb184cf719792e6c5f972214e3dd36/boot/main/boot.py#L33-L40) like this:
 ```python
@@ -22,16 +16,19 @@ pyb.usb_mode("VCP+MSC") # debug mode with USB and mounted storages from start
 #pyb.usb_mode("VCP") # debug mode with USB from start
 # disable at start
 # pyb.usb_mode(None)
+# os.dupterm(None,0)
+# os.dupterm(None,1)
 ```
 
-and after flashing, you can connect with something like:
+and after flashing, restart the device, go to Device settings > Communication > USB communication, turn it on and Confirm. Then you can connect using the micro-USB port and with something like:
 ```
 # Linux
 screen /dev/ttyACM0 115200 # or maybe ttyACM1 or ttyACM2
 # Mac
-screen /dev/tty.usbmodem14403 115200`.
+screen /dev/tty.usbmodem14403 115200
 ```
 
+All `print()` statements will appear in the terminal output. You can keep both the mini-USB and micro-USB connected at the same time, with the power jumper in either position. This makes it easier to flash the firmware and then connect to the device.
 
 ## Writing a simple app
 
