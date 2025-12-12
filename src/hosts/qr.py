@@ -26,13 +26,11 @@ MODEL_UNKNOWN = 0
 MODEL_GM65 = 1
 MODEL_M3Y = 2
 
-MODEL_UNK_MSG = "QR scanner model unknown, assume GM65"
-
 RETRY_DELAY_MS = 100
-CHUNCK_TIMEOUT = 0.5
+CHUNK_TIMEOUT = 0.5
 
 # ------ GM65 Scanner
-# Head1:0x7E 0x00 Types:0x08 Lens:0x01 Address:0x00D9 Data:0x55 (Restore to user setting) - 0x50 (Restore to factory setting) CRC: 0xABCD (no checksum)
+# Header:0x7E 0x00 Types:0x08 Lens:0x01 Address:0x00D9 Data:0x55 (Restore to user setting) - 0x50 (Restore to factory setting) CRC: 0xABCD (no checksum)
 HEADER = b"\x7E\x00"
 CRC_NO_CHECKSUM = b"\xAB\xCD"
 FACTORY_RESET_CMD = HEADER + b"\x08\x01\x00\xD9\x55" + CRC_NO_CHECKSUM
@@ -163,7 +161,7 @@ class QRHost(Host):
         self.scanning = False
         self.parts = None
         self.raw = False
-        self.chunk_timeout = CHUNCK_TIMEOUT
+        self.chunk_timeout = CHUNK_TIMEOUT
 
     @property
     def MASK(self):
@@ -219,7 +217,7 @@ class QRHost(Host):
         command_len = len(command).to_bytes(2, 'big')
         res = self.query(b"\x5A\x00" + command_len + command + self._compute_bcc(command_len + command) + b"\xA5")
 
-        if res is None or res == b"":
+        if res is None or res == b"" or len(res) < 4:
             return None
         
         # Strict header check
@@ -253,12 +251,9 @@ class QRHost(Host):
         else:
             invalid_values = None
         for _ in range(retries):
-            if self.scanner_model == MODEL_GM65:
-                val = self._get_setting_once(addr)
-            elif self.scanner_model == MODEL_M3Y:
+            if self.scanner_model == MODEL_M3Y:
                 val = self._send_and_parse_m3y(addr)
             else:
-                print(MODEL_UNK_MSG)
                 val = self._get_setting_once(addr)
             if val is None or (invalid_values is not None and val in invalid_values):
                 time.sleep_ms(retry_delay_ms)
@@ -274,16 +269,12 @@ class QRHost(Host):
             return False
         return res == SUCCESS
 
-    def set_setting(self, addr: bytes, value: int=None, retries=3, retry_delay_ms=RETRY_DELAY_MS>>1):
+    def set_setting(self, addr: bytes, value: int, retries=3, retry_delay_ms=RETRY_DELAY_MS>>1):
         for _ in range(retries):
-            if self.scanner_model == MODEL_GM65:
-                if self._set_setting_once(addr, value):
-                    return True
-            elif self.scanner_model == MODEL_M3Y:
+            if self.scanner_model == MODEL_M3Y:
                 if self._send_and_parse_m3y(addr):
                     return True
             else:
-                print(MODEL_UNK_MSG)
                 if self._set_setting_once(addr, value):
                     return True
             time.sleep_ms(retry_delay_ms)
@@ -328,30 +319,44 @@ class QRHost(Host):
         self.version_str = "Detected M3Y Scanner, SW:" + str(self.software_version)
 
         # Set communication protocol
-        self.get_setting(M3Y_USB_CDC_PROT)
+        val = self.get_setting(M3Y_USB_CDC_PROT)
+        if val is None:
+            return False
 
         # Set Command Mode
-        self.get_setting(M3Y_CMD_MODE)
+        val = self.get_setting(M3Y_CMD_MODE)
+        if val is None:
+            return False
 
         # Sound
         if self.settings.get("sound", True):
-            self.get_setting(M3Y_SOUND + b"1")
-            self.get_setting(M3Y_SOUND_TYPE + b"1")
-            self.get_setting(M3Y_SOUND_VOL + b"1")
+            val = self.get_setting(M3Y_SOUND + b"1")
+            if val is None:
+                return False
+            val = self.get_setting(M3Y_SOUND_TYPE + b"1")
+            if val is None:
+                return False
+            val = self.get_setting(M3Y_SOUND_VOL + b"1")
         else:
-            self.get_setting(M3Y_SOUND + b"0")
+            val = self.get_setting(M3Y_SOUND + b"0")
+        if val is None:
+            return False
 
         # Aim
         if self.settings.get("aim", True):
-            self.get_setting(M3Y_AIM + b"2")
+            val = self.get_setting(M3Y_AIM + b"2")
         else:
-            self.get_setting(M3Y_AIM + b"0")
+            val = self.get_setting(M3Y_AIM + b"0")
+        if val is None:
+            return False
         
         # LED Light
         if self.settings.get("light", False):
-            self.get_setting(M3Y_LIGHT + b"2")
+            val = self.get_setting(M3Y_LIGHT + b"2")
         else:
-            self.get_setting(M3Y_LIGHT + b"0")
+            val = self.get_setting(M3Y_LIGHT + b"0")
+        if val is None:
+            return False
         
         return True
 
@@ -559,10 +564,14 @@ class QRHost(Host):
             val = self.get_setting(
                 M3Y_ENABLE_CONFIG_MODE, retries=5, retry_delay_ms=RETRY_DELAY_MS
             )
+            if val is None:
+                return False
             if val:
-                res = self.get_setting(M3Y_FACTORY_RESET_CMD)
-            res = self.get_setting(M3Y_FACTORY_RESET_COMM_CMD)
-            return res is not None
+                val = self.get_setting(M3Y_FACTORY_RESET_CMD)
+                if val is None:
+                    return False
+                val = self.get_setting(M3Y_FACTORY_RESET_COMM_CMD)
+            return val is not None
         
         # GM65
         res = self.query(FACTORY_RESET_CMD)
@@ -728,7 +737,7 @@ class QRHost(Host):
     def tmpfile(self):
         return self.path + "/tmp"
 
-    async def scan(self, raw=True, chunk_timeout=CHUNCK_TIMEOUT):
+    async def scan(self, raw=True, chunk_timeout=CHUNK_TIMEOUT):
         self.raw = raw
         self.chunk_timeout = chunk_timeout
         self._start_scanner()
@@ -786,6 +795,8 @@ class QRHost(Host):
                 # let all data to come on the first QR code
                 await asyncio.sleep(self.chunk_timeout)
                 d = self.uart.read()
+                if d is None or len(d) < len(self.EOL):
+                    raise ValueError("Failed to read data from scanner")
                 accumulator_d = d
                 # data should end with \r indicating a complete read
                 while d[-len(self.EOL):] != self.EOL:
@@ -795,6 +806,8 @@ class QRHost(Host):
                     await asyncio.sleep(self.chunk_timeout)
                     if self.uart.any():
                         d = self.uart.read()
+                        if d is None or len(d) < len(self.EOL):
+                            raise ValueError("Failed to read data from scanner")
                     else:
                         self.stop_scanning()
                         if len(accumulator_d) >= READ_BUFFER_LEN:
@@ -1017,7 +1030,7 @@ class QRHost(Host):
             raise HostError("Invalid prefix")
         return m, n
 
-    async def get_data(self, raw=True, chunk_timeout=CHUNCK_TIMEOUT):
+    async def get_data(self, raw=True, chunk_timeout=CHUNK_TIMEOUT):
         delete_recursively(self.path)
         if self.manager is not None:
             # pass self so user can abort
