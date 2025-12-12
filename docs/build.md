@@ -4,6 +4,8 @@ Clone the repository recursively `git clone https://github.com/cryptoadvance/spe
 
 `bootloader` folder contains a [secure bootloader](https://github.com/cryptoadvance/specter-bootloader) that you can customize with your own firmware signing keys.
 
+Check [reproducible-build](./reproducible-build.md) if you want to use Docker.
+
 ## Prerequisites for the Nix build
 
 There are multiple ways to get all necessary tools. The recommended way is to use the Nix flake with direnv.
