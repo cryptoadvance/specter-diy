@@ -81,12 +81,11 @@ M3Y_FACTORY_RESET_COMM_CMD = b"C_CMD_E0FF"
 M3Y_LIGHT = b"S_CMD_03L"
 M3Y_AIM = b"S_CMD_03A"
 M3Y_SOUND = b"S_CMD_04F"
+M3Y_SOUND_TYPE = b"S_CMD_04T" # 1, 2 or 3
+M3Y_SOUND_VOL = b"S_CMD_04V" # 0, 1 or 2 (H, M, L)
 
 # Scan Modes
-M3Y_BATCH_MODE = b"S_CMD_MB00"
 M3Y_CMD_MODE = b"S_CMD_020D"
-M3Y_CONT_MODE = b"S_CMD_020E"
-M3Y_TRIGGER_MODE = b"S_CMD_MT00"
 
 # Actions for CMD_MODE
 M3Y_ENABLE_SCAN = b"SR030301"
@@ -337,6 +336,8 @@ class QRHost(Host):
         # Sound
         if self.settings.get("sound", True):
             self.get_setting(M3Y_SOUND + b"1")
+            self.get_setting(M3Y_SOUND_TYPE + b"1")
+            self.get_setting(M3Y_SOUND_VOL + b"1")
         else:
             self.get_setting(M3Y_SOUND + b"0")
 
@@ -773,7 +774,6 @@ class QRHost(Host):
             return True
         except Exception as e:
             print("Exception at check animated", e)
-            return False
         return False
 
     async def update(self):
