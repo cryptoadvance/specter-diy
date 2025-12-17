@@ -28,11 +28,11 @@ class Progress(Alert):
         self.arc.set_angles(self.start, self.end)
 
     def set_progress(self, val):
-        txt = ""
         if isinstance(val, list):
-            ok = "#00F100 " + lv.SYMBOL.OK + " # "
-            no = "#FF9A00 " + lv.SYMBOL.CLOSE + " # "
-            txt = " ".join([ok if e else no for e in val])
+            ok = "#00F100 " + lv.SYMBOL.OK + "# "
+            no = "#FF9A00 " + lv.SYMBOL.CLOSE + "# "
+            self.progress.set_text(" ".join(ok if e else no for e in val))
         elif val > 0:
-            txt = "%d%%" % int(val * 100)
-        self.progress.set_text(txt)
+            self.progress.set_text("%d%%" % int(val * 100))
+        else:
+            self.progress.set_text("")
