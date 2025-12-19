@@ -119,25 +119,45 @@ class QRHost(Host):
         res = self.uart.read(7)
         return res
 
-    def get_setting(self, addr):
+    def _get_setting_once(self, addr):
         # only for 1 byte settings
         res = self.query(b"\x7E\x00\x07\x01" + addr + b"\x01\xAB\xCD")
         if res is None or len(res) != 7:
             return None
         return res[-3]
 
-    def set_setting(self, addr, value):
+    def get_setting(self, addr, retries=3, retry_delay_ms=50):
+        for attempt in range(retries):
+            val = self._get_setting_once(addr)
+            if val is not None:
+                return val
+            time.sleep_ms(retry_delay_ms)
+            self.clean_uart()
+        return None
+
+    def _set_setting_once(self, addr, value):
         # only for 1 byte settings
         res = self.query(b"\x7E\x00\x08\x01" + addr + bytes([value]) + b"\xAB\xCD")
         if res is None:
             return False
         return res == SUCCESS
 
-    def save_settings_on_scanner(self):
-        res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
-        if res is None:
-            return False
-        return res == SUCCESS
+    def set_setting(self, addr, value, retries=3, retry_delay_ms=50):
+        for attempt in range(retries):
+            if self._set_setting_once(addr, value):
+                return True
+            time.sleep_ms(retry_delay_ms)
+            self.clean_uart()
+        return False
+
+    def save_settings_on_scanner(self, retries=3, retry_delay_ms=100):
+        for attempt in range(retries):
+            res = self.query(b"\x7E\x00\x09\x01\x00\x00\x00\xDE\xC8")
+            if res == SUCCESS:
+                return True
+            time.sleep_ms(retry_delay_ms)
+            self.clean_uart()
+        return False
 
     def configure(self):
         """Tries to configure scanner, returns True on success"""
@@ -188,9 +208,6 @@ class QRHost(Host):
             return False
         self.uart.deinit()
         self.uart.init(baudrate=115200, read_buf_len=2048)
-        # Verify communication works at new baud rate
-        if self.get_setting(SETTINGS_ADDR) is None:
-            return False
         return True
 
     def init(self):
