@@ -316,7 +316,6 @@ class QRHost(Host):
     def configure(self):
         """Tries to configure the scanner, returns True on success"""
 
-        # Check for M3Y
         if self.scanner_model == MODEL_M3Y:
             def _try_baudrate(baud):
                 if self.baudrate != baud:
@@ -331,8 +330,9 @@ class QRHost(Host):
 
             return self.configure_m3y(val)
 
-        # Else GM65
-        return self.configure_gm65()
+        if self.scanner_model == MODEL_GM65:
+            return self.configure_gm65()
+        return False
 
     def configure_m3y(self, version):
         """Tries to configure M3Y scanner, returns True on success"""
@@ -621,8 +621,9 @@ class QRHost(Host):
 
             return bool(res)
         
-        # Else GM65
-        return bool(self.query(FACTORY_RESET_CMD))
+        if self.scanner_model == MODEL_GM65:
+            return bool(self.query(FACTORY_RESET_CMD))
+        return False
     
     def _pre_reset_scanner(self):
         previous_settings = dict(self.settings)
