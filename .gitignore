@@ -8,3 +8,10 @@ release
 .idea
 .vscode
 .DS_Store
+.claude
+.augment
+.bmad-core
+.direnv
+fwbox
+.beads
+.history
