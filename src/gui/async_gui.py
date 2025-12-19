@@ -46,10 +46,10 @@ class AsyncGUI:
     async def load_screen(self, scr):
         while self.background is not None:
             await asyncio.sleep_ms(10)
-        old_scr = lv.scr_act()
-        lv.scr_load(scr)
+        old_scr = lv.screen_active()
+        lv.screen_load(scr)
         self.scr = scr
-        old_scr.del_async()
+        old_scr.delete_async()
 
     async def open_popup(self, scr):
         # wait for another popup to finish
@@ -57,7 +57,7 @@ class AsyncGUI:
             await asyncio.sleep_ms(10)
         self.background = self.scr
         self.scr = scr
-        lv.scr_load(scr)
+        lv.screen_load(scr)
 
     async def close_popup(self):
         scr = self.background

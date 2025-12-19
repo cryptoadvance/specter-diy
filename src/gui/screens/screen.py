@@ -22,18 +22,17 @@ class Screen(lv.obj):
         self.waiting = True
         self._value = None
         self.battery = Battery(self)
-        self.battery.align(self, lv.ALIGN.IN_TOP_RIGHT, -20, 10)
+        self.battery.align(lv.ALIGN.TOP_RIGHT, -20, 10)
 
         if type(self).network in type(self).COLORS:
             self.topbar = lv.obj(self)
             s = lv.style_t()
-            lv.style_copy(s, styles["theme"].style.btn.rel)
-            s.body.main_color = type(self).COLORS[type(self).network]
-            s.body.grad_color = type(self).COLORS[type(self).network]
-            s.body.opa = 200
-            s.body.radius = 0
-            s.body.border.width = 0
-            self.topbar.set_style(s)
+            s.init()
+            s.set_bg_color(type(self).COLORS[type(self).network])
+            s.set_bg_opa(200)
+            s.set_radius(0)
+            s.set_border_width(0)
+            self.topbar.add_style(s, 0)
             self.topbar.set_size(HOR_RES, 5)
             self.topbar.set_pos(0, 0)
 
@@ -69,6 +68,6 @@ class Screen(lv.obj):
     def hide_loader(self):
         if self.mbox is None:
             return
-        self.mbox.del_async()
+        self.mbox.delete_async()
         self.mbox = None
         update()

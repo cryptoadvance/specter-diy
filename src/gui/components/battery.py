@@ -14,12 +14,15 @@ class Battery(lv.obj):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.set_style(lv.style_transp_tight)
+        # Make background transparent in LVGL 9.x
+        self.set_style_bg_opa(0, 0)
+        self.set_style_border_width(0, 0)
+        self.set_style_pad_all(0, 0)
         self.level = lv.label(self)
         self.level.set_recolor(True)
         self.icon = lv.label(self)
         self.charge = lv.label(self)
-        self.set_size(30,20)
+        self.set_size(30, 20)
         # self.bar = lv.bar(self)
         self.update()
 
@@ -39,6 +42,6 @@ class Battery(lv.obj):
         self.icon.set_text(lv.SYMBOL.BATTERY_EMPTY)
         if self.CHARGING:
             self.charge.set_text(lv.SYMBOL.CHARGE)
-            self.charge.align(self.icon, lv.ALIGN.CENTER, 0, 0)
+            self.charge.align_to(self.icon, lv.ALIGN.CENTER, 0, 0)
         else:
             self.charge.set_text("")

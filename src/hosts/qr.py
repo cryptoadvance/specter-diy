@@ -188,6 +188,9 @@ class QRHost(Host):
             return False
         self.uart.deinit()
         self.uart.init(baudrate=115200, read_buf_len=2048)
+        # Verify communication works at new baud rate
+        if self.get_setting(SETTINGS_ADDR) is None:
+            return False
         return True
 
     def init(self):
@@ -568,6 +571,10 @@ class QRHost(Host):
                 self, "Scanning...", "Point scanner to the QR code"
             )
         stream = await self.scan(raw=raw, chunk_timeout=chunk_timeout)
+        # Wait for progress popup to close before returning
+        if self.manager is not None:
+            while self.manager.gui.background is not None:
+                await asyncio.sleep_ms(10)
         if stream is not None:
             return stream
 
