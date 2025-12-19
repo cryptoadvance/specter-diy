@@ -26,6 +26,7 @@ mpy-cross: $(TARGET_DIR) $(MPY_DIR)/mpy-cross/Makefile
 # disco board with bitcoin library
 disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building firmware
+	@rm -rf $(MPY_DIR)/ports/stm32/build-$(BOARD)/frozen_mpy $(MPY_DIR)/ports/stm32/build-$(BOARD)/frozen_content.c
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
 		FLAVOR=$(FLAVOR) \
@@ -43,6 +44,7 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 # disco board with bitcoin library
 debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 	@echo Building firmware
+	@rm -rf $(MPY_DIR)/ports/stm32/build-$(BOARD)/frozen_mpy $(MPY_DIR)/ports/stm32/build-$(BOARD)/frozen_content.c
 	make -C $(MPY_DIR)/ports/stm32 \
 		BOARD=$(BOARD) \
 		FLAVOR=$(FLAVOR) \
@@ -61,6 +63,7 @@ debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32
 # unixport (simulator)
 unix: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/unix
 	@echo Building binary with frozen files
+	@rm -rf $(MPY_DIR)/ports/unix/build-standard/frozen_mpy $(MPY_DIR)/ports/unix/build-standard/frozen_content.c
 	make -C $(MPY_DIR)/ports/unix \
 		USER_C_MODULES=$(USER_C_MODULES) \
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_UNIX) \
