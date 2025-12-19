@@ -81,7 +81,7 @@ M3Y_GET_VERSION = b"T_OUT_CVER"
 M3Y_READ_LED_INDICATOR = b"S_CMD_0407"
 M3Y_EOL = b"S_CMD_059D"
 
-M3Y_BAUDRATE_SET = b"S_CMD_H3BR" # add suffix: 115200
+M3Y_BAUDRATE_SET = b"S_CMD_H3BR" # add suffix: 9600 or 57600
 
 # Add Suffix: 0=OFF / 1=ON
 M3Y_CONFIG_MODE = b"S_CMD_000" # Read configuration QRs
@@ -341,7 +341,7 @@ class QRHost(Host):
 
         # Disable read of configurable QRs and other configs
         for config in (M3Y_CONFIG_MODE + b"0", M3Y_DISABLE_ALL_SYMBOLOGIES, M3Y_ENABLE_QR_SYMBOL, M3Y_READ_LED_INDICATOR, M3Y_EOL, M3Y_TRIGGER_TIMEOUT, M3Y_CONTINUOUS_TIMEOUT, M3Y_CONT_ENABLE_REREAD_TIMEOUT, M3Y_CONT_REREAD_TIMEOUT, M3Y_CMD_MODE, M3Y_SERIAL_PROT):
-            val = self.get_setting(config)
+            val = self.get_setting(config, 2)
             if val is None:
                 return False
         
@@ -508,7 +508,7 @@ class QRHost(Host):
 
     def _try_m3y(self):
         self.scanner_model = MODEL_M3Y
-        return bool(self.get_setting(M3Y_GET_VERSION))
+        return bool(self.get_setting(M3Y_GET_VERSION, 2))
 
     def _try_gm65(self):
         self.scanner_model = MODEL_GM65
