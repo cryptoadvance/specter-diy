@@ -16,10 +16,10 @@ class Progress(Alert):
         self.start = 0
         self.end = 30
         self.arc.set_angles(self.start, self.end)
-        self.arc.align(self, lv.ALIGN.CENTER, 0, -150)
-        self.message.align(self.arc, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
+        self.arc.align(lv.ALIGN.CENTER, 0, -150)
+        self.message.align_to(self.arc, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
         self.progress = add_label("", scr=self, style="title")
-        self.progress.align(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        self.progress.align_to(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         self.progress.set_recolor(True)
 
     def tick(self, d: int = 10):

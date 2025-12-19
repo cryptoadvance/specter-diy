@@ -11,12 +11,13 @@ class Prompt(Screen):
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
             obj = self.note
-        self.page = lv.page(self)
+        # LVGL 9.x: page replaced with scrollable obj
+        self.page = lv.obj(self)
         self.page.set_size(480, 600)
         self.message = add_label(message, scr=self.page)
-        self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
+        self.page.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
         # Initialize an empty icon label. It will display nothing until a symbol is set.
         self.icon = lv.label(self)
         self.icon.set_text("")
@@ -31,14 +32,14 @@ class Prompt(Screen):
 
         if warning:
             self.warning = add_label(warning, scr=self, style="warning")
-            # Display warning symbol in the icon label 
+            # Display warning symbol in the icon label
             self.icon.set_text(lv.SYMBOL.WARNING)
-            
+
             # Align warning text
             y_pos = self.cancel_button.get_y() - 60 # above the buttons
             x_pos = self.get_width() // 2 - self.warning.get_width() // 2 # in the center of the prompt
             self.warning.set_pos(x_pos, y_pos)
-            
+
             # Align warning icon to the left of the title
-            self.icon.align(self.title, lv.ALIGN.IN_LEFT_MID, 90, 0)
+            self.icon.align_to(self.title, lv.ALIGN.LEFT_MID, 90, 0)
 

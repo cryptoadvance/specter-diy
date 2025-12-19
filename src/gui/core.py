@@ -7,13 +7,14 @@ from .common import init_styles
 
 
 def init(blocking=True, dark=True):
-    # display.init(not blocking)
+    # Ensure display is initialized first (for LVGL 9.x)
+    display.init(not blocking)
 
     # Initialize the styles
     init_styles(dark=dark)
 
     scr = lv.obj()
-    lv.scr_load(scr)
+    lv.screen_load(scr)
     update()
 
 

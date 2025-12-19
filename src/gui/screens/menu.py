@@ -13,9 +13,10 @@ class Menu(Screen):
         self.title = add_label(title, style="title", scr=self)
         if note is not None:
             self.note = add_label(note, style="hint", scr=self)
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
             y += self.note.get_height()
-        self.page = lv.page(self)
+        # LVGL 9.x: page replaced with scrollable obj
+        self.page = lv.obj(self)
         h = 800 - y - 20
         self.page.set_size(480, h)
         self.page.set_y(y)
@@ -32,15 +33,14 @@ class Menu(Screen):
                         cb = None
                     btn = add_button(text, cb, y=y, scr=self.page)
                     if not enable:
-                        btn.set_state(lv.btn.STATE.INA)
-                    # color
+                        btn.add_state(lv.STATE.DISABLED)
+                    # color (LVGL 9.x style)
                     if len(args) > 1:
                         color = args[1]
                         style = lv.style_t()
-                        lv.style_copy(style, btn.get_style(lv.btn.STYLE.REL))
-                        style.body.main_color = lv.color_hex(color)
-                        style.body.grad_color = lv.color_hex(color)
-                        btn.set_style(lv.btn.STYLE.REL, style)
+                        style.init()
+                        style.set_bg_color(lv.color_hex(color))
+                        btn.add_style(style, 0)
 
                     self.buttons.append(btn)
                     y += 85

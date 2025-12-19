@@ -14,10 +14,10 @@ class MnemonicScreen(Screen):
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            lbl.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
         self.table = MnemonicTable(self)
         self.table.set_mnemonic(mnemonic)
-        self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        self.table.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
         self.close_button = add_button(scr=self, callback=on_release(self.release))
 
@@ -29,16 +29,16 @@ class MnemonicPrompt(Prompt):
         super().__init__(title, message="", note=note)
         table = MnemonicTable(self)
         table.set_mnemonic(mnemonic)
-        table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        table.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
 
 
 class ExportMnemonicScreen(MnemonicScreen):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.show_qr_btn = add_button(text="Show as QR code", scr=self, callback=on_release(self.select_qr))
-        self.show_qr_btn.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.show_qr_btn.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         self.save_sd_btn = add_button(text="Save to SD card (plaintext)", scr=self, callback=on_release(self.select_sd))
-        self.save_sd_btn.align(self.show_qr_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.save_sd_btn.align_to(self.show_qr_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
 
     def select_sd(self):
         self.set_value(self.SD)
@@ -59,7 +59,7 @@ class NewMnemonicScreen(MnemonicScreen):
         self.wordlist = wordlist
         mnemonic = generator(12)
         super().__init__(mnemonic, title, note)
-        self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
+        self.table.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
         self.table.set_event_cb(self.on_word_click)
         # enable callbacks
         self.table.set_click(True)
@@ -74,13 +74,13 @@ class NewMnemonicScreen(MnemonicScreen):
         # toggle switch 12-24 words
         lbl = lv.label(self)
         lbl.set_text("Use 24 words")
-        lbl.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 40)
+        lbl.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 40)
         lbl.set_x(120)
         self.switch_lbl = lbl
 
         self.switch = lv.sw(self)
         self.switch.off(lv.ANIM.OFF)
-        self.switch.align(lbl, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
+        self.switch.align_to(lbl, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
 
         def cb():
             wordcount = 24 if self.switch.get_state() else 12
@@ -95,11 +95,11 @@ class NewMnemonicScreen(MnemonicScreen):
         self.kb.set_ctrl_map([lv.btnm.CTRL.TGL_ENABLE for i in range(11)])
         self.kb.set_width(HOR_RES)
         self.kb.set_height(100)
-        self.kb.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+        self.kb.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
         self.kb.set_hidden(True)
 
         self.instruction = add_label("Hint: click on any word above to edit it.", scr=self, style="hint")
-        self.instruction.align(self.kb, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+        self.instruction.align_to(self.kb, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
 
 
     def on_word_click(self, obj, evt):
@@ -173,7 +173,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
         self, checker=None, lookup=None, fixer=None, title="Enter your recovery phrase"
     ):
         super().__init__("", title)
-        self.table.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.table.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         self.checker = checker
         self.lookup = lookup
 
@@ -231,7 +231,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.kb.set_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(260)
-        self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
         self.kb.set_event_cb(self.callback)
 
         self.fixer = fixer
@@ -239,12 +239,12 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.fix_button = add_button("fix", on_release(self.fix_cb), self)
             self.fix_button.set_size(55, 30)
             # position it out of the screen but on correct y
-            self.fix_button.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38)
+            self.fix_button.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38)
 
         if lookup is not None:
             self.autocomplete.set_width(HOR_RES)
             self.autocomplete.set_height(50)
-            self.autocomplete.align(self.kb, lv.ALIGN.OUT_TOP_MID, 0, 0)
+            self.autocomplete.align_to(self.kb, lv.ALIGN.OUT_TOP_MID, 0, 0)
             words = lookup("", 4) + [""]
             self.autocomplete.set_map(words)
             self.autocomplete.set_event_cb(self.select_word)
@@ -304,13 +304,13 @@ class RecoverMnemonicScreen(MnemonicScreen):
                 # check if we can fix the mnemonic
                 try:
                     self.fixer(mnemonic)
-                    self.fix_button.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, x, y)
+                    self.fix_button.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, x, y)
                 except:
-                    self.fix_button.align(
+                    self.fix_button.align_to(
                         self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38
                     )
             else:
-                self.fix_button.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38)
+                self.fix_button.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38)
 
     def callback(self, obj, event):
         if event != lv.EVENT.RELEASED:
@@ -383,4 +383,4 @@ class RecoverMnemonicScreen(MnemonicScreen):
         mbox.add_btns(btns)
         mbox.set_width(400)
         mbox.set_event_cb(event_handler)
-        mbox.align(None, lv.ALIGN.CENTER, 0, 0)
+        mbox.align(lv.ALIGN.CENTER, 0, 0)
