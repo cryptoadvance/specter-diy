@@ -1,1 +1,4 @@
 mkdocs==1.3.0
+click>=8.0
+pyserial>=3.5
+mpremote>=1.0
