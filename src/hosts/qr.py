@@ -16,6 +16,7 @@ from microur.util import cbor
 QRSCANNER_TRIGGER = config.QRSCANNER_TRIGGER
 # OK response from scanner
 SUCCESS = b"\x02\x00\x00\x01\x00\x33\x31"
+SUCCESS_LEN = len(SUCCESS)
 # serial port mode
 SERIAL_ADDR = b"\x00\x0D"
 SERIAL_VALUE = 0xA0  # use serial port for data
@@ -190,13 +191,14 @@ class QRHost(Host):
     def CMD_MODE(self):
         return self.MASK | 1
 
-    @property
-    def CONT_MODE(self):
-        return self.MASK | 2
+    # unused
+    # @property
+    # def CONT_MODE(self):
+    #     return self.MASK | 2
     
     def _wait_uart_fill_data(self, timeout=RETRY_DELAY_MS):
         t0 = time.time()
-        while self.uart.any() < 7:
+        while self.uart.any() < SUCCESS_LEN:
             time.sleep_ms(10)
             t = time.time()
             if t > t0 + timeout / 1000:
@@ -213,7 +215,7 @@ class QRHost(Host):
         if self.scanner_model == MODEL_M3Y:
             res = self.uart.read()
         else:
-            res = self.uart.read(7)
+            res = self.uart.read(SUCCESS_LEN)
         return res
     
     def _compute_bcc(self, data: bytes):
@@ -265,7 +267,7 @@ class QRHost(Host):
     def _get_setting_once(self, addr: bytes):
         # only for 1 byte settings
         res = self.query(HEADER + b"\x07\x01" + addr + b"\x01" + CRC_NO_CHECKSUM)
-        if res is None or len(res) != 7:
+        if res is None or len(res) != SUCCESS_LEN:
             return None
         return res[-3]
 
@@ -760,6 +762,8 @@ class QRHost(Host):
                 self.set_setting(SCAN_ADDR, 1)
 
     async def _restart_scanner(self):
+        # fix scanner race condition
+        time.sleep_ms(RETRY_DELAY_MS)
         if self.trigger is not None:
             self.trigger.on()
             await asyncio.sleep_ms(30)
