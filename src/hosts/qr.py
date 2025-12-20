@@ -74,6 +74,9 @@ VERSION_NEEDS_RAW = 0x69  # A version of GM65 that needs RAW mode to be turned o
 RAW_MODE_ADDR = b"\x00\xBC"
 RAW_MODE_VALUE = 0x08
 
+BAR_TYPE_ADDR = b"\x00\x2C"
+QR_ADDR = b"\x00\x3F"
+
 # ----- M3Y Scanner
 M3Y_FACTORY_RESET_CMD = b"S_CMD_FFFF"
 M3Y_DISABLE_ALL_SYMBOLOGIES = b"C_CMD_R000" # disable 1D/2D barcodes
@@ -394,41 +397,16 @@ class QRHost(Host):
                 return False
             save_required = True
 
-        # Set Command Mode
-        val = self.get_setting(SETTINGS_ADDR)
-        if val is None:
-            return False
-        if val != self.CMD_MODE:
-            if not self.set_setting(SETTINGS_ADDR, self.CMD_MODE):
+        # Set Command Mode, scanning timeout, interval between scans, delay beteen re-reading the same barcode, Barcode type to None, Barcode type QR 
+        for addr, set_val in ((SETTINGS_ADDR, self.CMD_MODE), (TIMOUT_ADDR, 0), (INTERVAL_OF_SCANNING_ADDR, INTERVAL_OF_SCANNING),
+                              (DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES), (BAR_TYPE_ADDR, 0x01), (QR_ADDR, 0x01)):
+            val = self.get_setting(addr)
+            if val is None:
                 return False
-            save_required = True
-
-        # Set scanning timeout
-        val = self.get_setting(TIMOUT_ADDR)
-        if val is None:
-            return False
-        if val != 0:
-            if not self.set_setting(TIMOUT_ADDR, 0):
-                return False
-            save_required = True
-
-        # Set interval between scans
-        val = self.get_setting(INTERVAL_OF_SCANNING_ADDR)
-        if val is None:
-            return False
-        if val != INTERVAL_OF_SCANNING:
-            if not self.set_setting(INTERVAL_OF_SCANNING_ADDR, INTERVAL_OF_SCANNING):
-                return False
-            save_required = True
-
-        # Set delay beteen re-reading the same barcode
-        val = self.get_setting(DELAY_OF_SAME_BARCODES_ADDR)
-        if val is None:
-            return False
-        if val != DELAY_OF_SAME_BARCODES:
-            if not self.set_setting(DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES):
-                return False
-            save_required = True
+            if val != set_val:
+                if not self.set_setting(addr, set_val):
+                    return False
+                save_required = True
 
         # Check the module software and enable "RAW" mode if required
         val = self.get_setting(
@@ -497,9 +475,7 @@ class QRHost(Host):
         ret = self.query(HEADER + b"\x08\x02" + BAUD_RATE_ADDR + BAUD_RATE + CRC_NO_CHECKSUM)
         if ret != SUCCESS:
             return False
-        self.uart.deinit()
-        self.baudrate=BAUD_RATE_115200
-        self.uart.init(baudrate=self.baudrate, read_buf_len=READ_BUFFER_LEN)
+        self._set_baud(BAUD_RATE_115200)
         return True
     
     def _set_baud(self, baudrate):
@@ -558,9 +534,7 @@ class QRHost(Host):
             return
 
         # PIN trigger mode
-        self.uart.deinit()
-        self.baudrate=BAUD_RATE_9600
-        self.uart.init(baudrate=self.baudrate, read_buf_len=READ_BUFFER_LEN)
+        self._set_baud(BAUD_RATE_9600)
         self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
         self.trigger.on()
         self.is_configured = True
