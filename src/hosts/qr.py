@@ -345,39 +345,32 @@ class QRHost(Host):
         self.version_str = "Detected M3Y Scanner, SW:" + self.software_version
 
         # Disable read of configurable QRs and other configs
-        for config in (M3Y_CONFIG_MODE + b"0", M3Y_DISABLE_ALL_SYMBOLOGIES, M3Y_ENABLE_QR_SYMBOL, M3Y_READ_LED_INDICATOR, M3Y_EOL, M3Y_TRIGGER_TIMEOUT, M3Y_CONTINUOUS_TIMEOUT, M3Y_CONT_ENABLE_REREAD_TIMEOUT, M3Y_CONT_REREAD_TIMEOUT, M3Y_CMD_MODE, M3Y_SERIAL_PROT):
-            val = self.get_setting(config, 2)
-            if val is None:
+        required_configs = (
+            M3Y_CONFIG_MODE + b"0", M3Y_DISABLE_ALL_SYMBOLOGIES, M3Y_ENABLE_QR_SYMBOL, 
+            M3Y_READ_LED_INDICATOR, M3Y_EOL, M3Y_TRIGGER_TIMEOUT, M3Y_CONTINUOUS_TIMEOUT, 
+            M3Y_CONT_ENABLE_REREAD_TIMEOUT, M3Y_CONT_REREAD_TIMEOUT, M3Y_CMD_MODE, M3Y_SERIAL_PROT
+        )
+        for config in required_configs:
+            if self.get_setting(config, 2) is None:
                 return False
         
-        # Sound
+        # Configure audio and features based on settings
+        audio_configs = [M3Y_SOUND + (b"1" if self.settings.get("sound", True) else b"0")]
         if self.settings.get("sound", True):
-            val = self.get_setting(M3Y_SOUND + b"1")
-            if val is None:
+            audio_configs.extend([M3Y_SOUND_TYPE + b"1", M3Y_SOUND_VOL + b"1"])
+        
+        for config in audio_configs:
+            if self.get_setting(config) is None:
                 return False
-            val = self.get_setting(M3Y_SOUND_TYPE + b"1")
-            if val is None:
-                return False
-            val = self.get_setting(M3Y_SOUND_VOL + b"1")
-        else:
-            val = self.get_setting(M3Y_SOUND + b"0")
-        if val is None:
-            return False
 
         # Aim
-        if self.settings.get("aim", True):
-            val = self.get_setting(M3Y_AIM + b"2")
-        else:
-            val = self.get_setting(M3Y_AIM + b"0")
-        if val is None:
+        aim_mode = b"2" if self.settings.get("aim", True) else b"0"
+        if self.get_setting(M3Y_AIM + aim_mode) is None:
             return False
         
         # LED Light
-        if self.settings.get("light", False):
-            val = self.get_setting(M3Y_LIGHT + b"2")
-        else:
-            val = self.get_setting(M3Y_LIGHT + b"0")
-        if val is None:
+        light_mode = b"2" if self.settings.get("light", False) else b"0"
+        if self.get_setting(M3Y_LIGHT + light_mode) is None:
             return False
         
         return True
@@ -397,9 +390,17 @@ class QRHost(Host):
                 return False
             save_required = True
 
-        # Set Command Mode, scanning timeout, interval between scans, delay beteen re-reading the same barcode, Barcode type to None, Barcode type QR 
-        for addr, set_val in ((SETTINGS_ADDR, self.CMD_MODE), (TIMOUT_ADDR, 0), (INTERVAL_OF_SCANNING_ADDR, INTERVAL_OF_SCANNING),
-                              (DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES), (BAR_TYPE_ADDR, 0x01), (QR_ADDR, 0x01)):
+        # Configure scanner settings with a batch approach
+        scanner_settings = (
+            (SETTINGS_ADDR, self.CMD_MODE),
+            (TIMOUT_ADDR, 0),
+            (INTERVAL_OF_SCANNING_ADDR, INTERVAL_OF_SCANNING),
+            (DELAY_OF_SAME_BARCODES_ADDR, DELAY_OF_SAME_BARCODES),
+            (BAR_TYPE_ADDR, 0x01),
+            (QR_ADDR, 0x01)
+        )
+        
+        for addr, set_val in scanner_settings:
             val = self.get_setting(addr)
             if val is None:
                 return False
@@ -409,13 +410,13 @@ class QRHost(Host):
                 save_required = True
 
         # Check the module software and enable "RAW" mode if required
-        val = self.get_setting(
-            VERSION_ADDR, retries=5, retry_delay_ms=RETRY_DELAY_MS, invalid_values={0}
-        )
+        val = self.get_setting(VERSION_ADDR, retries=5, retry_delay_ms=RETRY_DELAY_MS, invalid_values={0})
         if val is None:
             return False
+        
         self.software_version = val
         self.version_str = "Detected GM65 Scanner, SW:" + str(val)
+        
         if val == VERSION_NEEDS_RAW:
             val = self.get_setting(RAW_MODE_ADDR)
             if val is None:
