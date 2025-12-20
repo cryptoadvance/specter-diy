@@ -776,6 +776,8 @@ class QRHost(Host):
 
     def stop_scanning(self):
         self.scanning = False
+        # wait the execution of any previous async _restart_scanner call
+        time.sleep_ms(RETRY_DELAY_MS)
         self._stop_scanner()
 
     def abort(self):
