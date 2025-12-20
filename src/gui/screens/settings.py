@@ -9,7 +9,7 @@ class HostSettings(Prompt):
         y = 40
         if note is not None:
             self.note = add_label(note, style="hint", scr=self)
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
             y += self.note.get_height()
         self.controls = controls
         self.switches = []
@@ -22,9 +22,9 @@ class HostSettings(Prompt):
                 style="hint",
             )
             switch = lv.sw(self.page)
-            switch.align(hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+            switch.align_to(hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
             lbl = add_label(" OFF                              ON  ", scr=self.page)
-            lbl.align(switch, lv.ALIGN.CENTER, 0, 0)
+            lbl.align_to(switch, lv.ALIGN.CENTER, 0, 0)
             if control.get("value", False):
                 switch.on(lv.ANIM.OFF)
             self.switches.append(switch)
@@ -42,7 +42,7 @@ class DevSettings(Prompt):
         super().__init__("Device settings", "")
         if note is not None:
             self.note = add_label(note, style="hint", scr=self)
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
         y = 70
         usb_label = add_label("USB communication", y, scr=self.page)
         usb_hint = add_label(
@@ -55,9 +55,9 @@ class DevSettings(Prompt):
             style="hint",
         )
         self.usb_switch = lv.sw(self.page)
-        self.usb_switch.align(usb_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+        self.usb_switch.align_to(usb_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
         lbl = add_label(" OFF                              ON  ", scr=self.page)
-        lbl.align(self.usb_switch, lv.ALIGN.CENTER, 0, 0)
+        lbl.align_to(self.usb_switch, lv.ALIGN.CENTER, 0, 0)
         if usb:
             self.usb_switch.on(lv.ANIM.OFF)
 
@@ -84,7 +84,7 @@ class DevSettings(Prompt):
         self.wipebtn = add_button(
             lv.SYMBOL.TRASH + " Wipe device", on_release(self.wipe), scr=self
         )
-        self.wipebtn.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -140)
+        self.wipebtn.align(lv.ALIGN.BOTTOM_MID, 0, -140)
         style = lv.style_t()
         lv.style_copy(style, self.wipebtn.get_style(lv.btn.STYLE.REL))
         style.body.main_color = lv.color_hex(0x951E2D)

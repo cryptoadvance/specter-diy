@@ -19,7 +19,7 @@ class Modal(lv.obj):
 
         self.mbox = lv.mbox(self)
         self.mbox.set_width(400)
-        self.mbox.align(None, lv.ALIGN.IN_TOP_MID, 0, 200)
+        self.mbox.align(lv.ALIGN.TOP_MID, 0, 200)
 
     def set_text(self, text):
         self.mbox.set_text(text)

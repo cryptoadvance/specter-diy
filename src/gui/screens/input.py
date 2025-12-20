@@ -123,13 +123,13 @@ class InputScreen(Screen):
 
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
 
         self.kb = HintKeyboard(self)
         self.kb.set_map(self.CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(int(VER_RES / 2.5))
-        self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
 
         self.ta = lv.ta(self)
         self.ta.set_text(suggestion)
@@ -145,7 +145,7 @@ class InputScreen(Screen):
         self.kb.set_event_cb(self.cb)
 
         self.warning = add_label("", scr=self, style="hint")
-        self.warning.align(self.ta, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.warning.align_to(self.ta, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
 
     def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
@@ -215,14 +215,14 @@ class PinScreen(Screen):
         if subtitle is not None:
             lbl = add_label(subtitle, scr=self, style="hint")
             lbl.set_recolor(True)
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+            lbl.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
-            lbl.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 90)
+            lbl.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 90)
         self.get_word = get_word
         if get_word is not None:
             self.words = add_label(get_word(b""), scr=self)
-            self.words.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
+            self.words.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
         btnm = lv.btnm(self)
         # shuffle numbers to make sure
         # no constant fingerprints left on screen
@@ -237,7 +237,7 @@ class PinScreen(Screen):
         btnm.set_map(btnmap)
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
-        btnm.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -100)
+        btnm.align(lv.ALIGN.BOTTOM_MID, 0, -100)
         # increase font size
         style = lv.style_t()
         lv.style_copy(style, btnm.get_style(lv.btnm.STYLE.BTN_REL))
@@ -262,7 +262,7 @@ class PinScreen(Screen):
         self.pin.set_one_line(True)
         self.pin.set_text_align(lv.label.ALIGN.CENTER)
         self.pin.set_pwd_show_time(0)
-        self.pin.align(btnm, lv.ALIGN.OUT_TOP_MID, 0, -80)
+        self.pin.align_to(btnm, lv.ALIGN.OUT_TOP_MID, 0, -80)
 
         self.next_button = add_button(scr=self, callback=on_release(self.submit))
 
@@ -343,7 +343,7 @@ class DerivationScreen(Screen):
         self.kb.set_map(self.PATH_CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 2)
-        self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
 
         lbl = add_label("m/", style="title", scr=self)
         lbl.set_y(PADDING + 150)
@@ -423,13 +423,13 @@ class NumericScreen(Screen):
         self.title = add_label(title, scr=self, y=PADDING, style="title")
 
         self.note = add_label(note, scr=self, style="hint")
-        self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+        self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
 
         self.kb = lv.btnm(self)
         self.kb.set_map(self.NUMERIC_CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 2)
-        self.kb.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
 
         lbl = add_label('', style="title", scr=self)
         lbl.set_y(PADDING + 150)
