@@ -96,6 +96,7 @@ M3Y_AIM = b"S_CMD_03A"
 M3Y_SOUND = b"S_CMD_04F"
 M3Y_SOUND_TYPE = b"S_CMD_04T" # 1, 2 or 3
 M3Y_SOUND_VOL = b"S_CMD_04V" # 0, 1 or 2 (H, M, L)
+M3Y_STARTUP_SOUND = b"S_CMD_040"
 
 # Scan Modes
 M3Y_CMD_MODE = b"S_CMD_020D" # command mode
@@ -357,8 +358,8 @@ class QRHost(Host):
         # Configure audio and features based on settings
         audio_configs = [M3Y_SOUND + (b"1" if self.settings.get("sound", True) else b"0")]
         if self.settings.get("sound", True):
-            audio_configs.extend([M3Y_SOUND_TYPE + b"1", M3Y_SOUND_VOL + b"1"])
-        
+            audio_configs.extend([M3Y_SOUND_TYPE + b"1", M3Y_SOUND_VOL + b"1", M3Y_STARTUP_SOUND + b"0"])
+
         for config in audio_configs:
             if self.get_setting(config) is None:
                 return False
