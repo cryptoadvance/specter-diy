@@ -545,6 +545,7 @@ class QRHost(Host):
         version = self.software_version
         version_text = "unknown" if version is None else str(version)
         raw_fix_applied = self.settings.get("raw_fix_applied", False)
+        
         if version is None:
             raw_fix = "Unknown"
         elif version == VERSION_NEEDS_RAW:
@@ -558,9 +559,7 @@ class QRHost(Host):
             scanner_name = "M3Y"
 
         return "Scanner: {} | Firmware: {} | CompactQR fix: {}".format(
-            scanner_name,
-            version_text,
-            raw_fix,
+            scanner_name, version_text, raw_fix,
         )
 
     def _mark_initial_reset_done(self):
@@ -717,24 +716,26 @@ class QRHost(Host):
     def clean_uart(self):
         self.uart.read()
 
+    def _start_scan(self, enable: int):
+        """Send enable/disable command to scanner based on model"""
+        if self.scanner_model == MODEL_M3Y:
+            cmd = M3Y_ENABLE_SCAN if enable else M3Y_DISABLE_SCAN
+            self.get_setting(cmd)
+        else:
+            self.set_setting(SCAN_ADDR, enable)
+
     def _stop_scanner(self):
         if self.trigger is not None:
             self.trigger.on()  # trigger is reversed, so on means disable
         else:
-            if self.scanner_model == MODEL_M3Y:
-                self.get_setting(M3Y_DISABLE_SCAN)
-            else:
-                self.set_setting(SCAN_ADDR, 0)
+            self._start_scan(0)
 
     def _start_scanner(self):
         self.clean_uart()
         if self.trigger is not None:
             self.trigger.off()
         else:
-            if self.scanner_model == MODEL_M3Y:
-                self.get_setting(M3Y_ENABLE_SCAN)
-            else:
-                self.set_setting(SCAN_ADDR, 1)
+            self._start_scan(1)
 
     async def _restart_scanner(self):
         # fix scanner race condition
@@ -744,10 +745,7 @@ class QRHost(Host):
             await asyncio.sleep_ms(30)
             self.trigger.off()
         else:
-            if self.scanner_model == MODEL_M3Y:
-                self.get_setting(M3Y_ENABLE_SCAN)
-            else:
-                self.set_setting(SCAN_ADDR, 1)
+            self._start_scan(1)
 
     def stop_scanning(self):
         self.scanning = False
