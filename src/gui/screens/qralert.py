@@ -19,11 +19,11 @@ class QRAlert(Alert):
             qr_message = message
         super().__init__(title, message, button_text, note=note)
         self.qr = add_qrcode(qr_message, scr=self, width=qr_width)
-        self.qr.align(self.page, lv.ALIGN.IN_TOP_MID, 0, 20)
-        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+        self.qr.align_to(self.page, lv.ALIGN.TOP_MID, 0, 20)
+        self.message.align_to(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
         if transcribe:
             btn = add_button("Toggle transcribe", on_release(self.toggle_transcribe), scr=self)
-            btn.align(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+            btn.align_to(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
 
     def toggle_transcribe(self):
         self.qr.spacing = 0 if self.qr.spacing else 3

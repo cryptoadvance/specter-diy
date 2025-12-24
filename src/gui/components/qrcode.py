@@ -1,6 +1,5 @@
 import lvgl as lv
 import lvqr
-import qrcode
 import math
 import gc
 import asyncio
@@ -10,14 +9,22 @@ from io import BytesIO
 from qrencoder import QREncoder
 
 qr_style = lv.style_t()
-qr_style.body.main_color = lv.color_hex(0xFFFFFF)
-qr_style.body.grad_color = lv.color_hex(0xFFFFFF)
-qr_style.body.opa = 255
-qr_style.text.opa = 255
-qr_style.text.color = lv.color_hex(0)
-qr_style.text.line_space = 0
-qr_style.text.letter_space = 0
-qr_style.body.radius = 10
+qr_style.init()
+qr_style.set_bg_color(lv.color_hex(0xFFFFFF))
+qr_style.set_bg_grad_color(lv.color_hex(0xFFFFFF))
+qr_style.set_bg_opa(255)
+qr_style.set_text_opa(255)
+qr_style.set_text_color(lv.color_hex(0))
+qr_style.set_text_line_space(0)
+qr_style.set_text_letter_space(0)
+qr_style.set_radius(10)
+
+# Transparent style (replacement for lv.style_transp_tight)
+style_transp = lv.style_t()
+style_transp.init()
+style_transp.set_bg_opa(0)
+style_transp.set_border_width(0)
+style_transp.set_pad_all(0)
 
 QR_SIZES = [17, 32, 53, 78, 106, 154, 192, 230, 271, 367, 458, 586, 718, 858]
 BTNSIZE = 70
@@ -32,9 +39,11 @@ class QRCode(lv.obj):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         style = lv.style_t()
-        lv.style_copy(style, qr_style)
-        style.text.font = lv.font_roboto_16
-        style.text.color = lv.color_hex(0x192432)
+        style.init()
+        style.set_bg_color(lv.color_hex(0xFFFFFF))
+        style.set_bg_opa(255)
+        style.set_text_font(lv.font_roboto_16)
+        style.set_text_color(lv.color_hex(0x192432))
 
         self.encoder = None
         self._autoplay = True
@@ -50,9 +59,9 @@ class QRCode(lv.obj):
         self.create_playback_controls(style)
 
         self.note = lv.label(self)
-        self.note.set_style(0, style)
+        self.note.add_style(style, 0)
         self.note.set_text("")
-        self.note.set_align(lv.label.ALIGN.CENTER)
+        self.note.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
 
         self.set_text(self._text)
         self.task = asyncio.create_task(self.animate())
@@ -66,14 +75,15 @@ class QRCode(lv.obj):
 
     @spacing.setter
     def spacing(self, spacing):
-        qr_style = lv.style_t()
-        qr_style.body.border.width = spacing
-        self.qr.set_style(0, qr_style)
+        sp_style = lv.style_t()
+        sp_style.init()
+        sp_style.set_border_width(spacing)
+        self.qr.add_style(sp_style, 0)
         self._spacing = spacing
 
     def create_playback_controls(self, style):
         self.playback = lv.obj(self)
-        self.playback.set_style(lv.style_transp_tight)
+        self.playback.add_style(style_transp, 0)
         self.playback.set_size(480, BTNSIZE)
         self.playback.set_y(640)
 
@@ -117,7 +127,7 @@ class QRCode(lv.obj):
 
     def create_density_controls(self, style):
         self.controls = lv.obj(self)
-        self.controls.set_style(lv.style_transp_tight)
+        self.controls.add_style(style_transp, 0)
         self.controls.set_size(480, BTNSIZE)
         self.controls.set_y(740)
         plus = lv.btn(self.controls)
@@ -136,8 +146,8 @@ class QRCode(lv.obj):
 
         lbl = lv.label(self.controls)
         lbl.set_text("QR code density")
-        lbl.set_style(0, style)
-        lbl.set_align(lv.label.ALIGN.CENTER)
+        lbl.add_style(style, 0)
+        lbl.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
         lbl.align(self.controls, lv.ALIGN.CENTER, 0, 0)
 
         self.controls.set_hidden(True)
@@ -290,7 +300,7 @@ class QRCode(lv.obj):
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
         print(text)
-        self.set_style(qr_style)
+        self.add_style(qr_style, 0)
         self.qr.set_text(text)
         self.qr.align(self, lv.ALIGN.CENTER, 0, -100 if self.is_fullscreen else 0)
         self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
