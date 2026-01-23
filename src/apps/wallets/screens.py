@@ -22,47 +22,49 @@ class WalletScreen(QRAlert):
             qr_width=350,
         )
         self.title.set_recolor(True)
-        self.title.set_click(True)
-        self.title.set_event_cb(on_release(self.rename))
+        self.title.add_flag(lv.obj.FLAG.CLICKABLE)
+        self.title.add_event_cb(on_release(self.rename), lv.EVENT.ALL, None)
         self.policy = add_label(wallet.policy, y=55, style="hint", scr=self)
 
+        # LVGL 9.x: create style for message
         style = lv.style_t()
-        lv.style_copy(style, self.message.get_style(0))
-        style.text.font = lv.font_roboto_mono_22
-        self.message.set_style(0, style)
+        style.init()
+        style.set_text_font(lv.font_montserrat_22)
+        self.message.add_style(style, lv.PART.MAIN)
 
         # index
         self.branch_index = branch_index
         self.note = add_label(
             "%s address #%d" % (self.prefix, self.idx), y=80, style="hint", scr=self
         )
-        self.qr.align(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
-        self.message.align(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+        self.qr.align_to(self.note, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+        self.message.align_to(self.qr, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
 
         # warning label for address gap limit
         self.warning = add_label("", scr=self)
-        self.warning.align(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
-        style = lv.style_t()
-        lv.style_copy(style, self.note.get_style(0))
-        style.text.color = lv.color_hex(0xFF9A00)
-        self.warning.set_style(0, style)
+        self.warning.align_to(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
+        # LVGL 9.x: create style for warning
+        warning_style = lv.style_t()
+        warning_style.init()
+        warning_style.set_text_color(lv.color_hex(0xFF9A00))
+        self.warning.add_style(warning_style, lv.PART.MAIN)
 
         # delbtn = add_button("Delete wallet", on_release(cb_del), y=610)
         self.prv = add_button(lv.SYMBOL.LEFT, on_release(self.prev), scr=self)
         self.nxt = add_button(lv.SYMBOL.RIGHT, on_release(self.next), scr=self)
         if self.idx <= 0:
-            self.prv.set_state(lv.btn.STATE.INA)
+            self.prv.add_state(lv.STATE.DISABLED)
         self.prv.set_width(70)
-        self.prv.align(self.qr, lv.ALIGN.OUT_LEFT_MID, -20, 0)
+        self.prv.align_to(self.qr, lv.ALIGN.OUT_LEFT_MID, -20, 0)
         self.prv.set_x(0)
         self.nxt.set_width(70)
-        self.nxt.align(self.qr, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
+        self.nxt.align_to(self.qr, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
         self.nxt.set_x(HOR_RES - 70)
 
         self.menubtn = add_button(
             lv.SYMBOL.SETTINGS + " Settings", on_release(self.show_menu), scr=self
         )
-        self.menubtn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
+        self.menubtn.align_to(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
 
         if idx is not None:
             self.idx = idx
@@ -99,9 +101,9 @@ class WalletScreen(QRAlert):
     def update_address(self):
         self.show_loader(title="Deriving address...")
         if self.idx > 0:
-            self.prv.set_state(lv.btn.STATE.REL)
+            self.prv.remove_state(lv.STATE.DISABLED)
         else:
-            self.prv.set_state(lv.btn.STATE.INA)
+            self.prv.add_state(lv.STATE.DISABLED)
         addr, gap = self.wallet.get_address(
             self.idx, network=self.network, branch_index=self.branch_index
         )
@@ -137,10 +139,10 @@ def _build_screen(scr, policy, keys):
     if need_slip132_switch:
         lbl = lv.label(scr)
         lbl.set_text("Canonical xpub                     SLIP-132             ")
-        lbl.align(scr.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
-        scr.slip_switch = lv.sw(scr)
+        lbl.align_to(scr.policy, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        scr.slip_switch = lv.switch(scr)
         scr.slip_switch.align(lbl, lv.ALIGN.CENTER, 0, 0)
-        scr.slip_switch.set_event_cb(on_release(scr.fill_message))
+        scr.slip_switch.add_event_cb(on_release(scr.fill_message), lv.EVENT.ALL, None)
     else:
         scr.slip_switch = None
 
@@ -180,7 +182,7 @@ class ConfirmWalletScreen(Prompt):
 
     @property
     def use_slip132(self):
-        return self.slip_switch.get_state() if self.slip_switch is not None else False
+        return self.slip_switch.has_state(lv.STATE.CHECKED) if self.slip_switch is not None else False
 
     def fill_message(self):
         msg = _fill_message(self.keys, self.is_complex, self.use_slip132)
@@ -197,7 +199,7 @@ class WalletInfoScreen(Alert):
 
     @property
     def use_slip132(self):
-        return self.slip_switch.get_state() if self.slip_switch is not None else False
+        return self.slip_switch.has_state(lv.STATE.CHECKED) if self.slip_switch is not None else False
 
     def fill_message(self):
         msg = _fill_message(self.keys, self.is_complex, self.use_slip132)
