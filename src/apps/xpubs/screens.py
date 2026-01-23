@@ -22,7 +22,7 @@ class XPubScreen(QRAlert):
         if prefix is not None:
             message = prefix + message
         super().__init__(title, message, message, qr_width=320)
-        self.message.set_style(0, styles["small"])
+        self.message.add_style(styles["small"], lv.PART.MAIN)
         self.xpub = xpub
         self.prefix = prefix
         self.slip132 = slip132
@@ -31,22 +31,22 @@ class XPubScreen(QRAlert):
             lbl = lv.label(self)
             lbl.set_text("Show derivation path")
             lbl.set_pos(2 * PADDING, 500)
-            self.prefix_switch = lv.sw(self)
-            self.prefix_switch.on(lv.ANIM.OFF)
-            self.prefix_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
+            self.prefix_switch = lv.switch(self)
+            self.prefix_switch.add_state(lv.STATE.CHECKED)
+            self.prefix_switch.align_to(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
 
         if slip132 is not None:
             lbl = lv.label(self)
             lbl.set_text("Use SLIP-132")
             lbl.set_pos(2 * PADDING, 560)
-            self.slip_switch = lv.sw(self)
-            self.slip_switch.on(lv.ANIM.OFF)
-            self.slip_switch.align(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
+            self.slip_switch = lv.switch(self)
+            self.slip_switch.add_state(lv.STATE.CHECKED)
+            self.slip_switch.align_to(lbl, lv.ALIGN.OUT_LEFT_MID, 350, 0)
 
         if prefix is not None:
-            self.prefix_switch.set_event_cb(on_release(self.toggle_event))
+            self.prefix_switch.add_event_cb(on_release(self.toggle_event), lv.EVENT.ALL, None)
         if slip132 is not None:
-            self.slip_switch.set_event_cb(on_release(self.toggle_event))
+            self.slip_switch.add_event_cb(on_release(self.toggle_event), lv.EVENT.ALL, None)
         add_button_pair(
             lv.SYMBOL.SAVE + " Save to SD", on_release(self.save_to_sd),
             lv.SYMBOL.PLUS + " Create wallet", on_release(self.create_wallet),
@@ -65,9 +65,9 @@ class XPubScreen(QRAlert):
 
     def toggle_event(self):
         msg = self.xpub
-        if self.slip132 is not None and self.slip_switch.get_state():
+        if self.slip132 is not None and self.slip_switch.has_state(lv.STATE.CHECKED):
             msg = self.slip132
-        if self.prefix is not None and self.prefix_switch.get_state():
+        if self.prefix is not None and self.prefix_switch.has_state(lv.STATE.CHECKED):
             msg = self.prefix + msg
         self.message.set_text(msg)
         self.qr.set_text(msg)

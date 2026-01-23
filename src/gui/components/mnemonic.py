@@ -6,32 +6,36 @@ class MnemonicTable(lv.table):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.words = [""]
-        # styles
+
+        # LVGL 9.x: Create styles
         cell_style = lv.style_t()
-        lv.style_copy(cell_style, styles["theme"].style.label.prim)
-        cell_style.body.opa = 0
-        cell_style.text.font = lv.font_roboto_22
+        cell_style.init()
+        cell_style.set_bg_opa(lv.OPA.TRANSP)
+        cell_style.set_border_width(0)
+        cell_style.set_text_font(lv.font_montserrat_22)
 
+        # Style for number columns (dimmed)
         num_style = lv.style_t()
-        lv.style_copy(num_style, cell_style)
-        num_style.text.opa = lv.OPA._40
+        num_style.init()
+        num_style.set_bg_opa(lv.OPA.TRANSP)
+        num_style.set_border_width(0)
+        num_style.set_text_font(lv.font_montserrat_22)
+        num_style.set_text_opa(lv.OPA._40)
 
-        self.set_col_cnt(4)
-        self.set_row_cnt(12)
-        self.set_col_width(0, 40)
-        self.set_col_width(2, 40)
-        self.set_col_width(1, 180)
-        self.set_col_width(3, 180)
+        self.set_column_count(4)
+        self.set_row_count(12)
+        self.set_column_width(0, 40)
+        self.set_column_width(2, 40)
+        self.set_column_width(1, 180)
+        self.set_column_width(3, 180)
 
-        self.set_style(lv.page.STYLE.BG, cell_style)
-        self.set_style(lv.table.STYLE.CELL1, cell_style)
-        self.set_style(lv.table.STYLE.CELL2, num_style)
+        # LVGL 9.x: Apply styles to table parts
+        self.add_style(cell_style, lv.PART.MAIN)
+        self.add_style(cell_style, lv.PART.ITEMS)
 
         for i in range(12):
             self.set_cell_value(i, 0, "%d" % (i + 1))
             self.set_cell_value(i, 2, "%d" % (i + 13))
-            self.set_cell_type(i, 0, lv.table.STYLE.CELL2)
-            self.set_cell_type(i, 2, lv.table.STYLE.CELL2)
 
     def set_mnemonic(self, mnemonic: str):
         self.words = mnemonic.split()

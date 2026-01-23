@@ -25,12 +25,12 @@ class HintKeyboard(lv.buttonmatrix):
 
     def cb(self, event):
         code = event.get_code()
-        obj = event.get_target()
         if code == lv.EVENT.PRESSING:
             feed_touch()
-            c = obj.get_selected_button_text()
+            btn_id = self.get_selected_button()
+            c = self.get_button_text(btn_id)
             if c is not None and len(c) <= 2:
-                self.hint.clear_flag(lv.obj.FLAG.HIDDEN)
+                self.hint.remove_flag(lv.obj.FLAG.HIDDEN)
                 self.hint_lbl.set_text(c)
                 indev = lv.indev_active()
                 point = indev.get_point()
@@ -40,4 +40,4 @@ class HintKeyboard(lv.buttonmatrix):
             self.hint.add_flag(lv.obj.FLAG.HIDDEN)
 
         if self.callback is not None:
-            self.callback(obj, code)
+            self.callback(self, code)

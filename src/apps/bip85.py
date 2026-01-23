@@ -16,7 +16,7 @@ class QRWithSD(QRAlert):
         super().__init__(*args, **kwargs)
         # add save button
         btn = add_button("Save to SD card", on_release(self.save), scr=self)
-        btn.align(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
+        btn.align_to(self.close_button, lv.ALIGN.OUT_TOP_MID, 0, -20)
 
     def save(self):
         self.set_value(self.SAVE)
@@ -32,7 +32,7 @@ class Bip85MnemonicScreen(MnemonicScreen):
             scr=self,
             callback=on_release(self.load)
         )
-        self.load_btn.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.load_btn.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         self.show_qr_btn, self.save_sd_btn = add_button_pair(
             text1="Show QR code",
             callback1=on_release(self.show_qr),
@@ -40,8 +40,8 @@ class Bip85MnemonicScreen(MnemonicScreen):
             callback2=on_release(self.save_sd),
             scr=self,
         )
-        self.show_qr_btn.align(self.load_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
-        self.save_sd_btn.align(self.load_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.show_qr_btn.align_to(self.load_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
+        self.save_sd_btn.align_to(self.load_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         align_button_pair(self.show_qr_btn, self.save_sd_btn)
 
     def show_qr(self):
