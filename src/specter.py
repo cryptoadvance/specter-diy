@@ -298,7 +298,7 @@ class Specter:
 
     async def import_mnemonic(self):
         host = await self.gui.menu(title="What to use for import?", note="\n",
-            buttons=[(host, host.button) for host in self.hosts if host.button],
+            buttons=[(host, host.button) for host in self.hosts if host.is_enabled],
             last=(255, None))
         if host == 255:
             return
