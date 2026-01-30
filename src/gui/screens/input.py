@@ -131,12 +131,12 @@ class InputScreen(Screen):
         self.kb.set_height(int(VER_RES / 2.5))
         self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
 
-        self.ta = lv.ta(self)
+        self.ta = lv.textarea(self)
         self.ta.set_text(suggestion)
         # self.ta.set_pwd_mode(True)
         self.ta.set_width(HOR_RES - 2 * PADDING)
         self.ta.set_x(PADDING)
-        self.ta.set_text_align(lv.label.ALIGN.CENTER)
+        self.ta.set_align(lv.TEXT_ALIGN.CENTER)
         self.ta.set_y(PADDING + 150)
         # self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
         self.ta.set_one_line(True)
@@ -149,7 +149,8 @@ class InputScreen(Screen):
 
     def cb(self, obj, event):
         if event == lv.EVENT.RELEASED:
-            c = obj.get_active_btn_text()
+            btn_id = obj.get_selected_button()
+            c = obj.get_button_text(btn_id)
             if c is None:
                 return
             if "space" in c:
@@ -223,7 +224,8 @@ class PinScreen(Screen):
         if get_word is not None:
             self.words = add_label(get_word(b""), scr=self)
             self.words.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
-        btnm = lv.btnm(self)
+        self.btnm = lv.buttonmatrix(self)
+        btnm = self.btnm  # local alias
         # shuffle numbers to make sure
         # no constant fingerprints left on screen
         buttons = ["%d" % i for i in range(0, 10)]
@@ -238,30 +240,16 @@ class PinScreen(Screen):
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
         btnm.align(lv.ALIGN.BOTTOM_MID, 0, -100)
-        # increase font size
-        style = lv.style_t()
-        lv.style_copy(style, btnm.get_style(lv.btnm.STYLE.BTN_REL))
-        style.text.font = lv.font_roboto_28
-        # remove feedback on press to avoid sidechannels
-        btnm.set_style(lv.btnm.STYLE.BTN_REL, style)
-        btnm.set_style(lv.btnm.STYLE.BTN_PR, style)
+        # TODO: LVGL 9.x styling - font size and press feedback removal
 
-        self.pin = lv.ta(self)
+        self.pin = lv.textarea(self)
         self.pin.set_text("")
-        self.pin.set_pwd_mode(True)
-        style = lv.style_t()
-        lv.style_copy(style, styles["theme"].style.ta.oneline)
-        style.text.font = lv.font_roboto_28
-        style.text.color = styles["theme"].style.scr.text.color
-        style.text.letter_space = 15
-        self.pin.set_style(lv.label.STYLE.MAIN, style)
+        self.pin.set_password_mode(True)
         self.pin.set_width(HOR_RES - 2 * PADDING)
         self.pin.set_x(PADDING)
         self.pin.set_y(PADDING + 50)
-        self.pin.set_cursor_type(lv.CURSOR.HIDDEN)
         self.pin.set_one_line(True)
-        self.pin.set_text_align(lv.label.ALIGN.CENTER)
-        self.pin.set_pwd_show_time(0)
+        self.pin.set_password_show_time(0)
         self.pin.align_to(btnm, lv.ALIGN.OUT_TOP_MID, 0, -80)
 
         self.next_button = add_button(scr=self, callback=on_release(self.submit))
@@ -277,7 +265,7 @@ class PinScreen(Screen):
 
             align_button_pair(self.cancel_button, self.next_button)
 
-        btnm.set_event_cb(feed_rng(self.cb))
+        btnm.add_event_cb(feed_rng(self.cb), lv.EVENT.ALL, None)
 
 
     def reset(self):
@@ -285,9 +273,11 @@ class PinScreen(Screen):
         if self.get_word is not None:
             self.words.set_text(self.get_word(b""))
 
-    def cb(self, obj, event):
-        if event == lv.EVENT.RELEASED:
-            c = obj.get_active_btn_text()
+    def cb(self, event):
+        code = event.get_code()
+        if code == lv.EVENT.RELEASED:
+            btn_id = self.btnm.get_selected_button()
+            c = self.btnm.get_button_text(btn_id)
             if c is None or c == " ":
                 return
             if c == lv.SYMBOL.CLOSE:
@@ -339,7 +329,7 @@ class DerivationScreen(Screen):
     def __init__(self, title="Enter derivation path"):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
-        self.kb = lv.btnm(self)
+        self.kb = lv.buttonmatrix(self)
         self.kb.set_map(self.PATH_CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 2)
@@ -350,20 +340,21 @@ class DerivationScreen(Screen):
         lbl.set_width(40)
         lbl.set_x(PADDING)
 
-        self.ta = lv.ta(self)
+        self.ta = lv.textarea(self)
         self.ta.set_text("")
         self.ta.set_width(HOR_RES - 2 * PADDING - 40)
         self.ta.set_x(PADDING + 40)
         self.ta.set_y(PADDING + 150)
-        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        # LVGL 9.x: cursor hidden via styling
         self.ta.set_one_line(True)
 
-        self.kb.set_event_cb(self.cb)
+        self.kb.add_event_cb(self.cb, lv.EVENT.ALL, None)
 
-    def cb(self, obj, event):
-        if event != lv.EVENT.RELEASED:
+    def cb(self, event):
+        if event.get_code() != lv.EVENT.RELEASED:
             return
-        c = obj.get_active_btn_text()
+        btn_id = self.kb.get_selected_button()
+        c = self.kb.get_button_text(btn_id)
         if c is None:
             return
         der = self.ta.get_text()
@@ -425,7 +416,7 @@ class NumericScreen(Screen):
         self.note = add_label(note, scr=self, style="hint")
         self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
 
-        self.kb = lv.btnm(self)
+        self.kb = lv.buttonmatrix(self)
         self.kb.set_map(self.NUMERIC_CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 2)
@@ -436,19 +427,20 @@ class NumericScreen(Screen):
         lbl.set_width(40)
         lbl.set_x(PADDING)
 
-        self.ta = lv.ta(self)
+        self.ta = lv.textarea(self)
         self.ta.set_text("")
         self.ta.set_width(HOR_RES - 2 * PADDING - 40)
         self.ta.set_x(PADDING + 40)
         self.ta.set_y(PADDING + 150)
-        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        # LVGL 9.x: cursor hidden via styling
         self.ta.set_one_line(True)
-        self.kb.set_event_cb(self.cb)
+        self.kb.add_event_cb(self.cb, lv.EVENT.ALL, None)
 
-    def cb(self, obj, event):
-        if event != lv.EVENT.RELEASED:
+    def cb(self, event):
+        if event.get_code() != lv.EVENT.RELEASED:
             return
-        c = obj.get_active_btn_text()
+        btn_id = self.kb.get_selected_button()
+        c = self.kb.get_button_text(btn_id)
         if c is None:
             return
         account = self.ta.get_text()

@@ -60,9 +60,9 @@ class NewMnemonicScreen(MnemonicScreen):
         mnemonic = generator(12)
         super().__init__(mnemonic, title, note)
         self.table.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
-        self.table.set_event_cb(self.on_word_click)
+        self.table.add_event_cb(self.on_word_click, lv.EVENT.ALL, None)
         # enable callbacks
-        self.table.set_click(True)
+        self.table.add_flag(lv.obj.FLAG.CLICKABLE)
 
         self.close_label.set_text(lv.SYMBOL.LEFT + " Back")
         self.done_button = add_button(scr=self, callback=on_release(self.confirm))
@@ -78,37 +78,38 @@ class NewMnemonicScreen(MnemonicScreen):
         lbl.set_x(120)
         self.switch_lbl = lbl
 
-        self.switch = lv.sw(self)
-        self.switch.off(lv.ANIM.OFF)
+        self.switch = lv.switch(self)
+        self.switch.remove_state(lv.STATE.CHECKED)  # Start in off state
         self.switch.align_to(lbl, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
 
-        def cb():
-            wordcount = 24 if self.switch.get_state() else 12
+        def cb(e):
+            wordcount = 24 if self.switch.has_state(lv.STATE.CHECKED) else 12
             self.table.set_mnemonic(generator(wordcount))
 
-        self.switch.set_event_cb(on_release(cb))
+        self.switch.add_event_cb(cb, lv.EVENT.VALUE_CHANGED, None)
 
         # fix mnemonic components
-        self.kb = lv.btnm(self)
+        self.kb = lv.buttonmatrix(self)
         self.kb.set_map(["1", "2", "4", "8", "16", "32", "\n",
                          "64", "128", "256", "512", "1024", ""])
-        self.kb.set_ctrl_map([lv.btnm.CTRL.TGL_ENABLE for i in range(11)])
+        self.kb.set_ctrl_map([lv.buttonmatrix.CTRL.CHECKABLE for i in range(11)])
         self.kb.set_width(HOR_RES)
         self.kb.set_height(100)
         self.kb.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
-        self.kb.set_hidden(True)
+        self.kb.add_flag(lv.obj.FLAG.HIDDEN)
 
         self.instruction = add_label("Hint: click on any word above to edit it.", scr=self, style="hint")
         self.instruction.align_to(self.kb, lv.ALIGN.OUT_BOTTOM_MID, 0, 15)
 
 
-    def on_word_click(self, obj, evt):
-        if evt != lv.EVENT.RELEASED:
+    def on_word_click(self, event):
+        code = event.get_code()
+        if code != lv.EVENT.RELEASED:
             return
+        obj = event.get_target()
         # get coordinates
-        point = lv.point_t()
-        indev = lv.indev_get_act()
-        lv.indev_get_point(indev, point)
+        indev = lv.indev_active()
+        point = indev.get_point()
         # get offsets
         dx = point.x - obj.get_x()
         dy = point.y - obj.get_y()
@@ -125,23 +126,25 @@ class NewMnemonicScreen(MnemonicScreen):
             % (idx+1, word.upper(), self.wordlist.index(word)+1)
         )
         # hide switch
-        if not self.switch.get_hidden():
-            self.switch.set_hidden(True)
-            self.switch_lbl.set_hidden(True)
-        self.kb.set_hidden(False)
+        if not self.switch.has_flag(lv.obj.FLAG.HIDDEN):
+            self.switch.add_flag(lv.obj.FLAG.HIDDEN)
+            self.switch_lbl.add_flag(lv.obj.FLAG.HIDDEN)
+        self.kb.remove_flag(lv.obj.FLAG.HIDDEN)
         word_idx = self.wordlist.index(word)
         self.kb.set_ctrl_map([
-            lv.btnm.CTRL.TGL_ENABLE | (lv.btnm.CTRL.TGL_STATE if ((word_idx>>i)&1) else 0)
+            lv.buttonmatrix.CTRL.CHECKABLE | (lv.buttonmatrix.CTRL.CHECKED if ((word_idx>>i)&1) else 0)
             for i in range(11)
         ])
         # callback on toggle
-        def cb(obj, event):
-            if event != lv.EVENT.RELEASED:
+        def cb(event):
+            code = event.get_code()
+            if code != lv.EVENT.RELEASED:
                 return
-            c = obj.get_active_btn_text()
+            btn_id = self.kb.get_selected_button()
+            c = self.kb.get_button_text(btn_id)
             if c is None:
                 return
-            bits = [obj.get_btn_ctrl(i, lv.btnm.CTRL.TGL_STATE) for i in range(11)]
+            bits = [self.kb.has_button_ctrl(i, lv.buttonmatrix.CTRL.CHECKED) for i in range(11)]
             num = 0
             for i, bit in enumerate(reversed(bits)):
                 num = num << 1
@@ -157,7 +160,7 @@ class NewMnemonicScreen(MnemonicScreen):
                 "Changing word number %d:\n%s (%d in wordlist)"
                 % (idx+1, word.upper(), self.wordlist.index(word)+1)
             )
-        self.kb.set_event_cb(cb)
+        self.kb.add_event_cb(cb, lv.EVENT.ALL, None)
 
 
     def confirm(self):
@@ -177,11 +180,11 @@ class RecoverMnemonicScreen(MnemonicScreen):
         self.checker = checker
         self.lookup = lookup
 
-        self.close_button.del_async()
+        self.close_button.delete()
         self.close_button = None
 
         if lookup is not None:
-            self.autocomplete = lv.btnm(self)
+            self.autocomplete = lv.buttonmatrix(self)
 
         self.kb = HintKeyboard(self)
         self.kb.set_map(
@@ -225,10 +228,10 @@ class RecoverMnemonicScreen(MnemonicScreen):
 
         if lookup is not None:
             # Next word button inactive
-            self.kb.set_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_button_ctrl(self.BTN_NEXT, lv.buttonmatrix.CTRL.DISABLED)
         if checker is not None:
             # Done inactive
-            self.kb.set_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_button_ctrl(self.BTN_DONE, lv.buttonmatrix.CTRL.DISABLED)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(260)
         self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
@@ -247,16 +250,18 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.autocomplete.align_to(self.kb, lv.ALIGN.OUT_TOP_MID, 0, 0)
             words = lookup("", 4) + [""]
             self.autocomplete.set_map(words)
-            self.autocomplete.set_event_cb(self.select_word)
+            self.autocomplete.add_event_cb(self.select_word, lv.EVENT.ALL, None)
 
     def fix_cb(self):
         self.table.set_mnemonic(self.fixer(self.get_mnemonic()))
         self.check_buttons()
 
-    def select_word(self, obj, event):
-        if event != lv.EVENT.RELEASED:
+    def select_word(self, event):
+        code = event.get_code()
+        if code != lv.EVENT.RELEASED:
             return
-        word = obj.get_active_btn_text()
+        btn_id = self.autocomplete.get_selected_button()
+        word = self.autocomplete.get_button_text(btn_id)
         if word is None:
             return
         self.table.autocomplete_word(word)
@@ -267,12 +272,12 @@ class RecoverMnemonicScreen(MnemonicScreen):
         mnemonic = self.table.get_mnemonic()
         # check if we can autocomplete the last word
         if self.lookup is not None:
-            self.kb.set_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_button_ctrl(self.BTN_NEXT, lv.buttonmatrix.CTRL.DISABLED)
             word = self.table.get_last_word()
             candidates = self.lookup(word, 4)
             self.autocomplete.set_map(candidates + [""])
             if len(candidates) == 1 or word in candidates:
-                self.kb.clear_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
+                self.kb.clear_button_ctrl(self.BTN_NEXT, lv.buttonmatrix.CTRL.DISABLED)
                 if len(candidates) == 1:
                     mnemonic = " ".join(self.table.words[:-1])
                     mnemonic += " " + candidates[0]
@@ -287,16 +292,16 @@ class RecoverMnemonicScreen(MnemonicScreen):
         # check if mnemonic is valid
         if self.checker is not None and mnemonic is not None:
             if self.checker(mnemonic):
-                self.kb.clear_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+                self.kb.clear_button_ctrl(self.BTN_DONE, lv.buttonmatrix.CTRL.DISABLED)
             else:
-                self.kb.set_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+                self.kb.set_button_ctrl(self.BTN_DONE, lv.buttonmatrix.CTRL.DISABLED)
             # check if we are at 12, 18 or 24 words
             # offer to fix mnemonic if it's invalid
             num_words = len(mnemonic.split())
             if (
                 self.fixer is not None
                 and num_words in [12, 18, 24]
-                and self.kb.get_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+                and self.kb.has_button_ctrl(self.BTN_DONE, lv.buttonmatrix.CTRL.DISABLED)
             ):
                 # set correct button coordinates
                 y = -33 - self.table.get_height() // 2 if num_words == 18 else -38
@@ -315,12 +320,12 @@ class RecoverMnemonicScreen(MnemonicScreen):
     def callback(self, obj, event):
         if event != lv.EVENT.RELEASED:
             return
-        c = obj.get_active_btn_text()
+        num = obj.get_selected_button()
+        c = obj.get_button_text(num)
         if c is None:
             return
-        num = obj.get_active_btn()
         # if inactive button is clicked - return
-        if obj.get_btn_ctrl(num, lv.btnm.CTRL.INACTIVE):
+        if obj.has_button_ctrl(num, lv.buttonmatrix.CTRL.DISABLED):
             return
         if c == lv.SYMBOL.LEFT + " Back":
             self.confirm_exit()
@@ -350,37 +355,23 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.set_value(None)
             return
 
-        modal_style = lv.style_t()
-        lv.style_copy(modal_style, lv.style_plain_color)
-        # Set the background's style
-        modal_style.body.main_color = lv.color_make(0, 0, 0)
-        modal_style.body.grad_color = modal_style.body.main_color
-        modal_style.body.opa = lv.OPA._50
-
-        # Create a base object for the modal background
-        bg = lv.obj(self)
-        bg.set_style(modal_style)
-        bg.set_pos(0, 0)
-        bg.set_size(self.get_width(), self.get_height())
-        # Enable opacity scaling for the animation
-        bg.set_opa_scale_enable(True)
-
-        btns = ["No, stay here", "Yes, leave", ""]
-
-        def event_handler(obj, event):
-            if event == lv.EVENT.VALUE_CHANGED:
-                if lv.mbox.get_active_btn_text(obj) == btns[1]:
-                    self.set_value(None)
-                else:
-                    obj.del_async()
-                    bg.del_async()
-
-        mbox = lv.mbox(self)
-        mbox.set_text(
-            "\nAre you sure you want to exit?\n\n"
-            "Everything you entered will be forgotten!\n\n"
+        # LVGL 9.x msgbox with backdrop (pass None for modal)
+        mbox = lv.msgbox(None)
+        mbox.add_title("Confirm Exit")
+        mbox.add_text(
+            "Are you sure you want to exit?\n\n"
+            "Everything you entered will be forgotten!"
         )
-        mbox.add_btns(btns)
-        mbox.set_width(400)
-        mbox.set_event_cb(event_handler)
-        mbox.align(lv.ALIGN.CENTER, 0, 0)
+
+        btn_stay = mbox.add_footer_button("No, stay here")
+        btn_leave = mbox.add_footer_button("Yes, leave")
+
+        def on_stay(e):
+            lv.msgbox.close(mbox)
+
+        def on_leave(e):
+            lv.msgbox.close(mbox)
+            self.set_value(None)
+
+        btn_stay.add_event_cb(on_stay, lv.EVENT.CLICKED, None)
+        btn_leave.add_event_cb(on_leave, lv.EVENT.CLICKED, None)

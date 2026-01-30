@@ -25,7 +25,7 @@ class App(BaseApp):
             raise AppError("Invalid mnemonic!")
         scr = Prompt("Load this mnemonic to memory?", "Mnemonic:")
         table = MnemonicTable(scr)
-        table.align(scr.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
+        table.align_to(scr.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         table.set_mnemonic(mnemonic)
         confirm = await show_fn(scr)
         if confirm:

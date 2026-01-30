@@ -42,7 +42,7 @@ class QRCode(lv.obj):
         style.init()
         style.set_bg_color(lv.color_hex(0xFFFFFF))
         style.set_bg_opa(255)
-        style.set_text_font(lv.font_roboto_16)
+        style.set_text_font(lv.font_montserrat_16)
         style.set_text_color(lv.color_hex(0x192432))
 
         self.encoder = None
@@ -65,7 +65,7 @@ class QRCode(lv.obj):
 
         self.set_text(self._text)
         self.task = asyncio.create_task(self.animate())
-        self.set_event_cb(self.cb)
+        self.add_event_cb(self.cb, lv.EVENT.ALL, None)
 
         self._spacing = 0
 
@@ -87,70 +87,70 @@ class QRCode(lv.obj):
         self.playback.set_size(480, BTNSIZE)
         self.playback.set_y(640)
 
-        nextbtn = lv.btn(self.playback)
+        nextbtn = lv.button(self.playback)
         lbl = lv.label(nextbtn)
         lbl.set_text(lv.SYMBOL.NEXT)
         nextbtn.set_size(BTNSIZE, BTNSIZE)
-        nextbtn.align(self.playback, lv.ALIGN.CENTER, 144, 0)
-        nextbtn.set_event_cb(self.on_next)
+        nextbtn.align_to(self.playback, lv.ALIGN.CENTER, 144, 0)
+        nextbtn.add_event_cb(self.on_next, lv.EVENT.ALL, None)
 
-        prevbtn = lv.btn(self.playback)
+        prevbtn = lv.button(self.playback)
         lbl = lv.label(prevbtn)
         lbl.set_text(lv.SYMBOL.PREV)
         prevbtn.set_size(BTNSIZE, BTNSIZE)
-        prevbtn.align(self.playback, lv.ALIGN.CENTER, -144, 0)
-        prevbtn.set_event_cb(self.on_prev)
+        prevbtn.align_to(self.playback, lv.ALIGN.CENTER, -144, 0)
+        prevbtn.add_event_cb(self.on_prev, lv.EVENT.ALL, None)
 
-        pausebtn = lv.btn(self.playback)
+        pausebtn = lv.button(self.playback)
         self.pauselbl = lv.label(pausebtn)
         self.pauselbl.set_text(lv.SYMBOL.PAUSE)
         pausebtn.set_size(BTNSIZE, BTNSIZE)
-        pausebtn.align(self.playback, lv.ALIGN.CENTER, 48, 0)
-        pausebtn.set_event_cb(self.on_pause)
+        pausebtn.align_to(self.playback, lv.ALIGN.CENTER, 48, 0)
+        pausebtn.add_event_cb(self.on_pause, lv.EVENT.ALL, None)
 
-        stopbtn = lv.btn(self.playback)
+        stopbtn = lv.button(self.playback)
         lbl = lv.label(stopbtn)
         lbl.set_text(lv.SYMBOL.STOP)
         stopbtn.set_size(BTNSIZE, BTNSIZE)
-        stopbtn.align(self.playback, lv.ALIGN.CENTER, -48, 0)
-        stopbtn.set_event_cb(self.on_stop)
+        stopbtn.align_to(self.playback, lv.ALIGN.CENTER, -48, 0)
+        stopbtn.add_event_cb(self.on_stop, lv.EVENT.ALL, None)
 
-        self.play = lv.btn(self)
+        self.play = lv.button(self)
         lbl = lv.label(self.play)
         lbl.set_text(lv.SYMBOL.PLAY)
         self.play.set_size(BTNSIZE, BTNSIZE)
-        self.play.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -150)
-        self.play.set_event_cb(self.on_play)
-        self.play.set_hidden(False)
+        self.play.align_to(self, lv.ALIGN.BOTTOM_MID, 0, -150)
+        self.play.add_event_cb(self.on_play, lv.EVENT.ALL, None)
+        self.play.remove_flag(lv.obj.FLAG.HIDDEN)
 
-        self.playback.set_hidden(True)
+        self.playback.add_flag(lv.obj.FLAG.HIDDEN)
 
     def create_density_controls(self, style):
         self.controls = lv.obj(self)
         self.controls.add_style(style_transp, 0)
         self.controls.set_size(480, BTNSIZE)
         self.controls.set_y(740)
-        plus = lv.btn(self.controls)
+        plus = lv.button(self.controls)
         lbl = lv.label(plus)
         lbl.set_text(lv.SYMBOL.PLUS)
         plus.set_size(BTNSIZE, BTNSIZE)
-        plus.align(self.controls, lv.ALIGN.CENTER, 144, 0)
-        plus.set_event_cb(self.on_plus)
+        plus.align_to(self.controls, lv.ALIGN.CENTER, 144, 0)
+        plus.add_event_cb(self.on_plus, lv.EVENT.ALL, None)
 
-        minus = lv.btn(self.controls)
+        minus = lv.button(self.controls)
         lbl = lv.label(minus)
         lbl.set_text(lv.SYMBOL.MINUS)
         minus.set_size(BTNSIZE, BTNSIZE)
-        minus.align(self.controls, lv.ALIGN.CENTER, -144, 0)
-        minus.set_event_cb(self.on_minus)
+        minus.align_to(self.controls, lv.ALIGN.CENTER, -144, 0)
+        minus.add_event_cb(self.on_minus, lv.EVENT.ALL, None)
 
         lbl = lv.label(self.controls)
         lbl.set_text("QR code density")
         lbl.add_style(style, 0)
         lbl.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
-        lbl.align(self.controls, lv.ALIGN.CENTER, 0, 0)
+        lbl.align_to(self.controls, lv.ALIGN.CENTER, 0, 0)
 
-        self.controls.set_hidden(True)
+        self.controls.add_flag(lv.obj.FLAG.HIDDEN)
 
     async def animate(self):
         while True:
@@ -162,8 +162,8 @@ class QRCode(lv.obj):
                     self.idx = self.idx % self.frame_num
             await asyncio.sleep_ms(self.RATE)
 
-    def on_plus(self, obj, event):
-        if event == lv.EVENT.RELEASED and (self.version + 1) < len(QR_SIZES):
+    def on_plus(self, event):
+        if event.get_code() == lv.EVENT.RELEASED and (self.version + 1) < len(QR_SIZES):
             self.version += 1
             if self.idx is not None:
                 self.idx = 0
@@ -171,8 +171,8 @@ class QRCode(lv.obj):
                 self.encoder.part_len = QR_SIZES[self.version]
                 self.frame_num = len(self.encoder)
 
-    def on_minus(self, obj, event):
-        if event == lv.EVENT.RELEASED and self.version > 0:
+    def on_minus(self, event):
+        if event.get_code() == lv.EVENT.RELEASED and self.version > 0:
             self.version -= 1
             if self.idx is not None:
                 self.idx = 0
@@ -180,40 +180,40 @@ class QRCode(lv.obj):
                 self.encoder.part_len = QR_SIZES[self.version]
                 self.frame_num = len(self.encoder)
 
-    def on_pause(self, obj, event):
-        if event == lv.EVENT.RELEASED:
+    def on_pause(self, event):
+        if event.get_code() == lv.EVENT.RELEASED:
             self._autoplay = not self._autoplay
             self.pauselbl.set_text(lv.SYMBOL.PAUSE if self._autoplay else lv.SYMBOL.PLAY)
 
-    def on_stop(self, obj, event):
-        if event == lv.EVENT.RELEASED:
+    def on_stop(self, event):
+        if event.get_code() == lv.EVENT.RELEASED:
             if not self._text: # can't stop
                 return
             self.idx = None
             self._set_text(self._text)
             self.check_controls()
 
-    def on_play(self, obj, event):
-        if event == lv.EVENT.RELEASED:
+    def on_play(self, event):
+        if event.get_code() == lv.EVENT.RELEASED:
             self.idx = 0
             self.set_frame()
             self.check_controls()
 
-    def on_next(self, obj, event):
-        if event == lv.EVENT.RELEASED:
+    def on_next(self, event):
+        if event.get_code() == lv.EVENT.RELEASED:
             self.idx = (self.idx + 1) % self.frame_num
             self.set_frame()
 
-    def on_prev(self, obj, event):
-        if event == lv.EVENT.RELEASED:
+    def on_prev(self, event):
+        if event.get_code() == lv.EVENT.RELEASED:
             self.idx = (self.idx + self.frame_num - 1) % self.frame_num
             self.set_frame()
 
-    def cb(self, obj, event):
-        # check event
-        if event == lv.EVENT.DELETE:
+    def cb(self, event):
+        code = event.get_code()
+        if code == lv.EVENT.DELETE:
             self.task.cancel()
-        elif event == lv.EVENT.RELEASED:
+        elif code == lv.EVENT.RELEASED:
             self.toggle_fullscreen()
 
     def toggle_fullscreen(self):
@@ -232,7 +232,7 @@ class QRCode(lv.obj):
         self.set_pos(x, y)
         super().set_size(width, height)
         self.qr.set_size(width-10)
-        self.qr.align(self, lv.ALIGN.CENTER, 0, -100 if height==800 else 0)
+        self.qr.align_to(self, lv.ALIGN.CENTER, 0, -100 if height==800 else 0)
         self.update_note()
 
     @property
@@ -247,10 +247,10 @@ class QRCode(lv.obj):
             self.note.set_text("Click to shrink.")
         else:
             self.note.set_text("Click to expand%s." % (" and control" if self.encoder else ""))
-        self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
-        self.controls.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -40)
-        self.playback.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -150)
-        self.play.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, -150)
+        self.note.align_to(self, lv.ALIGN.BOTTOM_MID, 0, 0)
+        self.controls.align_to(self, lv.ALIGN.BOTTOM_MID, 0, -40)
+        self.playback.align_to(self, lv.ALIGN.BOTTOM_MID, 0, -150)
+        self.play.align_to(self, lv.ALIGN.BOTTOM_MID, 0, -150)
         self.check_controls()
 
     def set_text(self, text="Text", set_first_frame=False):
@@ -289,21 +289,27 @@ class QRCode(lv.obj):
         else:
             note += " Click to expand%s." % (" and control" if self.encoder else "")
         self.note.set_text(note)
-        self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.note.align_to(self, lv.ALIGN.BOTTOM_MID, 0, 0)
         self.check_controls()
 
     def check_controls(self):
-        self.controls.set_hidden((not self.is_fullscreen) or (self.idx is None) or (self.encoder is None))
-        self.playback.set_hidden((not self.is_fullscreen) or (self.idx is None))
-        self.play.set_hidden((not self.is_fullscreen) or (self.idx is not None) or (self.encoder is None))
+        # LVGL 9.x: use add_flag/remove_flag instead of set_hidden
+        def set_hidden(obj, hidden):
+            if hidden:
+                obj.add_flag(lv.obj.FLAG.HIDDEN)
+            else:
+                obj.remove_flag(lv.obj.FLAG.HIDDEN)
+        set_hidden(self.controls, (not self.is_fullscreen) or (self.idx is None) or (self.encoder is None))
+        set_hidden(self.playback, (not self.is_fullscreen) or (self.idx is None))
+        set_hidden(self.play, (not self.is_fullscreen) or (self.idx is not None) or (self.encoder is None))
 
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
         print(text)
         self.add_style(qr_style, 0)
         self.qr.set_text(text)
-        self.qr.align(self, lv.ALIGN.CENTER, 0, -100 if self.is_fullscreen else 0)
-        self.note.align(self, lv.ALIGN.IN_BOTTOM_MID, 0, 0)
+        self.qr.align_to(self, lv.ALIGN.CENTER, 0, -100 if self.is_fullscreen else 0)
+        self.note.align_to(self, lv.ALIGN.BOTTOM_MID, 0, 0)
 
     def get_real_text(self):
         return self.qr.get_text()
