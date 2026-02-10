@@ -32,7 +32,7 @@ All `print()` statements will appear in the terminal output. You can keep both t
 
 ## Writing a simple app
 
-Specter can be extended with custom apps. Most of the functionality is already splitted into apps, like `WalletManager` to manage your wallets, `MessageApp` to sign bitcoin messages, `XpubApp` to show master public keys etc.
+Specter can be extended with custom apps. Most of the functionality is already split into apps, like `WalletManager` to manage your wallets, `MessageApp` to sign bitcoin messages, `XpubApp` to show master public keys etc.
 
 Check out the [apps](../src/apps) folder to understand how they work.
 
