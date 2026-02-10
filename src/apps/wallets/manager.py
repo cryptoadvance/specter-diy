@@ -329,7 +329,7 @@ class WalletManager(BaseApp):
         Returns dict with options to pass to sign_psbtview function.
         """
 
-        # ask the user if he wants to sign with custom sighashes
+        # ask the user if they want to sign with custom sighashes
         sighash = await self.confirm_sighashes(meta, show_screen)
         if sighash == False:
             return
@@ -406,7 +406,7 @@ class WalletManager(BaseApp):
         if not used_custom_sighashes:
             return None
 
-        # ask the user if he wants to sign in case of non-default sighashes
+        # ask the user if they want to sign in case of non-default sighashes
         custom_sighashes = [
                 ("Input %d: %s" % (i, inp.get("sighash", sighash_name)))
                 for (i, inp) in enumerate(meta["inputs"])

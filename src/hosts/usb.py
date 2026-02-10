@@ -115,7 +115,7 @@ class USBHost(Host):
         # if not - create new file on the ramdisk
         if self.f is None:
             self.f = open(self.path + "/data", "wb")
-        # check if we dont have EOL in the data
+        # check if we don't have EOL in the data
         if b"\n" not in res and b"\r" not in res:
             self.f.write(res)
             return
