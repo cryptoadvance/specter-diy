@@ -7,8 +7,7 @@ With the secure bootloader initial installation of the firmware is slightly diff
 **Note** If you don't want to use binaries from the releases check out the [bootloader documentation](https://github.com/cryptoadvance/specter-bootloader/blob/master/doc/selfsigned.md) that explains how to compile and configure it to use your public keys instead of ours.
 
 - If you are upgrading from versions below `1.4.0` or uploading the firmware for the first time, use the `initial_firmware_<version>.bin` from the [releases](https://github.com/cryptoadvance/specter-diy/releases) page.
-	- Verify the signature of the `sha256.signed.txt` file against [Stepan's PGP key](https://stepansnigirev.com/ss-specter-release.asc)
-	- Verify the hash of the `initial_firmware_<version>.bin` against the hash stored in the `sha256.signed.txt`
+	- Verify the [integrity of the downloaded binaries](./binary_verification.md) against the hash in `sha256.signed.txt` and against [Stepan's PGP key](https://stepansnigirev.com/ss-specter-release.asc)
 - If you are upgrading from an empty bootloader or you see the bootloader error message that firmware is not valid, check out the next section - [Flashing signed Specter firmware](#flashing-signed-specter-firmware).
 - Make sure the [power jumper](./assembly.md) of your discovery board is at STLK position
 - Connect the discovery board to your computer via the **miniUSB** cable on the top of the board.
