@@ -89,15 +89,9 @@ gpg --verify sha256.signed.txt
 ✓ Look for "Good signature from" message
 
 **3. Verify the hash of the binary:**
-
-**Option A - Using CertUtil:**
 ```cmd
 certutil -hashfile initial_firmware_v<version>.bin SHA256
+certutil -hashfile specter_upgrade_v<version>.bin SHA256
 ```
-Then manually compare the output with the hash in sha256.signed.txt. They need to be the same.
+Then manually compare the outputs with the hashes in sha256.signed.txt. They need to be the same.
 
-**Option B - Using PowerShell:**
-```powershell
-(Get-FileHash initial_firmware_v<version>.bin -Algorithm SHA256).Hash.ToLower()
-```
-Then manually compare the output with the hash in sha256.signed.txt. They need to be the same.
