@@ -11,6 +11,8 @@ This guide explains how to verify the integrity of Specter firmware binaries on 
 
 Download these files for the release you want to use from the Specter DIY repository: https://github.com/cryptoadvance/specter-diy/releases 
 
+---
+
 ## Linux Verification
 
 ### Prerequisites
@@ -38,6 +40,8 @@ gpg --verify sha256.signed.txt
 sha256sum -c sha256.signed.txt --ignore-missing
 ```
 ✓ Should show "OK" for the binary file(s)
+
+---
 
 ## macOS Verification
 
