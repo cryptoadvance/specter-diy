@@ -5,6 +5,7 @@ repo_url: https://github.com/cryptoadvance/specter-diy/
 nav:
   - Home:
     - 'Introduction': README.md
+    - 'USB udev rules (Linux)': udev/README.md 
     - 'FAQ': faq.md
     - roadmap.md
   - Hardware:
