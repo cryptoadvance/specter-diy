@@ -411,8 +411,10 @@ class HardwareController:
 
     def start(self):
         print("Resetting device...")
-        subprocess.run(["st-info", "--reset"], check=True, capture_output=True)
-        time.sleep(1)
+        self.gui = SerialSocket(self.debug_port, baudrate=9600, timeout=5)
+        self.gui.command("TEST_RESET", timeout=5)
+        time.sleep(3)
+        self.gui._reopen()
         self.started = True
 
     def load(self):
@@ -443,10 +445,9 @@ class HardwareController:
         if not wipe_ok:
             raise RuntimeError("Wipe failed after 3 attempts: %s" % repr(resp))
         print("Wallet storage wiped, resetting device...")
-        self.gui.close()
-        subprocess.run(["st-info", "--reset"], check=True, capture_output=True)
-        time.sleep(2)
-        self.gui = SerialSocket(self.debug_port, baudrate=9600, timeout=5)
+        self.gui.command("TEST_RESET", timeout=5)
+        time.sleep(3)
+        self.gui._reopen()
         for i in range(60):
             try:
                 resp = self.gui.status()
