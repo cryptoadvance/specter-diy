@@ -52,8 +52,8 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
         cp $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.hex \
                 $(TARGET_DIR)/specter-diy.hex
 
-# disco board with bitcoin library
-debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
+# disco board - debug build (includes build_config.py for HIL support)
+debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info src/build_config.py
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
         BOARD=$(BOARD) \
@@ -63,6 +63,7 @@ debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
         FROZEN_MANIFEST=$(FROZEN_MANIFEST_DEBUG) \
         DEBUG=$(DEBUG) \
         CFLAGS_EXTRA="$(MPY_CFLAGS)" && \
+	rm -f src/build_config.py && \
 	arm-none-eabi-objcopy -O binary \
         $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
         $(TARGET_DIR)/debug.bin && \
@@ -99,3 +100,16 @@ clean:
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) clean
 
 .PHONY: all clean git-info
+
+# Build config (auto-generated at build time, frozen into firmware).
+# Set HIL=1 to enable hardware-in-the-loop test mode.
+src/build_config.py:
+	@printf "HIL_ENABLED = %s\n" "$(or $(HIL),0)" > $@
+
+hardwareintheloop:
+	$(MAKE) debug HIL=1
+
+hardwareintheloop-test:
+	cd test/integration && python3 hardwareintheloop.py
+
+.PHONY: hardwareintheloop hardwareintheloop-test
