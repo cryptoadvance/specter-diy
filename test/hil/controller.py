@@ -290,6 +290,28 @@ class HardwareController:
         )
         self._debug_log = []
 
+    def _detect_keystore(self, timeout=30):
+        """Wait for firmware to detect and set the active keystore.
+
+        TEST_STATUS returns OK:READY before keystore detection completes,
+        so we must retry TEST_KEYSTORE until the firmware has finished
+        polling keystores and set _active_keystore_name.
+
+        Returns keystore name string, or 'internal' if detection times out.
+        """
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            resp = self.gui.command("TEST_KEYSTORE", timeout=2)
+            prefix = b"OK:KEYSTORE:"
+            if prefix in resp:
+                ks_name = resp.split(prefix, 1)[1].strip().decode()
+                if ks_name != "unknown":
+                    print("Detected keystore: %s" % ks_name)
+                    return ks_name
+            time.sleep(0.5)
+        print("Keystore detection timed out, defaulting to internal")
+        return "internal"
+
     @staticmethod
     def _find_stlink_uart():
         matches = sorted(glob.glob("/dev/serial/by-id/usb-STMicroelectronics_STM32_STLink_*-if02"))
