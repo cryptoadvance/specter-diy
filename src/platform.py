@@ -6,6 +6,12 @@ import gc
 
 simulator = (sys.platform in ["linux", "darwin"])
 
+hil_test_mode = False
+try:
+    from build_config import HIL_ENABLED
+    hil_test_mode = HIL_ENABLED
+except Exception:
+    pass
 
 # Build metadata injected at boot time. Defaults represent the minimum
 # information we can know without platform-specific boot scripts.
@@ -389,6 +395,8 @@ def wipe():
 
 def usb_connected():
     if simulator:
+        return True
+    if hil_test_mode:
         return True
     return bool(pyb.Pin.board.USB_VBUS.value())
 
