@@ -108,7 +108,7 @@ src/build_config.py:
 
 hil: HIL := 1
 hil: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info src/build_config.py
-	@echo Building HIL firmware (boot/main + HIL=1)
+	@echo "Building HIL firmware (boot/main + HIL=1)"
 	make -C $(MPY_DIR)/ports/stm32 \
         BOARD=$(BOARD) \
         FLAVOR=$(FLAVOR) \
