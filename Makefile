@@ -106,10 +106,28 @@ clean:
 src/build_config.py:
 	@printf "HIL_ENABLED = %s\n" "$(or $(HIL),0)" > $@
 
-hardwareintheloop:
-	$(MAKE) debug HIL=1
+hil: HIL := 1
+hil: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info src/build_config.py
+	@echo Building HIL firmware (boot/main + HIL=1)
+	make -C $(MPY_DIR)/ports/stm32 \
+        BOARD=$(BOARD) \
+        FLAVOR=$(FLAVOR) \
+        USE_DBOOT=$(USE_DBOOT) \
+        USER_C_MODULES=$(USER_C_MODULES) \
+        FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) \
+        DEBUG=$(DEBUG) \
+        CFLAGS_EXTRA="$(MPY_CFLAGS)" && \
+	rm -f src/build_config.py && \
+	arm-none-eabi-objcopy -O binary \
+        $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
+        $(TARGET_DIR)/specter-diy.bin && \
+	cp $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.hex \
+                $(TARGET_DIR)/specter-diy.hex
 
-hardwareintheloop-test:
+hilflash: hil
+	st-flash --connect-under-reset write $(TARGET_DIR)/specter-diy.bin 0x08000000
+
+hiltest:
 	cd test/integration && python3 hardwareintheloop.py
 
-.PHONY: hardwareintheloop hardwareintheloop-test
+.PHONY: hil hilflash hiltest

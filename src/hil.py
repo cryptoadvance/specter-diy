@@ -237,11 +237,17 @@ class HILCommandHandler:
         import platform
         try:
             wallet_path = platform.fpath("/qspi/wallets")
-            platform.delete_recursively(wallet_path)
+            try:
+                platform.delete_recursively(wallet_path)
+            except OSError:
+                pass
             log("HIL", "Wiped: %s" % wallet_path)
             keystore_path = platform.fpath("/flash/keystore")
             if keystore_path:
-                platform.delete_recursively(keystore_path)
+                try:
+                    platform.delete_recursively(keystore_path)
+                except OSError:
+                    pass
                 log("HIL", "Wiped: %s" % keystore_path)
             self._respond("OK:WIPED")
         except Exception as e:
