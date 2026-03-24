@@ -251,8 +251,9 @@ class Specter:
             import hil
             hil.set_keystore_name(keystore_cls.NAME)
             hil.set_keystore_ref(self.keystore)
-        except Exception:
-            pass
+        except Exception as e:
+            from debug_trace import log_exception
+            log_exception("HIL", e)
 
     async def main(self):
         while True:

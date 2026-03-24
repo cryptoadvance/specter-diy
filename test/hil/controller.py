@@ -58,12 +58,16 @@ class SerialSocket:
         except Exception:
             pass
         time.sleep(0.2)
-        self._open()
+        try:
+            self._open()
+        except Exception as e:
+            print("[SerialSocket] reopen failed on %s: %s" % (self.port, e))
 
     def _safe_read(self, size):
         try:
             return self.s.read(size)
-        except Exception:
+        except Exception as e:
+            print("[SerialSocket] read error on %s: %s" % (self.port, e))
             self._reopen()
             return b""
 
@@ -71,12 +75,14 @@ class SerialSocket:
         try:
             self.s.write(data)
             return True
-        except Exception:
+        except Exception as e:
+            print("[SerialSocket] write error on %s: %s" % (self.port, e))
             self._reopen()
             try:
                 self.s.write(data)
                 return True
-            except Exception:
+            except Exception as e:
+                print("[SerialSocket] write retry failed on %s: %s" % (self.port, e))
                 return False
 
     def read_all(self, timeout=0.5):

@@ -108,7 +108,8 @@ src/build_config.py:
 
 hil: HIL := 1
 hil: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info src/build_config.py
-	@echo "Building HIL firmware (boot/main + HIL=1)"
+	@echo "WARNING: Building firmware with HIL test mode enabled!"
+	@echo "WARNING: This firmware should NEVER be used in production!"
 	make -C $(MPY_DIR)/ports/stm32 \
         BOARD=$(BOARD) \
         FLAVOR=$(FLAVOR) \
