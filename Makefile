@@ -52,8 +52,8 @@ disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
         cp $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.hex \
                 $(TARGET_DIR)/specter-diy.hex
 
-# disco board with bitcoin library
-debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
+# disco board - debug build (includes build_config.py for HIL support)
+debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info src/build_config.py
 	@echo Building firmware
 	make -C $(MPY_DIR)/ports/stm32 \
         BOARD=$(BOARD) \
@@ -63,6 +63,7 @@ debug: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
         FROZEN_MANIFEST=$(FROZEN_MANIFEST_DEBUG) \
         DEBUG=$(DEBUG) \
         CFLAGS_EXTRA="$(MPY_CFLAGS)" && \
+	rm -f src/build_config.py && \
 	arm-none-eabi-objcopy -O binary \
         $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
         $(TARGET_DIR)/debug.bin && \
@@ -99,3 +100,35 @@ clean:
 		FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) clean
 
 .PHONY: all clean git-info
+
+# Build config (auto-generated at build time, frozen into firmware).
+# Set HIL=1 to enable hardware-in-the-loop test mode.
+src/build_config.py:
+	@printf "HIL_ENABLED = %s\n" "$(or $(HIL),0)" > $@
+
+hil: HIL := 1
+hil: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info src/build_config.py
+	@echo "WARNING: Building firmware with HIL test mode enabled!"
+	@echo "WARNING: This firmware should NEVER be used in production!"
+	make -C $(MPY_DIR)/ports/stm32 \
+        BOARD=$(BOARD) \
+        FLAVOR=$(FLAVOR) \
+        USE_DBOOT=$(USE_DBOOT) \
+        USER_C_MODULES=$(USER_C_MODULES) \
+        FROZEN_MANIFEST=$(FROZEN_MANIFEST_DISCO) \
+        DEBUG=$(DEBUG) \
+        CFLAGS_EXTRA="$(MPY_CFLAGS)" && \
+	rm -f src/build_config.py && \
+	arm-none-eabi-objcopy -O binary \
+        $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.elf \
+        $(TARGET_DIR)/specter-diy.bin && \
+	cp $(MPY_DIR)/ports/stm32/build-STM32F469DISC/firmware.hex \
+                $(TARGET_DIR)/specter-diy.hex
+
+hilflash: hil
+	st-flash --connect-under-reset write $(TARGET_DIR)/specter-diy.bin 0x08000000
+
+hiltest:
+	cd test/integration && python3 hardwareintheloop.py
+
+.PHONY: hil hilflash hiltest

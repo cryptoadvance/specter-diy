@@ -30,9 +30,14 @@ class USBHost(Host):
             self.usb.init(flow=(pyb.USB_VCP.RTS | pyb.USB_VCP.CTS))
             if platform.simulator:
                 print("Connect to 127.0.0.1:8789 to do USB communication")
+            if platform.hil_test_mode:
+                self.settings["enabled"] = True
+                platform.enable_usb()
 
     def load_settings(self, *args, **kwargs):
         super().load_settings(*args, **kwargs)
+        if platform.hil_test_mode:
+            self.settings["enabled"] = True
         if self.is_enabled:
             platform.enable_usb()
         else:
@@ -171,6 +176,9 @@ class USBHost(Host):
                 sys.print_exception(e)
             # for all other exceptions - send back generic message
             except Exception as e:
+                if platform.hil_test_mode:
+                    from debug_trace import log_exception
+                    log_exception("USB", e)
                 if platform.simulator:
                     self.respond(b"error: Unknown error %s" % e)
                     sys.print_exception(e)
