@@ -1,3 +1,4 @@
+![Smartcard_Hat_ST8034ATDT_Oneside.png](Smartcard_Hat_ST8034ATDT_Oneside.png)
 # Shield Lite PWR
 Work in Progress, currently untested.
 
