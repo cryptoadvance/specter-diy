@@ -1,0 +1,8 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Arduino_MountingHole")(type "KiCad")(uri "${KICAD7_TEMPLATE_DIR}/Arduino_Mega/Arduino_MountingHole.pretty")(options "")(descr ""))
+  (lib (name "footprints")(type "KiCad")(uri "C:/Users/ytcry/Downloads/ST8034HNQR/KiCADv6/footprints.pretty")(options "")(descr ""))
+  (lib (name "7312P0225A13LF")(type "KiCad")(uri "C:/Users/ytcry/Documents/Github/specter-diy/shield/kicad/Custom_Symbols/7312P0225A13LF.pretty")(options "")(descr ""))
+  (lib (name "Library")(type "KiCad")(uri "${KIPRJMOD}/Library.pretty")(options "")(descr ""))
+  (lib (name "Specter_Library")(type "KiCad")(uri "C:/Users/ytcry/OneDrive - 12940086 CANADA INC/YouTube/Work In Progress/2024-XX-XX Specter Shield DIY/kicad/Specter_Library.pretty")(options "")(descr ""))
+)

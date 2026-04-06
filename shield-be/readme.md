@@ -1,5 +1,5 @@
 ![Smartcard_Hat_ST8034ATDT_Oneside.png](Smartcard_Hat_ST8034ATDT_Oneside.png)
-# Shield Lite PWR
+# Shield-BE (Budget Edition)
 Work in Progress, currently untested.
 
 The goal of this board is to provide the full functionality of the Specter Shield at a lower price.
