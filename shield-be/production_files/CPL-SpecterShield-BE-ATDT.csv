@@ -1,13 +1,13 @@
 Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
 BZ601,Buzzer,XDCR_SMT-0927-S-HT-R_handsolder,39.81,-0.275,-90.0,top
-C301,47u,C_1206_3216Metric_Pad1.33x1.80mm_HandSolder,37.228,27.32931,-90.0,top
+C301,47u,C_1206_3216Metric_Pad1.33x1.80mm_HandSolder,43.17,32.47,0.0,top
 C302,100n,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,44.7275,29.4225,90.0,top
 C303,10u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,42.018,20.9675,-90.0,top
 C304,18p,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,48.8875,22.225,0.0,top
 C305,390p,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,44.808,18.08931,180.0,top
 C306,10u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,43.38,42.69,90.0,top
 C307,100n,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,34.25,17.71,-90.0,top
-C308,100n,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,39.538,26.66,-90.0,top
+C308,100n,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,41.86,28.92,180.0,top
 C309,10u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,49.21,41.67,0.0,top
 C310,22u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,47.7175,25.8875,-90.0,top
 C311,22u,C_0805_2012Metric_Pad1.18x1.45mm_HandSolder,49.82,25.9,-90.0,top
@@ -37,7 +37,7 @@ J302,USB_TP,PinHeader_1x02_P2.54mm_Vertical,35.49,44.845,180.0,top
 J303,JST S2B-PH-SM4-TB(LF)(SN),JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal,36.87,53.03,180.0,top
 J401,7712P0225A25LF (Or 7312P0225A13LF),AMPHENOL_7312P0225A13LF_smrt2_combo_handsolder,54.565,-25.95,0.0,top
 J501,SFV12R-2STE1HLF,AMPHENOL_SFV12R-2STE1HLF_handsolder,56.97,20.5005,180.0,top
-L301,1uH,L_1210_3225Metric_Pad1.42x2.65mm_HandSolder,42.118,27.3275,-90.0,top
+L301,1uH,L_1210_3225Metric_Pad1.42x2.65mm_HandSolder,41.29,26.36,0.0,top
 Q301,AO3401A,SOT-23,46.42,37.5,270.0,top
 Q302,2N7002,SOT-23,34.9,36.12,270.0,top
 Q303,AO3401A,SOT-23,38.47,33.63,180.0,top
@@ -50,10 +50,10 @@ R301,5.1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,35.12,39.92,-90.0,top
 R302,5.1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,33.17,39.92,-90.0,top
 R303,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,43.72,37.54,90.0,top
 R304,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,34.91,32.34,90.0,top
-R305,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,46.38,34.38,180.0,top
+R305,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,46.37,34.59,180.0,top
 R306,24k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,47.8375,19.325,-90.0,top
 R307,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,38.47,36.32,180.0,top
-R308,180k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,46.72,29.83,90.0,top
+R308,180k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,47.58,28.92,0.0,top
 R309,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,36.31,21.57,90.0,top
 R310,150k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,36.3,17.72,90.0,top
 R311,1k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,44.69,55.03,0.0,top
@@ -68,7 +68,7 @@ R319,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,69.83,21.2,0.0,top
 R320,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,66.02,19.06,0.0,top
 R321,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,78.74,42.24,0.0,top
 R322,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,64.01,47.51,180.0,top
-R323,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,75.24,50.24,180.0,top
+R323,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,76.9,50.31,180.0,top
 R324,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,68.43,48.53,0.0,top
 R325,100k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,69.83,23.22,0.0,top
 R326,10k,R_0805_2012Metric_Pad1.20x1.40mm_HandSolder,69.645,36.165,0.0,top

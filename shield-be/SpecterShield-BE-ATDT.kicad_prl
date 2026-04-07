@@ -18,7 +18,7 @@
     "prototype_zone_fills": false,
     "selection_filter": {
       "dimensions": false,
-      "footprints": true,
+      "footprints": false,
       "graphics": false,
       "keepouts": false,
       "lockedItems": false,
@@ -26,7 +26,7 @@
       "pads": false,
       "text": true,
       "tracks": true,
-      "vias": true,
+      "vias": false,
       "zones": false
     },
     "visible_items": [
@@ -50,7 +50,7 @@
       "conflict_shadows",
       "shapes"
     ],
-    "visible_layers": "ffffffff_ffffffff_ffffffff_ffffffef",
+    "visible_layers": "ffffffff_ffffffff_ffffffff_ffffffaf",
     "zone_display_mode": 0
   },
   "git": {
