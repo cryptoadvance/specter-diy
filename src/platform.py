@@ -31,15 +31,9 @@ else:
     stm = None
 
 # injected by the boot.py
-i2c = None       # I2C bus for STC3100 fuel gauge (Shield v1)
-bat_adc = None   # pyb.ADC for ADC-based battery voltage (Shield-BE)
-chg_state_pin = None  # pyb.Pin input for TP4056 CHG_STATE (Shield-BE)
-
-# Voltage divider ratio for ADC battery measurement:
-# R309=100k (top) and R310=150k (bottom)
-# BAT_MEAS = VBAT * R310 / (R309 + R310) = VBAT * 0.6
-# VBAT = BAT_MEAS_voltage / BAT_ADC_DIVIDER_RATIO
-BAT_ADC_DIVIDER_RATIO = 150 / 250
+i2c = None # I2C to talk to the battery (STC3100 fuel gauge, original shield)
+adc = None # ADC pin for battery voltage measurement (Shield-BE)
+chg_pin = None # GPIO pin to read TP4056 charging state (Shield-BE)
 
 
 class CriticalErrorWipeImmediately(Exception):
@@ -401,15 +395,31 @@ def usb_connected():
     return bool(pyb.Pin.board.USB_VBUS.value())
 
 BATTERY_TABLE = [
-    (4.2,  100),
-    (4.0,  75),
-    (3.85, 50),
-    (3.75, 35),
-    (3.6,  0),
+    (4.03, 100),
+    (3.97, 90),
+    (3.93, 80),
+    (3.87, 70),
+    (3.81, 60),
+    (3.76, 50),
+    (3.69, 40),
+    (3.58, 30),
+    (3.48, 20),
+    (3.39, 10),
+    (3.30, 0),
 ]
 
+# ADC battery measurement constants (Shield-BE)
+# Resistor divider: R309 = 100 kΩ (upper), R310 = 150 kΩ (lower)
+# V_BATT = V_ADC * (R309 + R310) / R310 = V_ADC * 250 / 150 = V_ADC * 5/3
+_ADC_SAMPLE_COUNT = 16     # number of samples to average for noise rejection
+_ADC_VDDA = 3.3            # ADC reference voltage (V)
+_ADC_MAX = 4095            # 12-bit ADC full-scale value
+_ADC_DIVIDER_SCALE = 5 / 3 # (R309 + R310) / R310 = 250k / 150k
+_ADC_MIN_BATTERY_VOLTAGE = 2.5  # volts; readings below this indicate no battery connected
+_ADC_MAX_BATTERY_VOLTAGE = 4.25 # volts; readings above this indicate no battery connected (ADC floats high)
+
 def _voltage_to_level(voltage):
-    """Convert battery voltage to percentage using linear interpolation."""
+    """Convert battery voltage to percentage level using BATTERY_TABLE."""
     level = 0
     for i, (v, lvl) in enumerate(BATTERY_TABLE):
         if voltage > v:
@@ -421,37 +431,77 @@ def _voltage_to_level(voltage):
             break
     return level
 
+
 def get_battery_status():
-    # Try I2C fuel gauge (Shield v1 with STC3100)
-    if i2c is not None:
+    """Return (level_percent, charging) or (None, None) if unavailable."""
+    # ADC-based measurement (Shield-BE)
+    # BAT_MEAS is connected via a resistor divider:
+    #   R309 = 100k (upper, between BATT_P and ADC pin)
+    #   R310 = 150k (lower, between ADC pin and GND)
+    # V_BATT = V_ADC * (100k + 150k) / 150k = V_ADC * 5/3
+    # With 3.3 V VDDA and 12-bit ADC (0-4095):
+    #   V_BATT = raw * 3.3 * 5 / (4095 * 3)
+    if adc is not None:
         try:
-            if 112 not in i2c.scan():
+            # Average multiple samples to reduce noise
+            raw = sum(adc.read() for _ in range(_ADC_SAMPLE_COUNT)) // _ADC_SAMPLE_COUNT
+            voltage = raw * _ADC_VDDA * _ADC_DIVIDER_SCALE / _ADC_MAX
+            # Readings below the minimum or above the maximum threshold indicate no battery
+            # is connected (unloaded ADC pin floats high ~4.25 V or low ~1.71 V on Shield-BE)
+            if voltage < _ADC_MIN_BATTERY_VOLTAGE or voltage > _ADC_MAX_BATTERY_VOLTAGE:
                 return None, None
-            voltage = int.from_bytes(i2c.mem_read(2, 112, 8), 'little') * 2.44e-3
             level = _voltage_to_level(voltage)
-            charging = (int.from_bytes(i2c.mem_read(2, 112, 6), 'little') < 8192)
+            # CHG_STATE is active-low: TP4056 CHRG pin pulls LOW when charging,
+            # and floats HIGH (via R313 pull-up) when not charging or charge complete.
+            charging = (not chg_pin.value()) if chg_pin is not None else None
             return level, charging
         except Exception as e:
             print(e)
             return None, None
 
-    # Try ADC-based measurement (Shield-BE)
-    # BAT_MEAS pin is connected via a voltage divider (R309=100k / R310=150k)
-    # and a P-FET switch (Q303) enabled when PWR_HOLD2 is high (device on).
-    if bat_adc is not None:
+    # I2C-based measurement (original shield, STC3100 fuel gauge at address 112)
+    if i2c is None:
+        return None, None
+    try:
+        if 112 not in i2c.scan():
+            return None, None
+        voltage = int.from_bytes(i2c.mem_read(2, 112, 8), 'little') * 2.44e-3
+        level = _voltage_to_level(voltage)
+        charging = (int.from_bytes(i2c.mem_read(2, 112, 6), 'little') < 8192)
+        return level, charging
+    except Exception as e:
+        print(e)
+        return None, None
+
+
+def get_battery_info():
+    """Return (detected, meter_type, voltage_v, charging) for diagnostic display.
+
+    detected:   True if a battery meter is present and reading is valid
+    meter_type: 'ADC' | 'I2C (STC3100)' | 'None'
+    voltage_v:  float in volts, or None if unreadable
+    charging:   True / False / None (unknown)
+    """
+    if adc is not None:
         try:
-            # Average 4 samples to reduce noise
-            raw = sum(bat_adc.read() for _ in range(4)) // 4
-            # Convert: V_meas = raw * 3.3 / 4096; V_bat = V_meas / BAT_ADC_DIVIDER_RATIO
-            voltage = raw * 3.3 / 4096 / BAT_ADC_DIVIDER_RATIO
-            level = _voltage_to_level(voltage)
-            # CHG_STATE from TP4056: LOW = charging, HIGH/floating = complete
-            charging = False
-            if chg_state_pin is not None:
-                charging = (chg_state_pin.value() == 0)
-            return level, charging
+            raw = sum(adc.read() for _ in range(_ADC_SAMPLE_COUNT)) // _ADC_SAMPLE_COUNT
+            voltage = raw * _ADC_VDDA * _ADC_DIVIDER_SCALE / _ADC_MAX
+            charging = (not chg_pin.value()) if chg_pin is not None else None
+            detected = _ADC_MIN_BATTERY_VOLTAGE <= voltage <= _ADC_MAX_BATTERY_VOLTAGE
+            return detected, "ADC", voltage, charging
         except Exception as e:
             print(e)
+            return False, "ADC", None, None
 
-    # No battery monitor configured or available
-    return None, None
+    if i2c is not None:
+        try:
+            if 112 not in i2c.scan():
+                return False, "I2C (STC3100)", None, None
+            voltage = int.from_bytes(i2c.mem_read(2, 112, 8), 'little') * 2.44e-3
+            charging = (int.from_bytes(i2c.mem_read(2, 112, 6), 'little') < 8192)
+            return True, "I2C (STC3100)", voltage, charging
+        except Exception as e:
+            print(e)
+            return False, "I2C (STC3100)", None, None
+
+    return False, "None", None, None

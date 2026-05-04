@@ -68,7 +68,7 @@ if _has_fuel_gauge:
 else:
     # Shield-BE: ADC-based battery measurement (no STC3100 fuel gauge)
     try:
-        platform.bat_adc = pyb.ADC(pyb.Pin("A7", pyb.Pin.IN))
-        platform.chg_state_pin = pyb.Pin("H6", pyb.Pin.IN, pyb.Pin.PULL_UP)
+        platform.adc = pyb.ADC(pyb.Pin("A7", pyb.Pin.IN))
+        platform.chg_pin = pyb.Pin("H6", pyb.Pin.IN, pyb.Pin.PULL_UP)
     except Exception as e:
         print("Shield-BE battery setup failed:", e)
