@@ -409,7 +409,7 @@ _ADC_SAMPLE_COUNT = 16     # number of samples to average for noise rejection
 _ADC_VDDA = 3.3            # ADC reference voltage (V)
 _ADC_MAX = 4095            # 12-bit ADC full-scale value
 _ADC_DIVIDER_SCALE = 5 / 3 # (R309 + R310) / R310 = 250k / 150k
-_ADC_MIN_BATTERY_VOLTAGE = 2.0  # volts; readings below this indicate no battery connected
+_ADC_MIN_BATTERY_VOLTAGE = 2.5  # volts; readings below this indicate no battery connected
 
 def _voltage_to_level(voltage):
     """Convert battery voltage to percentage level using BATTERY_TABLE."""
