@@ -27,7 +27,7 @@ import sys
 # Clean sys.path from qspi
 # Shouldn't happen in production, but just in case.
 for p in sys.path:
-    if "qspi" in sys.path:
+    if "qspi" in p:
         sys.path.remove(p)
 
 # power hold
