@@ -410,6 +410,7 @@ _ADC_VDDA = 3.3            # ADC reference voltage (V)
 _ADC_MAX = 4095            # 12-bit ADC full-scale value
 _ADC_DIVIDER_SCALE = 5 / 3 # (R309 + R310) / R310 = 250k / 150k
 _ADC_MIN_BATTERY_VOLTAGE = 2.5  # volts; readings below this indicate no battery connected
+_ADC_MAX_BATTERY_VOLTAGE = 4.25 # volts; readings above this indicate no battery connected (ADC floats high)
 
 def _voltage_to_level(voltage):
     """Convert battery voltage to percentage level using BATTERY_TABLE."""
@@ -439,9 +440,9 @@ def get_battery_status():
             # Average multiple samples to reduce noise
             raw = sum(adc.read() for _ in range(_ADC_SAMPLE_COUNT)) // _ADC_SAMPLE_COUNT
             voltage = raw * _ADC_VDDA * _ADC_DIVIDER_SCALE / _ADC_MAX
-            # Readings below the minimum threshold indicate no battery is connected
-            # (unloaded ADC pin floats around 1.71 V on Shield-BE hardware)
-            if voltage < _ADC_MIN_BATTERY_VOLTAGE:
+            # Readings below the minimum or above the maximum threshold indicate no battery
+            # is connected (unloaded ADC pin floats high ~4.25 V or low ~1.71 V on Shield-BE)
+            if voltage < _ADC_MIN_BATTERY_VOLTAGE or voltage > _ADC_MAX_BATTERY_VOLTAGE:
                 return None, None
             level = _voltage_to_level(voltage)
             # CHG_STATE is active-low: TP4056 CHRG pin pulls LOW when charging,
@@ -480,7 +481,7 @@ def get_battery_info():
             raw = sum(adc.read() for _ in range(_ADC_SAMPLE_COUNT)) // _ADC_SAMPLE_COUNT
             voltage = raw * _ADC_VDDA * _ADC_DIVIDER_SCALE / _ADC_MAX
             charging = (not chg_pin.value()) if chg_pin is not None else None
-            detected = voltage >= _ADC_MIN_BATTERY_VOLTAGE
+            detected = _ADC_MIN_BATTERY_VOLTAGE <= voltage <= _ADC_MAX_BATTERY_VOLTAGE
             return detected, "ADC", voltage, charging
         except Exception as e:
             print(e)
