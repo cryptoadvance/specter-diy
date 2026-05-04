@@ -8,18 +8,11 @@
 #
 # CHG_STATE from TP4056 charger: LOW = charging, HIGH/floating = complete.
 #
-# Pin assignments - MUST be verified against the STM32F469I-DISCO connector
-# layout and confirmed by hardware testing before use:
-#
-#   BAT_MEAS / SC_AUX2  -- J203 pin 2 -- TODO: set BAT_MEAS_PIN to the
-#                          actual STM32 GPIO (must be ADC-capable).
-#   CHG_STATE           -- J203 pin 3 -- TODO: set CHG_STATE_PIN to the
-#                          actual STM32 GPIO.
-#
-# Replace the two PIN_NAME strings below with the correct MicroPython pin
-# identifiers (e.g. 'A6', 'C4') once the hardware has been verified.
-BAT_MEAS_PIN = 'A6'   # TODO: confirm actual GPIO for SC_AUX2 / BAT_MEAS
-CHG_STATE_PIN = 'C4'  # TODO: confirm actual GPIO for CHG_STATE
+# Pin assignments, confirmed from the Shield-BE/discovery-board connector map:
+#   BAT_MEAS / SC_AUX2  -- J203 pin 2 -- PA7 (ADC-capable)
+#   CHG_STATE           -- J203 pin 3 -- PH6
+BAT_MEAS_PIN = "A7"
+CHG_STATE_PIN = "H6"
 
 import pyb, os, micropython, time
 import sys
