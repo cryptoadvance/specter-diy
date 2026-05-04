@@ -57,6 +57,7 @@ def setup_battery_monitor(platform):
         fuel_gauge_i2c = None
 
     try:
+        # pyb.ADC.read() on STM32F469 uses the default 12-bit conversion path.
         platform.bat_adc = pyb.ADC(pyb.Pin(BAT_MEAS_PIN, pyb.Pin.IN))
         # PULL_UP ensures open-drain CHG_STATE reads HIGH when not actively charging
         platform.chg_state_pin = pyb.Pin(CHG_STATE_PIN, pyb.Pin.IN, pyb.Pin.PULL_UP)
