@@ -42,5 +42,18 @@ platform.version = version
 platform.bootloader_locked = False
 platform.build_type = "debug"
 
+# Battery monitor: try STC3100 fuel gauge (Shield v1), fall back to ADC (Shield-BE)
+i2c = pyb.I2C(1)
+i2c.init()
+if 112 in i2c.scan():
+    i2c.mem_write(0b00010000, 112, 0)
+    platform.i2c = i2c
+else:
+    try:
+        platform.adc = pyb.ADC(pyb.Pin("A7", pyb.Pin.IN))
+        platform.chg_pin = pyb.Pin("H6", pyb.Pin.IN, pyb.Pin.PULL_UP)
+    except Exception as e:
+        print("Shield-BE battery setup failed:", e)
+
 # uncomment to run some custom main:
 pyb.main("hardwaretest.py")
