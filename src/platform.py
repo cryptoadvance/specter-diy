@@ -39,7 +39,7 @@ chg_state_pin = None  # pyb.Pin input for TP4056 CHG_STATE (Shield-BE)
 # R309=100k (top) and R310=150k (bottom)
 # BAT_MEAS = VBAT * R310 / (R309 + R310) = VBAT * 0.6
 # VBAT = BAT_MEAS_voltage / BAT_ADC_DIVIDER_RATIO
-BAT_ADC_DIVIDER_RATIO = 150 / 250
+BAT_ADC_DIVIDER_RATIO = 150 / (100 + 150)
 
 
 class CriticalErrorWipeImmediately(Exception):

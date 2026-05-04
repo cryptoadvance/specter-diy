@@ -58,7 +58,7 @@ def setup_battery_monitor(platform):
 
     try:
         platform.bat_adc = pyb.ADC(pyb.Pin(BAT_MEAS_PIN, pyb.Pin.IN))
-        # PULL_UP ensures CHG_STATE reads HIGH (complete) when no charger is connected
+        # PULL_UP ensures open-drain CHG_STATE reads HIGH when not actively charging
         platform.chg_state_pin = pyb.Pin(CHG_STATE_PIN, pyb.Pin.IN, pyb.Pin.PULL_UP)
     except Exception as e:
         print("ADC battery setup failed:", e)
