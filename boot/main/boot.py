@@ -15,11 +15,11 @@ pwr.on()
 
 version = "<version:tag10>0101000199</version:tag10>"
 
-# get i2c
+# Battery monitor: try STC3100 fuel gauge (Shield v1), fall back to ADC (Shield-BE)
 i2c = pyb.I2C(1)
 i2c.init()
-# start measurements
-if 112 in i2c.scan():
+_has_fuel_gauge = 112 in i2c.scan()
+if _has_fuel_gauge:
     i2c.mem_write(0b00010000, 112, 0)
 
 leds = [pyb.LED(i) for i in range(1,5)]
@@ -33,8 +33,8 @@ def poweroff(_):
     try:
         for led in leds:
             led.toggle()
-        # stop battery manangement
-        if 112 in i2c.scan():
+        # stop battery management
+        if _has_fuel_gauge and 112 in i2c.scan():
             i2c.mem_write(0, 112, 0)
         # sync filesystem
         os.sync()
@@ -58,9 +58,17 @@ pyb.usb_mode(None)
 os.dupterm(None,0)
 os.dupterm(None,1)
 
-# inject version and i2c to platform module
+# inject version and battery monitor into platform module
 import platform
 platform.version = version
-platform.i2c = i2c
 platform.bootloader_locked = True
 platform.build_type = "disco"
+if _has_fuel_gauge:
+    platform.i2c = i2c
+else:
+    # Shield-BE: ADC-based battery measurement (no STC3100 fuel gauge)
+    try:
+        platform.bat_adc = pyb.ADC(pyb.Pin("A7", pyb.Pin.IN))
+        platform.chg_state_pin = pyb.Pin("H6", pyb.Pin.IN, pyb.Pin.PULL_UP)
+    except Exception as e:
+        print("Shield-BE battery setup failed:", e)
