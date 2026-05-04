@@ -111,18 +111,17 @@ class Specter:
             build_note = "Build type: %s" % _format_status(build_type)
         sections.append(build_note)
 
-        meter_type, voltage, charging = get_battery_info()
-        battery_lines = ["Battery Meter Type: %s" % meter_type]
+        detected, meter_type, voltage, charging = get_battery_info()
+        battery_lines = ["Detected Battery Meter: %s" % ("Yes" if detected else "No")]
         if voltage is not None:
             battery_lines.append("Battery Voltage: %.2f V" % voltage)
-        else:
-            battery_lines.append("Battery Voltage: N/A")
-        if charging is None:
-            battery_lines.append("Charging State: Unknown")
-        elif charging:
-            battery_lines.append("Charging State: Charging")
-        else:
-            battery_lines.append("Charging State: Not charging")
+        if detected:
+            if charging is None:
+                battery_lines.append("Charging State: Unknown")
+            elif charging:
+                battery_lines.append("Charging State: Charging")
+            else:
+                battery_lines.append("Charging State: Not charging")
         sections.append("\n".join(battery_lines))
 
         return "\n\n".join(sections)
