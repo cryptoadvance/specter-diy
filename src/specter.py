@@ -112,7 +112,7 @@ class Specter:
         sections.append(build_note)
 
         detected, meter_type, voltage, charging = get_battery_info()
-        battery_lines = ["Detected Battery Meter: %s" % ("Yes" if detected else "No")]
+        battery_lines = ["Detected Battery Meter: %s (%s)" % ("Yes" if detected else "No", meter_type)]
         if voltage is not None:
             battery_lines.append("Battery Voltage: %.2f V" % voltage)
         if detected:
