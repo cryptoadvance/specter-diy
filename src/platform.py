@@ -395,11 +395,17 @@ def usb_connected():
     return bool(pyb.Pin.board.USB_VBUS.value())
 
 BATTERY_TABLE = [
-    (4.2,  100),
-    (4.0,  75),
-    (3.85, 50),
-    (3.75, 35),
-    (3.6,  0),
+    (4.03, 100),
+    (3.97, 90),
+    (3.93, 80),
+    (3.87, 70),
+    (3.81, 60),
+    (3.76, 50),
+    (3.69, 40),
+    (3.58, 30),
+    (3.48, 20),
+    (3.39, 10),
+    (3.30, 0),
 ]
 
 # ADC battery measurement constants (Shield-BE)
