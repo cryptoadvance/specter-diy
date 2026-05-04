@@ -76,7 +76,11 @@ def poweroff(_):
         for led in leds:
             led.toggle()
         if fuel_gauge_active and fuel_gauge_i2c is not None:
-            fuel_gauge_i2c.mem_write(0, STC3100_ADDR, 0)
+            try:
+                if STC3100_ADDR in fuel_gauge_i2c.scan():
+                    fuel_gauge_i2c.mem_write(0, STC3100_ADDR, 0)
+            except Exception:
+                pass
         # sync filesystem
         os.sync()
         time.sleep_ms(300)
