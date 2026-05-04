@@ -39,9 +39,7 @@ chg_state_pin = None  # pyb.Pin input for TP4056 CHG_STATE (Shield-BE)
 # R309=100k (top) and R310=150k (bottom)
 # BAT_MEAS = VBAT * R310 / (R309 + R310) = VBAT * 0.6
 # VBAT = BAT_MEAS_voltage / BAT_ADC_DIVIDER_RATIO
-BAT_ADC_DIVIDER_RATIO = 150 / (100 + 150)
-# pyb.ADC.read() on STM32F469 returns a 12-bit sample in the range 0..4095.
-BAT_ADC_MAX_READING = 4096
+BAT_ADC_DIVIDER_RATIO = 150 / 250
 
 
 class CriticalErrorWipeImmediately(Exception):
@@ -444,8 +442,8 @@ def get_battery_status():
         try:
             # Average 4 samples to reduce noise
             raw = sum(bat_adc.read() for _ in range(4)) // 4
-            # Convert: V_meas = raw * 3.3 / BAT_ADC_MAX_READING; V_bat = V_meas / BAT_ADC_DIVIDER_RATIO
-            voltage = raw * 3.3 / BAT_ADC_MAX_READING / BAT_ADC_DIVIDER_RATIO
+            # Convert: V_meas = raw * 3.3 / 4096; V_bat = V_meas / BAT_ADC_DIVIDER_RATIO
+            voltage = raw * 3.3 / 4096 / BAT_ADC_DIVIDER_RATIO
             level = _voltage_to_level(voltage)
             # CHG_STATE from TP4056: LOW = charging, HIGH/floating = complete
             charging = False

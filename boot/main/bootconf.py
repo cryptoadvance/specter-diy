@@ -1,5 +1,0 @@
-VERSION = "<version:tag10>0101000199</version:tag10>"
-BOOTLOADER_LOCKED = True
-BUILD_TYPE = "disco"
-DISABLE_USB_AT_START = True
-MAIN_SCRIPT = None
