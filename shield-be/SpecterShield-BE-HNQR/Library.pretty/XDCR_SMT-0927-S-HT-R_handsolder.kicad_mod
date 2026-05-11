@@ -1,0 +1,534 @@
+(footprint "XDCR_SMT-0927-S-HT-R_handsolder"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "BZ601"
+		(at 4.82 0.08 90)
+		(layer "F.SilkS")
+		(uuid "24bf8d08-ec22-4188-a6a4-c19f14e6b688")
+		(effects
+			(font
+				(size 0.7 0.6)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "Buzzer"
+		(at 7.735 6.6 180)
+		(layer "F.Fab")
+		(uuid "5406fdef-ef58-4383-a829-b2f43cd3a2e3")
+		(effects
+			(font
+				(size 0.7 0.6)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" "https://wmsc.lcsc.com/wmsc/upload/file/pdf/v2/lcsc/2310171801_HYDZ-HYG-8503A-5027_C18623826.pdf"
+		(at 0 0 180)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c1d148a5-58cd-4d62-b83c-3976a2fb1223")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" "5V Buzzer Passive Buzzer (8.5mm)"
+		(at 0 0 180)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "172d9e48-ba64-49a2-a14f-f3b908927ec4")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "PARTREV" "31/03/20"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c97db3a7-6cbb-4190-8379-00f219e17955")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "STANDARD" "Manufacturer Recommendations"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "2e9235a6-2aa4-451f-857f-c84dc9645074")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "MAXIMUM_PACKAGE_HEIGHT" "3.3mm"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "9a973150-c890-488c-a408-620544d4782d")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "MANUFACTURER" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "338d6662-d684-4b92-aa14-0bfb03e196c0")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "LCSC" "C18623826"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "b917a2dd-b04a-4518-83e1-1226ed71a648")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Newark_Ref" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "f579df38-b40a-4e00-91c7-762fa8241b79")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Mouser_Ref" "665-SMT-0927-S-13-R"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "cadcb94b-8eee-4c17-9e21-aac0029bf4a6")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Digikey_Ref" "668-SMT-0927-S-13-RCT-ND"
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "0aeac4be-9468-49c2-a395-9e6b4a46c82b")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(sheetname "/Beeper/")
+	(sheetfile "beeper.kicad_sch")
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_poly
+		(pts
+			(xy -3.84792 -1.85944) (xy -1.90944 -3.79792) (xy -2.86 -4.85) (xy -3.22 -5.79) (xy -4.85 -5.79)
+			(xy -4.85 -2.81152)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Mask")
+		(uuid "2cb42cb4-1fab-4e31-b5b8-5fec46be51a6")
+	)
+	(fp_poly
+		(pts
+			(xy -1.80944 3.84792) (xy -3.84792 1.80944) (xy -4.85 2.91152) (xy -4.85 5.85) (xy -2.9 5.85) (xy -2.85 4.95)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Mask")
+		(uuid "224f273c-2156-490b-8649-41ce407a7f33")
+	)
+	(fp_poly
+		(pts
+			(xy 3.79792 1.80944) (xy 1.85944 3.74792) (xy 2.81152 4.85) (xy 2.814349 5.73) (xy 4.85 5.71) (xy 4.85 2.81152)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Mask")
+		(uuid "650e061b-5390-41c9-ba2e-54a506a29306")
+	)
+	(fp_poly
+		(pts
+			(xy 1.75944 -3.79792) (xy 3.79792 -1.75944) (xy 5.2 -3.21152) (xy 4.96 -3.54011) (xy 4.975564 -4.98)
+			(xy 3.424179 -4.987341) (xy 3.16152 -5.25)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Mask")
+		(uuid "d82f6430-00fd-46f6-8bf7-8171c06d46e3")
+	)
+	(fp_line
+		(start -4.25 -1.5)
+		(end -4.25 1.5)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "247fea9d-601c-47a8-91a9-9196cbe3b3a8")
+	)
+	(fp_line
+		(start -4 -7.06)
+		(end -4 -6.06)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "3a95b670-6e11-4ba5-926c-14324bb9177c")
+	)
+	(fp_line
+		(start -3.5 -6.56)
+		(end -4.5 -6.56)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "81ea6d15-d080-4183-a0a4-56e014b4b735")
+	)
+	(fp_line
+		(start -3.5 5.98)
+		(end -4.5 5.98)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "87b1dfca-3a23-4dff-8cd3-0faec4a1d6a6")
+	)
+	(fp_line
+		(start -1.5 -4.25)
+		(end 1.5 -4.25)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "efc21461-6fc0-449c-8dd3-f432e7a39154")
+	)
+	(fp_line
+		(start -1.5 4.25)
+		(end 1.5 4.25)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "190206e5-ad5c-4186-9bd4-7457d42f9614")
+	)
+	(fp_line
+		(start 4.25 -1.5)
+		(end 4.25 1.5)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "a2347b60-3ddc-4673-9403-edbf879909ca")
+	)
+	(fp_poly
+		(pts
+			(xy -3.84792 -1.95944) (xy -2.00944 -3.79792) (xy -2.91152 -4.75) (xy -3.27 -5.69) (xy -4.75 -5.69)
+			(xy -4.75 -2.91152)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Paste")
+		(uuid "6f68cce4-703c-44d4-acc8-febc749c1b66")
+	)
+	(fp_poly
+		(pts
+			(xy -2.00944 3.79792) (xy -3.84792 1.95944) (xy -4.75 2.91152) (xy -4.75 5.76) (xy -2.952226 5.745472)
+			(xy -2.91152 4.75)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Paste")
+		(uuid "55a357dd-4cae-45f8-aacd-28c14e378c83")
+	)
+	(fp_poly
+		(pts
+			(xy 3.84792 1.95944) (xy 2.00944 3.79792) (xy 2.91152 4.75) (xy 2.910762 5.669998) (xy 4.75 5.66)
+			(xy 4.75 2.91152)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Paste")
+		(uuid "6dc03401-7961-4182-8924-e3b01df298dd")
+	)
+	(fp_poly
+		(pts
+			(xy 2.00944 -3.79792) (xy 3.84792 -1.95944) (xy 5 -3.21152) (xy 4.860467 -3.351053) (xy 4.848156 -4.898156)
+			(xy 3.330442 -4.881078) (xy 3.16152 -5.05)
+		)
+		(stroke
+			(width 0.01)
+			(type solid)
+		)
+		(fill yes)
+		(layer "F.Paste")
+		(uuid "f58bedc1-7717-4d00-83ec-8b4ad6eb6d80")
+	)
+	(fp_line
+		(start -5 -5.5)
+		(end -5 5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "c913e925-a2ff-477a-bb25-cf0252b5bbd6")
+	)
+	(fp_line
+		(start -5 5)
+		(end 5.5 5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "bf3f1da5-1a5b-4b7b-96cb-c9c025c514bd")
+	)
+	(fp_line
+		(start 5.5 -5.5)
+		(end -5 -5.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "0e0495ed-459e-4e94-9609-b1bab1288703")
+	)
+	(fp_line
+		(start 5.5 5)
+		(end 5.5 -5.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "1b202d9d-f74b-4b71-9a1c-7a5abeb7bd14")
+	)
+	(fp_line
+		(start -4.5 -5.5)
+		(end -3.5 -5.5)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "4d552c37-cc55-499c-a9ff-fc002422efd5")
+	)
+	(fp_line
+		(start -4.25 -4.25)
+		(end 4.25 -4.25)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "1abf9c21-2001-4357-a342-d863737f51e8")
+	)
+	(fp_line
+		(start -4.25 4.25)
+		(end -4.25 -4.25)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "c4f6c527-61de-4a42-9a99-3c930bb773be")
+	)
+	(fp_line
+		(start -4 -6)
+		(end -4 -5)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "c20b8c9c-314f-47a1-9c62-5e358faca8f4")
+	)
+	(fp_line
+		(start -3.5 5.5)
+		(end -4.5 5.5)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "374c9ded-6124-4bff-bf9d-e7412168e8b0")
+	)
+	(fp_line
+		(start 4.25 -4.25)
+		(end 4.25 4.25)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "bb9e76d6-62cf-4388-84fc-1dadb60bea91")
+	)
+	(fp_line
+		(start 4.25 4.25)
+		(end -4.25 4.25)
+		(stroke
+			(width 0.127)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "0b862400-45ea-4ff6-b8be-d5553c530be3")
+	)
+	(pad "2" smd custom
+		(at 3.45 -3.45)
+		(size 1 1)
+		(layers "F.Cu")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy -1.44056 -0.34792) (xy 0.39792 1.49056) (xy 1.55 0.23848) (xy 1.416804 0.105284) (xy 1.400497 -1.450497)
+					(xy -0.133415 -1.444935) (xy -0.28848 -1.6)
+				)
+				(width 0.01)
+				(fill yes)
+			)
+		)
+		(uuid "16616e4f-422c-4420-aab1-f3eadccba84c")
+	)
+	(pad "4" smd custom
+		(at 3.6 3.6)
+		(size 1 1)
+		(layers "F.Cu")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 0.24792 -1.64056) (xy -1.59056 0.19792) (xy -0.688481 1.15) (xy -0.69 2.062874) (xy 1.15 2.06)
+					(xy 1.15 -0.68848)
+				)
+				(width 0.01)
+				(fill yes)
+			)
+		)
+		(uuid "a023de05-635d-4421-b70d-2cf639b66d87")
+	)
+	(pad "N" smd custom
+		(at -3.6 3.6)
+		(size 1 1)
+		(layers "F.Cu")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy 1.59056 0.19792) (xy -0.24792 -1.64056) (xy -1.15 -0.68848) (xy -1.15 2.15) (xy 0.65 2.14)
+					(xy 0.68848 1.15)
+				)
+				(width 0.01)
+				(fill yes)
+			)
+		)
+		(uuid "59ed542a-92c5-4ae1-ac87-a0377d746f92")
+	)
+	(pad "P" smd custom
+		(at -3.6 -3.6)
+		(size 1 1)
+		(layers "F.Cu")
+		(options
+			(clearance outline)
+			(anchor rect)
+		)
+		(primitives
+			(gr_poly
+				(pts
+					(xy -0.24792 1.64056) (xy 1.59056 -0.19792) (xy 0.68848 -1.15) (xy 0.33 -2.09) (xy -1.15 -2.09)
+					(xy -1.15 0.68848)
+				)
+				(width 0.01)
+				(fill yes)
+			)
+		)
+		(uuid "630ec0a9-e4e9-4f46-9406-67052965a294")
+	)
+	(embedded_fonts no)
+	(model "${KICAD10_3DMODEL_DIR}/Buzzer_Beeper.3dshapes/MagneticBuzzer_Kobitone_254-EMB84Q-RO.step"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)
