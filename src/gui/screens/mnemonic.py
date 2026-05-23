@@ -2,7 +2,7 @@
 import lvgl as lv
 from ..common import *
 from ..decorators import *
-from ..components import MnemonicTable, HintKeyboard
+from ..components import ButtonMatrix, MnemonicTable, HintKeyboard
 from .screen import Screen
 from .prompt import Prompt
 
@@ -78,21 +78,21 @@ class NewMnemonicScreen(MnemonicScreen):
         lbl.set_x(120)
         self.switch_lbl = lbl
 
-        self.switch = lv.sw(self)
-        self.switch.off(lv.ANIM.OFF)
+        self.switch = lv.switch(self)
+        self.switch.remove_state(lv.STATE.CHECKED)
         self.switch.align_to(lbl, lv.ALIGN.OUT_RIGHT_MID, 20, 0)
 
         def cb():
-            wordcount = 24 if self.switch.get_state() else 12
+            wordcount = 24 if self.switch.has_state(lv.STATE.CHECKED) else 12
             self.table.set_mnemonic(generator(wordcount))
 
-        self.switch.set_event_cb(on_release(cb))
+        self.switch.add_event_cb(on_release(cb), lv.EVENT.CLICKED, None)
 
         # fix mnemonic components
-        self.kb = lv.btnm(self)
+        self.kb = ButtonMatrix(self)
         self.kb.set_map(["1", "2", "4", "8", "16", "32", "\n",
                          "64", "128", "256", "512", "1024", ""])
-        self.kb.set_ctrl_map([lv.btnm.CTRL.TGL_ENABLE for i in range(11)])
+        self.kb.set_ctrl_map([ButtonMatrix.CTRL.TGL_ENABLE for i in range(11)])
         self.kb.set_width(HOR_RES)
         self.kb.set_height(100)
         self.kb.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
@@ -107,8 +107,10 @@ class NewMnemonicScreen(MnemonicScreen):
             return
         # get coordinates
         point = lv.point_t()
-        indev = lv.indev_get_act()
-        lv.indev_get_point(indev, point)
+        indev = lv.indev_active()
+        if indev is None:
+            return
+        indev.get_point(point)
         # get offsets
         dx = point.x - obj.get_x()
         dy = point.y - obj.get_y()
@@ -125,13 +127,13 @@ class NewMnemonicScreen(MnemonicScreen):
             % (idx+1, word.upper(), self.wordlist.index(word)+1)
         )
         # hide switch
-        if not self.switch.get_hidden():
-            self.switch.set_hidden(True)
-            self.switch_lbl.set_hidden(True)
+        if not self.switch.has_flag(lv.obj.FLAG.HIDDEN):
+            self.switch.add_flag(lv.obj.FLAG.HIDDEN)
+            self.switch_lbl.add_flag(lv.obj.FLAG.HIDDEN)
         self.kb.set_hidden(False)
         word_idx = self.wordlist.index(word)
         self.kb.set_ctrl_map([
-            lv.btnm.CTRL.TGL_ENABLE | (lv.btnm.CTRL.TGL_STATE if ((word_idx>>i)&1) else 0)
+            ButtonMatrix.CTRL.TGL_ENABLE | (ButtonMatrix.CTRL.TGL_STATE if ((word_idx>>i)&1) else 0)
             for i in range(11)
         ])
         # callback on toggle
@@ -141,7 +143,7 @@ class NewMnemonicScreen(MnemonicScreen):
             c = obj.get_active_btn_text()
             if c is None:
                 return
-            bits = [obj.get_btn_ctrl(i, lv.btnm.CTRL.TGL_STATE) for i in range(11)]
+            bits = [obj.get_btn_ctrl(i, ButtonMatrix.CTRL.TGL_STATE) for i in range(11)]
             num = 0
             for i, bit in enumerate(reversed(bits)):
                 num = num << 1
@@ -177,11 +179,11 @@ class RecoverMnemonicScreen(MnemonicScreen):
         self.checker = checker
         self.lookup = lookup
 
-        self.close_button.del_async()
+        self.close_button.delete_async()
         self.close_button = None
 
         if lookup is not None:
-            self.autocomplete = lv.btnm(self)
+            self.autocomplete = ButtonMatrix(self)
 
         self.kb = HintKeyboard(self)
         self.kb.set_map(
@@ -225,10 +227,10 @@ class RecoverMnemonicScreen(MnemonicScreen):
 
         if lookup is not None:
             # Next word button inactive
-            self.kb.set_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_btn_ctrl(self.BTN_NEXT, ButtonMatrix.CTRL.INACTIVE)
         if checker is not None:
             # Done inactive
-            self.kb.set_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_btn_ctrl(self.BTN_DONE, ButtonMatrix.CTRL.INACTIVE)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(260)
         self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
@@ -267,12 +269,12 @@ class RecoverMnemonicScreen(MnemonicScreen):
         mnemonic = self.table.get_mnemonic()
         # check if we can autocomplete the last word
         if self.lookup is not None:
-            self.kb.set_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
+            self.kb.set_btn_ctrl(self.BTN_NEXT, ButtonMatrix.CTRL.INACTIVE)
             word = self.table.get_last_word()
             candidates = self.lookup(word, 4)
             self.autocomplete.set_map(candidates + [""])
             if len(candidates) == 1 or word in candidates:
-                self.kb.clear_btn_ctrl(self.BTN_NEXT, lv.btnm.CTRL.INACTIVE)
+                self.kb.clear_btn_ctrl(self.BTN_NEXT, ButtonMatrix.CTRL.INACTIVE)
                 if len(candidates) == 1:
                     mnemonic = " ".join(self.table.words[:-1])
                     mnemonic += " " + candidates[0]
@@ -287,16 +289,16 @@ class RecoverMnemonicScreen(MnemonicScreen):
         # check if mnemonic is valid
         if self.checker is not None and mnemonic is not None:
             if self.checker(mnemonic):
-                self.kb.clear_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+                self.kb.clear_btn_ctrl(self.BTN_DONE, ButtonMatrix.CTRL.INACTIVE)
             else:
-                self.kb.set_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+                self.kb.set_btn_ctrl(self.BTN_DONE, ButtonMatrix.CTRL.INACTIVE)
             # check if we are at 12, 18 or 24 words
             # offer to fix mnemonic if it's invalid
             num_words = len(mnemonic.split())
             if (
                 self.fixer is not None
                 and num_words in [12, 18, 24]
-                and self.kb.get_btn_ctrl(self.BTN_DONE, lv.btnm.CTRL.INACTIVE)
+                and self.kb.get_btn_ctrl(self.BTN_DONE, ButtonMatrix.CTRL.INACTIVE)
             ):
                 # set correct button coordinates
                 y = -33 - self.table.get_height() // 2 if num_words == 18 else -38
@@ -320,7 +322,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
             return
         num = obj.get_active_btn()
         # if inactive button is clicked - return
-        if obj.get_btn_ctrl(num, lv.btnm.CTRL.INACTIVE):
+        if obj.get_btn_ctrl(num, ButtonMatrix.CTRL.INACTIVE):
             return
         if c == lv.SYMBOL.LEFT + " Back":
             self.confirm_exit()
@@ -372,8 +374,8 @@ class RecoverMnemonicScreen(MnemonicScreen):
                 if lv.mbox.get_active_btn_text(obj) == btns[1]:
                     self.set_value(None)
                 else:
-                    obj.del_async()
-                    bg.del_async()
+                    obj.delete_async()
+                    bg.delete_async()
 
         mbox = lv.mbox(self)
         mbox.set_text(
