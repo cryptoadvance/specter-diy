@@ -346,58 +346,34 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.set_value(mnemonic)
 
     def confirm_exit(self):
-
         mnemonic = self.table.get_mnemonic()
         if len(mnemonic) == 0:
             self.set_value(None)
             return
 
-        modal_style = lv.style_t()
-        modal_style.init()
-        modal_style.set_bg_color(lv.color_hex(0x000000))
-        modal_style.set_bg_opa(lv.OPA._50)
-        modal_style.set_border_width(0)
-        self.confirm_exit_modal_style = modal_style
-
-        # Create a base object for the modal background
-        bg = lv.obj(self)
-        bg.add_style(modal_style, 0)
-        bg.set_pos(0, 0)
-        bg.set_size(self.get_width(), self.get_height())
-
-        box_style = lv.style_t()
-        box_style.init()
-        box_style.set_pad_all(20)
-        box_style.set_radius(8)
-        self.confirm_exit_box_style = box_style
-
-        box = lv.obj(bg)
-        box.add_style(box_style, 0)
-        box.set_size(400, 260)
-        box.align(lv.ALIGN.CENTER, 0, 0)
-
-        label = lv.label(box)
-        label.set_width(360)
-        label.set_long_mode(lv.label.LONG_MODE.WRAP)
-        label.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
-        label.set_text(
-            "\nAre you sure you want to exit?\n\n"
-            "Everything you entered will be forgotten!\n\n"
+        mbox = lv.msgbox(None)
+        mbox.set_width(400)
+        mbox.align(lv.ALIGN.CENTER, 0, 0)
+        mbox.add_title("Confirm Exit")
+        text = mbox.add_text(
+            "Are you sure you want to exit?\n\n"
+            "Everything you entered will be forgotten!"
         )
-        label.align(lv.ALIGN.TOP_MID, 0, 0)
+        text.set_width(360)
+        text.set_long_mode(lv.label.LONG_MODE.WRAP)
+        text.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+
+        stay_btn = mbox.add_footer_button("No, stay here")
+        leave_btn = mbox.add_footer_button("Yes, leave")
+        stay_btn.set_width(170)
+        leave_btn.set_width(170)
 
         def stay(event):
-            bg.delete_async()
+            mbox.close_async()
 
         def leave(event):
+            mbox.close_async()
             self.set_value(None)
 
-        stay_btn = add_button("No, stay here", stay, scr=box, y=170)
-        leave_btn = add_button("Yes, leave", leave, scr=box, y=170)
-        btn_width = 170
-        stay_btn.set_width(btn_width)
-        leave_btn.set_width(btn_width)
-        stay_btn.set_align(lv.ALIGN.DEFAULT)
-        leave_btn.set_align(lv.ALIGN.DEFAULT)
-        stay_btn.set_x(20)
-        leave_btn.set_x(210)
+        stay_btn.add_event_cb(stay, lv.EVENT.CLICKED, None)
+        leave_btn.add_event_cb(leave, lv.EVENT.CLICKED, None)

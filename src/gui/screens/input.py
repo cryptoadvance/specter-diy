@@ -133,14 +133,11 @@ class InputScreen(Screen):
 
         self.ta = lv.textarea(self)
         self.ta.set_text(suggestion)
-        # self.ta.set_pwd_mode(True)
         self.ta.set_width(HOR_RES - 2 * PADDING)
         self.ta.set_x(PADDING)
         self.ta.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
         self.ta.set_y(PADDING + 150)
-        # self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
         self.ta.set_one_line(True)
-        # self.ta.set_pwd_show_time(0)
 
         self.kb.set_event_cb(self.cb)
 
