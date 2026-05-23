@@ -27,7 +27,7 @@ if not simulator:
 
     sdram.init()
 else:
-    _PREALLOCATED = bytes(0x100000)
+    _PREALLOCATED = bytearray(0x100000)
     stm = None
 
 # injected by the boot.py
@@ -259,8 +259,8 @@ def mount_sdram():
 def get_preallocated_ram():
     """Returns pointer and size of preallocated memory"""
     if simulator:
-        import ctypes
-        return ctypes.addressof(_PREALLOCATED), len(_PREALLOCATED)
+        import uctypes
+        return uctypes.addressof(_PREALLOCATED), len(_PREALLOCATED)
     else:
         return sdram.preallocated_ptr(), sdram.preallocated_size()
 
