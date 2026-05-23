@@ -6,7 +6,8 @@ from ..decorators import on_release, cb_with_args
 
 class Prompt(Screen):
     def __init__(self, title="Are you sure?", message="Make a choice",
-                 confirm_text="Confirm", cancel_text="Cancel", note=None, warning=None):
+                 confirm_text="Confirm", cancel_text="Cancel", note=None,
+                 warning=None, confirm_callback=None, cancel_callback=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
         if note is not None:
@@ -24,9 +25,9 @@ class Prompt(Screen):
 
         (self.cancel_button, self.confirm_button) = add_button_pair(
             cancel_text,
-            on_release(cb_with_args(self.set_value, False)),
+            cancel_callback or on_release(cb_with_args(self.set_value, False)),
             confirm_text,
-            on_release(cb_with_args(self.set_value, True)),
+            confirm_callback or on_release(cb_with_args(self.set_value, True)),
             scr=self,
         )
 
@@ -42,4 +43,3 @@ class Prompt(Screen):
 
             # Align warning icon to the left of the title
             self.icon.align_to(self.title, lv.ALIGN.LEFT_MID, 90, 0)
-

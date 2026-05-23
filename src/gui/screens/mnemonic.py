@@ -86,7 +86,7 @@ class NewMnemonicScreen(MnemonicScreen):
             wordcount = 24 if self.switch.has_state(lv.STATE.CHECKED) else 12
             self.table.set_mnemonic(generator(wordcount))
 
-        self.switch.add_event_cb(on_release(cb), lv.EVENT.CLICKED, None)
+        self.switch.add_event_cb(lambda event: cb(), lv.EVENT.VALUE_CHANGED, None)
 
         # fix mnemonic components
         self.kb = ButtonMatrix(self)
@@ -353,36 +353,51 @@ class RecoverMnemonicScreen(MnemonicScreen):
             return
 
         modal_style = lv.style_t()
-        lv.style_copy(modal_style, lv.style_plain_color)
-        # Set the background's style
-        modal_style.body.main_color = lv.color_make(0, 0, 0)
-        modal_style.body.grad_color = modal_style.body.main_color
-        modal_style.body.opa = lv.OPA._50
+        modal_style.init()
+        modal_style.set_bg_color(lv.color_hex(0x000000))
+        modal_style.set_bg_opa(lv.OPA._50)
+        modal_style.set_border_width(0)
+        self.confirm_exit_modal_style = modal_style
 
         # Create a base object for the modal background
         bg = lv.obj(self)
-        bg.set_style(modal_style)
+        bg.add_style(modal_style, 0)
         bg.set_pos(0, 0)
         bg.set_size(self.get_width(), self.get_height())
-        # Enable opacity scaling for the animation
-        bg.set_opa_scale_enable(True)
 
-        btns = ["No, stay here", "Yes, leave", ""]
+        box_style = lv.style_t()
+        box_style.init()
+        box_style.set_pad_all(20)
+        box_style.set_radius(8)
+        self.confirm_exit_box_style = box_style
 
-        def event_handler(obj, event):
-            if event == lv.EVENT.VALUE_CHANGED:
-                if lv.mbox.get_active_btn_text(obj) == btns[1]:
-                    self.set_value(None)
-                else:
-                    obj.delete_async()
-                    bg.delete_async()
+        box = lv.obj(bg)
+        box.add_style(box_style, 0)
+        box.set_size(400, 260)
+        box.align(lv.ALIGN.CENTER, 0, 0)
 
-        mbox = lv.mbox(self)
-        mbox.set_text(
+        label = lv.label(box)
+        label.set_width(360)
+        label.set_long_mode(lv.label.LONG_MODE.WRAP)
+        label.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+        label.set_text(
             "\nAre you sure you want to exit?\n\n"
             "Everything you entered will be forgotten!\n\n"
         )
-        mbox.add_btns(btns)
-        mbox.set_width(400)
-        mbox.set_event_cb(event_handler)
-        mbox.align(lv.ALIGN.CENTER, 0, 0)
+        label.align(lv.ALIGN.TOP_MID, 0, 0)
+
+        def stay(event):
+            bg.delete_async()
+
+        def leave(event):
+            self.set_value(None)
+
+        stay_btn = add_button("No, stay here", stay, scr=box, y=170)
+        leave_btn = add_button("Yes, leave", leave, scr=box, y=170)
+        btn_width = 170
+        stay_btn.set_width(btn_width)
+        leave_btn.set_width(btn_width)
+        stay_btn.set_align(lv.ALIGN.DEFAULT)
+        leave_btn.set_align(lv.ALIGN.DEFAULT)
+        stay_btn.set_x(20)
+        leave_btn.set_x(210)

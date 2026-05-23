@@ -5,7 +5,12 @@ from ..decorators import on_release
 
 class HostSettings(Prompt):
     def __init__(self, controls, title="Host setttings", note=None, controls_empty_text="No settings available"):
-        super().__init__(title, "")
+        super().__init__(
+            title,
+            "",
+            confirm_callback=on_release(self.update),
+            cancel_callback=on_release(lambda: self.set_value(None)),
+        )
         y = 40
         if note is not None:
             self.note = add_label(note, style="hint", scr=self)
@@ -21,27 +26,30 @@ class HostSettings(Prompt):
                 scr=self.page,
                 style="hint",
             )
-            switch = lv.sw(self.page)
+            switch = lv.switch(self.page)
             switch.align_to(hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
             lbl = add_label(" OFF                              ON  ", scr=self.page)
             lbl.align_to(switch, lv.ALIGN.CENTER, 0, 0)
             if control.get("value", False):
-                switch.on(lv.ANIM.OFF)
+                switch.add_state(lv.STATE.CHECKED)
             self.switches.append(switch)
             y = lbl.get_y() + 80
         self.next_y = y
         if not controls:
             label = add_label(controls_empty_text, y, scr=self.page)
             self.next_y = label.get_y() + label.get_height() + 40
-        self.confirm_button.set_event_cb(on_release(self.update))
-        self.cancel_button.set_event_cb(on_release(lambda: self.set_value(None)))
 
     def update(self):
-        self.set_value([switch.get_state() for switch in self.switches])
+        self.set_value([switch.has_state(lv.STATE.CHECKED) for switch in self.switches])
 
 class DevSettings(Prompt):
     def __init__(self, dev=False, usb=False, note=None):
-        super().__init__("Device settings", "")
+        super().__init__(
+            "Device settings",
+            "",
+            confirm_callback=on_release(self.update),
+            cancel_callback=on_release(lambda: self.set_value(None)),
+        )
         if note is not None:
             self.note = add_label(note, style="hint", scr=self)
             self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
@@ -56,12 +64,12 @@ class DevSettings(Prompt):
             scr=self.page,
             style="hint",
         )
-        self.usb_switch = lv.sw(self.page)
+        self.usb_switch = lv.switch(self.page)
         self.usb_switch.align_to(usb_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
         lbl = add_label(" OFF                              ON  ", scr=self.page)
         lbl.align_to(self.usb_switch, lv.ALIGN.CENTER, 0, 0)
         if usb:
-            self.usb_switch.on(lv.ANIM.OFF)
+            self.usb_switch.add_state(lv.STATE.CHECKED)
 
         # y += 200
         # dev_label = add_label("Developer mode", y, scr=self.page)
@@ -74,30 +82,27 @@ class DevSettings(Prompt):
         #     scr=self.page,
         #     style="hint",
         # )
-        # self.dev_switch = lv.sw(self.page)
-        # self.dev_switch.align(dev_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
+        # self.dev_switch = lv.switch(self.page)
+        # self.dev_switch.align_to(dev_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
         # lbl = add_label(" OFF                              ON  ", scr=self.page)
-        # lbl.align(self.dev_switch, lv.ALIGN.CENTER, 0, 0)
+        # lbl.align_to(self.dev_switch, lv.ALIGN.CENTER, 0, 0)
         # if dev:
-        #     self.dev_switch.on(lv.ANIM.OFF)
-        self.confirm_button.set_event_cb(on_release(self.update))
-        self.cancel_button.set_event_cb(on_release(lambda: self.set_value(None)))
+        #     self.dev_switch.add_state(lv.STATE.CHECKED)
 
         self.wipebtn = add_button(
             lv.SYMBOL.TRASH + " Wipe device", on_release(self.wipe), scr=self
         )
         self.wipebtn.align(lv.ALIGN.BOTTOM_MID, 0, -140)
-        style = lv.style_t()
-        lv.style_copy(style, self.wipebtn.get_style(lv.btn.STYLE.REL))
-        style.body.main_color = lv.color_hex(0x951E2D)
-        style.body.grad_color = lv.color_hex(0x951E2D)
-        self.wipebtn.set_style(lv.btn.STYLE.REL, style)
+        self.wipe_style = lv.style_t()
+        self.wipe_style.init()
+        self.wipe_style.set_bg_color(lv.color_hex(0x951E2D))
+        self.wipebtn.add_style(self.wipe_style, 0)
 
     def wipe(self):
         self.set_value(
             {
-                "dev": False, # self.dev_switch.get_state(),
-                "usb": self.usb_switch.get_state(),
+                "dev": False, # self.dev_switch.has_state(lv.STATE.CHECKED),
+                "usb": self.usb_switch.has_state(lv.STATE.CHECKED),
                 "wipe": True,
             }
         )
@@ -105,8 +110,8 @@ class DevSettings(Prompt):
     def update(self):
         self.set_value(
             {
-                "dev": False, # self.dev_switch.get_state(),
-                "usb": self.usb_switch.get_state(),
+                "dev": False, # self.dev_switch.has_state(lv.STATE.CHECKED),
+                "usb": self.usb_switch.has_state(lv.STATE.CHECKED),
                 "wipe": False,
             }
         )
