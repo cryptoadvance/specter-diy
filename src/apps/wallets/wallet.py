@@ -172,14 +172,44 @@ class Wallet:
 
     def get_derivation(self, bip32_derivations={}, taproot_bip32_derivations={}):
         # otherwise we need standard derivation
-        for derivation in bip32_derivations.values():
+        for pub, derivation in bip32_derivations.items():
             der = self.descriptor.check_derivation(derivation)
             if der is not None:
                 return der
-        for leafs, derivation in taproot_bip32_derivations.values():
+            der = self._check_short_derivation(pub, derivation)
+            if der is not None:
+                return der
+        for pub, (leafs, derivation) in taproot_bip32_derivations.items():
             der = self.descriptor.check_derivation(derivation)
             if der is not None:
                 return der
+            der = self._check_short_derivation(pub, derivation)
+            if der is not None:
+                return der
+
+    def _check_short_derivation(self, pub, derivation):
+        der = derivation.derivation
+        if len(der) != 2 or any(i >= 0x80000000 for i in der):
+            return None
+        branch_idx, idx = der
+        if branch_idx < 0 or branch_idx >= self.descriptor.num_branches:
+            return None
+        desc = self.descriptor.derive(idx, branch_index=branch_idx)
+        for key in desc.keys:
+            if self._pubkeys_match(key.get_public_key(), pub):
+                return idx, branch_idx
+
+    @staticmethod
+    def _pubkeys_match(derived_pub, psbt_pub):
+        if derived_pub == psbt_pub:
+            return True
+        if isinstance(psbt_pub, (bytes, bytearray)):
+            psbt_pub = bytes(psbt_pub)
+            return derived_pub.sec() == psbt_pub or derived_pub.xonly() == psbt_pub
+        try:
+            return derived_pub.sec() == psbt_pub.sec()
+        except AttributeError:
+            return False
 
     def update_gaps(self, psbtv=None, known_idxs=None):
         gaps = self.gaps
