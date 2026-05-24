@@ -9,6 +9,7 @@ class ButtonMatrix(lv.buttonmatrix):
         TGL_ENABLE = lv.buttonmatrix.CTRL.CHECKABLE
         TGL_STATE = lv.buttonmatrix.CTRL.CHECKED
         INACTIVE = lv.buttonmatrix.CTRL.DISABLED
+        HIDDEN = lv.buttonmatrix.CTRL.HIDDEN
 
     def __init__(self, scr, *args, **kwargs):
         super().__init__(scr, *args, **kwargs)

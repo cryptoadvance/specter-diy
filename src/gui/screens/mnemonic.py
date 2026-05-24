@@ -21,8 +21,7 @@ class MnemonicScreen(Screen):
 
         self.close_button = add_button(scr=self, callback=on_release(self.release))
 
-        self.close_label = lv.label(self.close_button)
-        self.close_label.set_text("OK")
+        self.close_label = add_button_label(self.close_button, "OK")
 
 class MnemonicPrompt(Prompt):
     def __init__(self, mnemonic="", title="Your recovery phrase:", note=None):
@@ -65,11 +64,13 @@ class NewMnemonicScreen(MnemonicScreen):
         self.table.set_click(True)
 
         self.close_label.set_text(lv.SYMBOL.LEFT + " Back")
+        self.close_label.center()
         self.done_button = add_button(scr=self, callback=on_release(self.confirm))
 
-        self.done_label = lv.label(self.done_button)
-        self.done_label.set_text(lv.SYMBOL.OK + " Done")
+        self.done_label = add_button_label(self.done_button, lv.SYMBOL.OK + " Done")
         align_button_pair(self.close_button, self.done_button)
+        self.close_label.center()
+        self.done_label.center()
 
         # toggle switch 12-24 words
         lbl = lv.label(self)

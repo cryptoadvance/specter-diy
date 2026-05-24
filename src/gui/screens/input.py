@@ -215,11 +215,16 @@ class PinScreen(Screen):
             lbl.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
+            lbl.set_style_text_font(lv.font_montserrat_16, 0)
+            lbl.set_style_text_letter_space(-1, 0)
+            lbl.set_width(HOR_RES)
+            lbl.set_x(0)
             lbl.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 90)
         self.get_word = get_word
         if get_word is not None:
-            self.words = add_label(get_word(b""), scr=self)
-            self.words.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
+            self.words = add_label(get_word(b""), scr=self, style="title")
+            self.words.set_style_text_font(lv.font_montserrat_22, 0)
+            self.words.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 130 if note is not None else 120)
         btnm = ButtonMatrix(self)
         # shuffle numbers to make sure
         # no constant fingerprints left on screen
@@ -232,14 +237,16 @@ class PinScreen(Screen):
             btnmap.append("\n")
         btnmap = btnmap + [lv.SYMBOL.CLOSE, buttons.pop(), " ", ""]
         btnm.set_map(btnmap)
+        btnm.set_btn_ctrl(11, ButtonMatrix.CTRL.HIDDEN | ButtonMatrix.CTRL.INACTIVE)
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
         btnm.align(lv.ALIGN.BOTTOM_MID, 0, -100)
         btnm.add_style(styles["btnm_bg"], 0)
         btnm.add_style(styles["btnm"], lv.PART.ITEMS)
         # Keep pressed and released states visually identical to avoid sidechannels.
-        btnm.add_style(styles["btnm"], lv.PART.ITEMS | lv.STATE.PRESSED)
+        btnm.add_style(styles["btnm_pressed"], lv.PART.ITEMS | lv.STATE.PRESSED)
         btnm.set_style_text_font(lv.font_montserrat_28, lv.PART.ITEMS)
+        btnm.set_style_transform_scale(FONT_SCALE_MINUS_TWO_PT, lv.PART.ITEMS)
 
         self.pin = lv.textarea(self)
         self.pin.set_text("")
@@ -259,16 +266,16 @@ class PinScreen(Screen):
 
         self.next_button = add_button(scr=self, callback=on_release(self.submit))
 
-        self.next_label = lv.label(self.next_button)
-        self.next_label.set_text("Next " + lv.SYMBOL.RIGHT)
+        self.next_label = add_button_label(self.next_button, "Next " + lv.SYMBOL.RIGHT)
 
         if with_cancel:
             self.cancel_button = add_button(scr=self, callback=on_release(self.cancel))
 
-            self.cancel_label = lv.label(self.cancel_button)
-            self.cancel_label.set_text(lv.SYMBOL.LEFT + " Cancel")
+            self.cancel_label = add_button_label(self.cancel_button, lv.SYMBOL.LEFT + " Cancel")
 
             align_button_pair(self.cancel_button, self.next_button)
+            self.cancel_label.center()
+            self.next_label.center()
 
         btnm.set_event_cb(self.cb)
 

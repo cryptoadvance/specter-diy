@@ -1,6 +1,6 @@
 import lvgl as lv
 from .screen import Screen
-from ..common import add_label, add_button
+from ..common import add_label, add_button, add_button_label
 from ..decorators import on_release
 
 
@@ -24,5 +24,4 @@ class Alert(Screen):
         if button_text is not None:
             self.close_button = add_button(scr=self, callback=on_release(self.release))
 
-            self.close_label = lv.label(self.close_button)
-            self.close_label.set_text(button_text)
+            self.close_label = add_button_label(self.close_button, button_text)

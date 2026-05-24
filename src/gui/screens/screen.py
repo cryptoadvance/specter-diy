@@ -19,6 +19,8 @@ class Screen(lv.obj):
     mbox = None
     def __init__(self):
         super().__init__()
+        self.add_style(styles["scr"], 0)
+        self.remove_flag(lv.obj.FLAG.SCROLLABLE)
         self.waiting = True
         self._value = None
         self.battery = Battery(self)
