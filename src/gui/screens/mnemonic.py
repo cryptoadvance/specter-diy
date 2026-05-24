@@ -64,13 +64,13 @@ class NewMnemonicScreen(MnemonicScreen):
         self.table.set_click(True)
 
         self.close_label.set_text(lv.SYMBOL.LEFT + " Back")
-        self.close_label.center()
+        center_button_label(self.close_label)
         self.done_button = add_button(scr=self, callback=on_release(self.confirm))
 
         self.done_label = add_button_label(self.done_button, lv.SYMBOL.OK + " Done")
         align_button_pair(self.close_button, self.done_button)
-        self.close_label.center()
-        self.done_label.center()
+        center_button_label(self.close_label)
+        center_button_label(self.done_label)
 
         # toggle switch 12-24 words
         lbl = lv.label(self)

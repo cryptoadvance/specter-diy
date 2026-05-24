@@ -274,8 +274,8 @@ class PinScreen(Screen):
             self.cancel_label = add_button_label(self.cancel_button, lv.SYMBOL.LEFT + " Cancel")
 
             align_button_pair(self.cancel_button, self.next_button)
-            self.cancel_label.center()
-            self.next_label.center()
+            center_button_label(self.cancel_label)
+            center_button_label(self.next_label)
 
         btnm.set_event_cb(self.cb)
 

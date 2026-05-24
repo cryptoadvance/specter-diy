@@ -12,6 +12,7 @@ HOR_RES = const(480)
 VER_RES = const(800)
 QR_PADDING = const(40)
 FONT_SCALE_MINUS_TWO_PT = const(238)  # 26 / 28 * LVGL's 256 scale.
+BUTTON_LABEL_SCALE = const(192)  # 21 / 28 * LVGL's 256 scale.
 
 
 def init_styles(dark=True):
@@ -88,7 +89,16 @@ def init_styles(dark=True):
     styles["btn_label"].init()
     styles["btn_label"].set_text_color(ctxt)
     styles["btn_label"].set_text_font(lv.font_montserrat_28)
-    styles["btn_label"].set_transform_scale(FONT_SCALE_MINUS_TWO_PT)
+    styles["btn_label"].set_transform_scale(BUTTON_LABEL_SCALE)
+
+    styles["page"] = lv.style_t()
+    styles["page"].init()
+    styles["page"].set_bg_opa(0)
+    styles["page"].set_border_width(0)
+    styles["page"].set_outline_width(0)
+    styles["page"].set_shadow_width(0)
+    styles["page"].set_radius(0)
+    styles["page"].set_pad_all(0)
 
     # Button matrix styles
     styles["btnm"] = lv.style_t()
@@ -164,11 +174,18 @@ def init_styles(dark=True):
     styles["warning"].init()
     styles["warning"].set_text_color(lv.color_hex(0xFF9A00))
 
+def center_button_label(lbl):
+    lbl.update_layout()
+    lbl.set_style_transform_pivot_x(lbl.get_width() // 2, 0)
+    lbl.set_style_transform_pivot_y(lbl.get_height() // 2, 0)
+    lbl.center()
+
+
 def add_button_label(btn, text):
     lbl = lv.label(btn)
     lbl.set_text(text)
     lbl.add_style(styles["btn_label"], 0)
-    lbl.center()
+    center_button_label(lbl)
     return lbl
 
 

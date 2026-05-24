@@ -1,6 +1,6 @@
 import lvgl as lv
 from .screen import Screen
-from ..common import add_label, add_button
+from ..common import add_label, add_button, styles
 from ..decorators import on_release, cb_with_args
 
 
@@ -17,6 +17,8 @@ class Menu(Screen):
             y += self.note.get_height()
         # LVGL 9.x: page replaced with scrollable obj
         self.page = lv.obj(self)
+        self.page.add_style(styles["page"], 0)
+        self.page.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         h = 800 - y - 20
         self.page.set_size(480, h)
         self.page.set_y(y)
