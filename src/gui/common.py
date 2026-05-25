@@ -46,6 +46,7 @@ def init_styles(dark=True):
     styles["cbtnrel"] = cbtnrel
     styles["cbtnpr"] = cbtnpr
     styles["chl"] = chl
+    styles["chint"] = lv.color_hex(0x6E7F91)
 
     # Screen style
     styles["scr"] = lv.style_t()
@@ -121,6 +122,17 @@ def init_styles(dark=True):
     styles["btnm_pressed"].set_pad_all(0)
     styles["btnm_pressed"].set_text_color(ctxt)
 
+    styles["btnm_checked"] = lv.style_t()
+    styles["btnm_checked"].init()
+    styles["btnm_checked"].set_bg_color(chl)
+    styles["btnm_checked"].set_bg_opa(255)
+    styles["btnm_checked"].set_radius(0)
+    styles["btnm_checked"].set_border_width(0)
+    styles["btnm_checked"].set_outline_width(0)
+    styles["btnm_checked"].set_shadow_width(0)
+    styles["btnm_checked"].set_pad_all(0)
+    styles["btnm_checked"].set_text_color(ctxt)
+
     styles["btnm_bg"] = lv.style_t()
     styles["btnm_bg"].init()
     styles["btnm_bg"].set_bg_opa(0)
@@ -161,7 +173,7 @@ def init_styles(dark=True):
     styles["hint"] = lv.style_t()
     styles["hint"].init()
     styles["hint"].set_text_font(lv.font_montserrat_16)
-    styles["hint"].set_text_color(csecondary)
+    styles["hint"].set_text_color(styles["chint"])
 
     # Small style
     styles["small"] = lv.style_t()

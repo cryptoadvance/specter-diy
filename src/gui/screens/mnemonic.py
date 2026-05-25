@@ -56,6 +56,7 @@ class NewMnemonicScreen(MnemonicScreen):
     ):
         self.fixer = fixer
         self.wordlist = wordlist
+        self.edit_idx = None
         mnemonic = generator(12)
         super().__init__(mnemonic, title, note)
         self.table.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 50)
@@ -106,22 +107,24 @@ class NewMnemonicScreen(MnemonicScreen):
     def on_word_click(self, obj, evt):
         if evt != lv.EVENT.RELEASED:
             return
-        # get coordinates
         point = lv.point_t()
         indev = lv.indev_active()
         if indev is None:
             return
         indev.get_point(point)
-        # get offsets
+
         dx = point.x - obj.get_x()
         dy = point.y - obj.get_y()
-        # get index
-        idx = 12*int(dx > obj.get_width()//2) + int(12*dy/obj.get_height())
+        if dx < 0 or dy < 0 or dx >= obj.get_width() or dy >= obj.get_height():
+            return
+
+        idx = 12 * int(dx >= obj.get_width() // 2) + int(12 * dy / obj.get_height())
         self.change_word(idx)
 
     def change_word(self, idx):
         if idx >= len(self.table.words):
             return
+        self.edit_idx = idx
         word = self.table.words[idx]
         self.instruction.set_text(
             "Changing word number %d:\n%s (%d in wordlist)"
@@ -143,6 +146,9 @@ class NewMnemonicScreen(MnemonicScreen):
                 return
             c = obj.get_active_btn_text()
             if c is None:
+                return
+            idx = self.edit_idx
+            if idx is None or idx >= len(self.table.words):
                 return
             bits = [obj.get_btn_ctrl(i, ButtonMatrix.CTRL.TGL_STATE) for i in range(11)]
             num = 0

@@ -14,6 +14,10 @@ class ButtonMatrix(lv.buttonmatrix):
     def __init__(self, scr, *args, **kwargs):
         super().__init__(scr, *args, **kwargs)
         self.callback = None
+        self.add_style(styles["btnm_bg"], 0)
+        self.add_style(styles["btnm"], lv.PART.ITEMS)
+        self.add_style(styles["btnm_pressed"], lv.PART.ITEMS | lv.STATE.PRESSED)
+        self.add_style(styles["btnm_checked"], lv.PART.ITEMS | lv.STATE.CHECKED)
         super().add_event_cb(self._event_cb, lv.EVENT.ALL, None)
 
     def set_event_cb(self, callback):

@@ -1,6 +1,6 @@
 import lvgl as lv
 from .prompt import Prompt
-from ..common import add_label, format_addr
+from ..common import add_label, format_addr, styles
 from ..decorators import on_release
 
 
@@ -48,7 +48,7 @@ class TransactionScreen(Prompt):
 
         style_secondary = lv.style_t()
         style_secondary.init()
-        style_secondary.set_text_color(lv.color_hex(0x999999))
+        style_secondary.set_text_color(styles["chint"])
         style_secondary.set_text_font(lv.font_roboto_mono_22)
 
         style_warning = lv.style_t()
