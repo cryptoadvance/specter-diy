@@ -356,6 +356,7 @@ class DerivationScreen(Screen):
 
         self.ta = lv.textarea(self)
         self.ta.set_text("")
+        self.ta.add_style(styles["ta"], 0)
         self.ta.set_width(HOR_RES - 2 * PADDING - 40)
         self.ta.set_x(PADDING + 40)
         self.ta.set_y(PADDING + 150)
@@ -442,6 +443,7 @@ class NumericScreen(Screen):
 
         self.ta = lv.textarea(self)
         self.ta.set_text("")
+        self.ta.add_style(styles["ta"], 0)
         self.ta.set_width(HOR_RES - 2 * PADDING - 40)
         self.ta.set_x(PADDING + 40)
         self.ta.set_y(PADDING + 150)
