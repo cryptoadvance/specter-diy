@@ -28,6 +28,9 @@ style_transp.set_pad_all(0)
 
 QR_SIZES = [17, 32, 53, 78, 106, 154, 192, 230, 271, 367, 458, 586, 718, 858]
 BTNSIZE = 70
+QR_INSET = 43
+QR_NOTE_Y = 0
+QR_FULLSCREEN_SIZE = 380
 
 class QRCode(lv.obj):
     RATE = 500  # ms
@@ -44,24 +47,40 @@ class QRCode(lv.obj):
         style.set_bg_opa(255)
         style.set_text_font(lv.font_montserrat_16)
         style.set_text_color(lv.color_hex(0x192432))
+        note_style = lv.style_t()
+        note_style.init()
+        note_style.set_bg_color(lv.color_hex(0xFFFFFF))
+        note_style.set_bg_opa(255)
+        note_style.set_text_font(lv.font_montserrat_16)
+        note_style.set_text_color(lv.color_hex(0x192432))
+
+        self.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+        self.remove_flag(lv.obj.FLAG.SCROLLABLE)
 
         self.encoder = None
         self._autoplay = True
 
         self.qr = lvqr.QRCode(self)
+        self.qr.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+        self.qr.remove_flag(lv.obj.FLAG.SCROLLABLE)
         self._text = "Text"
+        self._qr_text = None
         self.version = self.QR_VERSION
 
         self._original_size = None
+        self._fullscreen = False
+        self._box_width = self.MIN_SIZE
+        self._box_height = self.MIN_SIZE
         self._press_start = None
 
         self.text_style = style
+        self.note_style = note_style
         self.spacing_style = None
         self.create_density_controls(style)
         self.create_playback_controls(style)
 
         self.note = lv.label(self)
-        self.note.add_style(style, 0)
+        self.note.add_style(self.note_style, 0)
         self.note.set_text("")
         self.note.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
 
@@ -226,33 +245,53 @@ class QRCode(lv.obj):
             self._original_size = (
                 self.get_x(),
                 self.get_y(),
-                self.get_width(),
-                self.get_height(),
+                self._box_width,
+                self._box_height,
             )
         if self.is_fullscreen:
             x, y, width, height = self._original_size
+            self._fullscreen = False
         else:
             x, y, width, height = 0, 0, 480, 800
+            self._fullscreen = True
         self.move_foreground()
         self.set_pos(x, y)
+        self._box_width = width
+        self._box_height = height
         super().set_size(width, height)
-        self.qr.set_size(width-10)
-        self.qr.align(lv.ALIGN.CENTER, 0, -100 if height==800 else 0)
+        self._resize_qr()
         self.update_note()
 
     @property
     def is_fullscreen(self):
-        if self._original_size is None:
-            return False
-        # check height is original
-        return self._original_size[3] != self.get_height()
+        return self._fullscreen
+
+    def _qr_size(self):
+        if self.is_fullscreen:
+            return min(QR_FULLSCREEN_SIZE, self._box_width, self._box_height)
+        return min(self._box_width, self._box_height) - 2 * QR_INSET
+
+    def _resize_qr(self):
+        self.qr.set_size(self._qr_size())
+        if self._qr_text is not None:
+            self.qr.set_text(self._qr_text)
+        self._align_qr()
+
+    def _align_qr(self):
+        if self.is_fullscreen:
+            self.qr.align(lv.ALIGN.CENTER, 0, -100 if self._box_height == 800 else 0)
+        else:
+            self.qr.align(lv.ALIGN.TOP_MID, 0, QR_INSET - 15)
+
+    def _align_note(self):
+        self.note.align(lv.ALIGN.BOTTOM_MID, 0, 0 if self.is_fullscreen else QR_NOTE_Y)
 
     def update_note(self):
         if self.is_fullscreen:
             self.note.set_text("Click to shrink.")
         else:
             self.note.set_text("Click to expand%s." % (" and control" if self.encoder else ""))
-        self.note.align(lv.ALIGN.BOTTOM_MID, 0, 0)
+        self._align_note()
         self.controls.align(lv.ALIGN.BOTTOM_MID, 0, -40)
         self.playback.align(lv.ALIGN.BOTTOM_MID, 0, -150)
         self.play.align(lv.ALIGN.BOTTOM_MID, 0, -150)
@@ -294,7 +333,7 @@ class QRCode(lv.obj):
         else:
             note += " Click to expand%s." % (" and control" if self.encoder else "")
         self.note.set_text(note)
-        self.note.align(lv.ALIGN.BOTTOM_MID, 0, 0)
+        self._align_note()
         self.check_controls()
 
     def check_controls(self):
@@ -305,10 +344,11 @@ class QRCode(lv.obj):
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
         print(text)
+        self._qr_text = text
         self.add_style(qr_style, 0)
         self.qr.set_text(text)
-        self.qr.align(lv.ALIGN.CENTER, 0, -100 if self.is_fullscreen else 0)
-        self.note.align(lv.ALIGN.BOTTOM_MID, 0, 0)
+        self._align_qr()
+        self._align_note()
 
     def get_real_text(self):
         return self.qr.get_text()
@@ -317,7 +357,8 @@ class QRCode(lv.obj):
         return self._text
 
     def set_size(self, size):
-        self.qr.set_size(size)
+        self._box_width = size
+        self._box_height = size
         super().set_size(size, size)
+        self._resize_qr()
         self.set_text(self.encoder or self._text)
-        self.set_width(self.get_height())

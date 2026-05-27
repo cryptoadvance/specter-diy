@@ -1,6 +1,7 @@
 import lvgl as lv
 from .screen import Screen
 from ..common import add_label, add_button, add_button_label
+from ..components import styles
 from ..decorators import on_release
 
 
@@ -18,6 +19,8 @@ class Alert(Screen):
         # LVGL 9.x: page replaced with scrollable obj
         self.page = lv.obj(self)
         self.page.set_size(480, 600)
+        self.page.add_style(styles["page"], 0)
+        self.page.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         self.message = add_label(message, scr=self.page)
         self.page.align_to(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
 
