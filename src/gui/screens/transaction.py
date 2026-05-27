@@ -34,6 +34,8 @@ class TransactionScreen(Prompt):
         self.page2 = lv.obj(self)
         self.page2.set_pos(self.page.get_x(), self.page.get_y())
         self.page2.set_size(self.page.get_width(), self.page.get_height())
+        self.page2.add_style(styles["page"], 0)
+        self.page2.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
 
         # define styles
         style = lv.style_t()

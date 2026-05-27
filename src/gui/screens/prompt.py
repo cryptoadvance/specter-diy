@@ -1,6 +1,7 @@
 import lvgl as lv
 from .screen import Screen
 from ..common import add_label, add_button_pair
+from ..components import styles
 from ..decorators import on_release, cb_with_args
 
 
@@ -10,6 +11,7 @@ class Prompt(Screen):
                  warning=None, confirm_callback=None, cancel_callback=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
+        obj = self.title
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
             self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
@@ -17,8 +19,10 @@ class Prompt(Screen):
         # LVGL 9.x: page replaced with scrollable obj
         self.page = lv.obj(self)
         self.page.set_size(480, 600)
+        self.page.add_style(styles["page"], 0)
+        self.page.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         self.message = add_label(message, scr=self.page)
-        self.page.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
+        self.page.align_to(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
         # Initialize an empty icon label. It will display nothing until a symbol is set.
         self.icon = lv.label(self)
         self.icon.set_text("")
