@@ -133,11 +133,15 @@ class InputScreen(Screen):
 
         self.ta = lv.textarea(self)
         self.ta.set_text(suggestion)
+        self.ta.add_style(styles["ta"], 0)
+        self.ta.add_style(styles["ta_cursor"], lv.PART.CURSOR | lv.STATE.FOCUSED)
         self.ta.set_width(HOR_RES - 2 * PADDING)
         self.ta.set_x(PADDING)
-        self.ta.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+        self.ta.set_style_text_align(lv.TEXT_ALIGN.LEFT, 0)
         self.ta.set_y(PADDING + 150)
         self.ta.set_one_line(True)
+        self.ta.set_cursor_pos(lv.TEXTAREA_CURSOR_LAST)
+        self.ta.add_state(lv.STATE.FOCUSED)
 
         self.kb.set_event_cb(self.cb)
 

@@ -154,6 +154,14 @@ def init_styles(dark=True):
     styles["ta"].set_text_font(lv.font_montserrat_28)
     styles["ta"].set_text_color(ctxt)
 
+    styles["ta_cursor"] = lv.style_t()
+    styles["ta_cursor"].init()
+    styles["ta_cursor"].set_border_side(lv.BORDER_SIDE.LEFT)
+    styles["ta_cursor"].set_border_color(ctxt)
+    styles["ta_cursor"].set_border_width(2)
+    styles["ta_cursor"].set_bg_opa(lv.OPA.TRANSP)
+    styles["ta_cursor"].set_anim_duration(500)
+
     # Slider knob style
     styles["slider_knob"] = lv.style_t()
     styles["slider_knob"].init()
