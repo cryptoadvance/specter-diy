@@ -5,6 +5,7 @@ import math
 from micropython import const
 import gc
 from .components import QRCode, styles
+from .decorators import feed_touch_on_pressing
 
 PADDING = const(20)
 BTN_HEIGHT = const(70)
@@ -202,6 +203,11 @@ def center_button_label(lbl):
     lbl.center()
 
 
+def recenter_button_labels(btn):
+    for i in range(btn.get_child_count()):
+        center_button_label(btn.get_child(i))
+
+
 def add_button_label(btn, text):
     lbl = lv.label(btn)
     lbl.set_text(text)
@@ -245,6 +251,7 @@ def add_button(text=None, callback=None, scr=None, y=700):
     btn.set_y(y)
 
     if callback is not None:
+        btn.add_event_cb(feed_touch_on_pressing, lv.EVENT.PRESSING, None)
         btn.add_event_cb(callback, lv.EVENT.CLICKED, None)
 
     return btn
@@ -268,6 +275,8 @@ def align_button_pair(btn1, btn2):
     btn2.set_align(lv.ALIGN.DEFAULT)
     btn1.set_x(PADDING)
     btn2.set_x(PADDING + w + PADDING)
+    recenter_button_labels(btn1)
+    recenter_button_labels(btn2)
 
 
 def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):

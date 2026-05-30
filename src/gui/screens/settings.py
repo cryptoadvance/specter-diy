@@ -1,7 +1,19 @@
 import lvgl as lv
 from .prompt import Prompt
 from ..common import add_label, add_button
+from ..components import styles
 from ..decorators import on_release
+
+def add_switch_labels(parent, switch):
+    off = lv.label(parent)
+    off.set_text("OFF")
+    off.add_style(styles["small"], 0)
+    off.align_to(switch, lv.ALIGN.OUT_LEFT_MID, -24, 0)
+    on = lv.label(parent)
+    on.set_text("ON")
+    on.add_style(styles["small"], 0)
+    on.align_to(switch, lv.ALIGN.OUT_RIGHT_MID, 24, 0)
+    return off, on
 
 class HostSettings(Prompt):
     def __init__(self, controls, title="Host setttings", note=None, controls_empty_text="No settings available"):
@@ -28,12 +40,11 @@ class HostSettings(Prompt):
             )
             switch = lv.switch(self.page)
             switch.align_to(hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
-            lbl = add_label(" OFF                              ON  ", scr=self.page)
-            lbl.align_to(switch, lv.ALIGN.CENTER, 0, 0)
+            off, on = add_switch_labels(self.page, switch)
             if control.get("value", False):
                 switch.add_state(lv.STATE.CHECKED)
             self.switches.append(switch)
-            y = lbl.get_y() + 80
+            y = on.get_y() + 80
         self.next_y = y
         if not controls:
             label = add_label(controls_empty_text, y, scr=self.page)
@@ -66,8 +77,7 @@ class DevSettings(Prompt):
         )
         self.usb_switch = lv.switch(self.page)
         self.usb_switch.align_to(usb_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
-        lbl = add_label(" OFF                              ON  ", scr=self.page)
-        lbl.align_to(self.usb_switch, lv.ALIGN.CENTER, 0, 0)
+        add_switch_labels(self.page, self.usb_switch)
         if usb:
             self.usb_switch.add_state(lv.STATE.CHECKED)
 
@@ -84,8 +94,7 @@ class DevSettings(Prompt):
         # )
         # self.dev_switch = lv.switch(self.page)
         # self.dev_switch.align_to(dev_hint, lv.ALIGN.OUT_BOTTOM_MID, 0, 20)
-        # lbl = add_label(" OFF                              ON  ", scr=self.page)
-        # lbl.align_to(self.dev_switch, lv.ALIGN.CENTER, 0, 0)
+        # add_switch_labels(self.page, self.dev_switch)
         # if dev:
         #     self.dev_switch.add_state(lv.STATE.CHECKED)
 

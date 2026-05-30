@@ -26,13 +26,45 @@ style_transp = lv.style_t()
 style_transp.init()
 style_transp.set_bg_opa(0)
 style_transp.set_border_width(0)
+style_transp.set_outline_width(0)
+style_transp.set_shadow_width(0)
+style_transp.set_radius(0)
 style_transp.set_pad_all(0)
+
+qr_btn_style = lv.style_t()
+qr_btn_style.init()
+qr_btn_style.set_bg_color(lv.color_hex(0x506072))
+qr_btn_style.set_bg_opa(255)
+qr_btn_style.set_border_width(0)
+qr_btn_style.set_outline_width(0)
+qr_btn_style.set_shadow_width(0)
+qr_btn_style.set_radius(10)
+qr_btn_style.set_pad_all(0)
+
+qr_btn_pressed_style = lv.style_t()
+qr_btn_pressed_style.init()
+qr_btn_pressed_style.set_bg_color(lv.color_hex(0x405062))
+qr_btn_pressed_style.set_bg_opa(255)
+qr_btn_pressed_style.set_border_width(0)
+qr_btn_pressed_style.set_outline_width(0)
+qr_btn_pressed_style.set_shadow_width(0)
+qr_btn_pressed_style.set_radius(10)
+qr_btn_pressed_style.set_pad_all(0)
+
+qr_btn_label_style = lv.style_t()
+qr_btn_label_style.init()
+qr_btn_label_style.set_text_color(lv.color_hex(0xFFFFFF))
+qr_btn_label_style.set_text_font(lv.font_montserrat_28)
 
 QR_SIZES = [17, 32, 53, 78, 106, 154, 192, 230, 271, 367, 458, 586, 718, 858]
 BTNSIZE = 70
 QR_INSET = 43
 QR_NOTE_Y = 0
 QR_FULLSCREEN_INSET = 15
+
+def center_label(lbl):
+    lbl.update_layout()
+    lbl.center()
 
 class QRCode(lv.obj):
     RATE = 500  # ms
@@ -114,46 +146,42 @@ class QRCode(lv.obj):
         else:
             obj.remove_flag(lv.obj.FLAG.HIDDEN)
 
+    def _create_icon_button(self, parent, text, callback):
+        btn = lv.button(parent)
+        btn.set_size(BTNSIZE, BTNSIZE)
+        btn.add_style(qr_btn_style, 0)
+        btn.add_style(qr_btn_pressed_style, lv.STATE.PRESSED)
+        btn.remove_flag(lv.obj.FLAG.SCROLLABLE)
+        btn.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+        lbl = lv.label(btn)
+        lbl.set_text(text)
+        lbl.add_style(qr_btn_label_style, 0)
+        center_label(lbl)
+        btn.add_event_cb(callback, lv.EVENT.CLICKED, None)
+        return btn, lbl
+
     def create_playback_controls(self, style):
         self.playback = lv.obj(self)
         self.playback.add_style(style_transp, 0)
+        self.playback.remove_flag(lv.obj.FLAG.SCROLLABLE)
+        self.playback.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         self.playback.set_size(480, BTNSIZE)
         self.playback.set_y(640)
 
-        nextbtn = lv.button(self.playback)
-        lbl = lv.label(nextbtn)
-        lbl.set_text(lv.SYMBOL.NEXT)
-        nextbtn.set_size(BTNSIZE, BTNSIZE)
+        nextbtn, lbl = self._create_icon_button(self.playback, lv.SYMBOL.NEXT, self.on_next)
         nextbtn.align_to(self.playback, lv.ALIGN.CENTER, 144, 0)
-        nextbtn.add_event_cb(self.on_next, lv.EVENT.CLICKED, None)
 
-        prevbtn = lv.button(self.playback)
-        lbl = lv.label(prevbtn)
-        lbl.set_text(lv.SYMBOL.PREV)
-        prevbtn.set_size(BTNSIZE, BTNSIZE)
+        prevbtn, lbl = self._create_icon_button(self.playback, lv.SYMBOL.PREV, self.on_prev)
         prevbtn.align_to(self.playback, lv.ALIGN.CENTER, -144, 0)
-        prevbtn.add_event_cb(self.on_prev, lv.EVENT.CLICKED, None)
 
-        pausebtn = lv.button(self.playback)
-        self.pauselbl = lv.label(pausebtn)
-        self.pauselbl.set_text(lv.SYMBOL.PAUSE)
-        pausebtn.set_size(BTNSIZE, BTNSIZE)
+        pausebtn, self.pauselbl = self._create_icon_button(self.playback, lv.SYMBOL.PAUSE, self.on_pause)
         pausebtn.align_to(self.playback, lv.ALIGN.CENTER, 48, 0)
-        pausebtn.add_event_cb(self.on_pause, lv.EVENT.CLICKED, None)
 
-        stopbtn = lv.button(self.playback)
-        lbl = lv.label(stopbtn)
-        lbl.set_text(lv.SYMBOL.STOP)
-        stopbtn.set_size(BTNSIZE, BTNSIZE)
+        stopbtn, lbl = self._create_icon_button(self.playback, lv.SYMBOL.STOP, self.on_stop)
         stopbtn.align_to(self.playback, lv.ALIGN.CENTER, -48, 0)
-        stopbtn.add_event_cb(self.on_stop, lv.EVENT.CLICKED, None)
 
-        self.play = lv.button(self)
-        lbl = lv.label(self.play)
-        lbl.set_text(lv.SYMBOL.PLAY)
-        self.play.set_size(BTNSIZE, BTNSIZE)
+        self.play, lbl = self._create_icon_button(self, lv.SYMBOL.PLAY, self.on_play)
         self.play.align(lv.ALIGN.BOTTOM_MID, 0, -150)
-        self.play.add_event_cb(self.on_play, lv.EVENT.CLICKED, None)
         self._set_hidden(self.play, False)
 
         self._set_hidden(self.playback, True)
@@ -161,21 +189,15 @@ class QRCode(lv.obj):
     def create_density_controls(self, style):
         self.controls = lv.obj(self)
         self.controls.add_style(style_transp, 0)
+        self.controls.remove_flag(lv.obj.FLAG.SCROLLABLE)
+        self.controls.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         self.controls.set_size(480, BTNSIZE)
         self.controls.set_y(740)
-        plus = lv.button(self.controls)
-        lbl = lv.label(plus)
-        lbl.set_text(lv.SYMBOL.PLUS)
-        plus.set_size(BTNSIZE, BTNSIZE)
+        plus, lbl = self._create_icon_button(self.controls, lv.SYMBOL.PLUS, self.on_plus)
         plus.align_to(self.controls, lv.ALIGN.CENTER, 144, 0)
-        plus.add_event_cb(self.on_plus, lv.EVENT.CLICKED, None)
 
-        minus = lv.button(self.controls)
-        lbl = lv.label(minus)
-        lbl.set_text(lv.SYMBOL.MINUS)
-        minus.set_size(BTNSIZE, BTNSIZE)
+        minus, lbl = self._create_icon_button(self.controls, lv.SYMBOL.MINUS, self.on_minus)
         minus.align_to(self.controls, lv.ALIGN.CENTER, -144, 0)
-        minus.add_event_cb(self.on_minus, lv.EVENT.CLICKED, None)
 
         lbl = lv.label(self.controls)
         lbl.set_text("QR code density")
@@ -216,6 +238,7 @@ class QRCode(lv.obj):
     def on_pause(self, event):
         self._autoplay = not self._autoplay
         self.pauselbl.set_text(lv.SYMBOL.PAUSE if self._autoplay else lv.SYMBOL.PLAY)
+        center_label(self.pauselbl)
 
     def on_stop(self, event):
         if not self._text: # can't stop

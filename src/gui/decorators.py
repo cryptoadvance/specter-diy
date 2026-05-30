@@ -20,8 +20,7 @@ def feed_touch():
 
 
 def feed_rng(func):
-    """Any callback will contribute to random number pool"""
-    # LVGL 9.x: callback receives event object
+    """Feed touch entropy on PRESSING and pass all events to func."""
     def wrapper(event):
         code = event.get_code()
         if code == lv.EVENT.PRESSING:
@@ -31,10 +30,18 @@ def feed_rng(func):
     return wrapper
 
 
+def feed_touch_on_pressing(event):
+    """LVGL event callback that feeds touch entropy on PRESSING."""
+    if event.get_code() == lv.EVENT.PRESSING:
+        feed_touch()
+
+
 def on_release(func):
-    """Handy decorator if you only care about click event"""
-    # LVGL 9.x: callback receives event object
-    # CLICKED = complete press+release cycle
+    """Call func on CLICKED events.
+
+    Shared buttons register a separate PRESSING handler for entropy. The
+    PRESSING branch remains here for callbacks registered with EVENT.ALL.
+    """
     def wrapper(event):
         code = event.get_code()
         if code == lv.EVENT.PRESSING:

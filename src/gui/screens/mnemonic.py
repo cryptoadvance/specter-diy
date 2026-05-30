@@ -247,6 +247,7 @@ class RecoverMnemonicScreen(MnemonicScreen):
         if fixer is not None:
             self.fix_button = add_button("fix", on_release(self.fix_cb), self)
             self.fix_button.set_size(55, 30)
+            recenter_button_labels(self.fix_button)
             # position it out of the screen but on correct y
             self.fix_button.align_to(self.table, lv.ALIGN.OUT_BOTTOM_MID, -400, -38)
 
@@ -358,9 +359,25 @@ class RecoverMnemonicScreen(MnemonicScreen):
             self.set_value(None)
             return
 
+        if getattr(self, "confirm_exit_mbox", None) is not None:
+            return
+
         mbox = lv.msgbox(None)
+        self.confirm_exit_mbox = mbox
+        style = lv.style_t()
+        style.init()
+        style.set_border_width(0)
+        style.set_outline_width(0)
+        style.set_shadow_width(0)
+        style.set_radius(8)
+        style.set_pad_all(20)
+        self.confirm_exit_style = style
+        mbox.add_style(style, 0)
+        mbox.remove_flag(lv.obj.FLAG.SCROLLABLE)
+        mbox.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         mbox.set_width(400)
         mbox.align(lv.ALIGN.CENTER, 0, 0)
+        mbox.move_foreground()
         mbox.add_title("Confirm Exit")
         text = mbox.add_text(
             "Are you sure you want to exit?\n\n"
@@ -375,6 +392,11 @@ class RecoverMnemonicScreen(MnemonicScreen):
         stay_btn.set_width(170)
         leave_btn.set_width(170)
 
+        def cleanup(event):
+            if self.confirm_exit_mbox is mbox:
+                self.confirm_exit_mbox = None
+                self.confirm_exit_style = None
+
         def stay(event):
             mbox.close_async()
 
@@ -382,5 +404,6 @@ class RecoverMnemonicScreen(MnemonicScreen):
             mbox.close_async()
             self.set_value(None)
 
+        mbox.add_event_cb(cleanup, lv.EVENT.DELETE, None)
         stay_btn.add_event_cb(stay, lv.EVENT.CLICKED, None)
         leave_btn.add_event_cb(leave, lv.EVENT.CLICKED, None)

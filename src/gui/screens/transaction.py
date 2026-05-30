@@ -35,6 +35,8 @@ class TransactionScreen(Prompt):
         self.page2.set_pos(self.page.get_x(), self.page.get_y())
         self.page2.set_size(self.page.get_width(), self.page.get_height())
         self.page2.add_style(styles["page"], 0)
+        self.page2.add_flag(lv.obj.FLAG.SCROLLABLE)
+        self.page2.set_scroll_dir(lv.DIR.VER)
         self.page2.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
 
         # define styles
@@ -91,11 +93,13 @@ class TransactionScreen(Prompt):
             self.warning.align_to(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
 
         lbl = add_label("%d INPUTS" % len(meta["inputs"]), scr=self.page2)
+        lbl.add_style(style, 0)
         lbl.align(lv.ALIGN.TOP_MID, 0, 30)
         obj = lbl
         for i, inp in enumerate(meta["inputs"]):
             idxlbl = lv.label(self.page2)
             idxlbl.set_text("%d:" % i)
+            idxlbl.add_style(style_secondary, 0)
             idxlbl.align_to(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
             idxlbl.set_x(30)
             lbl = lv.label(self.page2)
@@ -103,6 +107,7 @@ class TransactionScreen(Prompt):
             lbl.set_width(380)
             valuetxt = "???" if inp["value"] == -1 else "%.8f" % (inp["value"]/1e8)
             lbl.set_text("%s %s from %s" % (valuetxt, inp.get("asset", self.default_asset), inp.get("label", "Unknown wallet")))
+            lbl.add_style(style_primary, 0)
             lbl.align_to(idxlbl, lv.ALIGN.TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
@@ -118,11 +123,13 @@ class TransactionScreen(Prompt):
             obj = lbl
 
         lbl = add_label("%d OUTPUTS" % len(meta["outputs"]), scr=self.page2)
+        lbl.add_style(style, 0)
         lbl.align(lv.ALIGN.TOP_MID, 0, 0)
         lbl.set_y(obj.get_y() + obj.get_height() + 30)
         for i, out in enumerate(meta["outputs"]):
             idxlbl = lv.label(self.page2)
             idxlbl.set_text("%d:" % i)
+            idxlbl.add_style(style_secondary, 0)
             idxlbl.align_to(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
             idxlbl.set_x(30)
             lbl = lv.label(self.page2)
@@ -130,6 +137,7 @@ class TransactionScreen(Prompt):
             lbl.set_width(380)
             valuetxt = "???" if out["value"] == -1 else "%.8f" % (out["value"]/1e8)
             lbl.set_text("%s %s to %s" % (valuetxt, out.get("asset", self.default_asset), out.get("label", "")))
+            lbl.add_style(style_primary, 0)
             lbl.align_to(idxlbl, lv.ALIGN.TOP_LEFT, 0, 0)
             lbl.set_x(60)
 
@@ -157,6 +165,7 @@ class TransactionScreen(Prompt):
         if meta.get("fee"):
             idxlbl = lv.label(self.page2)
             idxlbl.set_text("Fee:  " + fee_txt)
+            idxlbl.add_style(style, 0)
             idxlbl.align_to(lbl, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
             idxlbl.set_x(30)
 
