@@ -19,7 +19,6 @@ class WalletScreen(QRAlert):
             "    " + wallet.name + "  #708092 " + lv.SYMBOL.EDIT,
             format_addr(addr, words=4),
             "bitcoin:" + addr,
-            qr_width=350,
         )
         self.title.set_recolor(True)
         self.title.add_flag(lv.obj.FLAG.CLICKABLE)

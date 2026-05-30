@@ -30,7 +30,7 @@ QR_SIZES = [17, 32, 53, 78, 106, 154, 192, 230, 271, 367, 458, 586, 718, 858]
 BTNSIZE = 70
 QR_INSET = 43
 QR_NOTE_Y = 0
-QR_FULLSCREEN_SIZE = 380
+QR_FULLSCREEN_INSET = 15
 
 class QRCode(lv.obj):
     RATE = 500  # ms
@@ -65,6 +65,9 @@ class QRCode(lv.obj):
         self.qr.remove_flag(lv.obj.FLAG.SCROLLABLE)
         self._text = "Text"
         self._qr_text = None
+        self._version_range = None
+        self._qr_inset = QR_INSET
+        self._fixed_size = False
         self.version = self.QR_VERSION
 
         self._original_size = None
@@ -268,20 +271,20 @@ class QRCode(lv.obj):
 
     def _qr_size(self):
         if self.is_fullscreen:
-            return min(QR_FULLSCREEN_SIZE, self._box_width, self._box_height)
-        return min(self._box_width, self._box_height) - 2 * QR_INSET
+            return min(self._box_width, self._box_height) - 2 * QR_FULLSCREEN_INSET
+        return min(self._box_width, self._box_height) - 2 * self._qr_inset
 
     def _resize_qr(self):
         self.qr.set_size(self._qr_size())
         if self._qr_text is not None:
-            self.qr.set_text(self._qr_text)
+            self._set_text(self._qr_text)
         self._align_qr()
 
     def _align_qr(self):
         if self.is_fullscreen:
             self.qr.align(lv.ALIGN.CENTER, 0, -100 if self._box_height == 800 else 0)
         else:
-            self.qr.align(lv.ALIGN.TOP_MID, 0, QR_INSET - 15)
+            self.qr.align(lv.ALIGN.TOP_MID, 0, self._qr_inset - 15)
 
     def _align_note(self):
         self.note.align(lv.ALIGN.BOTTOM_MID, 0, 0 if self.is_fullscreen else QR_NOTE_Y)
@@ -341,12 +344,32 @@ class QRCode(lv.obj):
         self._set_hidden(self.playback, (not self.is_fullscreen) or (self.idx is None))
         self._set_hidden(self.play, (not self.is_fullscreen) or (self.idx is not None) or (self.encoder is None))
 
+    def set_version_range(self, min_ver=0, max_ver=0):
+        self._version_range = None if min_ver == 0 and max_ver == 0 else (min_ver, max_ver)
+        self.qr.set_version_range(min_ver, max_ver)
+
+    def set_qr_inset(self, inset=QR_INSET):
+        self._qr_inset = inset
+        self._resize_qr()
+
+    def set_fixed_size(self, enable=False):
+        self._fixed_size = enable
+        self.qr.set_fixed_size(enable)
+
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
         print(text)
+        payload_changed = self._qr_text != text
         self._qr_text = text
         self.add_style(qr_style, 0)
-        self.qr.set_text(text)
+        self.qr.set_fixed_size(self._fixed_size)
+        if self._version_range is not None:
+            self.qr.set_version_range(self._version_range[0], self._version_range[1])
+        elif payload_changed:
+            self.qr.clear_version_range()
+        res = self.qr.set_text(text)
+        if self.encoder is None and res and self._version_range is None:
+            self.qr.lock_selected_version()
         self._align_qr()
         self._align_note()
 

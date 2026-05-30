@@ -11,6 +11,7 @@ BTN_HEIGHT = const(70)
 HOR_RES = const(480)
 VER_RES = const(800)
 QR_PADDING = const(40)
+QR_WIDTH = const(320)
 FONT_SCALE_MINUS_TWO_PT = const(238)  # 26 / 28 * LVGL's 256 scale.
 BUTTON_LABEL_SCALE = const(192)  # 21 / 28 * LVGL's 256 scale.
 
@@ -275,11 +276,12 @@ def add_qrcode(text, y=QR_PADDING, scr=None, style=None, width=None):
         scr = lv.screen_active()
 
     if width is None:
-        width = 350
+        width = QR_WIDTH
 
     qr = QRCode(scr)
-    qr.set_text(text)
     qr.set_size(width)
+    qr.set_qr_inset(13)
+    qr.set_fixed_size(True)
     qr.set_text(text)
     qr.align_to(scr, lv.ALIGN.TOP_MID, 0, y)
     return qr

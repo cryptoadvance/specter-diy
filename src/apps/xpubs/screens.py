@@ -22,6 +22,9 @@ class XPubScreen(QRAlert):
         if prefix is not None:
             message = prefix + message
         super().__init__(title, message, message, qr_width=320)
+        self.qr.set_qr_inset(13)
+        self.qr.set_fixed_size(True)
+        self.qr.set_text(message)
         self.message.add_style(styles["small"], 0)
         self.xpub = xpub
         self.prefix = prefix
