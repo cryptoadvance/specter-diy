@@ -24,6 +24,7 @@ class Menu(Screen):
         self.page.set_y(y)
         y = 0
         self.buttons = []
+        self.button_styles = []
         # value, text, enable, color
         for value, text, *args in buttons:
             if text is not None:
@@ -43,6 +44,7 @@ class Menu(Screen):
                         style.init()
                         style.set_bg_color(lv.color_hex(color))
                         btn.add_style(style, 0)
+                        self.button_styles.append(style)
 
                     self.buttons.append(btn)
                     y += 85

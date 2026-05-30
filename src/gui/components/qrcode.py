@@ -8,6 +8,8 @@ import platform
 from io import BytesIO
 from qrencoder import QREncoder
 
+DEBUG_QR_PAYLOADS = False
+
 qr_style = lv.style_t()
 qr_style.init()
 qr_style.set_bg_color(lv.color_hex(0xFFFFFF))
@@ -239,7 +241,10 @@ class QRCode(lv.obj):
         # check event
         code = event.get_code()
         if code == lv.EVENT.DELETE:
-            self.task.cancel()
+            if self.task is not None:
+                task = self.task
+                self.task = None
+                task.cancel()
         elif code == lv.EVENT.CLICKED:
             self.toggle_fullscreen()
 
@@ -301,7 +306,7 @@ class QRCode(lv.obj):
         self.check_controls()
 
     def set_text(self, text="Text", set_first_frame=False):
-        if platform.simulator and self._text != text:
+        if DEBUG_QR_PAYLOADS and platform.simulator and self._text != text:
             print("QR on screen:", text)
         self.encoder = None
         self._text = text
@@ -358,7 +363,6 @@ class QRCode(lv.obj):
 
     def _set_text(self, text):
         # one bcur frame doesn't require checksum
-        print(text)
         payload_changed = self._qr_text != text
         self._qr_text = text
         self.add_style(qr_style, 0)

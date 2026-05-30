@@ -28,13 +28,13 @@ class Screen(lv.obj):
 
         if type(self).network in type(self).COLORS:
             self.topbar = lv.obj(self)
-            s = lv.style_t()
-            s.init()
-            s.set_bg_color(type(self).COLORS[type(self).network])
-            s.set_bg_opa(200)
-            s.set_radius(0)
-            s.set_border_width(0)
-            self.topbar.add_style(s, 0)
+            self.topbar_style = lv.style_t()
+            self.topbar_style.init()
+            self.topbar_style.set_bg_color(type(self).COLORS[type(self).network])
+            self.topbar_style.set_bg_opa(200)
+            self.topbar_style.set_radius(0)
+            self.topbar_style.set_border_width(0)
+            self.topbar.add_style(self.topbar_style, 0)
             self.topbar.set_size(HOR_RES, 5)
             self.topbar.set_pos(0, 0)
 
