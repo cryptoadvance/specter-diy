@@ -1,6 +1,6 @@
 import lvgl as lv
 from .screen import Screen
-from ..common import add_label, add_button
+from ..common import add_label, add_button, styles
 from ..decorators import on_release, cb_with_args
 
 
@@ -17,11 +17,14 @@ class Menu(Screen):
             y += self.note.get_height()
         # LVGL 9.x: page replaced with scrollable obj
         self.page = lv.obj(self)
+        self.page.add_style(styles["page"], 0)
+        self.page.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         h = 800 - y - 20
         self.page.set_size(480, h)
         self.page.set_y(y)
         y = 0
         self.buttons = []
+        self.button_styles = []
         # value, text, enable, color
         for value, text, *args in buttons:
             if text is not None:
@@ -41,6 +44,7 @@ class Menu(Screen):
                         style.init()
                         style.set_bg_color(lv.color_hex(color))
                         btn.add_style(style, 0)
+                        self.button_styles.append(style)
 
                     self.buttons.append(btn)
                     y += 85

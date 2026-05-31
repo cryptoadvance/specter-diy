@@ -49,7 +49,8 @@ class AsyncGUI:
         old_scr = lv.screen_active()
         lv.screen_load(scr)
         self.scr = scr
-        old_scr.delete_async()
+        if old_scr is not None and old_scr is not scr:
+            old_scr.delete_async()
 
     async def open_popup(self, scr):
         # wait for another popup to finish

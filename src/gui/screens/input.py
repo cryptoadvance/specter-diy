@@ -5,7 +5,7 @@ except mnemonics - they are in mnemonic.py
 import lvgl as lv
 from ..common import *
 from ..decorators import *
-from ..components import HintKeyboard
+from ..components import ButtonMatrix, HintKeyboard
 from ..common import add_label
 from .screen import Screen
 import rng
@@ -131,16 +131,17 @@ class InputScreen(Screen):
         self.kb.set_height(int(VER_RES / 2.5))
         self.kb.align(lv.ALIGN.BOTTOM_MID, 0, 0)
 
-        self.ta = lv.ta(self)
+        self.ta = lv.textarea(self)
         self.ta.set_text(suggestion)
-        # self.ta.set_pwd_mode(True)
+        self.ta.add_style(styles["ta"], 0)
+        self.ta.add_style(styles["ta_cursor"], lv.PART.CURSOR | lv.STATE.FOCUSED)
         self.ta.set_width(HOR_RES - 2 * PADDING)
         self.ta.set_x(PADDING)
-        self.ta.set_text_align(lv.label.ALIGN.CENTER)
+        self.ta.set_style_text_align(lv.TEXT_ALIGN.LEFT, 0)
         self.ta.set_y(PADDING + 150)
-        # self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
         self.ta.set_one_line(True)
-        # self.ta.set_pwd_show_time(0)
+        self.ta.set_cursor_pos(lv.TEXTAREA_CURSOR_LAST)
+        self.ta.add_state(lv.STATE.FOCUSED)
 
         self.kb.set_event_cb(self.cb)
 
@@ -155,7 +156,7 @@ class InputScreen(Screen):
             if "space" in c:
                 c = " "
             if c == lv.SYMBOL.LEFT:
-                self.ta.del_char()
+                self.ta.delete_char()
                 self.check_text()
             elif c == lv.SYMBOL.UP or c == lv.SYMBOL.DOWN:
                 for i, ch in enumerate(self.CHARSET):
@@ -218,12 +219,17 @@ class PinScreen(Screen):
             lbl.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
         if note is not None:
             lbl = add_label(note, scr=self, style="hint")
+            lbl.set_style_text_font(lv.font_montserrat_16, 0)
+            lbl.set_style_text_letter_space(-1, 0)
+            lbl.set_width(HOR_RES)
+            lbl.set_x(0)
             lbl.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 90)
         self.get_word = get_word
         if get_word is not None:
-            self.words = add_label(get_word(b""), scr=self)
-            self.words.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
-        btnm = lv.btnm(self)
+            self.words = add_label(get_word(b""), scr=self, style="title")
+            self.words.set_style_text_font(lv.font_montserrat_22, 0)
+            self.words.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 130 if note is not None else 120)
+        btnm = ButtonMatrix(self)
         # shuffle numbers to make sure
         # no constant fingerprints left on screen
         buttons = ["%d" % i for i in range(0, 10)]
@@ -235,49 +241,47 @@ class PinScreen(Screen):
             btnmap.append("\n")
         btnmap = btnmap + [lv.SYMBOL.CLOSE, buttons.pop(), " ", ""]
         btnm.set_map(btnmap)
+        btnm.set_btn_ctrl(11, ButtonMatrix.CTRL.HIDDEN | ButtonMatrix.CTRL.INACTIVE)
         btnm.set_width(HOR_RES)
         btnm.set_height(HOR_RES)
         btnm.align(lv.ALIGN.BOTTOM_MID, 0, -100)
-        # increase font size
-        style = lv.style_t()
-        lv.style_copy(style, btnm.get_style(lv.btnm.STYLE.BTN_REL))
-        style.text.font = lv.font_roboto_28
-        # remove feedback on press to avoid sidechannels
-        btnm.set_style(lv.btnm.STYLE.BTN_REL, style)
-        btnm.set_style(lv.btnm.STYLE.BTN_PR, style)
+        btnm.add_style(styles["btnm_bg"], 0)
+        btnm.add_style(styles["btnm"], lv.PART.ITEMS)
+        # Keep pressed and released states visually identical to avoid sidechannels.
+        btnm.add_style(styles["btnm_pressed"], lv.PART.ITEMS | lv.STATE.PRESSED)
+        btnm.set_style_text_font(lv.font_montserrat_28, lv.PART.ITEMS)
+        btnm.set_style_transform_scale(FONT_SCALE_MINUS_TWO_PT, lv.PART.ITEMS)
 
-        self.pin = lv.ta(self)
+        self.pin = lv.textarea(self)
         self.pin.set_text("")
-        self.pin.set_pwd_mode(True)
-        style = lv.style_t()
-        lv.style_copy(style, styles["theme"].style.ta.oneline)
-        style.text.font = lv.font_roboto_28
-        style.text.color = styles["theme"].style.scr.text.color
-        style.text.letter_space = 15
-        self.pin.set_style(lv.label.STYLE.MAIN, style)
+        self.pin.set_password_mode(True)
+        self.pin.add_style(styles["ta"], 0)
+        self.pin.set_style_text_font(lv.font_montserrat_28, 0)
+        self.pin.set_style_text_color(styles["ctxt"], 0)
+        self.pin.set_style_text_letter_space(15, 0)
         self.pin.set_width(HOR_RES - 2 * PADDING)
         self.pin.set_x(PADDING)
         self.pin.set_y(PADDING + 50)
-        self.pin.set_cursor_type(lv.CURSOR.HIDDEN)
+        self.pin.set_style_opa(lv.OPA.TRANSP, lv.PART.CURSOR)
         self.pin.set_one_line(True)
-        self.pin.set_text_align(lv.label.ALIGN.CENTER)
-        self.pin.set_pwd_show_time(0)
+        self.pin.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+        self.pin.set_password_show_time(0)
         self.pin.align_to(btnm, lv.ALIGN.OUT_TOP_MID, 0, -80)
 
         self.next_button = add_button(scr=self, callback=on_release(self.submit))
 
-        self.next_label = lv.label(self.next_button)
-        self.next_label.set_text("Next " + lv.SYMBOL.RIGHT)
+        self.next_label = add_button_label(self.next_button, "Next " + lv.SYMBOL.RIGHT)
 
         if with_cancel:
             self.cancel_button = add_button(scr=self, callback=on_release(self.cancel))
 
-            self.cancel_label = lv.label(self.cancel_button)
-            self.cancel_label.set_text(lv.SYMBOL.LEFT + " Cancel")
+            self.cancel_label = add_button_label(self.cancel_button, lv.SYMBOL.LEFT + " Cancel")
 
             align_button_pair(self.cancel_button, self.next_button)
+            center_button_label(self.cancel_label)
+            center_button_label(self.next_label)
 
-        btnm.set_event_cb(feed_rng(self.cb))
+        btnm.set_event_cb(self.cb)
 
 
     def reset(self):
@@ -339,7 +343,7 @@ class DerivationScreen(Screen):
     def __init__(self, title="Enter derivation path"):
         super().__init__()
         self.title = add_label(title, scr=self, y=PADDING, style="title")
-        self.kb = lv.btnm(self)
+        self.kb = ButtonMatrix(self)
         self.kb.set_map(self.PATH_CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 2)
@@ -350,12 +354,13 @@ class DerivationScreen(Screen):
         lbl.set_width(40)
         lbl.set_x(PADDING)
 
-        self.ta = lv.ta(self)
+        self.ta = lv.textarea(self)
         self.ta.set_text("")
+        self.ta.add_style(styles["ta"], 0)
         self.ta.set_width(HOR_RES - 2 * PADDING - 40)
         self.ta.set_x(PADDING + 40)
         self.ta.set_y(PADDING + 150)
-        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        self.ta.set_style_opa(lv.OPA.TRANSP, lv.PART.CURSOR)
         self.ta.set_one_line(True)
 
         self.kb.set_event_cb(self.cb)
@@ -375,7 +380,7 @@ class DerivationScreen(Screen):
             self.ta.set_text("")
             self.set_value(None)
         if c[0] == lv.SYMBOL.LEFT:
-            self.ta.del_char()
+            self.ta.delete_char()
         elif c[0] == lv.SYMBOL.CLOSE:
             self.ta.set_text("")
         elif c[0] == lv.SYMBOL.OK:
@@ -425,7 +430,7 @@ class NumericScreen(Screen):
         self.note = add_label(note, scr=self, style="hint")
         self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
 
-        self.kb = lv.btnm(self)
+        self.kb = ButtonMatrix(self)
         self.kb.set_map(self.NUMERIC_CHARSET)
         self.kb.set_width(HOR_RES)
         self.kb.set_height(VER_RES // 2)
@@ -436,12 +441,13 @@ class NumericScreen(Screen):
         lbl.set_width(40)
         lbl.set_x(PADDING)
 
-        self.ta = lv.ta(self)
+        self.ta = lv.textarea(self)
         self.ta.set_text("")
+        self.ta.add_style(styles["ta"], 0)
         self.ta.set_width(HOR_RES - 2 * PADDING - 40)
         self.ta.set_x(PADDING + 40)
         self.ta.set_y(PADDING + 150)
-        self.ta.set_cursor_type(lv.CURSOR.HIDDEN)
+        self.ta.set_style_opa(lv.OPA.TRANSP, lv.PART.CURSOR)
         self.ta.set_one_line(True)
         self.kb.set_event_cb(self.cb)
 
@@ -457,7 +463,7 @@ class NumericScreen(Screen):
         else:
             last = account[-1]
         if c[0] == lv.SYMBOL.LEFT:
-            self.ta.del_char()
+            self.ta.delete_char()
         elif c[0] == lv.SYMBOL.OK:
             self.set_value(self.ta.get_text())
             self.ta.set_text("")

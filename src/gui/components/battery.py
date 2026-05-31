@@ -28,10 +28,12 @@ class Battery(lv.obj):
 
     def update(self):
         if self.VALUE is None:
+            self.add_flag(lv.obj.FLAG.HIDDEN)
             self.icon.set_text("")
             self.level.set_text("")
             self.charge.set_text("")
             return
+        self.remove_flag(lv.obj.FLAG.HIDDEN)
         for v, icon, color in self.LEVELS:
             if self.VALUE >= v:
                 if self.CHARGING:

@@ -10,7 +10,9 @@ You should see the screen with the wallet interface. As in unixport we don't hav
 
 You can connect to these ports using `telnet` and type whatever you expect to be scanned / sent from the host.
 
-The simulator is also printing content of the QR codes displayed on the screen to the console.
+QR payload console logging is disabled by default because displayed data can be
+sensitive. Enable `DEBUG_QR_PAYLOADS` in `src/gui/components/qrcode.py` only for
+explicit diagnostics with non-sensitive payloads.
 
 The simulator create folders in `./fs`:
 
@@ -18,5 +20,4 @@ The simulator create folders in `./fs`:
 - `fs/qspi` - files in external QSPI chip (untrusted, everything is stored encrypted and authenticated)
 - `fs/ramdisk` - files in external SPIRAM memory (work as temporary storage for host communication, untrusted)
 - `fs/sd` - SD card
-
 
