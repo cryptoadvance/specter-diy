@@ -99,6 +99,10 @@ class QRCode(lv.obj):
         self.qr = lvqr.QRCode(self)
         self.qr.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         self.qr.remove_flag(lv.obj.FLAG.SCROLLABLE)
+        self.spacing_style = lv.style_t()
+        self.spacing_style.init()
+        self.spacing_style.set_border_width(0)
+        self.qr.add_style(self.spacing_style, 0)
         self._text = "Text"
         self._qr_text = None
         self._version_range = None
@@ -114,7 +118,6 @@ class QRCode(lv.obj):
 
         self.text_style = style
         self.note_style = note_style
-        self.spacing_style = None
         self.create_density_controls(style)
         self.create_playback_controls(style)
 
@@ -135,11 +138,8 @@ class QRCode(lv.obj):
 
     @spacing.setter
     def spacing(self, spacing):
-        sp_style = lv.style_t()
-        sp_style.init()
-        sp_style.set_border_width(spacing)
-        self.qr.add_style(sp_style, 0)
-        self.spacing_style = sp_style
+        self.spacing_style.set_border_width(spacing)
+        self.qr.invalidate()
         self._spacing = spacing
 
     def _set_hidden(self, obj, hidden):

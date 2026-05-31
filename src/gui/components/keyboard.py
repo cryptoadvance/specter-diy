@@ -85,17 +85,27 @@ class HintKeyboard(ButtonMatrix):
         self.hint_lbl.set_size(50, 60)
         self.hint.add_flag(lv.obj.FLAG.HIDDEN)
 
+    def _hide_hint(self):
+        self.hint.add_flag(lv.obj.FLAG.HIDDEN)
+
+    def _set_hint_text(self, text):
+        self.hint_lbl.set_text(text)
+        self.hint_lbl.update_layout()
+        self.hint_lbl.center()
+
     def handle_event(self, obj, code):
         if code == lv.EVENT.PRESSING:
             c = self.get_selected_button_text()
             if c is not None and len(c) <= 2:
                 self.hint.remove_flag(lv.obj.FLAG.HIDDEN)
-                self.hint_lbl.set_text(c)
+                self._set_hint_text(c)
                 indev = lv.indev_active()
                 if indev:
                     point = lv.point_t()
                     indev.get_point(point)
                     self.hint.set_pos(point.x - 25, point.y - 130)
+            else:
+                self._hide_hint()
 
-        elif code == lv.EVENT.RELEASED:
-            self.hint.add_flag(lv.obj.FLAG.HIDDEN)
+        elif code in (lv.EVENT.RELEASED, lv.EVENT.PRESS_LOST, lv.EVENT.LEAVE):
+            self._hide_hint()
