@@ -66,7 +66,6 @@ class SpecterGUI(AsyncGUI):
         # Wait for scanning to finish (or user cancel)
         while host.in_progress and scr.waiting:
             await asyncio.sleep_ms(30)
-            scr.tick(5)
             scr.set_progress(host.progress)
         if host.in_progress:
             host.abort()

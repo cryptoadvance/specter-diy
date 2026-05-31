@@ -5,27 +5,20 @@ from ..common import add_label
 
 class Progress(Alert):
     """
-    Shows progress (rotating thingy), also can show
+    Shows progress with a spinner, also can show
     percentage of the progress or checkboxes for parts of QR code
-    Use tick() to rotate, set_progress(float or list) to set progress
+    Use set_progress(float or list) to set progress
     """
 
     def __init__(self, title, message, button_text="Cancel"):
         super().__init__(title, message, button_text=button_text)
-        self.arc = lv.arc(self)
-        self.start = 0
-        self.end = 30
-        self.arc.set_angles(self.start, self.end)
-        self.arc.align(lv.ALIGN.CENTER, 0, -150)
-        self.message.align_to(self.arc, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
+        self.spinner = lv.spinner(self)
+        self.spinner.set_anim_params(1000, 200)
+        self.spinner.align(lv.ALIGN.CENTER, 0, -150)
+        self.message.align_to(self.spinner, lv.ALIGN.OUT_BOTTOM_MID, 0, 120)
         self.progress = add_label("", scr=self, style="title")
         self.progress.align_to(self.message, lv.ALIGN.OUT_BOTTOM_MID, 0, 30)
         self.progress.set_recolor(True)
-
-    def tick(self, d: int = 10):
-        self.start = (self.start - 2 * d) % 360
-        self.end = (self.end - d) % 360
-        self.arc.set_angles(self.start, self.end)
 
     def set_progress(self, val):
         txt = ""
