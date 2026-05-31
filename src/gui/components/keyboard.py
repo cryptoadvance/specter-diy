@@ -5,6 +5,11 @@ from .theme import styles
 
 
 class ButtonMatrix(lv.buttonmatrix):
+    """LVGL v9 buttonmatrix with the legacy callback shape used by screens.
+
+    set_event_cb(callback) callbacks receive (obj, code), not an LVGL event.
+    """
+
     class CTRL:
         TGL_ENABLE = lv.buttonmatrix.CTRL.CHECKABLE
         TGL_STATE = lv.buttonmatrix.CTRL.CHECKED
@@ -21,6 +26,7 @@ class ButtonMatrix(lv.buttonmatrix):
         super().add_event_cb(self._event_cb, lv.EVENT.ALL, None)
 
     def set_event_cb(self, callback):
+        """Register a compatibility callback that receives (obj, code)."""
         self.callback = callback
 
     def get_event_cb(self):

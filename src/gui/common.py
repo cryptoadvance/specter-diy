@@ -1,9 +1,6 @@
 """Some commonly used functions, like helpers"""
 import lvgl as lv
-#import qrcode
-import math
 from micropython import const
-import gc
 from .components import QRCode, styles
 from .decorators import feed_touch_on_pressing
 

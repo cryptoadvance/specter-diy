@@ -3,6 +3,11 @@ from .theme import styles
 
 
 class MnemonicTable(lv.table):
+    """LVGL v9 table with the legacy callback shape used by mnemonic screens.
+
+    set_event_cb(callback) callbacks receive (obj, code), not an LVGL event.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.words = [""]
@@ -39,6 +44,7 @@ class MnemonicTable(lv.table):
             self.set_cell_value(i, 2, "%d" % (i + 13))
 
     def set_event_cb(self, callback):
+        """Register a compatibility callback that receives (obj, code)."""
         self.callback = callback
 
     def set_click(self, enabled):

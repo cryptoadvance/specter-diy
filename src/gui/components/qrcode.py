@@ -1,11 +1,8 @@
 import lvgl as lv
 import lvqr
-import math
-import gc
 import asyncio
 import platform
 
-from io import BytesIO
 from qrencoder import QREncoder
 
 DEBUG_QR_PAYLOADS = False
@@ -67,6 +64,11 @@ def center_label(lbl):
     lbl.center()
 
 class QRCode(lv.obj):
+    """QR widget with a square-only set_size(size) compatibility method.
+
+    Unlike lv.obj.set_size(width, height), set_size() accepts one dimension.
+    """
+
     RATE = 500  # ms
     FRAME_SIZE = 300
     QR_VERSION = 10
