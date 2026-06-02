@@ -15,6 +15,7 @@ class SDHost(Host):
 
     button = "Open SD card file"
     settings_button = "SD card"
+    DELETE_FILE = -1
 
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)
@@ -69,6 +70,25 @@ class SDHost(Host):
         return fname[:18]+"..."+fname[-12:]
 
     async def select_file(self, extensions):
+        while True:
+            files = self.list_files(extensions)
+            if len(files) == 0:
+                raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
+            # elif len(files) == 1:
+            #     return self.sdpath+"/"+ files[0]
+
+            buttons = self.file_menu_buttons(files, extensions)
+            buttons += [(self.DELETE_FILE, "Delete file")]
+
+            fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
+            if fname == self.DELETE_FILE:
+                deleted = await self.delete_file_menu(files)
+                if deleted and len(self.list_files(extensions)) == 0:
+                    return None
+                continue
+            return fname
+
+    def list_files(self, extensions):
         files = sum([
             [
                 f[0] for f in os.ilistdir(self.sdpath)
@@ -76,13 +96,10 @@ class SDHost(Host):
                 and f[1] == 0x8000
             ] for ext in extensions
         ], [])
-        
-        if len(files) == 0:
-            raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
-        # elif len(files) == 1:
-        #     return self.sdpath+"/"+ files[0]
-        
         files.sort()
+        return files
+
+    def file_menu_buttons(self, files, extensions):
         buttons = []
         for ext in extensions:
             title = [(None, ext+" files")]
@@ -95,9 +112,29 @@ class SDHost(Host):
                 buttons += [(None, "%s files - No files" % ext)]
             else:
                 buttons += title + barr
-        
-        fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
-        return fname
+        return buttons
+
+    async def delete_file_menu(self, files):
+        fname = await self.manager.gui.menu(
+            [(self.sdpath+"/"+f, self.truncate(f)) for f in files],
+            title="Delete SD card file",
+            last=(None, "Cancel")
+        )
+        if fname is None:
+            return False
+        shortname = fname.split("/")[-1]
+        confirm = await self.manager.gui.prompt(
+            "Delete file?",
+            "\n\nDelete %s from the SD card?\n\nThis cannot be undone." % shortname
+        )
+        if not confirm:
+            return False
+        try:
+            os.remove(fname)
+        except Exception:
+            raise HostError("Failed to delete file '%s'" % shortname)
+        await self.manager.gui.alert("Success!", "\n\n%s deleted." % shortname, button_text="OK")
+        return True
 
     def completed_filename(self, filename):
         suffix = "" if self.parent is None else ("."+hexlify(self.parent.fingerprint).decode())

@@ -159,6 +159,16 @@ def setup_native_stubs():
     if not hasattr(bcur, "bcur_decode_stream"):
         bcur.bcur_decode_stream = lambda stream: stream
 
+    microur = _ensure_module("microur")
+    if not hasattr(microur, "__path__"):
+        microur.__path__ = []
+    _ensure_submodule("microur", "decoder", {
+        "FileURDecoder": type("FileURDecoder", (), {}),
+    })
+    _ensure_submodule("microur", "util", {
+        "cbor": types.SimpleNamespace(),
+    })
+
     secp256k1 = _ensure_module("secp256k1")
     if not hasattr(secp256k1, "EC_UNCOMPRESSED"):
         secp256k1.EC_UNCOMPRESSED = 0
