@@ -46,19 +46,27 @@ class SDHost(Host):
         """
         self.reset_and_mount()
         try:
-            sd_file = await self.select_file([".psbt", ".txt", ".json"])
-            if sd_file is None:
+            result = await self.select_file([".psbt", ".txt", ".json"])
+            if result is None:
                 return
-            self.sd_file = sd_file
-            with open(self.fram, "wb") as fout:
-                with open(self.sd_file, "rb") as fin:
-                    # check sign prefix for txs
-                    start = fin.read(5)
-                    if self.sd_file.endswith(".psbt") and start != b"sign ":
-                        fout.write(b"sign ")
-                    fout.write(start)
-                    self.copy(fin, fout)
-            self.f = open(self.fram,"rb")
+            action, filename = result
+            if action == "load":
+                self.sd_file = filename
+                with open(self.fram, "wb") as fout:
+                    with open(self.sd_file, "rb") as fin:
+                        # check sign prefix for txs
+                        start = fin.read(5)
+                        if self.sd_file.endswith(".psbt") and start != b"sign ":
+                            fout.write(b"sign ")
+                        fout.write(start)
+                        self.copy(fin, fout)
+                self.f = open(self.fram, "rb")
+            elif action == "delete":
+                try:
+                    os.remove(filename)
+                    await self.manager.gui.alert("Success", f"Deleted {filename.split('/')[-1]}")
+                except Exception as e:
+                    await self.manager.gui.alert("Error", f"Failed to delete: {e}")
         finally:
             platform.sdcard.unmount()
         return self.f
@@ -76,28 +84,21 @@ class SDHost(Host):
                 and f[1] == 0x8000
             ] for ext in extensions
         ], [])
-        
+
         if len(files) == 0:
             raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
-        # elif len(files) == 1:
-        #     return self.sdpath+"/"+ files[0]
-        
+
         files.sort()
         buttons = []
-        for ext in extensions:
-            title = [(None, ext+" files")]
-            barr = [
-                (self.sdpath+"/"+f, self.truncate(f))
-                for f in files
-                if f.lower().endswith(ext)
-            ]
-            if len(barr) == 0:
-                buttons += [(None, "%s files - No files" % ext)]
-            else:
-                buttons += title + barr
-        
-        fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
-        return fname
+        for f in files:
+            filepath = self.sdpath + "/" + f
+            truncated = self.truncate(f)
+            buttons.append(((filepath, "load"), "Load: " + truncated))
+            buttons.append(((filepath, "delete"), "Delete: " + truncated))
+
+        last = (None, "Cancel")
+        choice = await self.manager.gui.menu(buttons, title="Select action for file", last=last)
+        return choice
 
     def completed_filename(self, filename):
         suffix = "" if self.parent is None else ("."+hexlify(self.parent.fingerprint).decode())
@@ -110,7 +111,6 @@ class SDHost(Host):
             arr = arr[:-1] + ["completed%s" % suffix, arr[-1]]
         return ".".join(arr)
 
-
     async def send_data(self, stream, *args, **kwargs):
         """
         Saves transaction in base64 encoding to SD card
@@ -122,7 +122,7 @@ class SDHost(Host):
         try:
             if platform.file_exists(new_fname):
                 confirm = await self.manager.gui.prompt("Overwrite?",
-                    "File %s exists. Overwrite?" % new_fname.split("/")[-1]
+                    "File %s exists. Overwrite?" % new_fname.split('/')[-1]
                 )
                 if not confirm:
                     platform.sdcard.unmount()
@@ -137,7 +137,8 @@ class SDHost(Host):
                 stream.seek(0)
         finally:
             platform.sdcard.unmount()
-        show_qr = await self.manager.gui.prompt("Success!", "\n\nProcessed request is saved to\n\n%s\n\nShow as QR code?" % new_fname.split("/")[-1])
+        msg = "\\n\\nProcessed request is saved to\\n\\n%s\\n\\nShow as QR code?" % new_fname.split('/')[-1]
+        show_qr = await self.manager.gui.prompt("Success!", msg)
         if show_qr:
             await self._show_qr(stream, *args, **kwargs)
 
