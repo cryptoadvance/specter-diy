@@ -1,12 +1,8 @@
-# Redirect rules for specter-diy-docs Netlify site
-# Add your specific redirects below
-# Example:
-# /old-page /new-page 301
-# /blog/* /articles/:splat 301
-# 
-# To force HTTPS and remove www:
-# https://www.example.com/* https://example.com/:splat 301!
-# 
-# Single page app fallback (if needed):
-# /* /index.html 200
+# Force HTTPS and remove www
+https://www.docs.specter.solutions/* https://docs.specter.solutions/:splat 301!
 
+# Redirect root to the diy subdirectory
+https://docs.specter.solutions/* https://docs.specter.solutions/diy/:splat 301!
+
+# Single page app fallback (if needed)
+# /* /index.html 200
