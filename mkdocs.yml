@@ -15,6 +15,7 @@ nav:
   - Software:
     - quickstart.md
     - multisig-security-tradeoffs.md
+    - 'Threshold backup': threshold-backup.md
   - Development: 
     - 'Developing': development.md
     - communication.md
