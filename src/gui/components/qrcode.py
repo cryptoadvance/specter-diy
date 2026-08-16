@@ -38,6 +38,9 @@ class QRCode(lv.obj):
 
         self.encoder = None
         self._autoplay = True
+        # When True, this QR encodes secret material (mnemonic, SeedQR
+        # digits/bytes): never print its contents, even in the simulator.
+        self.sensitive = False
 
         self.qr = lvqr.QRCode(self)
         self._text = "Text"
@@ -244,7 +247,7 @@ class QRCode(lv.obj):
         self.check_controls()
 
     def set_text(self, text="Text", set_first_frame=False):
-        if platform.simulator and self._text != text:
+        if platform.simulator and not self.sensitive and self._text != text:
             print("QR on screen:", text)
         self.encoder = None
         self._text = text
@@ -288,8 +291,8 @@ class QRCode(lv.obj):
         self.play.set_hidden((not self.is_fullscreen) or (self.idx is not None) or (self.encoder is None))
 
     def _set_text(self, text):
-        # one bcur frame doesn't require checksum
-        print(text)
+        if platform.simulator and not self.sensitive:
+            print(text)
         self.set_style(qr_style)
         self.qr.set_text(text)
         self.qr.align(self, lv.ALIGN.CENTER, 0, -100 if self.is_fullscreen else 0)

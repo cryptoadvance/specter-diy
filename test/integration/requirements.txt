@@ -1,2 +1,6 @@
 requests
 embit
+# Pure-python QR reference encoder used only by native_support's `qrcode`
+# stub (test/tests_native/test_seedqr.py) -- the real firmware `qrcode`
+# module is a native C extension unavailable under CPython.
+segno

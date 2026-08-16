@@ -8,9 +8,10 @@ from embit.liquid import slip77
 from embit.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
-from gui.screens import Alert, PinScreen, Prompt, Menu, QRAlert
+from gui.screens import Alert, PinScreen, Prompt, Menu, QRAlert, show_seedqr
 from gui.screens.mnemonic import ExportMnemonicScreen
 from binascii import hexlify
+import seedqr
 
 class RAMKeyStore(KeyStore):
     """
@@ -384,16 +385,20 @@ class RAMKeyStore(KeyStore):
                 if v == 255:
                     return
                 elif v == 1:
-                    nums = [bip39.WORDLIST.index(w) for w in self.mnemonic.split()]
-                    qr_msg = "".join([("000"+str(n))[-4:] for n in nums])
-                    msg = qr_msg
+                    await show_seedqr(
+                        self.show, seedqr.standard_payload(self.mnemonic),
+                        "Standard SeedQR (digits)",
+                    )
                 elif v == 2:
-                    qr_msg = bip39.mnemonic_to_bytes(self.mnemonic)
-                    msg = hexlify(qr_msg).decode()
+                    await show_seedqr(
+                        self.show, seedqr.compact_payload(self.mnemonic),
+                        "Compact SeedQR (binary)",
+                    )
                 elif v == 3:
-                    qr_msg = self.mnemonic
-                    msg = self.mnemonic
-                await self.show(QRAlert(title="Your mnemonic as QR code", message=msg, qr_message=qr_msg, transcribe=True))
+                    await self.show(QRAlert(
+                        title="Your mnemonic as QR code", message=self.mnemonic,
+                        qr_message=self.mnemonic, transcribe=True, sensitive=True,
+                    ))
             elif v == ExportMnemonicScreen.SD:
                 if not platform.sdcard.is_present:
                     raise KeyStoreError("SD card is not present")

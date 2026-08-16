@@ -103,9 +103,17 @@ def setup_native_stubs():
         "RecoverMnemonicScreen",
         "Progress",
         "DevSettings",
+        "SeedQROverviewScreen",
+        "SeedQRZoomScreen",
     ]:
         if not hasattr(screens, _name):
             setattr(screens, _name, type(_name, (), {}))
+
+    if not hasattr(screens, "show_seedqr"):
+        async def _stub_show_seedqr(*args, **kwargs):
+            return None
+
+        screens.show_seedqr = _stub_show_seedqr
 
     _ensure_submodule("gui.screens", "mnemonic", {
         "ExportMnemonicScreen": type("ExportMnemonicScreen", (), {}),
@@ -158,6 +166,35 @@ def setup_native_stubs():
     bcur = _ensure_module("bcur")
     if not hasattr(bcur, "bcur_decode_stream"):
         bcur.bcur_decode_stream = lambda stream: stream
+
+    qrcode = _ensure_module("qrcode")
+    if not hasattr(qrcode, "encode_to_string"):
+        try:
+            import segno
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                "Native test suite requires the 'segno' package to stand in "
+                "for the native qrcodegen-backed 'qrcode' usermod (there is "
+                "no CPython build of it). Install it with "
+                "'pip install -r test/integration/requirements.txt'."
+            ) from exc
+
+        def _encode_to_string(payload):
+            # Mirrors f469-disco/usermods/qrcode/qrcode.c: ECC LOW, boosted
+            # ECC, auto mask/version, bytes -> forced binary mode, str ->
+            # auto text mode (numeric/alphanumeric/byte). QR version (hence
+            # matrix size) is a deterministic function of payload length +
+            # mode + ECC policy, so this reference encoder produces the same
+            # module counts as the firmware encoder for the same payload,
+            # even though it is a different implementation.
+            if isinstance(payload, (bytes, bytearray)):
+                qr = segno.make(bytes(payload), error="l", boost_error=True, mode="byte")
+            else:
+                qr = segno.make(payload, error="l", boost_error=True)
+            rows = ("".join("1" if v else "0" for v in row) for row in qr.matrix)
+            return "\n".join(rows) + "\n"
+
+        qrcode.encode_to_string = _encode_to_string
 
     secp256k1 = _ensure_module("secp256k1")
     if not hasattr(secp256k1, "EC_UNCOMPRESSED"):
