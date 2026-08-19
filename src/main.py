@@ -12,12 +12,20 @@ from helpers import load_apps
 from app import BaseApp
 import display
 
+if platform.hil_test_mode:
+    from debug_trace import log
+    os.dupterm(None, 0)
+    log("BOOT", "HIL mode: dupterm disabled (USB VCP already enabled in boot.py)")
+
 def main(apps=None, network="main", keystore_cls=None):
     """
     apps: list of apps to load
     network: default network to operate
     keystores: list of KeyStore classes that can be used
     """
+    if platform.hil_test_mode and network == "main":
+        network = "regtest"
+
     # Init display first as it also inits the SDRAM
     display.init(False)
     # create virtual file system /sdram

@@ -16,6 +16,7 @@ from platform import (
     get_firmware_boot_mode,
     get_flash_read_protection_status,
     get_flash_write_protection_status,
+    hil_test_mode,
 )
 from hosts import Host, HostError
 from app import BaseApp
@@ -157,6 +158,7 @@ class Specter:
         # if we have fixed keystore - just use it
         if len(self.keystores) == 1:
             self.keystore = self.keystores[0]()
+            self._hil_set_keystore_ref(self.keystores[0])
             return
         # checking the first available keystore
         keystore_cls = None
@@ -170,8 +172,22 @@ class Specter:
             # if keystore_cls is None:
             #     await asyncio.sleep_ms(50)
         self.keystore = keystore_cls()
+        self._hil_set_keystore_ref(keystore_cls)
 
     async def setup(self):
+        # start HIL listener if in test mode
+        if hil_test_mode:
+            from debug_trace import log, log_exception
+            self._hil_handler = self._init_hil_handler()
+            if self._hil_handler is not None:
+                asyncio.create_task(self._hil_listener())
+            # Enable USBHost immediately in HIL mode for hardware testing
+            # This must happen BEFORE unlock() so USB VCP is ready when tests run
+            for host in self.hosts:
+                if host.settings_button == "USB communication" and not host.is_enabled:
+                    log("HIL", "Enabling USBHost early for hardware testing")
+                    await host.enable()
+
         try:
             # check if the user already selected the keystore class
             if self.keystore is None:
@@ -190,6 +206,32 @@ class Specter:
 
         await self.main()
 
+    def _init_hil_handler(self):
+        """Initialize HIL command handler if available."""
+        try:
+            from hil import HILCommandHandler
+            from debug_trace import log, log_exception
+            import platform
+            uart = platform.stlk
+            handler = HILCommandHandler(uart, self.gui)
+            log("HIL", "Handler initialized")
+            return handler
+        except Exception as e:
+            log_exception("HIL", e)
+            return None
+
+    async def _hil_listener(self):
+        """Listen for HIL test commands on debug UART."""
+        from debug_trace import log, log_exception
+        log("HIL", "Listener started")
+        while True:
+            await asyncio.sleep_ms(50)
+            if self._hil_handler is not None:
+                try:
+                    self._hil_handler.poll()
+                except Exception as e:
+                    log_exception("HIL", e)
+
     async def host_exception_handler(self, e):
         try:
             raise e
@@ -200,6 +242,18 @@ class Specter:
             sys.print_exception(e, b)
             msg = b.getvalue().decode()
         await self.gui.error(msg, popup=True)
+
+    def _hil_set_keystore_ref(self, keystore_cls):
+        """Wire keystore reference for HIL test commands (fingerprint, mnemonic)."""
+        if not hil_test_mode:
+            return
+        try:
+            import hil
+            hil.set_keystore_name(keystore_cls.NAME)
+            hil.set_keystore_ref(self.keystore)
+        except Exception as e:
+            from debug_trace import log_exception
+            log_exception("HIL", e)
 
     async def main(self):
         while True:

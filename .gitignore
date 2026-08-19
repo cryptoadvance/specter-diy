@@ -10,3 +10,4 @@ release
 .DS_Store
 .direnv
 src/git_info.py
+src/build_config.py
