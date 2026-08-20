@@ -1,5 +1,5 @@
 from .core import KeyStoreError
-from .flash import FlashKeyStore
+from .flash import FlashKeyStore, SD_FILE_PREFIX
 import platform
 from gui.screens import Menu, Prompt
 from helpers import tagged_hash
@@ -34,7 +34,7 @@ class SDKeyStore(FlashKeyStore):
             return 'reckless'
 
         hexid = hexlify(tagged_hash("sdid", self.secret)[:4]).decode()
-        return "specterdiy%s" % hexid
+        return "%s%s" % (SD_FILE_PREFIX, hexid)
 
     async def get_keypath(self, title="Select media", only_if_exist=True, **kwargs):
         # enable / disable buttons
@@ -63,14 +63,24 @@ class SDKeyStore(FlashKeyStore):
         )
         if path is None:
             return
+
+        if path == self.sdpath:
+            # lets the user choose a format (plain text / Bitbox / encrypted)
+            # and shows the warning that matches whichever one is picked -
+            # it has its own confirmation, so nothing further to do here.
+            await self.export_mnemonic_to_sd()
+            return
+
+        if not await self._confirm_encrypted_storage("the internal flash"):
+            return
+
         filename = await self.get_input(suggestion=self.mnemonic.split()[0])
         if filename is None:
             return
+        if not await self.check_label(filename):
+            return
 
         fullpath = "%s/%s.%s" % (path, self.fileprefix(path), filename)
-
-        if fullpath.startswith(self.sdpath):
-            platform.sdcard.mount()
 
         if platform.file_exists(fullpath):
             scr = Prompt(
@@ -79,18 +89,13 @@ class SDKeyStore(FlashKeyStore):
             )
             res = await self.show(scr)
             if res is False:
-                if fullpath.startswith(self.sdpath):
-                    platform.sdcard.unmount()
                 return
 
         self.save_aead(fullpath, plaintext=self.mnemonic.encode(),
                        key=self.enc_secret)
-        if fullpath.startswith(self.sdpath):
-            platform.sdcard.unmount()
         # check it's ok
         await self.load_mnemonic(fullpath)
-        # return the full file name incl. prefix if saved to SD card, just the name if on flash
-        return fullpath.split("/")[-1] if fullpath.startswith(self.sdpath) else filename
+        return filename
 
     @property
     def is_key_saved(self):
@@ -155,14 +160,19 @@ class SDKeyStore(FlashKeyStore):
         if not platform.file_exists(file):
             raise KeyStoreError("File not found.")
         try:
-            os.remove(file)
+            platform.secure_delete_file(file)
         except Exception as e:
             print(e)
             raise KeyStoreError("Failed to delete file '%s'" % file)
         finally:
             if platform.sdcard.is_present and file.startswith(self.sdpath):
                 platform.sdcard.unmount()
-            return True
+        # NOTE: this return must stay OUTSIDE the finally block - a return
+        # inside finally executes while an exception is propagating and
+        # silently discards it, so a failed delete would still report
+        # success. The unmount above belongs to the finally (it must run
+        # on every path); the success return does not.
+        return True
 
     async def storage_menu(self):
         """Manage storage, return True if new key was loaded"""

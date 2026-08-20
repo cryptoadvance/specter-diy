@@ -1,6 +1,7 @@
 from .core import KeyStore, KeyStoreError
 from platform import CriticalErrorWipeImmediately
 import platform
+import os
 from rng import get_random_bytes
 import hmac
 from embit import ec, bip39, bip32
@@ -8,9 +9,14 @@ from embit.liquid import slip77
 from embit.transaction import SIGHASH
 from helpers import aead_encrypt, aead_decrypt, tagged_hash
 import secp256k1
-from gui.screens import Alert, PinScreen, Prompt, Menu, QRAlert
+from gui.screens import Alert, PinScreen, Prompt, Menu, QRAlert, InputScreen
 from gui.screens.mnemonic import ExportMnemonicScreen
 from binascii import hexlify
+
+# formats offered when exporting a recovery phrase to the SD card
+SD_EXPORT_PLAIN = "plain"
+SD_EXPORT_BITBOX = "bitbox"
+SD_EXPORT_ENCRYPTED = "enc"
 
 class RAMKeyStore(KeyStore):
     """
@@ -395,17 +401,289 @@ class RAMKeyStore(KeyStore):
                     msg = self.mnemonic
                 await self.show(QRAlert(title="Your mnemonic as QR code", message=msg, qr_message=qr_msg, transcribe=True))
             elif v == ExportMnemonicScreen.SD:
-                if not platform.sdcard.is_present:
-                    raise KeyStoreError("SD card is not present")
-                if await self.show(Prompt("Are you sure?", message="Your mnemonic will be saved as a simple plaintext file.\n\nAnyone with access to it will be able to read your key.\n\nContinue?")):
-                    with platform.sdcard as sd:
-                        fname = "%s.txt" % self.mnemonic.split()[0]
-                        if sd.file_exists(fname):
-                            confirm = await self.show(Prompt("Overwrite?", message="File %s already exists on the SD card. Overwrite?" % fname))
-                            if not confirm:
-                                return
-                        with sd.open(fname, "w") as f:
-                            f.write(self.mnemonic)
-                    await self.show(Alert(title="Mnemonic is saved!", message="You mnemonic is saved in plaintext to\n\n%s\n\nPlease keep it safe." % fname))
+                await self.export_mnemonic_to_sd()
             else:
                 return
+
+    @property
+    def can_encrypt_for_sd(self):
+        """
+        Whether this keystore can encrypt SD card backups with a secret
+        unique to this device. Only true for SDKeyStore - a smartcard
+        keystore has no such device-bound secret to use for this.
+        """
+        return hasattr(self, "sdpath")
+
+    async def export_mnemonic_to_sd(self):
+        """
+        Saves the currently loaded mnemonic to the SD card, letting the
+        user choose between two unencrypted, portable formats and - when
+        this keystore supports it - a copy encrypted with this device's
+        own secret.
+        """
+        if not platform.sdcard.is_present:
+            raise KeyStoreError("SD card is not present")
+
+        can_encrypt = self.can_encrypt_for_sd
+        buttons = [
+            (None, "Choose a format"),
+            (SD_EXPORT_PLAIN, "Plain text (Specter format)"),
+            (SD_EXPORT_BITBOX, "Bitbox format"),
+            (
+                SD_EXPORT_ENCRYPTED,
+                "Encrypted (this device only)",
+                can_encrypt,
+            ),
+        ]
+        note = None
+        if not can_encrypt:
+            note = (
+                "Encrypted storage needs \"Flash & SD card storage\" mode - "
+                "restart the device with the smartcard removed to use it."
+            )
+        fmt = await self.show(
+            Menu(
+                buttons=buttons,
+                title="Save recovery phrase to SD card",
+                note=note,
+                last=(None, "Cancel"),
+            )
+        )
+        if fmt is None:
+            return
+
+        if fmt == SD_EXPORT_ENCRYPTED:
+            confirmed = await self.show(
+                Prompt(
+                    "Encrypted with this device",
+                    "\n\nThis copy will be encrypted with a secret unique to "
+                    "this device - only this exact device will be able to "
+                    "read it back.\n\n"
+                    "That's more convenient than plain text, but still not "
+                    "as safe as keeping your key on a PIN-protected "
+                    "smartcard (Secure Element): if this device is lost, "
+                    "damaged or wiped, this backup alone won't protect "
+                    "your funds.\n\n"
+                    "Continue?",
+                )
+            )
+        elif fmt == SD_EXPORT_BITBOX:
+            confirmed = await self.show(
+                Prompt(
+                    "This will NOT be encrypted!",
+                    "\n\nThis writes a native BitBox02-format backup (three "
+                    "redundant copies) to the SD card, exactly like a real "
+                    "BitBox02 would.\n\n"
+                    "Anyone who gets hold of this SD card will have full "
+                    "access to your funds.\n\n"
+                    "Store and protect it exactly as carefully as a "
+                    "handwritten recovery phrase, and never plug it into a "
+                    "computer or any other untrusted device.\n\n"
+                    "Continue?",
+                    warning="Recovery phrase will be stored unencrypted",
+                )
+            )
+        else:
+            confirmed = await self.show(
+                Prompt(
+                    "This will NOT be encrypted!",
+                    "\n\nAnyone who gets hold of this SD card will have "
+                    "full access to your funds.\n\n"
+                    "Store and protect it exactly as carefully as a "
+                    "handwritten recovery phrase, and never plug it into a "
+                    "computer or any other untrusted device.\n\n"
+                    "Continue?",
+                    warning="Recovery phrase will be stored unencrypted",
+                )
+            )
+        if not confirmed:
+            return
+
+        label = await self.get_input(suggestion=self.mnemonic.split()[0])
+        if label is None:
+            return
+        if not await self.check_label(label):
+            return
+
+        platform.sdcard.mount()
+        try:
+            if fmt == SD_EXPORT_BITBOX:
+                display_name, verified = self._write_bitbox_backup(label)
+            else:
+                sdpath = platform.fpath("/sd")
+                if fmt == SD_EXPORT_ENCRYPTED:
+                    fullpath = "%s/%s.%s" % (sdpath, self.fileprefix(sdpath), label)
+                else:
+                    fullpath = "%s/%s.specter.txt" % (sdpath, label)
+
+                if platform.file_exists(fullpath):
+                    confirm = await self.show(
+                        Prompt(
+                            "\n\nFile already exists: %s\n" % fullpath.split("/")[-1],
+                            "Would you like to overwrite this file?",
+                        )
+                    )
+                    if not confirm:
+                        return
+
+                if fmt == SD_EXPORT_ENCRYPTED:
+                    self.save_aead(
+                        fullpath, plaintext=self.mnemonic.encode(), key=self.enc_secret
+                    )
+                    _, check = self.load_aead(fullpath, self.enc_secret)
+                    verified = check.decode() == self.mnemonic
+                else:
+                    with open(fullpath, "w") as f:
+                        f.write(self.mnemonic)
+                    with open(fullpath, "r") as f:
+                        verified = f.read() == self.mnemonic
+                display_name = fullpath.split("/")[-1]
+
+            if not verified:
+                raise KeyStoreError(
+                    "Failed to verify the file that was just saved"
+                )
+        finally:
+            platform.sdcard.unmount()
+
+        await self.show(
+            Alert(
+                "Success!",
+                "Your recovery phrase is saved to\n\n%s\n\nPlease keep it safe."
+                % display_name,
+            )
+        )
+
+    def _write_bitbox_backup(self, label):
+        """
+        Encodes the current mnemonic as a native BitBox02 microSD backup
+        (bitbox_backup.build_backup) and writes it as three redundant
+        copies under bitbox02/<backup id>/ on the SD card, the same
+        layout a real BitBox02 device uses - readable both by this
+        device's own "BitBox microSD backup" import and, in principle, by
+        a real BitBox02 (untested on real hardware, see docs/security-model.md).
+
+        Refuses to write if the backup directory already exists and
+        contains anything: mixing our three copies with files already
+        there (e.g. the timestamped files a real BitBox02 writes for the
+        same seed) would leave more than three files in the directory,
+        and both this device and real BitBox02 firmware only ever load a
+        backup directory containing exactly three files - so "merging"
+        would silently corrupt the backup for both.
+
+        The SD card must already be mounted by the caller. Returns
+        (display_path, verified), where verified confirms the written
+        copies parse back (via bitbox_backup/bitbox_sd, the same code the
+        import path uses) to the exact mnemonic that was just encoded.
+        """
+        import bitbox_backup
+        import bitbox_sd
+
+        # NOTE: mnemonic_to_bytes() returns immutable bytes - that one
+        # copy of the entropy cannot be zeroized (same documented limit
+        # as the mnemonic string itself). Everything derived from it here
+        # stays in wipeable bytearrays instead.
+        entropy = bip39.mnemonic_to_bytes(self.mnemonic)
+        backup_id, encoded = bitbox_backup.build_backup(entropy, name=label)
+        written_files = []
+        dir_path = None
+        try:
+            bitbox_root = "%s/%s" % (platform.fpath("/sd"), bitbox_sd.BITBOX_ROOT_DIRNAME)
+            dir_path = "%s/%s" % (bitbox_root, backup_id)
+            try:
+                existing = [
+                    e for e in os.ilistdir(dir_path)
+                    if e[0] not in (".", "..")
+                ]
+            except OSError:
+                # directory doesn't exist yet - the normal case
+                existing = []
+            if existing:
+                raise KeyStoreError(
+                    "A BitBox backup of this key already exists on the "
+                    "card.\n\nDelete it first (Device settings -> SD card "
+                    "-> Delete data) if you want to replace it."
+                )
+            platform.maybe_mkdir(bitbox_root)
+            platform.maybe_mkdir(dir_path)
+            for i in range(bitbox_sd.EXPECTED_FILE_COUNT):
+                fname = "%s/%d.bin" % (dir_path, i)
+                with open(fname, "wb") as f:
+                    f.write(encoded)
+                written_files.append(fname)
+
+            raw_files = bitbox_sd.read_backup_files(backup_id)
+            try:
+                parsed, _, _ = bitbox_backup.load_backup(backup_id, raw_files)
+                try:
+                    verified = parsed.mnemonic() == self.mnemonic
+                finally:
+                    parsed.zeroize()
+            finally:
+                for buf in raw_files:
+                    bitbox_backup.zeroize(buf)
+        except Exception:
+            # Rollback: a failed write (card pulled mid-backup, write
+            # error, verification failure, ...) must not leave a partial
+            # backup directory on the card. A directory with fewer or
+            # more than exactly 3 files is rejected by both this device
+            # and real BitBox02 firmware, and the already-written copies
+            # contain the plaintext seed - so remove them and the now-
+            # empty directory. rmdir only succeeds on empty dirs, so it
+            # is safe even if the directory pre-existed (an empty
+            # pre-existing dir is harmless to remove here).
+            for fname in written_files:
+                try:
+                    # These files contain the recovery phrase in plaintext.
+                    # Unlinking would leave the old sectors recoverable on
+                    # FAT/SD, so use the same secure deletion path as the
+                    # explicit SD-card delete menu.
+                    platform.secure_delete_file(fname)
+                except Exception:
+                    pass
+            if dir_path is not None:
+                try:
+                    os.rmdir(dir_path)
+                except OSError:
+                    pass
+            raise
+        finally:
+            bitbox_backup.zeroize(encoded)
+
+        return "%s/%s/" % (bitbox_sd.BITBOX_ROOT_DIRNAME, backup_id), verified
+
+    async def get_input(
+            self,
+            title="Enter a name for this seed",
+            note="Naming your seeds allows you to store multiple.\n"
+                 "Give each seed a unique name!",
+            suggestion="",
+    ):
+        scr = InputScreen(title, note, suggestion, min_length=1, strip=True)
+        await self.show(scr)
+        return scr.get_value()
+
+    # Characters a user-typed label must not contain when it is used as
+    # (part of) a file name: path separators would let it escape the
+    # intended directory (traversal), the rest are invalid in FAT file
+    # names anyway. Control characters are rejected as well.
+    _LABEL_FORBIDDEN_CHARS = '/\\:*?"<>|'
+
+    async def check_label(self, label):
+        """Validates a user-typed label before it becomes part of a file
+        name on flash or SD card. Shows an error screen and returns False
+        if the label can't be used; returns True otherwise."""
+        ok = bool(label) and not any(
+            (c in self._LABEL_FORBIDDEN_CHARS) or (ord(c) < 32) or (ord(c) == 127)
+            for c in label
+        )
+        if not ok:
+            await self.show(Alert(
+                "Invalid name",
+                "The name is empty or contains characters that are not "
+                "allowed in file names.\n\n"
+                "Not allowed: / \\ : * ? \" < > | and control characters.\n\n"
+                "Please choose a different name.",
+                button_text="OK",
+            ))
+        return ok

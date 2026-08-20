@@ -37,7 +37,7 @@ class ExportMnemonicScreen(MnemonicScreen):
         super().__init__(*args, **kwargs)
         self.show_qr_btn = add_button(text="Show as QR code", scr=self, callback=on_release(self.select_qr))
         self.show_qr_btn.align(self.table, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
-        self.save_sd_btn = add_button(text="Save to SD card (plaintext)", scr=self, callback=on_release(self.select_sd))
+        self.save_sd_btn = add_button(text="Save to SD card", scr=self, callback=on_release(self.select_sd))
         self.save_sd_btn.align(self.show_qr_btn, lv.ALIGN.OUT_BOTTOM_MID, 0, 10)
 
     def select_sd(self):

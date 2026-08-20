@@ -31,9 +31,13 @@ def setup_native_stubs():
 
     if not hasattr(os, "ilistdir"):
         def _ilistdir(path):
-            for entry in os.scandir(path):
-                mode = 0x4000 if entry.is_dir() else 0x8000
-                yield (entry.name, mode, 0, 0)
+            # scandir() as a context manager, so abandoning the iterator
+            # early (as a caller enforcing an entry limit does) still
+            # releases the directory handle instead of leaking it.
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    mode = 0x4000 if entry.is_dir() else 0x8000
+                    yield (entry.name, mode, 0, 0)
         os.ilistdir = _ilistdir
 
     pyb = _ensure_module("pyb")
@@ -83,6 +87,44 @@ def setup_native_stubs():
     if not hasattr(gui, "__path__"):
         gui.__path__ = []
 
+    class _StubScreen:
+        """Stand-in for a real lvgl-backed Screen class: accepts the same
+        positional/keyword args the flexible real constructors take, and
+        exposes the kwargs as attributes so tests can inspect what a screen
+        was constructed with.
+
+        Deliberately permissive about *what* it accepts (real screen
+        constructors vary widely, and this one stub covers many of them),
+        but records the full construction call in __repr__ so a test that
+        passes the wrong args to a screen can be diagnosed from a failure
+        message instead of silently producing an opaque <_StubScreen obj>.
+        Also rejects container types (list/dict/set) as positional args,
+        which no real screen constructor in this codebase accepts - those
+        almost always indicate a test wiring bug rather than a screen that
+        happens to take a list of titles."""
+
+        def __init__(self, *args, **kwargs):
+            for a in args:
+                if isinstance(a, (list, dict, set)):
+                    raise TypeError(
+                        "%s: positional arg %r is a %s, which no real screen "
+                        "constructor accepts - likely a test wiring bug"
+                        % (type(self).__name__, a, type(a).__name__)
+                    )
+            self.args = args
+            self.kwargs = kwargs
+            for _k, _v in kwargs.items():
+                setattr(self, _k, _v)
+
+        def __repr__(self):
+            cls = type(self).__name__
+            args_repr = ", ".join(repr(a) for a in self.args)
+            kwargs_repr = ", ".join(
+                "%s=%r" % (k, v) for k, v in self.kwargs.items()
+            )
+            all_args = ", ".join(x for x in [args_repr, kwargs_repr] if x)
+            return "%s(%s)" % (cls, all_args)
+
     screens = _ensure_module("gui.screens")
     if not hasattr(screens, "__path__"):
         screens.__path__ = []
@@ -105,10 +147,11 @@ def setup_native_stubs():
         "DevSettings",
     ]:
         if not hasattr(screens, _name):
-            setattr(screens, _name, type(_name, (), {}))
+            setattr(screens, _name, type(_name, (_StubScreen,), {}))
 
     _ensure_submodule("gui.screens", "mnemonic", {
-        "ExportMnemonicScreen": type("ExportMnemonicScreen", (), {}),
+        "ExportMnemonicScreen": type("ExportMnemonicScreen", (_StubScreen,), {}),
+        "MnemonicPrompt": type("MnemonicPrompt", (_StubScreen,), {}),
     })
     _ensure_submodule("gui.screens", "settings", {
         "HostSettings": type("HostSettings", (), {}),
@@ -158,6 +201,29 @@ def setup_native_stubs():
     bcur = _ensure_module("bcur")
     if not hasattr(bcur, "bcur_decode_stream"):
         bcur.bcur_decode_stream = lambda stream: stream
+
+    # microur lives in the f469-disco submodule (libs/common/microur), which
+    # the native-tests CI job does not check out. Importing specter pulls it
+    # in transitively via hosts -> hosts.qr, so stub it here. Only the names
+    # actually imported by src/ are provided; anything that really exercises
+    # UR decoding belongs in the MicroPython test suite, not here.
+    if "microur" not in sys.modules:
+        microur = _ensure_module("microur")
+        microur.__path__ = []
+        _ensure_submodule("microur", "decoder", {
+            "FileURDecoder": type("FileURDecoder", (), {}),
+        })
+        _ensure_submodule("microur", "encoder", {
+            "UREncoder": type("UREncoder", (), {}),
+        })
+        util = _ensure_submodule("microur", "util", {})
+        util.__path__ = []
+        _ensure_submodule("microur.util", "cbor", {})
+        _ensure_submodule("microur.util", "bytewords", {
+            "stream_pos": lambda *args, **kwargs: 0,
+        })
+        # hosts/qr.py does `from microur.util import cbor`
+        setattr(sys.modules["microur.util"], "cbor", sys.modules["microur.util.cbor"])
 
     secp256k1 = _ensure_module("secp256k1")
     if not hasattr(secp256k1, "EC_UNCOMPRESSED"):

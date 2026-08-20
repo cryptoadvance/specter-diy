@@ -31,14 +31,21 @@ class Prompt(Screen):
 
         if warning:
             self.warning = add_label(warning, scr=self, style="warning")
-            # Display warning symbol in the icon label 
-            self.icon.set_text(lv.SYMBOL.WARNING)
-            
+
             # Align warning text
             y_pos = self.cancel_button.get_y() - 60 # above the buttons
             x_pos = self.get_width() // 2 - self.warning.get_width() // 2 # in the center of the prompt
             self.warning.set_pos(x_pos, y_pos)
-            
-            # Align warning icon to the left of the title
-            self.icon.align(self.title, lv.ALIGN.IN_LEFT_MID, 90, 0)
+
+            # The title label spans nearly the full screen width with its
+            # text centered inside that box (see add_label()), so a symbol
+            # aligned at a fixed x-offset from the box's left edge lands
+            # wherever that happens to fall relative to the (narrower,
+            # centered) text - for anything but a very short title, that is
+            # in the middle of the words rather than beside them. Embedding
+            # the symbol directly in the title text sidesteps the whole
+            # problem: it becomes part of the same centered, length-aware
+            # layout, exactly like the `lv.SYMBOL.LEFT + " Back"` pattern
+            # used elsewhere in this codebase.
+            self.title.set_text("%s  %s" % (lv.SYMBOL.WARNING, title))
 

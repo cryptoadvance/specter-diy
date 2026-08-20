@@ -4,6 +4,7 @@ import os
 import platform
 from binascii import hexlify
 from helpers import a2b_base64_stream
+from keystore.flash import SD_FILE_PREFIX
 
 class SDHost(Host):
     """
@@ -68,6 +69,54 @@ class SDHost(Host):
             return fname
         return fname[:18]+"..."+fname[-12:]
 
+    async def warn_about_encrypted_files(self):
+        """
+        Recovery phrases saved via "Flash & SD card storage" are encrypted
+        with the device's internal secret and don't show up in the file
+        picker. If the current keystore already is SDKeyStore, those files
+        are reachable from its own "Load key" menu, so there is nothing to
+        warn about - only warn when they'd otherwise be invisible, e.g.
+        when a smartcard is currently in use.
+
+        This is a best-effort hint for the "Import recovery phrase" flow
+        (the only place it is called from) - it manages its own short
+        mount window, unmounts before showing the alert, and never
+        raises: any reason the card can't be read here just means no
+        hint; the actual file load in get_data() reports real errors.
+        """
+        keystore = self.parent.keystore if self.parent is not None else None
+        if keystore is not None and hasattr(keystore, "sdpath"):
+            return
+        if not platform.sdcard.is_present:
+            return
+        found = False
+        try:
+            platform.sdcard.mount()
+            try:
+                found = any(
+                    f[0].lower().startswith(SD_FILE_PREFIX) and f[1] == 0x8000
+                    for f in os.ilistdir(self.sdpath)
+                )
+            finally:
+                platform.sdcard.unmount()
+        except OSError:
+            # Card unreadable, not present, or the SD root directory
+            # doesn't exist - no hint to show. The actual file load in
+            # get_data() reports real errors; this best-effort hint must
+            # never mask them. Only OSError is expected here (mount,
+            # ilistdir and unmount all raise OSError subclasses); any
+            # other exception indicates a bug and should propagate.
+            return
+        if found:
+            await self.manager.gui.alert(
+                "Encrypted recovery phrase found",
+                "\n\nThis SD card also contains a recovery phrase encrypted "
+                "by this device's \"Flash & SD card storage\" mode.\n\n"
+                "It won't show up in this file list. To open it, restart "
+                "the device with the smartcard removed, then use "
+                "\"Load key\" from the Flash & SD card storage menu.",
+            )
+
     async def select_file(self, extensions):
         files = sum([
             [
@@ -76,7 +125,7 @@ class SDHost(Host):
                 and f[1] == 0x8000
             ] for ext in extensions
         ], [])
-        
+
         if len(files) == 0:
             raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
         # elif len(files) == 1:

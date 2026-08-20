@@ -12,7 +12,12 @@ from binascii import hexlify, unhexlify
 from rng import get_random_bytes
 from embit import ec, bip39, bip32
 from helpers import tagged_hash
-from gui.screens import Alert, PinScreen, Menu, MnemonicScreen, InputScreen
+from gui.screens import Alert, PinScreen, Menu, MnemonicScreen, Prompt
+
+# prefix of filenames used to store recovery phrases
+# encrypted with the device's internal secret, on
+# internal flash or an external SD card
+SD_FILE_PREFIX = "specterdiy"
 
 
 class FlashKeyStore(RAMKeyStore):
@@ -210,8 +215,32 @@ class FlashKeyStore(RAMKeyStore):
             return 'reckless'
 
         hexid = hexlify(tagged_hash("sdid", self.secret)[:4]).decode()
-        return "specterdiy%s" % hexid
+        return "%s%s" % (SD_FILE_PREFIX, hexid)
 
+
+    async def _confirm_encrypted_storage(self, medium):
+        """Makes the encryption status and residual risk of storing the key
+        on this device explicit and requires a deliberate confirmation,
+        rather than silently encrypting and saving. See "Secret storage
+        modes" in docs/security-model.md for the full picture this is
+        summarizing."""
+        return await self.show(
+            Prompt(
+                "Store key encrypted?",
+                "Your recovery phrase will be stored ENCRYPTED (AES, with "
+                "a key derived from your PIN) on %s.\n\n"
+                "This is not the recommended way to protect real funds: "
+                "the main microcontroller is not a secure element, so "
+                "anyone with physical access to the device and the right "
+                "equipment should be considered able to extract the key "
+                "without knowing your PIN.\n\n"
+                "For meaningful amounts, use the smartcard storage mode "
+                "instead, or don't store the key on the device at all."
+                % medium,
+                confirm_text="I accept the risk",
+                warning="Not the recommended storage!",
+            )
+        )
 
     async def save_mnemonic(self):
         if self.is_locked:
@@ -219,9 +248,14 @@ class FlashKeyStore(RAMKeyStore):
         if self.mnemonic is None:
             raise KeyStoreError("Recovery phrase is not loaded")
 
+        if not await self._confirm_encrypted_storage("the internal flash"):
+            return
+
         path = self.flashpath
         filename = await self.get_input(suggestion=self.mnemonic.split()[0])
         if filename is None:
+            return
+        if not await self.check_label(filename):
             return
 
         fullpath = "%s/%s.%s" % (path, self.fileprefix(path), filename)
@@ -298,24 +332,14 @@ class FlashKeyStore(RAMKeyStore):
         if not platform.file_exists(file):
             raise KeyStoreError("File not found.")
         try:
-            os.remove(file)
+            platform.secure_delete_file(file)
         except Exception as e:
             print(e)
             raise KeyStoreError("Failed to delete file '%s'" % file)
-        finally:
-            return True
-
-    async def get_input(
-            self,
-            title="Enter a name for this seed",
-            note="Naming your seeds allows you to store multiple.\n"
-                 "Give each seed a unique name!",
-            suggestion="",
-    ):
-        scr = InputScreen(title, note, suggestion, min_length=1, strip=True)
-        await self.show(scr)
-        return scr.get_value()
-
+        # NOTE: no `return` in a `finally` block here - a return inside
+        # finally executes while an exception is propagating and silently
+        # discards it, so a failed delete would still report success.
+        return True
 
     async def storage_menu(self, title="Manage keys on internal flash"):
         """Manage storage, return True if new key was loaded"""
