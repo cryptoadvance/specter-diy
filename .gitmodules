@@ -1,6 +1,7 @@
 [submodule "f469-disco"]
 	path = f469-disco
-	url = https://github.com/diybitcoinhardware/f469-disco
+	url = https://github.com/diybitcoinhardware/f469-disco.git
+	branch = micropython-upgrade
 [submodule "bootloader"]
 	path = bootloader
 	url = https://github.com/cryptoadvance/specter-bootloader

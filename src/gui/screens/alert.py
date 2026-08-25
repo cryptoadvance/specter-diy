@@ -1,6 +1,7 @@
 import lvgl as lv
 from .screen import Screen
-from ..common import add_label, add_button
+from ..common import add_label, add_button, add_button_label
+from ..components import styles
 from ..decorators import on_release
 
 
@@ -13,15 +14,17 @@ class Alert(Screen):
         obj = self.title
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align_to(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
             obj = self.note
-        self.page = lv.page(self)
+        # LVGL 9.x: page replaced with scrollable obj
+        self.page = lv.obj(self)
         self.page.set_size(480, 600)
+        self.page.add_style(styles["page"], 0)
+        self.page.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
         self.message = add_label(message, scr=self.page)
-        self.page.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
+        self.page.align_to(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
 
         if button_text is not None:
             self.close_button = add_button(scr=self, callback=on_release(self.release))
 
-            self.close_label = lv.label(self.close_button)
-            self.close_label.set_text(button_text)
+            self.close_label = add_button_label(self.close_button, button_text)

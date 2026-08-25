@@ -3,35 +3,72 @@ from .theme import styles
 
 
 class MnemonicTable(lv.table):
+    """LVGL v9 table with the legacy callback shape used by mnemonic screens.
+
+    set_event_cb(callback) callbacks receive (obj, code), not an LVGL event.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.words = [""]
+        self.callback = None
         # styles
+        self.add_style(styles["page"], lv.PART.MAIN)
+        self.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+
         cell_style = lv.style_t()
-        lv.style_copy(cell_style, styles["theme"].style.label.prim)
-        cell_style.body.opa = 0
-        cell_style.text.font = lv.font_roboto_22
+        cell_style.init()
+        cell_style.set_bg_opa(0)
+        cell_style.set_border_width(0)
+        cell_style.set_pad_all(0)
+        cell_style.set_pad_top(6)
+        cell_style.set_pad_bottom(6)
+        cell_style.set_text_font(lv.font_montserrat_22)
+        cell_style.set_text_color(styles["ctxt"])
+        self.cell_style = cell_style
 
-        num_style = lv.style_t()
-        lv.style_copy(num_style, cell_style)
-        num_style.text.opa = lv.OPA._40
+        self.set_column_count(4)
+        self.set_row_count(12)
+        self.set_column_width(0, 40)
+        self.set_column_width(2, 40)
+        self.set_column_width(1, 180)
+        self.set_column_width(3, 180)
 
-        self.set_col_cnt(4)
-        self.set_row_cnt(12)
-        self.set_col_width(0, 40)
-        self.set_col_width(2, 40)
-        self.set_col_width(1, 180)
-        self.set_col_width(3, 180)
-
-        self.set_style(lv.page.STYLE.BG, cell_style)
-        self.set_style(lv.table.STYLE.CELL1, cell_style)
-        self.set_style(lv.table.STYLE.CELL2, num_style)
+        self.add_style(self.cell_style, lv.PART.ITEMS)
+        self.add_event_cb(self._event_cb, lv.EVENT.ALL, None)
+        self.add_event_cb(self._draw_event_cb, lv.EVENT.DRAW_TASK_ADDED, None)
+        self.add_flag(lv.obj.FLAG.SEND_DRAW_TASK_EVENTS)
 
         for i in range(12):
             self.set_cell_value(i, 0, "%d" % (i + 1))
             self.set_cell_value(i, 2, "%d" % (i + 13))
-            self.set_cell_type(i, 0, lv.table.STYLE.CELL2)
-            self.set_cell_type(i, 2, lv.table.STYLE.CELL2)
+
+    def set_event_cb(self, callback):
+        """Register a compatibility callback that receives (obj, code)."""
+        self.callback = callback
+
+    def set_click(self, enabled):
+        if enabled:
+            self.add_flag(lv.obj.FLAG.CLICKABLE)
+        else:
+            self.remove_flag(lv.obj.FLAG.CLICKABLE)
+
+    def _event_cb(self, event):
+        code = event.get_code()
+        if code == lv.EVENT.DRAW_TASK_ADDED:
+            return
+        if self.callback is not None:
+            self.callback(self, code)
+
+    def _draw_event_cb(self, event):
+        draw_task = event.get_draw_task()
+        if draw_task.get_type() != lv.DRAW_TASK_TYPE.LABEL:
+            return
+        label_dsc = draw_task.get_label_dsc()
+        if label_dsc is None:
+            return
+        if label_dsc.base.part == lv.PART.ITEMS and label_dsc.base.id2 in (0, 2):
+            label_dsc.color = styles["chint"]
 
     def set_mnemonic(self, mnemonic: str):
         self.words = mnemonic.split()

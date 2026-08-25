@@ -334,7 +334,6 @@ In this mode device can only operate when the smartcard is inserted!"""
     async def wait_for_card(self, scr):
         while not self.connection.isCardInserted():
             await asyncio.sleep_ms(30)
-            scr.tick(5)
         if scr.waiting:
             scr.waiting = False
 

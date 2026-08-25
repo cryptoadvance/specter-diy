@@ -1,23 +1,50 @@
-FROM python:3.9.15@sha256:b5f024fa682187ef9305a2b5d2c4bb583bef83356259669fc80273bb2222f5ed
+# syntax=docker/dockerfile:1.6
+FROM python:3.9.23-bookworm@sha256:dc01447eea126f97459cbcb0e52a5863fcc84ff53462650ae5a28277c175f49d
+
 ENV LANG=C.UTF-8
-
 ARG DEBIAN_FRONTEND=noninteractive
+ARG TOOLCHAIN_VER=14.3.rel1
+ARG TARGETARCH
+ARG TARGET_DIR="/opt/arm-toolchain"
 
-# ARM Embedded Toolchain
-# Integrity is checked using the MD5 checksum provided by ARM at https://developer.arm.com/tools-and-software/open-source-software/developer-tools/gnu-toolchain/gnu-rm/downloads
-RUN curl -sSfL -o arm-toolchain.tar.bz2 "https://developer.arm.com/-/media/Files/downloads/gnu-rm/9-2020q2/gcc-arm-none-eabi-9-2020-q2-update-x86_64-linux.tar.bz2?revision=05382cca-1721-44e1-ae19-1e7c3dc96118&rev=05382cca172144e1ae191e7c3dc96118&hash=3ACFE672E449EBA7A21773EE284A88BC7DFA5044" && \
-    echo 2b9eeccc33470f9d3cda26983b9d2dc6 arm-toolchain.tar.bz2 > /tmp/arm-toolchain.md5 && \
-    md5sum --check /tmp/arm-toolchain.md5 && rm /tmp/arm-toolchain.md5 && \
-    tar xf arm-toolchain.tar.bz2 -C /opt && \
-    rm arm-toolchain.tar.bz2
+# Minimal deps for download/verify/extract
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl xz-utils grep coreutils \
+    && rm -rf /var/lib/apt/lists/*
 
-# Adding GCC to PATH and defining rustup/cargo home directories
-ENV PATH=/opt/gcc-arm-none-eabi-9-2020-q2-update/bin:$PATH
+# Default to Arm's blob storage mirror
+ARG TOOLCHAIN_MIRROR=armkeil.blob.core.windows.net/developer/Files/downloads/gnu
 
-# Installing python requirements
+# Pin Arm GNU Toolchain per-arch with SHA256 sums
+ENV TOOLCHAIN_SHA256_AMD64=8f6903f8ceb084d9227b9ef991490413014d991874a1e34074443c2a72b14dbd
+ENV TOOLCHAIN_SHA256_ARM64=2d465847eb1d05f876270494f51034de9ace9abe87a4222d079f3360240184d3
+
+# Arm GNU Toolchain (arm-none-eabi), host-aware, SHA-256 verified, cached download
+RUN --mount=type=cache,target=/root/.cache \
+    set -eux; \
+    case "$TARGETARCH" in \
+      amd64)  host="x86_64"; TOOLCHAIN_SHA256="$TOOLCHAIN_SHA256_AMD64" ;; \
+      arm64)  host="aarch64"; TOOLCHAIN_SHA256="$TOOLCHAIN_SHA256_ARM64" ;; \
+      *) echo "Unsupported arch: $TARGETARCH" && exit 1 ;; \
+    esac; \
+    file="arm-gnu-toolchain-${TOOLCHAIN_VER}-${host}-arm-none-eabi.tar.xz"; \
+    url="https://${TOOLCHAIN_MIRROR}/${TOOLCHAIN_VER}/binrel/${file}"; \
+    dest="/root/.cache/$file"; \
+    if [ ! -f "$dest" ]; then \
+      echo "Downloading $url"; \
+      curl -fSL --retry 5 --retry-all-errors -C - -o "$dest" "$url"; \
+    else \
+      echo "Using cached $dest"; \
+    fi; \
+    echo "${TOOLCHAIN_SHA256}  $dest" | sha256sum -c -; \
+    tar -xJf "$dest" -C /opt; \
+    ln -s /opt/arm-gnu-toolchain-${TOOLCHAIN_VER}-${host}-arm-none-eabi ${TARGET_DIR}
+
+ENV PATH="${TARGET_DIR}/bin:${PATH}"
+
+# Python deps
 COPY bootloader/tools/requirements.txt .
-RUN pip3 install -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
 
 WORKDIR /app
-
 CMD ["/usr/bin/env", "bash", "./build_firmware.sh"]

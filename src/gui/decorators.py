@@ -9,33 +9,44 @@ def feed_touch():
     and feeds it to random number pool
     """
     point = lv.point_t()
-    indev = lv.indev_get_act()
-    lv.indev_get_point(indev, point)
-    # now we can take bytes([point.x % 256, point.y % 256])
-    # and feed it into hash digest
-    t = time.ticks_cpu()
-    random_data = t.to_bytes(4, "big") + bytes([point.x % 256, point.y % 256])
-    rng.feed(random_data)
+    indev = lv.indev_active()
+    if indev:
+        indev.get_point(point)
+        # now we can take bytes([point.x % 256, point.y % 256])
+        # and feed it into hash digest
+        t = time.ticks_cpu()
+        random_data = t.to_bytes(4, "big") + bytes([point.x % 256, point.y % 256])
+        rng.feed(random_data)
 
 
 def feed_rng(func):
-    """Any callback will contribute to random number pool"""
-
-    def wrapper(o, e):
-        if e == lv.EVENT.PRESSING:
+    """Feed touch entropy on PRESSING and pass all events to func."""
+    def wrapper(event):
+        code = event.get_code()
+        if code == lv.EVENT.PRESSING:
             feed_touch()
-        func(o, e)
+        func(event)
 
     return wrapper
 
 
-def on_release(func):
-    """Handy decorator if you only care about click event"""
+def feed_touch_on_pressing(event):
+    """LVGL event callback that feeds touch entropy on PRESSING."""
+    if event.get_code() == lv.EVENT.PRESSING:
+        feed_touch()
 
-    def wrapper(o, e):
-        if e == lv.EVENT.PRESSING:
+
+def on_release(func):
+    """Call func on CLICKED events.
+
+    Shared buttons register a separate PRESSING handler for entropy. The
+    PRESSING branch remains here for callbacks registered with EVENT.ALL.
+    """
+    def wrapper(event):
+        code = event.get_code()
+        if code == lv.EVENT.PRESSING:
             feed_touch()
-        elif e == lv.EVENT.RELEASED and func is not None:
+        elif code == lv.EVENT.CLICKED and func is not None:
             func()
 
     return wrapper

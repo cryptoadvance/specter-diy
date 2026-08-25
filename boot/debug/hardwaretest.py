@@ -52,7 +52,11 @@ class HardwareTest:
                 await self.qr.enable()
                 s = await self.qr.get_data()
                 if s:
-                    data = s.read().decode()
+                    raw = s.read()
+                    try:
+                        data = raw.decode()
+                    except:
+                        data = repr(raw)
                     await self.gui.alert("Here's what we scanned:", data)
             else:
                 conn = get_connection()

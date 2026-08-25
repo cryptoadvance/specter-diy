@@ -1065,6 +1065,10 @@ class QRHost(Host):
                 self, "Scanning...", "Point scanner to the QR code"
             )
         stream = await self.scan(raw=raw, chunk_timeout=chunk_timeout)
+        # Wait for progress popup to close before returning
+        if self.manager is not None:
+            while self.manager.gui.background is not None:
+                await asyncio.sleep_ms(10)
         if stream is not None:
             return stream
 
