@@ -46,8 +46,22 @@ E (32289) vfs_fat_sdmmc: sdmmc_card_init failed (0x107).
 W (32289) specter-media: microSD mount probe failed: ESP_ERR_TIMEOUT
 ```
 
-Não testamos com cartão inserido, então a confirmação de montagem FAT está
-pendente. O que está demonstrado é que o slot existe e responde nesses pinos.
+**Confirmado com cartão inserido.** Um microSD de 2 GB foi detectado, montado
+como FAT, lido, escrito e desmontado nesses pinos, sob MicroPython no
+ESP32-P4:
+
+```
+present   : True
+info      : (1967128576, 512)
+montado   : OK
+conteudo  : ['System Volume Information', ...]
+espaco    : 1.96 GB total
+leitura   : escrita pelo ESP32-P4
+remocao   : OK
+desmontado: OK
+```
+
+Ou seja, o slot não só existe: funciona por completo com a fiação 39-44.
 
 ## Impacto
 
@@ -70,6 +84,6 @@ CONFIG_SD_D3_GPIO=42
 CONFIG_SD_BUS_WIDTH=4
 ```
 
-E trocar `BSP_CAPS_SDCARD` para `1` no header da placa. Validar com cartão FAT32
-antes de publicar; os pinos vêm de terceiros e nossa verificação foi apenas a
-sondagem sem cartão.
+E trocar `BSP_CAPS_SDCARD` para `1` no header da placa. Os pinos estão agora
+verificados com cartão presente, leitura e escrita inclusas, então a mudança é
+de configuração e não carrega risco de fiação errada.

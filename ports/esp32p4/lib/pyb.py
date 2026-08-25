@@ -359,12 +359,23 @@ class SDCard:
         elif state:
             self._open()
 
-    # Protocolo de block device, para os.mount()
-    def readblocks(self, block_num, buf, offset=0):
-        return self._open().readblocks(block_num, buf, offset)
+    # Protocolo de block device SIMPLES, para os.mount().
+    #
+    # A aridade destes metodos e significativa: o VFS do MicroPython inspeciona
+    # quantos argumentos readblocks() aceita para decidir se o dispositivo
+    # suporta o protocolo estendido, com deslocamento dentro do bloco. Declarar
+    # um parametro `offset` aqui fazia o VFS passa-lo, e machine.SDCard --
+    # MP_DEFINE_CONST_FUN_OBJ_3, so (self, block_num, buf) -- recusava:
+    #
+    #     function takes 3 positional arguments but 4 were given
+    #
+    # Nao ha o que ganhar em fingir suporte estendido: quem faz o trabalho e o
+    # machine.SDCard, e ele e simples.
+    def readblocks(self, block_num, buf):
+        return self._open().readblocks(block_num, buf)
 
-    def writeblocks(self, block_num, buf, offset=0):
-        return self._open().writeblocks(block_num, buf, offset)
+    def writeblocks(self, block_num, buf):
+        return self._open().writeblocks(block_num, buf)
 
     def ioctl(self, op, arg):
         return self._open().ioctl(op, arg)

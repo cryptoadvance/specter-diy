@@ -25,6 +25,20 @@
 #define MICROPY_HW_SDMMC_DEFAULT_SLOT  (0)
 #define MICROPY_HW_SDMMC_DEFAULT_WIDTH (4)
 
+// Fiacao do slot microSD desta placa. Sem estes defines o driver cai no IOMUX
+// padrao do slot 0, que nao corresponde a estes pinos -- o controlador sobe,
+// responde, e nenhum cartao e encontrado.
+//
+// Valores de miketlk/specter-bootloader, lcd-4p3/board_config.h. O Kern nao
+// expoe SD nesta placa (BSP_CAPS_SDCARD 0), ver
+// reports/kern-wave43-no-sdcard.md.
+#define MICROPY_HW_SDMMC_CLK (43)
+#define MICROPY_HW_SDMMC_CMD (44)
+#define MICROPY_HW_SDMMC_D0  (39)
+#define MICROPY_HW_SDMMC_D1  (40)
+#define MICROPY_HW_SDMMC_D2  (41)
+#define MICROPY_HW_SDMMC_D3  (42)
+
 #ifndef USB_SERIAL_JTAG_PACKET_SZ_BYTES
 #define USB_SERIAL_JTAG_PACKET_SZ_BYTES (64)
 #endif
