@@ -22,6 +22,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -31,6 +32,7 @@
 #include "esp_log.h"
 #include "esp_video_device.h"
 #include "esp_video_init.h"
+#include "k_quirc.h"
 #include "linux/videodev2.h"
 
 #define OV5647_SCCB_ADDR 0x36
@@ -50,6 +52,13 @@ static uint32_t pixel_format;
 /* Em que etapa a inicializacao parou. Os ESP_LOG nao chegam ao REPL cru do
  * MicroPython, entao a etapa precisa ser consultavel do lado Python. */
 static const char *init_stage = "not started";
+
+/* Buffer em tons de cinza para o decodificador de QR. Declarado aqui, junto
+ * do restante do estado, porque p4camera_deinit() o libera e vem antes das
+ * funcoes de QR no arquivo. */
+static uint8_t *gray_buffer;
+static uint16_t gray_width;
+static uint16_t gray_height;
 static bool holding_frame;
 static bool streaming;
 
@@ -243,6 +252,9 @@ void p4camera_deinit(void) {
     holding_frame = false;
     frame_width = frame_height = 0;
     sensor = P4CAM_SENSOR_NONE;
+    free(gray_buffer);
+    gray_buffer = NULL;
+    gray_width = gray_height = 0;
 }
 
 const char *p4camera_init_stage(void) {
@@ -288,6 +300,95 @@ esp_err_t p4camera_capture(uint8_t **data, size_t *length) {
     holding_frame = true;
     if (data) *data = buffers[current.index];
     if (length) *length = current.bytesused;
+    return ESP_OK;
+}
+
+/* --------------------------------- QR ----------------------------------- */
+
+/* Reducao por 2 em cada eixo: 1280x960 -> 640x480. Um QR a 640x480 tem modulos
+ * com folga de sobra para o quirc, e decodificar 1,2 milhao de pixels custaria
+ * varias vezes mais por quadro sem melhorar a taxa de acerto. */
+#define GRAY_DOWNSCALE 2
+
+void p4camera_gray_size(uint16_t *width, uint16_t *height) {
+    if (width) *width = gray_width;
+    if (height) *height = gray_height;
+}
+
+static esp_err_t ensure_gray_buffer(void) {
+    uint16_t width = frame_width / GRAY_DOWNSCALE;
+    uint16_t height = frame_height / GRAY_DOWNSCALE;
+    if (gray_buffer && gray_width == width && gray_height == height) {
+        return ESP_OK;
+    }
+    free(gray_buffer);
+    gray_buffer = malloc((size_t)width * height);
+    if (!gray_buffer) {
+        gray_width = gray_height = 0;
+        return ESP_ERR_NO_MEM;
+    }
+    gray_width = width;
+    gray_height = height;
+    return ESP_OK;
+}
+
+/* RGB565 -> luminancia.
+ *
+ * Usamos a aproximacao inteira (2R + 5G + B) / 8 em vez dos coeficientes ITU-R
+ * exatos: e uma soma e um shift por pixel, e o quirc so precisa de contraste
+ * entre modulo claro e escuro, nao de fidelidade colorimetrica. */
+static void rgb565_to_gray(const uint8_t *src) {
+    const uint16_t *pixels = (const uint16_t *)src;
+    for (uint16_t y = 0; y < gray_height; ++y) {
+        const uint16_t *row = pixels + (size_t)(y * GRAY_DOWNSCALE) * frame_width;
+        uint8_t *out = gray_buffer + (size_t)y * gray_width;
+        for (uint16_t x = 0; x < gray_width; ++x) {
+            uint16_t pixel = row[x * GRAY_DOWNSCALE];
+            uint8_t r = (pixel >> 11) & 0x1f;
+            uint8_t g = (pixel >> 5) & 0x3f;
+            uint8_t b = pixel & 0x1f;
+            /* Escalados para 8 bits: r,b sao 5 bits e g e 6. */
+            out[x] = (uint8_t)(((r << 3) * 2 + (g << 2) * 5 + (b << 3)) / 8);
+        }
+    }
+}
+
+esp_err_t p4camera_scan(uint8_t *payload, size_t capacity, size_t *length) {
+    if (length) *length = 0;
+    if (video_fd < 0 || !streaming) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (pixel_format != V4L2_PIX_FMT_RGB565) {
+        /* Formatos crus de Bayer precisariam de demosaico antes; o codigo
+         * cobre so o caso que este sensor entrega de fato. */
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    esp_err_t err = ensure_gray_buffer();
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    uint8_t *frame = NULL;
+    size_t frame_length = 0;
+    err = p4camera_capture(&frame, &frame_length);
+    if (err != ESP_OK) {
+        return err;
+    }
+    rgb565_to_gray(frame);
+    p4camera_release();
+
+    k_quirc_result_t result;
+    int found = k_quirc_decode_grayscale(gray_buffer, gray_width, gray_height,
+        &result, 1, false);
+    if (found <= 0 || !result.valid || result.data.payload_len <= 0) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    size_t n = (size_t)result.data.payload_len;
+    if (n > capacity) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    memcpy(payload, result.data.payload, n);
+    if (length) *length = n;
     return ESP_OK;
 }
 

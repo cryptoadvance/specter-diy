@@ -517,7 +517,15 @@ class QRHost(Host):
     def init(self):
         if self.is_configured:
             return
-        
+
+        # Um leitor baseado em camera nao tem baudrate, beep, mira nem luz para
+        # configurar, e sondar por comandos seriais so gastaria timeouts. Pior:
+        # se um QR estiver no campo de visao durante a sondagem, a resposta
+        # seria confundida com a de um scanner.
+        if getattr(self.uart, "is_camera", False):
+            self.is_configured = True
+            return
+
         # Identify scanner and baudrate
         self._update_scanner_model()
 

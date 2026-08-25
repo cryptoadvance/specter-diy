@@ -419,3 +419,63 @@ ImportError: no module named 'lvgl'
 Ou seja, `platform.py`, `specter.py` e a camada de hosts carregam. O que falta é
 exclusivamente o binding do LVGL. A falha cai no REPL, então a placa continua
 utilizável.
+
+## Fase 6 — câmera e leitura de QR
+
+A placa tem uma OV5647 por MIPI-CSI. Ela substitui o leitor serial que o
+Specter espera e que esta placa não tem.
+
+| Item | Resultado na placa |
+|---|---|
+| Sensor | OV5647, detectado no SCCB |
+| Captura | 1280x960 RGB565, **45,5 fps** |
+| Decodificação | 640x480 em tons de cinza, **11,3 leituras/s** |
+| QR de teste | lido corretamente em menos de 4 s |
+
+### Como a câmera entra no app sem alterá-lo
+
+O `QRHost` lê o scanner por `uart.any()` e `uart.read()`, esperando o payload
+terminado em CR. Em vez de reescrever o host, o shim entrega uma **UART virtual
+alimentada pela câmera** (`pyb.CameraUART`).
+
+Isso preserva de graça toda a lógica de protocolo do `QRHost` — QR animado, UR,
+BBQr, remontagem de partes. Ele não precisa saber de onde vieram os bytes.
+
+A única mudança no app são três linhas em `hosts/qr.py`: `init()` pula a
+configuração serial quando `uart.is_camera` é verdadeiro. Sem isso o host
+gastaria timeouts sondando um scanner inexistente — e pior, se um QR estivesse
+no campo de visão durante a sondagem, a resposta seria confundida com a de um
+scanner.
+
+### Decisões de implementação
+
+**Formato enumerado, não exigido.** O `quirc` trabalha em luminância, então
+`V4L2_PIX_FMT_GREY` seria ideal. O OV5647 não oferece GREY pelo pipeline CSI, e
+um `S_FMT` recusado derruba a inicialização inteira. O código enumera o que o
+driver oferece e desce a lista GREY → RGB565 → Bayer, guardando a escolha.
+
+**Redução por 2 na conversão.** O sensor entrega 1280x960; decodificar 1,2
+milhão de pixels custa caro sem melhorar acerto. A conversão para cinza já
+reduz para 640x480, onde os módulos de um QR sobram.
+
+**Luminância aproximada.** `(2R + 5G + B) / 8` em vez dos coeficientes ITU-R —
+uma soma e um shift por pixel. O `quirc` precisa de contraste entre módulo
+claro e escuro, não de fidelidade colorimétrica.
+
+### Componentes ESP-IDF
+
+`esp_video` é dependência gerenciada, e o MicroPython só lê `idf_component.yml`
+de `ports/esp32/main/`. Por isso a câmera é um **componente ESP-IDF de verdade**
+em `idf_components/`, trazido por `EXTRA_COMPONENT_DIRS` — o gerenciador lê o
+manifesto de qualquer componente na árvore, não só o do main.
+
+O `k_quirc` (MIT: quirc do Daniel Beer → OpenMV → Kern) entra como submódulo no
+mesmo diretório, já que traz o próprio `CMakeLists.txt` de componente.
+
+### Diagnóstico sem logs
+
+Os `ESP_LOG` não chegam ao REPL cru do MicroPython. Sem isso a depuração é às
+cegas, então `camera.stage()` reporta em que etapa a inicialização parou. Foi
+ele que revelou a falha em `open`: o sensor respondia no I²C mas o dispositivo
+V4L2 não existia, porque faltava `CONFIG_CAMERA_OV5647=y` e o driver do sensor
+nem era compilado.

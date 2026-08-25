@@ -49,7 +49,10 @@ def has_uart(name):
     is_configured=True incondicionalmente no fallback de trigger, entao sem
     esta consulta o app apresenta uma tela de scan que nunca recebe nada.
     """
-    return name in UART_MAP
+    if name in UART_MAP:
+        return True
+    # A camera faz o papel do leitor de QR nesta placa.
+    return name == QR_SCANNER_UART and _camera_available()
 
 
 # ---------------------------------------------------------------- Pin --------
@@ -115,6 +118,10 @@ class Pin:
 # GPIO 37/38, entao nao aparece aqui.
 UART_MAP = {}
 
+# Nome que o Specter usa para o leitor de QR. Nesta placa ele e servido pela
+# camera, nao por uma UART fisica.
+QR_SCANNER_UART = "YA"
+
 
 class _NullUART:
     """Porta que aceita escrita e nunca entrega dados."""
@@ -144,13 +151,111 @@ class _NullUART:
         return len(data)
 
 
+class CameraUART:
+    """UART virtual alimentada pela camera MIPI-CSI.
+
+    O QRHost do Specter le o leitor por `any()` e `read()`, esperando o payload
+    terminado por CR. Esta placa nao tem leitor serial, mas tem uma camera --
+    entao em vez de alterar o QRHost, entregamos algo com a forma de uma UART.
+
+    Isso preserva de graca toda a logica de protocolo do QRHost: QR animado,
+    UR, BBQr, remontagem de partes. Ele nao precisa saber de onde vieram os
+    bytes.
+
+    `write()` aceita e descarta: sao comandos de configuracao do scanner serial
+    (beep, mira, luz) que nao tem equivalente aqui.
+    """
+
+    EOL = b"\r"
+
+    # Lido pelo QRHost.init() para pular a configuracao serial do scanner.
+    is_camera = True
+
+    def __init__(self):
+        self._pending = b""
+        self._started = False
+
+    def _ensure_started(self):
+        if self._started:
+            return True
+        try:
+            import camera
+
+            camera.init()
+            self._started = True
+        except Exception as error:
+            print("CameraUART: camera indisponivel:", error)
+        return self._started
+
+    def any(self):
+        if self._pending:
+            return len(self._pending)
+        if not self._ensure_started():
+            return 0
+        try:
+            import camera
+
+            payload = camera.scan()
+        except Exception:
+            return 0
+        if payload:
+            self._pending = payload + self.EOL
+        return len(self._pending)
+
+    def read(self, nbytes=None):
+        if not self._pending:
+            return None
+        if nbytes is None or nbytes >= len(self._pending):
+            data, self._pending = self._pending, b""
+            return data
+        data, self._pending = self._pending[:nbytes], self._pending[nbytes:]
+        return data
+
+    def readline(self):
+        return self.read()
+
+    def readinto(self, buf, nbytes=None):
+        data = self.read(nbytes if nbytes is not None else len(buf))
+        if data is None:
+            return None
+        buf[:len(data)] = data
+        return len(data)
+
+    def write(self, data):
+        return len(data)
+
+    def init(self, *args, **kwargs):
+        pass
+
+    def deinit(self):
+        if self._started:
+            try:
+                import camera
+
+                camera.deinit()
+            except Exception:
+                pass
+            self._started = False
+
+
+def _camera_available():
+    try:
+        import camera  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 def UART(name, baudrate=9600, **kwargs):
     mapping = UART_MAP.get(name)
-    if mapping is None:
-        _warn_stub("UART(%r)" % name)
-        return _NullUART(name)
-    uart_id, tx, rx = mapping
-    return machine.UART(uart_id, baudrate=baudrate, tx=tx, rx=rx)
+    if mapping is not None:
+        uart_id, tx, rx = mapping
+        return machine.UART(uart_id, baudrate=baudrate, tx=tx, rx=rx)
+    if name == QR_SCANNER_UART and _camera_available():
+        return CameraUART()
+    _warn_stub("UART(%r)" % name)
+    return _NullUART(name)
 
 
 # ---------------------------------------------------------------- LED --------

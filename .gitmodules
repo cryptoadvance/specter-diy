@@ -9,3 +9,6 @@
 	path = ports/esp32p4/components/secp256k1
 	url = https://github.com/sandman21vs/secp256k1-embedded.git
 	branch = micropython-master-api
+[submodule "ports/esp32p4/idf_components/k_quirc"]
+	path = ports/esp32p4/idf_components/k_quirc
+	url = https://github.com/odudex/k_quirc.git

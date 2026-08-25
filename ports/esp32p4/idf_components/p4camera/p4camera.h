@@ -50,4 +50,21 @@ esp_err_t p4camera_capture(uint8_t **data, size_t *length);
 /** Devolve o buffer ao driver. Obrigatorio depois de cada capture(). */
 esp_err_t p4camera_release(void);
 
+/**
+ * @brief Captura um quadro e tenta decodificar um QR code.
+ *
+ * Converte para tons de cinza reduzindo por 2 no caminho: o sensor entrega
+ * 1280x960, e decodificar 1,2 milhao de pixels custa caro sem ganho -- QR a
+ * 640x480 sobra. O quadro e devolvido ao driver antes de retornar.
+ *
+ * @param payload   buffer de saida
+ * @param capacity  tamanho de payload
+ * @param length    bytes escritos
+ * @return ESP_OK se decodificou, ESP_ERR_NOT_FOUND se nao havia QR legivel.
+ */
+esp_err_t p4camera_scan(uint8_t *payload, size_t capacity, size_t *length);
+
+/** Dimensoes do buffer em tons de cinza usado pelo decodificador. */
+void p4camera_gray_size(uint16_t *width, uint16_t *height);
+
 #endif  // P4CAMERA_H
