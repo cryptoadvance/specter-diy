@@ -17,3 +17,5 @@ set(SDKCONFIG_DEFAULTS
     boards/sdkconfig.p4_pre_rev3
     ${CMAKE_CURRENT_LIST_DIR}/sdkconfig.board
 )
+
+set(MICROPY_FROZEN_MANIFEST ${CMAKE_CURRENT_LIST_DIR}/manifest.py)

@@ -1,0 +1,15 @@
+# Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3-C
+#
+# A tabela padrao do MicroPython (partitions-4MiBplus.csv) reserva 0x1F0000,
+# quase 2 MB, para a app. O firmware ja ocupava 8% menos que isso antes do app
+# do Specter entrar, entao a app cresce para 4 MB e o resto da janela logica de
+# 16 MB vira sistema de arquivos.
+#
+# A janela e 16 MB embora a placa tenha 32 MB fisicos, para ficar alinhada com o
+# layout do specter-bootloader.
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x400000,
+vfs,      data, fat,     0x410000, 0xBF0000,

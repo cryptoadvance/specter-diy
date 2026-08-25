@@ -353,3 +353,69 @@ precisar de ajuste antes da Fase 5.
 Uma regeneração parcial de qstr produz `redeclaration of enumerator
 'MP_QSTR_msg'`, com o qstr aparecendo no pool principal e no congelado. Apagar
 só `genhdr` não basta; ao mexer em usermods, apague o diretório de build inteiro.
+
+## Fase 5a — Bitcoin funcionando na placa
+
+Tabela de partições própria, bibliotecas congeladas no firmware, e o **embit
+derivando endereços Bitcoin corretos**.
+
+### Vetores oficiais do BIP84
+
+Os sete valores de `bitcoin/bips`, `bip-0084.mediawiki`, conferem na placa:
+
+| Item | Resultado |
+|---|---|
+| `rootpriv` / `rootpub` (zprv/zpub) | **OK** |
+| xpub da conta `m/84h/0h/0h` | **OK** |
+| pubkey de `m/84h/0h/0h/0/0` | **OK** |
+| Endereços `0/0`, `0/1`, `1/0` | **OK** |
+
+```
+bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu
+```
+
+Isso exercita tudo de uma vez: PBKDF2-HMAC-SHA512 do BIP39, HMAC-SHA512 e a
+derivação do BIP32, secp256k1 para as chaves públicas, SHA256 mais RIPEMD160
+para o hash do endereço, e a codificação bech32.
+
+### Partições
+
+A tabela padrão do MicroPython dava 0x1F0000 à app, e o firmware já ocupava 92%
+disso **antes** do Specter entrar. `boards/WAVESHARE_P4_43/partitions.csv` sobe
+para 4 MB e deixa o resto da janela de 16 MB como sistema de arquivos. Com tudo
+congelado o binário está em 2,2 MB, 47% livre.
+
+Mudar a tabela invalida o sistema de arquivos existente: faça `erase_flash`
+antes do primeiro flash com o layout novo.
+
+### Congelamento
+
+`boards/WAVESHARE_P4_43/manifest.py` congela os shims, `embit`, `microur`,
+`bcur`, `lvqr` e o `src/` inteiro.
+
+**Não** congelamos `f469-disco/libs/common` de uma vez: ele vendoriza uma cópia
+de `asyncio` da era MicroPython v1.10 que colide com a moderna vinda do
+manifesto da porta —
+
+```
+error: redefinition of 'const_qstr_table_data_asyncio___init__'
+```
+
+A do MicroPython é mais nova e mantida, então é a que fica. O app importa
+`asyncio` em cinco arquivos e não depende de particularidades da cópia antiga.
+
+### O app já tenta subir
+
+Com `src/` congelado, o `main.py` roda no boot e vai longe:
+
+```
+File "main.py", line 2, in <module>
+File "specter.py", line 20, in <module>
+File "hosts/core.py", line 5, in <module>
+File "gui/core.py", line 1, in <module>
+ImportError: no module named 'lvgl'
+```
+
+Ou seja, `platform.py`, `specter.py` e a camada de hosts carregam. O que falta é
+exclusivamente o binding do LVGL. A falha cai no REPL, então a placa continua
+utilizável.

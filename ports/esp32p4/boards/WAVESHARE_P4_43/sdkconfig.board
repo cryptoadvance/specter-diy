@@ -18,3 +18,7 @@ CONFIG_SPIRAM_RODATA=y
 # eFuse queimado. Nao alterar sem decisao explicita.
 CONFIG_SECURE_BOOT=n
 CONFIG_SECURE_FLASH_ENC_ENABLED=n
+
+# Tabela de particoes propria: 4 MB para a app em vez dos ~2 MB do padrao.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="/home/sm/specter-diy/ports/esp32p4/boards/WAVESHARE_P4_43/partitions.csv"
