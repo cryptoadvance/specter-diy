@@ -63,10 +63,16 @@ class FlashKeyStore(RAMKeyStore):
             self._pin_attempts_left = data["pin_attempts_left"]
         except Exception as e:
             # this happens if someone tries to change PIN file
-            self.wipe(self.path)
-            raise CriticalErrorWipeImmediately(
+            self._wipe_critical(
                 "Something went terribly wrong!\nDevice is wiped!\n%s" % e
             )
+
+    def _wipe_critical(self, message):
+        """Wipe locally, but always propagate the global critical-wipe error."""
+        try:
+            self.wipe(self.path)
+        finally:
+            raise CriticalErrorWipeImmediately(message)
 
     def create_empty_pin_file(self):
         self.pin = None
@@ -111,15 +117,17 @@ class FlashKeyStore(RAMKeyStore):
         Unlock the keystore, raises PinError if PIN is invalid.
         Raises CriticalErrorWipeImmediately if no attempts left.
         """
-        # if anything goes wrong here - wipe
+        # A persisted exhausted counter is terminal. Check it before any
+        # decrement or PIN verification so a power cut cannot create a new
+        # usable attempt.
         try:
+            if self._pin_attempts_left <= 0:
+                self._wipe_critical("No more PIN attempts!\nWipe!")
             # decrease the counter
             self._pin_attempts_left -= 1
             self.save_state()
-            # check we have attempts
-            if self._pin_attempts_left <= 0:
-                self.wipe(self.path)
-                raise CriticalErrorWipeImmediately("No more PIN attempts!\nWipe!")
+        except CriticalErrorWipeImmediately:
+            raise
         except Exception as e:
             # convert any error to a critical error to wipe the device
             raise CriticalErrorWipeImmediately(str(e))
@@ -128,6 +136,11 @@ class FlashKeyStore(RAMKeyStore):
         pin_hmac = hmac.new(key=key, msg=pin.encode(), digestmod="sha256").digest()
         # check hmac is the same
         if pin_hmac != self.pin:
+            # wipe only if the LAST attempt was just used up -
+            # the counter is decreased before verification to
+            # protect against power-cut rewind attacks
+            if self._pin_attempts_left <= 0:
+                self._wipe_critical("No more PIN attempts!\nWipe!")
             raise PinError(
                 "Invalid PIN!\n%d of %d attempts left..."
                 % (self._pin_attempts_left, self._pin_attempts_max)

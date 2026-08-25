@@ -161,12 +161,12 @@ enabling readout protection (see "Readout and write protection").
 
 Brute-force protection is enforced on the device:
 
-- At most **10 PIN attempts** are allowed; afterwards the device wipes
-  itself. Note: in the current implementation the attempt counter is
-  decremented and persisted *before* the PIN is checked, so the 10th
-  attempt already triggers the wipe without verifying the PIN first —
-  effectively 9 verification attempts instead of the intended 10 (fail-safe
-  direction; a correct PIN entered on the 10th attempt still wipes).
+- At most **10 PIN attempts** are allowed. The counter is decremented and
+  persisted before each PIN check; the correct 10th PIN still unlocks, while
+  an incorrect 10th PIN wipes the device.
+- If the device boots with an exhausted counter (`<= 0`), it wipes without
+  performing another PIN check. Thus a power cut after consuming the last
+  attempt cannot create an additional attempt.
 - The PIN check is an HMAC keyed with the internal secret, so the PIN
   cannot be brute-forced offline from flash contents alone.
 - The PIN state file is authenticated; tampering with it triggers a wipe
