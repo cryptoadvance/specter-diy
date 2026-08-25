@@ -5,6 +5,10 @@ import pyb
 import gc
 
 simulator = (sys.platform in ["linux", "darwin"])
+# ESP32-P4 (Waveshare 4.3-C). Roda em hardware, mas nao e um STM32: nao ha
+# modulo `stm`, nem registradores do Cortex-M, nem os option bytes que as
+# funcoes de protecao liam.
+esp32 = (sys.platform == "esp32")
 
 
 # Build metadata injected at boot time. Defaults represent the minimum
@@ -23,9 +27,14 @@ except:
 
 if not simulator:
     import sdram
-    import stm
 
     sdram.init()
+    if esp32:
+        # Sem acesso a registradores do STM32 aqui; as funcoes que dependiam
+        # disso tem ramo proprio mais abaixo.
+        stm = None
+    else:
+        import stm
 else:
     _PREALLOCATED = bytes(0x100000)
     stm = None
@@ -126,6 +135,13 @@ if simulator:
     maybe_mkdir(fpath("/qspi"))
     maybe_mkdir(fpath("/sd"))
     sdcard = SDCard(None, None)
+elif esp32:
+    # A placa tem um unico sistema de arquivos interno montado em "/". Os dois
+    # caminhos que o app espera viram diretorios dentro dele, preservando a
+    # separacao logica que o F469 tinha entre flash interna e QSPI.
+    maybe_mkdir(fpath("/flash"))
+    maybe_mkdir(fpath("/qspi"))
+    sdcard = SDCard(pyb.SDCard(), pyb.LED(4))
 else:
     storage_root = ""
     sdcard = SDCard(pyb.SDCard(), pyb.LED(4))
@@ -186,6 +202,16 @@ def get_firmware_boot_mode() -> str:
     if simulator:
         return "simulator"
 
+    if esp32:
+        # O equivalente ao VTOR aqui e saber de qual particao a app subiu.
+        try:
+            import esp32 as _esp32
+
+            running = _esp32.Partition(_esp32.Partition.RUNNING)
+            return running.info()[4]
+        except Exception:
+            return "unknown"
+
     try:
         vtor = stm.mem32[0xE000ED08]
     except Exception:
@@ -203,6 +229,14 @@ def get_flash_read_protection_status() -> str:
 
     if simulator:
         return "not applicable"
+
+    if esp32:
+        # Nao ha API para ler eFuses a partir do MicroPython, e o estado de
+        # Secure Boot / flash encryption vive neles. Reportar o que o perfil de
+        # build pretendia seria afirmar em tempo de execucao algo que nao foi
+        # verificado -- justamente o tipo de coisa que nao se faz num readout
+        # de seguranca de carteira. Ate existir leitura real, "unknown".
+        return "unknown"
 
     try:
         option_control = stm.mem32[0x40023C14]
@@ -223,6 +257,14 @@ def get_flash_write_protection_status() -> str:
 
     if simulator:
         return "not applicable"
+
+    if esp32:
+        # Nao ha API para ler eFuses a partir do MicroPython, e o estado de
+        # Secure Boot / flash encryption vive neles. Reportar o que o perfil de
+        # build pretendia seria afirmar em tempo de execucao algo que nao foi
+        # verificado -- justamente o tipo de coisa que nao se faz num readout
+        # de seguranca de carteira. Ate existir leitura real, "unknown".
+        return "unknown"
 
     try:
         option_control = stm.mem32[0x40023C14]
@@ -371,6 +413,17 @@ def wipe():
         delete_recursively(fpath("/qspi"))
     except:
         pass
+    if esp32:
+        # /flash e /qspi sao diretorios dentro do unico sistema de arquivos
+        # interno, nao volumes montados: ja foram apagados acima. Sobrescrever
+        # a particao inteira com bytes aleatorios exige desmontar a raiz de
+        # onde este codigo esta rodando, o que nao da para fazer de dentro.
+        #
+        # NAO IMPLEMENTADO. Apagamento seguro nesta placa precisa acontecer no
+        # bootloader, e ate la o wipe aqui e apenas remocao de arquivos.
+        reboot()
+        return
+
     # on real hardware overwrite flash with random data
     if not simulator:
         os.umount("/flash")
@@ -390,6 +443,10 @@ def wipe():
 def usb_connected():
     if simulator:
         return True
+    if esp32:
+        # Esta placa expoe o console por uma ponte CH343 e o port nao usa USB
+        # nativo, entao nao ha linha de VBUS para consultar.
+        return False
     return bool(pyb.Pin.board.USB_VBUS.value())
 
 BATTERY_TABLE = [

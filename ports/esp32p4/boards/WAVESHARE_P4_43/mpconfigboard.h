@@ -28,3 +28,9 @@
 #ifndef USB_SERIAL_JTAG_PACKET_SZ_BYTES
 #define USB_SERIAL_JTAG_PACKET_SZ_BYTES (64)
 #endif
+
+// O usermod uhashlib registra o modulo `hashlib` e substitui o embutido, que
+// so traz md5/sha1/sha256. Bitcoin precisa de sha512 (BIP32 usa HMAC-SHA512) e
+// ripemd160 (enderecos). Desligar o embutido evita duas implementacoes
+// disputando o mesmo nome.
+#define MICROPY_PY_HASHLIB (0)

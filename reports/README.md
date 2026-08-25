@@ -33,6 +33,12 @@ divergências entre fontes, não defeitos comprovados.
 |---|---|
 | [secp256k1-embedded-micropython-master.md](secp256k1-embedded-micropython-master.md) | Não compila no MicroPython master: APIs de inteiro removidas e qstrs perdidos; correções prontas em fork |
 
+## Para `miketlk/f469-disco`
+
+| Arquivo | Assunto |
+|---|---|
+| [f469-disco-uhashlib-micropython-master.md](f469-disco-uhashlib-micropython-master.md) | `uhashlib` usa o macro `STATIC` removido, perde qstrs no CMake e colide com o `hashlib` embutido |
+
 ## Para `micropython/micropython`
 
 | Arquivo | Assunto |

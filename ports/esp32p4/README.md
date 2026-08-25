@@ -267,3 +267,89 @@ A regra ninja de `genhdr/qstr.i.last` depende só dos `.c`. Mudar um header que
 altera o pré-processamento não dispara regeneração — se uma correção em header
 parecer não ter efeito, apague `build-W43/genhdr` antes de concluir qualquer
 coisa.
+
+## Fase 4 — camada de plataforma
+
+Shims `pyb` e `sdram`, ramo ESP32 no `platform.py`, hashes de Bitcoin e TRNG.
+Tudo **verificado na placa**.
+
+| Item | Resultado |
+|---|---|
+| `sha256`, `sha512`, `ripemd160` | **OK** contra digests de `"abc"` |
+| `hmac_sha512` | **OK** contra RFC 4231 caso 1 |
+| `pbkdf2_hmac` / semente BIP39 | **OK** |
+| TRNG (`os.urandom`) | 50,0% de bits em 1, 256 valores distintos |
+| `platform.py` | importa, `esp32=True`, boot=`factory` |
+| ramdisk em PSRAM | formata, monta, escreve, apaga |
+| microSD | slot responde; sem cartão reporta ausente |
+
+### Shims
+
+`lib/pyb.py` mapeia a API `pyb` para `machine`. Segue o precedente do
+`f469-disco/libs/unix/pyb.py`, que faz o mesmo em 117 linhas para o simulador.
+
+O que **não existe** nesta placa vira objeto inerte que avisa uma vez no
+console, em vez de falhar ou fingir em silêncio: `LED` (não há LEDs discretos),
+`USB_VCP` (o REPL vem da ponte CH343, sem USB nativo) e UARTs sem pinos
+mapeados, como a `"YB"` do ST-Link. `pyb.stub_report()` lista o que foi
+exercitado sem hardware real.
+
+`lib/sdram.py` cobre a PSRAM: `init()` é no-op porque o ESP-IDF já a inicializa,
+`RAMDevice` é um block device em RAM para o `/ramdisk`, e o bloco pré-alocado de
+1 MB espelha o do simulador.
+
+### Mudanças no app
+
+Duas, ambas mínimas:
+
+**`src/config_default.py`** — `simulator` era `sys.platform != "pyboard"`, o que
+classifica qualquer alvo novo como simulador. No ESP32 isso fazia o config
+tentar criar `./fs` numa placa. Passou a usar a mesma expressão do
+`platform.py`.
+
+**`src/platform.py`** — ramo `esp32` ao lado do `simulator` que já existia:
+imports (`stm` não existe), `/flash` e `/qspi` como diretórios do sistema de
+arquivos interno, modo de boot pela partição em execução, e `usb_connected()`
+retornando False.
+
+### Duas decisões de honestidade
+
+**Proteções de flash retornam `unknown`.** Secure Boot e flash encryption vivem
+em eFuses, e o MicroPython não expõe leitura de eFuse. Reportar o que o perfil
+de build pretendia seria afirmar em tempo de execução algo não verificado —
+inaceitável num readout de segurança de carteira. Fica `unknown` até haver
+leitura real.
+
+**`wipe()` não apaga a flash nesta placa.** Em `/flash` e `/qspi`, que aqui são
+diretórios e não volumes, os arquivos são removidos. Sobrescrever a partição com
+bytes aleatórios exigiria desmontar a raiz de onde o próprio código roda.
+Apagamento seguro precisa acontecer no bootloader. Está marcado como **não
+implementado** no código, não silenciado.
+
+### Hashes
+
+O MicroPython traz md5, sha1 e sha256. Faltam sha512 (BIP32 usa HMAC-SHA512) e
+ripemd160 (endereços), então o usermod `uhashlib` foi vendorizado de
+`miketlk/f469-disco` @ `micropython-upgrade`, com duas correções locais: o macro
+`STATIC` foi removido do MicroPython, e o guard `MODULE_HASHLIB_ENABLED`
+precisou de valor padrão pelo mesmo motivo do secp256k1. O `hashlib` embutido
+foi desligado no `mpconfigboard.h` para não disputar o nome.
+
+Os fontes em `crypto/` vêm da linhagem trezor-crypto, licença BSD de três
+cláusulas, com os avisos de copyright preservados.
+
+### Atenção ao tamanho
+
+```
+micropython.bin binary size 0x1cabf0 bytes.
+Smallest app partition is 0x1f0000 bytes. 0x25410 bytes (8%) free.
+```
+
+**8% de folga.** O app do Specter ainda não entrou. A tabela de partições vai
+precisar de ajuste antes da Fase 5.
+
+### Armadilha de build
+
+Uma regeneração parcial de qstr produz `redeclaration of enumerator
+'MP_QSTR_msg'`, com o qstr aparecendo no pool principal e no congelado. Apagar
+só `genhdr` não basta; ao mexer em usermods, apague o diretório de build inteiro.

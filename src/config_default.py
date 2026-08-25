@@ -1,7 +1,10 @@
 import sys
 import os
 
-simulator = sys.platform != "pyboard"
+# Precisa concordar com platform.py. A forma antiga, sys.platform != "pyboard",
+# classificava qualquer alvo novo como simulador -- no ESP32 isso fazia o
+# config tentar criar "./fs" numa placa.
+simulator = sys.platform in ("linux", "darwin")
 
 # to overwrite these settings create a config.py file
 
