@@ -208,3 +208,62 @@ resolve os componentes para caminhos absolutos com `idf_component_get_property`.
 `MICROPY_PY_BLUETOOTH (0)` o build tenta compilar o NimBLE e falha por falta dos
 headers. O `MICROPY_HW_ENABLE_UART_REPL (1)` também é obrigatório: o REPL desta
 placa chega pela ponte CH343, não por USB nativo.
+
+## Fase 3 — secp256k1
+
+`secp256k1-embedded` compilado como usermod CMake e **verificado na placa**
+contra constantes públicas.
+
+| Teste | Resultado |
+|---|---|
+| Chave privada 1 → ponto gerador da curva | **OK** |
+| ECDSA: assina, verifica, rejeita mensagem errada | **OK** |
+| BIP340 vetor 0: pubkey x-only | **OK** |
+| BIP340 vetor 0: assinatura Schnorr | **OK, idêntica byte a byte** |
+
+A assinatura Schnorr gerada no ESP32-P4 confere com
+`bip-0340/test-vectors.csv` do repositório `bitcoin/bips`, índice 0:
+
+```
+E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA8215
+25F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0
+```
+
+Isso exercita o caminho inteiro — campo 10x26 e escalar 8x32, ou seja, a
+implementação de 32 bits — sobre RISC-V. Rodar:
+
+```sh
+mpremote cp ports/esp32p4/test_secp256k1.py :test_secp256k1.py
+mpremote exec "import test_secp256k1; test_secp256k1.run()"
+```
+
+### Origem e correções
+
+O submódulo aponta para `sandman21vs/secp256k1-embedded` @
+`micropython-master-api`, um fork de `miketlk/secp256k1-embedded` @
+`micropython-upgrade` com duas correções que precisamos fazer:
+
+1. **APIs de inteiro do MicroPython.** `mp_obj_int_to_bytes_impl()` foi removida
+   e `mp_binary_set_int()` mudou de assinatura. Substituídas por
+   `mp_obj_int_to_bytes()`, que cobre small e long ints numa chamada.
+2. **Qstrs perdidos.** O corpo do módulo está sob `#if MODULE_SECP256K1_ENABLED`,
+   e o `usermod_gather_sources()` do MicroPython não propaga
+   `INTERFACE_COMPILE_DEFINITIONS` ao passe de qstr — então o pré-processador vê
+   um arquivo vazio e a compilação falha com `MP_QSTR_secp256k1 undeclared`.
+
+As duas estão documentadas em `reports/` para reporte upstream. Voltar ao
+repositório do miketlk é trocar `url` e `branch` no `.gitmodules`.
+
+### Armadilha da API
+
+`xonly_pubkey_from_pubkey()` devolve uma tupla cujo primeiro item é a struct
+interna de 64 bytes do libsecp256k1, **não** a chave x-only serializada, e não
+existe `xonly_pubkey_serialize`. Para a x-only, tire o byte de prefixo da pubkey
+comprimida. Comparar a struct interna com o vetor BIP340 dá um falso negativo.
+
+### Regeneração de qstr
+
+A regra ninja de `genhdr/qstr.i.last` depende só dos `.c`. Mudar um header que
+altera o pré-processamento não dispara regeneração — se uma correção em header
+parecer não ter efeito, apague `build-W43/genhdr` antes de concluir qualquer
+coisa.

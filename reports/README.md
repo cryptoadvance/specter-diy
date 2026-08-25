@@ -27,6 +27,18 @@ divergências entre fontes, não defeitos comprovados.
 | [touch-reset-gpio-divergence.md](touch-reset-gpio-divergence.md) | Mesmo achado, do outro lado |
 | [wave43-panel-cross-validation.md](wave43-panel-cross-validation.md) | Nota positiva |
 
+## Para `miketlk/secp256k1-embedded`
+
+| Arquivo | Assunto |
+|---|---|
+| [secp256k1-embedded-micropython-master.md](secp256k1-embedded-micropython-master.md) | Não compila no MicroPython master: APIs de inteiro removidas e qstrs perdidos; correções prontas em fork |
+
+## Para `micropython/micropython`
+
+| Arquivo | Assunto |
+|---|---|
+| [micropython-usermod-qstr-defines.md](micropython-usermod-qstr-defines.md) | Usermods CMake perdem qstrs quando o corpo depende de um define próprio; erro resultante aponta para o lugar errado |
+
 ## Interno
 
 | Arquivo | Assunto |
@@ -39,5 +51,10 @@ divergências entre fontes, não defeitos comprovados.
    tipo de dado de outra unidade.
 2. **specter-bootloader-export-sh-linux** — bloqueia qualquer pessoa em Linux, e
    o modo de falha mudo torna o diagnóstico caro.
-3. **k-quirc-license** — barato de resolver e destrava reuso a jusante.
-4. O resto quando houver oportunidade.
+3. **micropython-usermod-qstr-defines** — afeta qualquer usermod CMake, e a
+   mensagem de erro aponta para o lugar errado. Tem reprodução mínima e
+   correção sugerida.
+4. **secp256k1-embedded-micropython-master** — as correções já estão prontas
+   num fork, é só abrir o PR.
+5. **k-quirc-license** — barato de resolver e destrava reuso a jusante.
+6. O resto quando houver oportunidade.
