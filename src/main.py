@@ -12,6 +12,24 @@ from helpers import load_apps
 from app import BaseApp
 import display
 
+def _qr_scanner_present():
+    """Ha um leitor de QR serial ligado a esta placa?"""
+    if platform.simulator:
+        return True
+    try:
+        import config
+    except ImportError:
+        import config_default as config
+    try:
+        import pyb
+
+        # Shims de plataforma expoem has_uart(); portas com hardware real de
+        # scanner nao expoem, e nesse caso assumimos que ele existe.
+        return pyb.has_uart(config.QRSCANNER_UART)
+    except AttributeError:
+        return True
+
+
 def main(apps=None, network="main", keystore_cls=None):
     """
     apps: list of apps to load
@@ -36,9 +54,14 @@ def main(apps=None, network="main", keystore_cls=None):
     Specter.SETTINGS_DIR = platform.fpath("/qspi/global")
     hosts = [
         USBHost(rampath + "/usb"),
-        QRHost(rampath + "/qr"),
         SDHost(rampath+"/sd"),
     ]
+    # O leitor de QR do Specter e um modulo serial externo (GM65/M3Y). Placas
+    # que nao tem um nao devem oferecer a tela de leitura: QRHost.init() cai
+    # num fallback de trigger que marca is_configured=True de qualquer jeito,
+    # entao a tela abriria e esperaria dados para sempre.
+    if _qr_scanner_present():
+        hosts.insert(1, QRHost(rampath + "/qr"))
     # temp storage in RAM for host commands processing
     BaseApp.TEMPDIR = rampath+"/tmp"
 

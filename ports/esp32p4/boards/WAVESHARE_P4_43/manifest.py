@@ -9,7 +9,7 @@ include("$(PORT_DIR)/boards/manifest.py")
 
 _ROOT = "/home/sm/specter-diy"
 
-# Shims da plataforma: pyb e sdram.
+# Shims da plataforma: pyb, sdram e o wrapper display.
 freeze(_ROOT + "/ports/esp32p4/lib")
 
 # Bibliotecas do bundle, item a item.

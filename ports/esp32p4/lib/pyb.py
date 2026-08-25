@@ -41,6 +41,17 @@ def stub_report():
     return sorted(_used_stubs)
 
 
+def has_uart(name):
+    """A UART `name` existe fisicamente nesta placa?
+
+    Permite que quem monta a lista de perifericos pergunte em vez de descobrir
+    por um travamento. O leitor de QR do Specter, por exemplo, marca
+    is_configured=True incondicionalmente no fallback de trigger, entao sem
+    esta consulta o app apresenta uma tela de scan que nunca recebe nada.
+    """
+    return name in UART_MAP
+
+
 # ---------------------------------------------------------------- Pin --------
 
 # O Specter usa nomes de pino do STM32 ("D2" para o gatilho do leitor de QR).
@@ -56,10 +67,22 @@ class Pin:
     PULL_DOWN = const(3)
 
     class board:
-        pass
+        """Pinos por nome de placa. Vazio: esta placa nao usa nomes do STM32."""
 
     class cpu:
-        pass
+        """Nomes de pino do STM32 que o app referencia literalmente.
+
+        `keystore/javacard/util.py` monta o leitor de smartcard com
+        Pin.cpu.A2, .A4, .G10, .C2 e .C5. Sao strings porque nao existem aqui;
+        Pin() as trata como nao mapeadas e devolve um stub. Mesma abordagem do
+        shim do simulador em f469-disco/libs/unix/pyb.py.
+        """
+
+        A2 = "A2"
+        A4 = "A4"
+        G10 = "G10"
+        C2 = "C2"
+        C5 = "C5"
 
     def __init__(self, name, mode=OUT, *args, **kwargs):
         self._name = name

@@ -39,6 +39,12 @@ divergências entre fontes, não defeitos comprovados.
 |---|---|
 | [f469-disco-uhashlib-micropython-master.md](f469-disco-uhashlib-micropython-master.md) | `uhashlib` usa o macro `STATIC` removido, perde qstrs no CMake e colide com o `hashlib` embutido |
 
+## Para `lvgl/lv_binding_micropython`
+
+| Arquivo | Assunto |
+|---|---|
+| [lv-binding-micropython-master-api.md](lv-binding-micropython-master-api.md) | O binding gerado chama `mp_obj_int_to_bytes_impl()`, removida do MicroPython master |
+
 ## Para `micropython/micropython`
 
 | Arquivo | Assunto |

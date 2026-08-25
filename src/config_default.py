@@ -24,3 +24,7 @@ else:
 # pin that triggers QR code
 # if command mode failed
 QRSCANNER_TRIGGER = "D2"
+
+# UART the serial QR scanner module is wired to. Boards without one can be
+# detected through this name -- see _qr_scanner_present() in main.py.
+QRSCANNER_UART = "YA"
