@@ -6,5 +6,5 @@
 	url = https://github.com/cryptoadvance/specter-bootloader
 [submodule "ports/esp32p4/components/secp256k1"]
 	path = ports/esp32p4/components/secp256k1
-	url = https://github.com/miketlk/secp256k1-embedded.git
-	branch = micropython-upgrade
+	url = https://github.com/sandman21vs/secp256k1-embedded.git
+	branch = micropython-master-api
