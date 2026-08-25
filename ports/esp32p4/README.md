@@ -76,3 +76,46 @@ Trabalho derivado de dois projetos MIT, ambos com revisão própria antes de uso
 
 Divergências e problemas encontrados nessas fontes estão documentados em
 `reports/` na raiz deste repositório.
+
+## Estado do baseline
+
+Compilação **funcionando**. MicroPython `master` para `ESP32_GENERIC_P4`,
+variante `PRE_REV3`, com ESP-IDF v5.5.5:
+
+```
+micropython.bin binary size 0x190e70 bytes.
+Smallest app partition is 0x1f0000 bytes. 0x5f190 bytes (19%) free.
+```
+
+Gravação na placa **pendente** — a placa foi desconectada do USB antes do flash.
+
+### Duas descobertas do baseline
+
+**A placa exige `BOARD_VARIANT=PRE_REV3`.** A telemetria do mock firmware
+reportou `chip_revision: 103`, que no encoding do ESP-IDF é major 1, minor 3, ou
+seja **v1.3**. O `board.md` do MicroPython é explícito: revisões 0.x e 1.x
+precisam das variantes `PRE_REV3`. O build padrão define
+`CONFIG_ESP32P4_REV_MIN_300=y` e não sobe neste silício.
+
+**ESP-IDF 5.5.5 funciona**, apesar de não constar na lista oficial do
+MicroPython (5.3, 5.4, 5.4.1, 5.4.2, 5.5.1, 5.5.2, 5.5.4). Isso permite
+reaproveitar o checkout já pinado pelo bootloader e o toolchain em
+`/home/sm/.espressif-specter-p4`, sem uma segunda árvore de 2,6 GB.
+
+**Nenhuma variante de WiFi.** A placa tem um ESP32-C6, mas o alvo é airgapped.
+O rádio fica fora do build e, adiante, será mantido em reset por hardware pelo
+GPIO 54, como o Kern faz.
+
+### Reproduzir
+
+```sh
+. ports/esp32p4/tools/env.sh
+make -C "$MICROPYTHON_DIR/mpy-cross" -j"$(nproc)"
+make -C "$MICROPYTHON_DIR/ports/esp32" BOARD=$MP_BOARD BOARD_VARIANT=$MP_VARIANT submodules
+ports/esp32p4/tools/build-baseline.sh build
+PORT=/dev/ttyACM0 ports/esp32p4/tools/build-baseline.sh flash
+```
+
+`idf.py flash` **não** funciona nesta combinação: o wrapper procura
+`components/esptool_py/esptool.py`, que não existe mais (o esptool virou pacote
+pip, v4.12.0). O `build-baseline.sh flash` chama o módulo direto.
