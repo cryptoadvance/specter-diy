@@ -17,8 +17,12 @@ export SPECTER_BOOTLOADER_DIR=/home/sm/specter-bootloader
 # A placa e ESP32-P4 revisao v1.3 (chip_revision 103 = major 1, minor 3).
 # O board.md do MicroPython exige a variante PRE_REV3 para revisoes 0.x e 1.x;
 # o build padrao mira revisao 3.0+ e nao sobe neste silicio.
-export MP_BOARD=ESP32_GENERIC_P4
-export MP_VARIANT=PRE_REV3
+export MP_BOARD=WAVESHARE_P4_43
+export MP_BOARD_DIR=/home/sm/specter-diy/ports/esp32p4/boards/WAVESHARE_P4_43
+export MP_USER_C_MODULES=/home/sm/specter-diy/ports/esp32p4/components/micropython.cmake
+
+# O board ja embute sdkconfig.p4_pre_rev3, entao nao ha variante a passar.
+# ESP32P4_REV_MIN_0 cobre o silicio v1.3 desta placa e tambem o 3.x.
 
 # Sem variante de WiFi de proposito: a placa tem um ESP32-C6, mas o alvo e um
 # dispositivo airgapped. O radio fica de fora do build e, mais adiante, sera
@@ -27,4 +31,4 @@ export MP_VARIANT=PRE_REV3
 echo "ESP32-P4 baseline:"
 echo "  IDF            = $(idf.py --version 2>&1 | tail -1)"
 echo "  IDF_TOOLS_PATH = $IDF_TOOLS_PATH"
-echo "  BOARD          = $MP_BOARD / $MP_VARIANT"
+echo "  BOARD          = $MP_BOARD"

@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
-# Compila e, opcionalmente, grava o baseline MicroPython na Waveshare 4.3-C.
+# Compila e grava o firmware MicroPython + p4board na Waveshare 4.3-C.
 #
 #   ./build-baseline.sh build
 #   PORT=/dev/ttyACM0 ./build-baseline.sh flash
 #
 # Na primeira vez rode tambem:
 #   make -C "$MICROPYTHON_DIR/mpy-cross" -j"$(nproc)"
-#   make -C "$MICROPYTHON_DIR/ports/esp32" BOARD=$MP_BOARD BOARD_VARIANT=$MP_VARIANT submodules
+#   make -C "$MICROPYTHON_DIR/ports/esp32" BOARD=ESP32_GENERIC_P4 submodules
 
 set -euo pipefail
 . "$(dirname -- "$0")/env.sh" > /dev/null
 
-BUILD_DIR="$MICROPYTHON_DIR/ports/esp32/build-P4"
+BUILD_DIR="$MICROPYTHON_DIR/ports/esp32/build-W43"
 PY="$IDF_TOOLS_PATH/python_env/idf5.5_py3.14_env/bin/python"
 
 case "${1:-build}" in
   build)
     cd "$MICROPYTHON_DIR/ports/esp32"
-    idf.py -D MICROPY_BOARD="$MP_BOARD" -D MICROPY_BOARD_VARIANT="$MP_VARIANT" \
-           -B build-P4 build
+    idf.py -D MICROPY_BOARD="$MP_BOARD" \
+           -D MICROPY_BOARD_DIR="$MP_BOARD_DIR" \
+           -D USER_C_MODULES="$MP_USER_C_MODULES" \
+           -B build-W43 build
     ;;
   flash)
     # idf.py flash falha aqui: o wrapper procura components/esptool_py/esptool.py,

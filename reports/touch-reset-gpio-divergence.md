@@ -61,6 +61,35 @@ Isso demonstra que o GPIO 23 **não atrapalha**, mas não prova sozinho que ele 
 o reset — um pino não conectado também não atrapalharia. A confirmação
 definitiva é o esquemático da Waveshare.
 
+## Evidência nova: dirigir o GPIO 23 não seleciona o endereço primário
+
+Implementamos as duas coisas juntas — reset dirigido no GPIO 23 **e** sondagem
+dupla — e medimos o resultado no hardware sob MicroPython:
+
+```
+>>> p4board.init()
+True
+>>> print('addr = 0x%02x' % p4board.touch_address())
+addr = 0x14
+```
+
+O controlador subiu no **endereço de backup 0x14**, não no primário 0x5D, apesar
+do pulso de reset de 10 ms em nível baixo seguido de 50 ms de espera.
+
+Isso enfraquece a hipótese de que o GPIO 23 seja o reset do GT911, ou indica que
+o nível do INT durante o pulso é que decide — e o INT está como `GPIO_NUM_NC`
+nas duas fontes. De qualquer forma:
+
+- **A sondagem dupla do Kern não é defensiva, é necessária.** Nesta placa o
+  endereço primário não responde. Uma implementação que fixasse 0x5D falharia.
+- **A afirmação `SPECTER_TOUCH_HAS_RESET 1` do miketlk não produz o efeito
+  esperado**, ao menos nesta unidade. O touch funciona, mas por causa do
+  fallback, não do reset.
+
+Com a combinação das duas abordagens o touch operou de forma estável: 819
+pontos lidos em 20 s de varredura a 50 Hz, cobrindo todo o painel (x de 4 a 475,
+y de 8 a 797, contra os limites 480x800).
+
 ## Sugestão
 
 - Conferir contra o esquemático oficial em
@@ -73,5 +102,8 @@ definitiva é o esquemático da Waveshare.
 ## O que fizemos neste port
 
 Adotamos o GPIO 23 como reset **e** mantivemos a sondagem dupla de endereço.
-As duas coisas são compatíveis e a combinação é estritamente mais robusta que
-qualquer uma isolada.
+A medição acima justifica a decisão a posteriori: sem o fallback do Kern, o
+touch não teria funcionado nesta unidade; sem o reset do miketlk, não teríamos
+como saber que o reset não resolve o endereço.
+
+Fica em aberto se o GPIO 23 tem alguma função aqui. Só o esquemático responde.

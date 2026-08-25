@@ -142,3 +142,69 @@ PORT=/dev/ttyACM0 ports/esp32p4/tools/build-baseline.sh flash
 `idf.py flash` **não** funciona nesta combinação: o wrapper procura
 `components/esptool_py/esptool.py`, que não existe mais (o esptool virou pacote
 pip, v4.12.0). O `build-baseline.sh flash` chama o módulo direto.
+
+## Fase 2 — display e touch sob MicroPython
+
+Board `WAVESHARE_P4_43` e módulo C `p4board`, **validados no hardware**.
+
+### API
+
+```python
+import p4board, framebuf
+p4board.init()                      # display + touch; devolve True se o touch subiu
+g = framebuf.FrameBuffer(p4board.framebuffer(),
+                         p4board.WIDTH, p4board.HEIGHT, framebuf.RGB565)
+g.fill_rect(40, 60, 400, 90, 0xF800)
+p4board.flush()                     # ou flush(y, altura) para uma faixa
+p4board.backlight(100)              # 0..100
+p4board.touch()                     # ((id, x, y, size), ...)
+p4board.radio_off()                 # segura o ESP32-C6 em reset
+```
+
+`framebuffer()` devolve um `memoryview` gravável apontando **direto** para a
+memória que o controlador DPI varre — sem cópia. É o que permite usar o
+`framebuf` embutido do MicroPython hoje e apontar um draw buffer do LVGL para
+o mesmo endereço depois.
+
+### Verificado na placa
+
+| Item | Resultado |
+|---|---|
+| `import p4board` | 480 x 800 |
+| `p4board.init()` | `True` (display e touch) |
+| `framebuffer()` | 768.000 bytes = 480 x 800 x 2 |
+| Desenho + `flush()` | padrão de barras visível no painel |
+| Touch | 819 pontos em 20 s a 50 Hz, cobrindo x 4–475, y 8–797 |
+| Endereço do GT911 | **0x14** (backup) |
+
+### O endereço 0x14
+
+Dirigimos o GPIO 23 como reset do touch (fonte: miketlk) **e** mantivemos a
+sondagem dupla de endereço (fonte: Kern). O controlador subiu no endereço de
+backup mesmo com o reset pulsado.
+
+Ou seja, nesta unidade a sondagem dupla do Kern não é redundância defensiva —
+**é o que faz o touch funcionar**. Uma implementação que fixasse 0x5D falharia.
+Evidência completa em `reports/touch-reset-gpio-divergence.md`.
+
+### Compilar e gravar
+
+```sh
+. ports/esp32p4/tools/env.sh
+ports/esp32p4/tools/build.sh build
+PORT=/dev/ttyACM0 ports/esp32p4/tools/build.sh flash
+```
+
+### Duas armadilhas do build
+
+**Generator expressions não funcionam nos includes do usermod.** O MicroPython
+achata os `target_include_directories` de um usermod na lista `INCLUDE_DIRS` do
+componente, e o ESP-IDF então verifica que cada entrada é um diretório real. Um
+`$<TARGET_PROPERTY:idf::driver,INTERFACE_INCLUDE_DIRECTORIES>` chega literal e o
+build morre com *"is not a directory"*. O `components/p4board/micropython.cmake`
+resolve os componentes para caminhos absolutos com `idf_component_get_property`.
+
+**O `mpconfigboard.h` precisa desligar rádio explicitamente.** Sem
+`MICROPY_PY_BLUETOOTH (0)` o build tenta compilar o NimBLE e falha por falta dos
+headers. O `MICROPY_HW_ENABLE_UART_REPL (1)` também é obrigatório: o REPL desta
+placa chega pela ponte CH343, não por USB nativo.

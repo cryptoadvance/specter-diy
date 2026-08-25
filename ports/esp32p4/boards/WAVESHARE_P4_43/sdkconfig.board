@@ -1,0 +1,20 @@
+# Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3-C
+
+# 32 MB de PSRAM, confirmados no hardware (gc.mem_free ~31,6 MB no baseline).
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+
+# A placa tem 32 MB fisicos, mas mantemos a janela logica em 16 MB para ficar
+# alinhado com o layout do specter-bootloader.
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+
+# O painel MIPI DSI escreve o framebuffer em PSRAM por DMA. Sem isso o
+# esp_lcd_dpi entrega bandas e linhas fantasma no painel de varredura continua.
+CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
+CONFIG_SPIRAM_RODATA=y
+
+# Perfil de desenvolvimento: sem Secure Boot, sem flash encryption, nenhum
+# eFuse queimado. Nao alterar sem decisao explicita.
+CONFIG_SECURE_BOOT=n
+CONFIG_SECURE_FLASH_ENC_ENABLED=n
