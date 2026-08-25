@@ -1,53 +1,46 @@
-# `k_quirc` sem licença identificável
+# `k_quirc`: licença MIT, detecção do GitHub falha
 
 **Destino:** https://github.com/odudex/k_quirc
-**Natureza:** bloqueio jurídico para reuso, não defeito técnico
+**Severidade:** cosmética — mas gerou um falso bloqueio aqui
 
-## O fato
+## Correção de um relato anterior
 
-A API do GitHub retorna para `odudex/k_quirc`:
+A primeira versão deste arquivo afirmava que o `k_quirc` estava sem licença e
+que isso bloqueava o reuso. **Estava errado.** A API do GitHub retorna
+`"license": "NOASSERTION"`, mas o repositório **tem** um `LICENSE`, e ele é
+**MIT**, com a cadeia de atribuição completa:
 
-```json
-{"license": "NOASSERTION"}
+```
+MIT License
+
+Original Copyright (C) 2010-2012 Daniel Beer <dlbeer@gmail.com>
+OpenMV modifications Copyright (c) 2013-2021 Ibrahim Abdelkader
+OpenMV modifications Copyright (c) 2013-2021 Kwabena W. Agyeman
+K-Quirc modifications Copyright (c) 2025 Kern contributors
 ```
 
-`NOASSERTION` significa que o detector de licenças não conseguiu identificar um
-texto de licença reconhecível no repositório.
+Totalmente compatível com o `specter-diy`, que também é MIT. Não há bloqueio.
 
-O `k_quirc` é submódulo do Kern (`components/k_quirc`) e é descrito como
-"adapted from quirc". O `quirc` original, de Daniel Beer, é distribuído sob
-**ISC**, que é permissiva e compatível com MIT — mas isso precisa estar
-explícito no derivado, com a atribuição original preservada.
+A lição, para nós: `NOASSERTION` significa "o detector não conseguiu
+classificar", não "não há licença". Abrir o arquivo custa dez segundos e evita
+uma decisão de arquitetura tomada em cima de nada.
 
-Para comparação, os outros submódulos do Kern estão claros:
+## Por que a detecção falha
 
-| Componente | Licença |
-|---|---|
-| `odudex/Kern` | MIT |
-| `odudex/cUR` | BSD-2-Clause-Patent |
-| `odudex/k_quirc` | **NOASSERTION** |
-| `odudex/libwally-core` | herda do upstream |
-
-## Por que importa aqui
-
-O `specter-diy` é MIT (`Copyright (c) 2019 cryptoadvance`). Vendorizar o
-`k_quirc` para o pipeline de QR por câmera exige clareza sobre os termos e
-sobre a atribuição devida ao autor do `quirc`.
-
-O `cUR`, sob BSD-2-Clause-Patent, é compatível com MIT, mas tem cláusula de
-patente e exige manutenção do aviso — vale registrar em `NOTICE` se for
-vendorizado.
+O `licensee`, usado pelo GitHub, casa o texto contra modelos conhecidos. Aqui o
+cabeçalho tem **quatro linhas de copyright** entre o título `MIT License` e o
+parágrafo `Permission is hereby granted`, o que afasta o texto o suficiente do
+modelo para não bater.
 
 ## Sugestão
 
-Adicionar ao `k_quirc` um `LICENSE` explícito, preservando o texto e a
-atribuição ISC do `quirc` original, e um cabeçalho nos arquivos derivados
-indicando origem e modificações. É mudança de minutos que destrava o reuso a
-jusante.
+Adicionar um identificador legível por máquina resolve a detecção sem tocar no
+texto legal:
 
-## Ação deste port
+1. `SPDX-License-Identifier: MIT` no topo do `LICENSE` e nos cabeçalhos dos
+   fontes; ou
+2. mover o bloco de copyright para depois do parágrafo de permissão, deixando o
+   modelo MIT intacto no início.
 
-Não vendorizar o `k_quirc` até haver definição. A fase de câmera pode começar
-pelo pipeline de captura (`esp_video`/`esp_cam_sensor`), que é da Espressif e
-tem licença clara, deixando a decodificação de QR para quando a licença estiver
-resolvida — ou usando outra implementação se não estiver.
+Vale a pena: um `NOASSERTION` faz projetos a jusante hesitarem em vendorizar,
+que é exatamente o que aconteceu aqui.

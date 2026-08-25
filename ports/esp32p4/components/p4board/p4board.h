@@ -33,6 +33,15 @@ esp_err_t p4board_touch_read(p4board_touch_point_t *points, uint8_t capacity,
     uint8_t *count);
 uint8_t p4board_touch_address(void);
 
+/**
+ * @brief I2C bus shared by the GT911 touch and the camera SCCB.
+ *
+ * On this board both sit on GPIO 8/7. Creating a second master bus on the same
+ * pins fails, so the camera must reuse this handle rather than open its own.
+ * Returns NULL until p4board_touch_init() has run.
+ */
+void *p4board_i2c_bus(void);
+
 /* Radio co-processor */
 esp_err_t p4board_radio_off(void);
 

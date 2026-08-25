@@ -15,7 +15,7 @@ divergências entre fontes, não defeitos comprovados.
 | [kern-issue-135-wave43-watchdog.md](kern-issue-135-wave43-watchdog.md) | Contraprova de hardware para a issue #135 (travamento no boot da 4.3), que o mantenedor não consegue reproduzir |
 | [touch-reset-gpio-divergence.md](touch-reset-gpio-divergence.md) | Reset do GT911: GPIO 23 vs `GPIO_NUM_NC` |
 | [kern-wave43-no-sdcard.md](kern-wave43-no-sdcard.md) | `BSP_CAPS_SDCARD 0` numa placa que tem SDMMC em 39–44 |
-| [k-quirc-license.md](k-quirc-license.md) | `k_quirc` sem licença identificável, bloqueando reuso |
+| [k-quirc-license.md](k-quirc-license.md) | `k_quirc` é MIT, mas o detector do GitHub reporta `NOASSERTION`; sugestão de SPDX |
 | [wave43-panel-cross-validation.md](wave43-panel-cross-validation.md) | Nota positiva: parâmetros do painel batem com fonte independente |
 
 ## Para `miketlk/specter-bootloader`
@@ -68,5 +68,5 @@ divergências entre fontes, não defeitos comprovados.
    correção sugerida.
 4. **secp256k1-embedded-micropython-master** — as correções já estão prontas
    num fork, é só abrir o PR.
-5. **k-quirc-license** — barato de resolver e destrava reuso a jusante.
+5. **k-quirc-license** — cosmético, mas evita que outros hesitem em reusar.
 6. O resto quando houver oportunidade.

@@ -21,6 +21,11 @@ export MP_BOARD=WAVESHARE_P4_43
 export MP_BOARD_DIR=/home/sm/specter-diy/ports/esp32p4/boards/WAVESHARE_P4_43
 export MP_USER_C_MODULES=/home/sm/specter-diy/ports/esp32p4/components/micropython.cmake
 
+# Componentes ESP-IDF de verdade. Necessarios para dependencias gerenciadas: o
+# MicroPython so le idf_component.yml de ports/esp32/main/, e um usermod nao
+# pode declarar as suas.
+export MP_EXTRA_COMPONENTS=/home/sm/specter-diy/ports/esp32p4/idf_components
+
 # O board ja embute sdkconfig.p4_pre_rev3, entao nao ha variante a passar.
 # ESP32P4_REV_MIN_0 cobre o silicio v1.3 desta placa e tambem o 3.x.
 

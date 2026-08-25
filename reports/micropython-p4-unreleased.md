@@ -64,3 +64,18 @@ remoção do caminho obsoleto de unit-test, `espressif/usb` 1.5.0, dependências
 separadas de GPIO/I2C/I2S/SPI/SDMMC/LEDC, e tradução de campos de configuração
 de LCD removidos na 6. Lido ao contrário, é o guia de backport de que
 precisamos.
+
+## Adendo: `esp_video` funciona em ESP-IDF 5.5.x
+
+A tabela acima sugeria que a câmera exigiria a série 6, já que o Kern usa
+6.0.2. **Não exige.** Verificado em duas etapas:
+
+1. Um projeto de teste isolado com `espressif/esp_video: "^2"` resolveu para
+   `esp_video 2.4.1` e `esp_cam_sensor 2.4.0` contra o ESP-IDF v5.5.5, e
+   compilou sem um único erro.
+2. No firmware real, com `CONFIG_CAMERA_OV5647=y`, o sensor foi detectado, o
+   dispositivo V4L2 abriu e a captura rodou a **45,5 fps em 1280x960 RGB565**.
+
+Ou seja, o Kern usar 6.0.2 é escolha do projeto, não exigência dos componentes
+de câmera. Isso importa para quem precisa ficar em 5.5.x — como qualquer port
+com MicroPython, que não suporta a série 6.

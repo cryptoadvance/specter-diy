@@ -141,6 +141,12 @@ uint8_t p4board_touch_address(void) {
     return device_address;
 }
 
+void *p4board_i2c_bus(void) {
+    /* Devolvido como void* para nao obrigar quem chama a incluir o header do
+     * driver I2C so para repassar o handle adiante. */
+    return bus;
+}
+
 esp_err_t p4board_touch_read(p4board_touch_point_t *points, uint8_t capacity,
     uint8_t *count) {
     if (!count || (capacity && !points)) {

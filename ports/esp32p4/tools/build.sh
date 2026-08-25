@@ -20,6 +20,7 @@ case "${1:-build}" in
     idf.py -D MICROPY_BOARD="$MP_BOARD" \
            -D MICROPY_BOARD_DIR="$MP_BOARD_DIR" \
            -D USER_C_MODULES="$MP_USER_C_MODULES" \
+           -D EXTRA_COMPONENT_DIRS="$MP_EXTRA_COMPONENTS" \
            -B build-W43 build
     ;;
   flash)

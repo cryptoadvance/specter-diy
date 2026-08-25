@@ -1,0 +1,14 @@
+## Dependencias gerenciadas da camera.
+##
+## O MicroPython so le idf_component.yml de ports/esp32/main/, e nao ha gancho
+## de board para acrescentar dependencias. Por isso a camera e um componente
+## ESP-IDF de verdade, trazido ao build por EXTRA_COMPONENT_DIRS -- o gerenciador
+## de componentes le o manifesto de qualquer componente na arvore, nao so o do
+## main.
+##
+## esp_video 2.4.1 e esp_cam_sensor 2.4.0 resolvem e compilam contra o ESP-IDF
+## v5.5.5, verificado num projeto de teste isolado. O Kern usa ESP-IDF 6.0.2,
+## mas nao por exigencia destes componentes.
+dependencies:
+  espressif/esp_video:
+    version: "^2"

@@ -22,3 +22,25 @@ CONFIG_SECURE_FLASH_ENC_ENABLED=n
 # Tabela de particoes propria: 4 MB para a app em vez dos ~2 MB do padrao.
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="/home/sm/specter-diy/ports/esp32p4/boards/WAVESHARE_P4_43/partitions.csv"
+
+# --- Camera MIPI-CSI ---
+#
+# Sem o driver do sensor compilado, esp_video_init() nao encontra nada, nao
+# registra o dispositivo V4L2, e o open() de /dev/video0 falha -- que foi
+# exatamente o sintoma aqui, com o sensor respondendo no SCCB mas sem device.
+#
+# Valores alinhados com odudex/Kern, sdkconfig.defaults, que sao os validados
+# nas placas Waveshare P4.
+CONFIG_CAMERA_OV5647=y
+CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=n
+CONFIG_CAMERA_OV5647_MIPI_RAW10_1280X960_BINNING_45FPS=y
+CONFIG_CAMERA_OV5647_MIPI_DEFAULT_FMT_RAW10_1280X960_BINNING_45FPS=y
+
+# A 4.3 vem com OV5647, mas placas irmas trazem SC2336 e o probe cobre as duas.
+CONFIG_CAMERA_SC2336=y
+CONFIG_CAMERA_SC2336_MIPI_RAW10_1280X720_30FPS=y
+CONFIG_CAMERA_SC2336_MIPI_DEFAULT_FMT_RAW10_1280X720_30FPS=y
+
+# So usamos MIPI-CSI. O driver DVP vem ligado por padrao no P4 (LCDCAM) e nao
+# tem uso aqui.
+CONFIG_ESP_VIDEO_ENABLE_DVP_VIDEO_DEVICE=n
