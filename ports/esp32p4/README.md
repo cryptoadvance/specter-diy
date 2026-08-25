@@ -87,7 +87,30 @@ micropython.bin binary size 0x190e70 bytes.
 Smallest app partition is 0x1f0000 bytes. 0x5f190 bytes (19%) free.
 ```
 
-Gravação na placa **pendente** — a placa foi desconectada do USB antes do flash.
+Gravado e **verificado na placa**. Banner do REPL:
+
+```
+MicroPython 8cf130db34-dirty on 2026-08-25; Generic ESP32P4 with pre revision 3 chip with ESP32-P4
+>>> import sys; print(sys.implementation)
+(name='micropython', version=(1, 30, 0, 'preview'), _machine='Generic ESP32P4 with pre
+ revision 3 chip with ESP32-P4', _mpy=143110, _build='ESP32_GENERIC_P4-PRE_REV3', _thread='GIL')
+```
+
+Confirmado no hardware:
+
+| Item | Resultado |
+|---|---|
+| Variante ativa | `ESP32_GENERIC_P4-PRE_REV3` (no próprio banner) |
+| Clock | 360 MHz |
+| PSRAM | `gc.mem_free()` = 33.091.696 B (~31,6 MB) |
+| Filesystem | LFS montado, 7680 blocos de 4096 B (~30 MB) |
+| Escrita/leitura | arquivo criado, lido e removido com sucesso |
+| Partição da app | `('factory', 65536, 2031616)` |
+
+**Atenção ao primeiro flash:** gravar por cima do layout do bootloader do
+Specter deixa resíduo e o MicroPython acusa `filesystem appears to be
+corrupted`. Um `esptool erase_flash` antes do primeiro flash resolve; depois
+disso o boot fica limpo.
 
 ### Duas descobertas do baseline
 
