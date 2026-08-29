@@ -8,13 +8,21 @@ on:
 
 jobs:
   build:
-    name: Build Firmware
+    name: Build Firmware (USE_DBOOT=${{ matrix.use_dboot }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # USE_DBOOT=0 is the Makefile default; USE_DBOOT=1 is what
+        # build_firmware.sh actually ships to real devices (`make disco
+        # USE_DBOOT=1`) and leaves less flash for FLASH_TEXT (1664 KiB vs
+        # 1920 KiB), so both are built here rather than only the default.
+        use_dboot: [0, 1]
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-      
+
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v14
 
@@ -29,15 +37,16 @@ jobs:
             nix-${{ runner.os }}-
 
       - name: Build Unix simulator
+        if: matrix.use_dboot == 0
         run: nix develop -c make unix
 
       - name: Build STM32F469 Discovery firmware
-        run: nix develop -c make disco
+        run: nix develop -c make disco USE_DBOOT=${{ matrix.use_dboot }}
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-binaries
+          name: firmware-binaries-dboot${{ matrix.use_dboot }}
           path: |
             bin/specter-diy.bin
             bin/specter-diy.hex

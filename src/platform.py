@@ -2,7 +2,6 @@
 import sys
 import os
 import pyb
-import gc
 
 simulator = (sys.platform in ["linux", "darwin"])
 
@@ -357,32 +356,224 @@ def reboot():
         pyb.hard_reset()
 
 
+# Verified block map of pyb.Flash() on the STM32F469 Discovery board
+# (make disco USE_DBOOT=1). Absolute block numbers:
+#   block 0            emulated MBR, not backed by real flash
+#   blocks 1   - 255    unmapped (bootloader/reserved sectors), never
+#                       reachable through this API
+#   blocks 256 - 447    internal flash, the "/flash" filesystem (96 KiB)
+#   blocks 448 - 33215  external QSPI flash, the "/qspi" filesystem (16 MiB)
+# Full derivation, source files checked and submodule pins:
+# see docs/flash-block-map.md
+# The boundary between the two filesystems is the only part of the map
+# below that no ioctl() exposes: it comes from the linker script and
+# storage.h inside the pinned submodule, so it has to be stated here.
+# Block size and the end of the QSPI region are *not* restated - wipe()
+# reads both from the block device at run time (see
+# diybitcoinhardware/f469-disco#44 for making the boundary queryable too).
+INTERNAL_FLASH_START_BLOCK = 0x100                             # FLASH_PART1_START_BLOCK
+INTERNAL_FLASH_END_BLOCK = INTERNAL_FLASH_START_BLOCK + 192     # + FLASH_MEM_SEG1_NUM_BLOCKS
+
+QSPI_START_BLOCK = INTERNAL_FLASH_END_BLOCK                     # FLASH_PART2_START_BLOCK
+
+# How many blocks get overwritten per writeblocks() call. Kept small, and
+# a multiple of the QSPI erase-sector size (8 blocks == 4096 bytes), so
+# the wipe never needs a whole region's worth of RAM (up to 16MiB for
+# QSPI) at once.
+WIPE_CHUNK_BLOCKS = 16
+
+# extmod/vfs.h: MP_BLOCKDEV_IOCTL_SYNC / _BLOCK_COUNT / _BLOCK_SIZE.
+MP_BLOCKDEV_IOCTL_SYNC = 3
+MP_BLOCKDEV_IOCTL_BLOCK_COUNT = 4
+MP_BLOCKDEV_IOCTL_BLOCK_SIZE = 5
+# Both the internal-flash driver (flashbdev.c) and the QSPI driver
+# (drivers/memory/spiflash.c, built with USE_WR_DELAY) keep a
+# *write-behind* RAM cache: writeblocks() only guarantees the data
+# reaches that RAM cache, not the physical chip. The cache is flushed to
+# physical storage on a sector-boundary crossing, on this ioctl, or -
+# eventually - by a periodic background IRQ. Nothing forces the very
+# last sector each overwrite loop below touches to be flushed before
+# reboot() other than calling this ioctl explicitly, so wipe() must do
+# that itself: a hard reset with a still-dirty cache would lose our
+# overwrite of that sector from RAM and leave the original, pre-wipe
+# bytes physically in place on the chip.
+#
+# Known limitation: the pinned MicroPython storage drivers do not
+# reliably propagate every underlying physical erase/program failure up
+# to this Python-level API - and this affects both flash regions, not
+# just QSPI:
+#   - QSPI (drivers/memory/spiflash.c): a genuine erase/program failure
+#     during a cache flush (mp_spiflash_cache_flush_internal()) is not
+#     propagated through mp_spiflash_cache_flush() -> the SYNC ioctl, nor
+#     through a sector-boundary flush triggered mid-loop by a
+#     writeblocks() call - the C driver clears its dirty flag and
+#     returns before checking the erase/write result.
+#   - Internal flash (ports/stm32/flash.c): flash_erase() and
+#     flash_write() are themselves declared void - a HAL_FLASHEx_Erase()
+#     or HAL_FLASH_Program() failure inside them is checked but has
+#     nowhere to go, and flash_bdev's cache (flashbdev.c) is marked clean
+#     again regardless.
+# So a hardware write failure at that level can go undetected here, even
+# though every check wipe() below actually has access to (writeblocks()'s
+# own return code, the SYNC ioctl's return code, and the geometry check
+# below) is applied. This means "not (internal_ok and qspi_ok and ...)"
+# below is not a complete guarantee that every possible physical write
+# failure was caught - only that every failure the pinned MicroPython
+# fork's block-device API actually surfaces was caught. Fixing the gap
+# itself requires propagating real error codes through both of those
+# drivers - out of scope here.
+
+
+def _sync_flash(f):
+    """
+    Forces the write-behind cache (see MP_BLOCKDEV_IOCTL_SYNC above) out
+    to physical flash, checking both an exception and a nonzero/failure
+    return code - not just whether the call raised. See the "Known
+    limitation" note above for what this can and can't actually catch.
+    """
+    try:
+        ret = f.ioctl(MP_BLOCKDEV_IOCTL_SYNC, None)
+    except Exception:
+        return False
+    return ret in (0, None)
+
+
+def _secure_overwrite_blocks(f, start_block, end_block, block_size,
+                              chunk_blocks=WIPE_CHUNK_BLOCKS):
+    """
+    Overwrites blocks [start_block, end_block) of the raw flash block
+    device `f` with a fixed zero pattern, `chunk_blocks` blocks at a
+    time, so the whole region never needs to fit in RAM at once.
+
+    Uses zeros rather than os.urandom(): the QSPI/internal-flash drivers
+    already erase (and thus fully overwrite) every sector they touch, so
+    randomness buys nothing against this threat model (a chip pulled off
+    the board and read directly) beyond what any fixed pattern gives -
+    while os.urandom() on this port draws one hardware RNG sample per
+    *byte* (ports/stm32/rng.c: ~10us each, 10ms timeout), which would
+    cost minutes just generating bytes for the 16 MiB QSPI region alone,
+    on top of the actual erase/program time. A single pre-built buffer is
+    reused (sliced for the final, possibly shorter chunk) instead of
+    allocating fresh memory every iteration.
+
+    A failed chunk does not stop the wipe: we keep going so as much of
+    the remaining sensitive data as possible still gets destroyed. But
+    the return value reflects whether *every* chunk succeeded - callers
+    must not treat a False result as if the region were fully wiped.
+    """
+    zeros = bytes(chunk_blocks * block_size)
+    ok = True
+    block = start_block
+    while block < end_block:
+        n = min(chunk_blocks, end_block - block)
+        buf = zeros if n == chunk_blocks else zeros[:n * block_size]
+        try:
+            ret = f.writeblocks(block, buf)
+            if ret:
+                ok = False
+        except Exception:
+            ok = False
+        block += n
+    return ok
+
+
 def wipe():
     """
-    Blocks map in disco board
-    0: MBR
-    1   - 255:   reserved
-    256 - 447:   internal flash
-    448 - 33215: QSPI
+    Securely wipes user data.
+
+    Deletes the "/flash" and "/qspi" filesystems, and on real hardware
+    also physically overwrites the underlying internal-flash and QSPI
+    block ranges (see the verified block map above) with a fixed
+    pattern. Logical file deletion alone is not enough: an attacker with
+    physical access to the external QSPI flash chip could still recover
+    "deleted" files straight from it, since deleting a file only drops
+    its filesystem entry - the QSPI chip itself is unaffected. Firmware,
+    bootloader and reserved blocks are never touched.
     """
-    # delete files normally in simulator
+    f = None
+    block_size = None
+    qspi_end_block = None
+    if not simulator:
+        # Read the actual flash geometry, before deleting anything.
+        # Block size and the end of the QSPI region are taken from the
+        # device rather than assumed, so a larger or differently sized
+        # chip gets wiped in full instead of only up to a hardcoded
+        # bound. QSPI runs to the last block of the device: the two
+        # filesystems together cover everything above the split point.
+        f = pyb.Flash()
+        block_size = f.ioctl(MP_BLOCKDEV_IOCTL_BLOCK_SIZE, None)
+        block_count = f.ioctl(MP_BLOCKDEV_IOCTL_BLOCK_COUNT, None)
+        qspi_end_block = block_count
+
+        # What cannot be read back is the internal/QSPI split point, so
+        # that assumption still has to be sanity-checked: if the device
+        # does not even extend past it, the layout this code was
+        # verified against no longer holds and the block numbers below
+        # are meaningless. Fail closed rather than overwrite a range
+        # picked by guesswork - a wipe that silently hits the wrong
+        # blocks would report success while leaving the seed in place.
+        if not block_size or not block_count or block_count <= QSPI_START_BLOCK:
+            raise RuntimeError(
+                "Unexpected flash geometry (block_size=%r, block_count=%r); "
+                "refusing to wipe" % (block_size, block_count)
+            )
+
+    # delete files normally in simulator (best-effort on hardware too,
+    # though the block overwrite below is what actually destroys data there)
     try:
         delete_recursively(fpath("/flash"))
         delete_recursively(fpath("/qspi"))
     except:
         pass
-    # on real hardware overwrite flash with random data
+    # on real hardware overwrite flash with a fixed pattern
     if not simulator:
-        os.umount("/flash")
-        os.umount("/qspi")
-        f = pyb.Flash()
-        block_size = f.ioctl(5, None)
-        # wipe internal flash with random bytes
-        for i in range(256, 450):
-            b = os.urandom(block_size)
-            f.writeblocks(i, b)
-            del b
-            gc.collect()
+        # /flash and /qspi are unmounted independently, and a failure on
+        # either is tracked rather than swallowed: a clean unmount is what
+        # flushes any write-behind cache left over from delete_recursively()
+        # above (see flashbdev.c/spiflash.c), and losing that guarantee is
+        # itself a reason not to trust the wipe. It does not, however, stop
+        # us from attempting the raw overwrite below - that's still the
+        # best available defense even if the unmount failed.
+        flash_unmount_ok = True
+        try:
+            os.umount("/flash")
+        except Exception:
+            flash_unmount_ok = False
+
+        qspi_unmount_ok = True
+        try:
+            os.umount("/qspi")
+        except Exception:
+            qspi_unmount_ok = False
+
+        internal_ok = _secure_overwrite_blocks(
+            f, INTERNAL_FLASH_START_BLOCK, INTERNAL_FLASH_END_BLOCK, block_size
+        )
+        # Flush now, before starting the much longer QSPI loop: if power
+        # is lost partway through overwriting 16 MiB of QSPI, the internal
+        # flash's last touched sector should already be durably written
+        # rather than still waiting in the write-behind cache.
+        internal_sync_ok = _sync_flash(f)
+
+        qspi_ok = _secure_overwrite_blocks(
+            f, QSPI_START_BLOCK, qspi_end_block, block_size
+        )
+        # Final flush - see MP_BLOCKDEV_IOCTL_SYNC above for why this
+        # can't be skipped.
+        qspi_sync_ok = _sync_flash(f)
+
+        if not (flash_unmount_ok and qspi_unmount_ok and internal_ok and qspi_ok
+                and internal_sync_ok and qspi_sync_ok):
+            # Whatever could be destroyed already has been (see
+            # _secure_overwrite_blocks), but a partial wipe must never be
+            # allowed to look like a successful one. Raise instead of
+            # rebooting so the caller (specter.py's Specter.wipe_or_halt())
+            # surfaces the failure instead of silently trusting the device
+            # is clean.
+            raise RuntimeError(
+                "Secure wipe failed to overwrite all flash blocks; "
+                "device may still contain recoverable data"
+            )
     # mpy will reformat fs on reboot
     reboot()
 

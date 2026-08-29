@@ -135,7 +135,7 @@ class Specter:
             await self.gui.error("Critical error, the device will be wiped.\n\n%s" % e)
             self.gui.show_loader(title="Wiping the device...")
             # wipe everything and reboot
-            self.wipe()
+            await self.wipe_or_halt()
         # catch an expected error
         except BaseError as e:
             # show error
@@ -603,7 +603,7 @@ class Specter:
                     "But it doesn't include files stored on SD card or smartcard.\n\n"
                     "Are you sure?",
                 ):
-                    self.wipe()
+                    await self.wipe_or_halt()
                 return
             elif menuitem == 777:
                 await self.keystore.change_pin()
@@ -625,6 +625,32 @@ class Specter:
         # TODO: wipe the smartcard as well?
         # platform.wipe
         wipe()
+
+    async def wipe_or_halt(self):
+        """
+        Runs the wipe and always ends in one deterministic outcome: a
+        clean wipe reboots as normal (platform.wipe() does that itself
+        and never returns). A failed wipe never falls back to running on
+        top of a partially destroyed filesystem - it shows an explicit
+        warning so the user knows not to trust the device, then forces
+        the same reboot so the device does not keep running in an
+        undefined state (some blocks overwritten, filesystems possibly
+        gone, but still executing). The reboot is in a `finally` so it
+        still happens even if showing that warning itself raises -
+        recovering from a partial hardware wipe must not depend on the
+        GUI working.
+        """
+        try:
+            self.wipe()
+        except Exception as wipe_exc:
+            try:
+                await self.gui.error(
+                    "Wipe failed to complete!\n\n%s\n\n"
+                    "Do not consider this device safe. The device will now restart."
+                    % wipe_exc
+                )
+            finally:
+                reboot()
 
     async def lock(self):
         # lock the keystore
