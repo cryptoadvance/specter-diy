@@ -12,7 +12,18 @@ from binascii import hexlify, unhexlify
 from rng import get_random_bytes
 from embit import ec, bip39, bip32
 from helpers import tagged_hash
-from gui.screens import Alert, PinScreen, Menu, MnemonicScreen, InputScreen
+from gui.screens import (Alert, PinScreen, Menu, MnemonicScreen, InputScreen,
+                         Prompt)
+
+# Suffixes for the two scratch names a replacement save uses: the new file
+# while it is being written and verified, and the file it replaces while it
+# is being retired. Both are prefixed with a dot and derived from the target
+# name, so they never match the reckless / specterdiy prefix the key
+# listings look for - a leftover from an interrupted save cannot show up as
+# a loadable key - and a leftover belonging to one key can never be
+# confused with, or destroyed by, a save of another.
+SAVE_TMP_SUFFIX = ".tmp"
+SAVE_OLD_SUFFIX = ".old"
 
 
 class FlashKeyStore(RAMKeyStore):
@@ -213,6 +224,138 @@ class FlashKeyStore(RAMKeyStore):
         return "specterdiy%s" % hexid
 
 
+    def _scratch_paths(self, fullpath):
+        """The two scratch names a replacement save of `fullpath` uses."""
+        head, _, base = fullpath.rpartition("/")
+        return ("%s/.%s%s" % (head, base, SAVE_TMP_SUFFIX),
+                "%s/.%s%s" % (head, base, SAVE_OLD_SUFFIX))
+
+    def _discard_scratch(self, path):
+        """Destroy a scratch file. It holds an encrypted recovery phrase, so
+        it is overwritten rather than unlinked. Cleanup only - never let it
+        replace the error that got us here."""
+        if not platform.file_exists(path):
+            return
+        try:
+            platform.secure_delete_file(path)
+        except Exception as e:
+            print(e)
+
+    def reconcile_scratch(self, fullpath):
+        """
+        Finish or undo a replacement of `fullpath` that a power cut left
+        half done.
+
+        Call this BEFORE deciding whether the save is replacing anything:
+        the interrupted case that matters is exactly the one where the
+        target is missing and only `.old` survives, and asking
+        file_exists() first would conclude there is nothing to replace and
+        leave the old copy stranded under a name no picker shows.
+
+        Only the swap below can leave a `.old` behind, and it says which
+        side of the swap we died on: if the target is back, the rename went
+        through and all that is left is retiring the copy we replaced; if
+        the target is missing, `.old` is the only surviving copy of the key
+        and has to be put back.
+        """
+        tmppath, oldpath = self._scratch_paths(fullpath)
+        if platform.file_exists(oldpath):
+            if platform.file_exists(fullpath):
+                self._discard_scratch(oldpath)
+            else:
+                os.rename(oldpath, fullpath)
+        # A .tmp was never verified as complete, and the target - restored
+        # above if it needed to be - is authoritative either way.
+        self._discard_scratch(tmppath)
+
+    def _save_key_file(self, fullpath, replacing):
+        """
+        Writes the encrypted recovery phrase to `fullpath`.
+
+        For a new file that is one strict save. Replacing an existing one
+        is the interesting case, and it has two requirements that pull
+        against each other:
+
+        * The old file must not simply be truncated. save_aead() opens the
+          path "wb", and truncating frees the old cluster chain WITHOUT
+          overwriting it, so the previous encrypted phrase stays readable
+          in free space - where a later delete can no longer reach it, and
+          where the unrotated enc_secret still decrypts it.
+        * The old file must not be destroyed before the new one exists
+          either. It may be the user's only persistent copy, and a pulled
+          card, a failed write or a power cut between the two leaves them
+          with none at all.
+
+        So the new copy is written and verified under a scratch name, and
+        the swap is done with renames rather than a delete:
+
+            write .tmp -> strict sync -> read back and verify
+                       -> rename the target to .old
+                       -> rename .tmp onto the target -> sync
+                       -> secure-delete .old
+
+        Retiring the old file by renaming it, rather than destroying it
+        before the new one is in place, is what removes the last window in
+        which the key exists only under a name the pickers do not show. A
+        FAT rename rewrites the directory entry and moves no data, so .old
+        still occupies the clusters the target did and overwriting it at
+        the end reaches exactly the same sectors - the anti-residue
+        guarantee is unchanged.
+
+        The gap between the two renames is the only point where the target
+        name is absent, and _reconcile_scratch() above recovers from a cut
+        inside it on the next save. Everywhere else a complete, verified
+        copy exists under a name this code knows how to find.
+        """
+        plaintext = self.mnemonic.encode()
+        if not replacing:
+            self.save_aead(fullpath, plaintext=plaintext,
+                           key=self.enc_secret, strict=True)
+            return
+
+        tmppath, oldpath = self._scratch_paths(fullpath)
+        try:
+            self.save_aead(tmppath, plaintext=plaintext,
+                           key=self.enc_secret, strict=True)
+            _, written = self.load_aead(tmppath, self.enc_secret)
+            if written != plaintext:
+                raise KeyStoreError(
+                    "The new file did not read back as what was saved"
+                )
+        except Exception as e:
+            # Nothing has been touched yet: clean up and leave the existing
+            # file exactly as it was.
+            print(e)
+            self._discard_scratch(tmppath)
+            raise KeyStoreError("Failed to write the new file: %s" % e)
+
+        try:
+            os.rename(fullpath, oldpath)
+            try:
+                os.rename(tmppath, fullpath)
+            except Exception:
+                # Put the old key back before giving up.
+                os.rename(oldpath, fullpath)
+                raise
+            platform.strict_sync()
+        except Exception as e:
+            print(e)
+            self._discard_scratch(tmppath)
+            raise KeyStoreError("Failed to store the key: %s" % e)
+
+        # The replacement is in place, so the copy it replaced is now
+        # expendable - and must not outlive this call in free space.
+        try:
+            platform.secure_delete_file(oldpath)
+            platform.strict_sync()
+        except Exception as e:
+            print(e)
+            raise KeyStoreError(
+                "The recovery phrase was saved, but the file it replaced "
+                "could not be overwritten and may still be recoverable "
+                "from free space: %s" % e
+            )
+
     async def save_mnemonic(self):
         if self.is_locked:
             raise KeyStoreError("Keystore is locked")
@@ -226,6 +369,11 @@ class FlashKeyStore(RAMKeyStore):
 
         fullpath = "%s/%s.%s" % (path, self.fileprefix(path), filename)
 
+        # Recover from a save of this name that a power cut left half done,
+        # before asking whether there is anything to replace.
+        self.reconcile_scratch(fullpath)
+
+        replacing = False
         if platform.file_exists(fullpath):
             scr = Prompt(
                 "\n\nFile already exists: %s\n" % filename,
@@ -234,9 +382,9 @@ class FlashKeyStore(RAMKeyStore):
             res = await self.show(scr)
             if res is False:
                 return
+            replacing = True
 
-        self.save_aead(fullpath, plaintext=self.mnemonic.encode(),
-                       key=self.enc_secret)
+        self._save_key_file(fullpath, replacing)
         # check it's ok
         await self.load_mnemonic(fullpath)
         # return the full file name incl. prefix if saved to SD card, just the name if on flash
@@ -298,12 +446,14 @@ class FlashKeyStore(RAMKeyStore):
         if not platform.file_exists(file):
             raise KeyStoreError("File not found.")
         try:
-            os.remove(file)
+            platform.secure_delete_file(file)
         except Exception as e:
             print(e)
             raise KeyStoreError("Failed to delete file '%s'" % file)
-        finally:
-            return True
+        # NOTE: no `return` in a `finally` block here - a return inside
+        # finally executes while an exception is propagating and silently
+        # discards it, so a failed delete would still report success.
+        return True
 
     async def get_input(
             self,

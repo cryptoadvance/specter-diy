@@ -72,6 +72,12 @@ class SDKeyStore(FlashKeyStore):
         if fullpath.startswith(self.sdpath):
             platform.sdcard.mount()
 
+        # Recover from a save of this name that a power cut left half done,
+        # before asking whether there is anything to replace. After the
+        # mount, so the card's own scratch files are visible.
+        self.reconcile_scratch(fullpath)
+
+        replacing = False
         if platform.file_exists(fullpath):
             scr = Prompt(
                 "\n\nFile already exists: %s\n" % filename,
@@ -82,9 +88,20 @@ class SDKeyStore(FlashKeyStore):
                 if fullpath.startswith(self.sdpath):
                     platform.sdcard.unmount()
                 return
+            replacing = True
 
-        self.save_aead(fullpath, plaintext=self.mnemonic.encode(),
-                       key=self.enc_secret)
+        # See FlashKeyStore._save_key_file(): replacing a key file writes
+        # and verifies the new one before the old one is destroyed.
+        try:
+            self._save_key_file(fullpath, replacing)
+        except Exception:
+            # The card must not stay mounted just because the save failed.
+            if fullpath.startswith(self.sdpath):
+                try:
+                    platform.sdcard.unmount()
+                except Exception as e:
+                    print(e)
+            raise
         if fullpath.startswith(self.sdpath):
             platform.sdcard.unmount()
         # check it's ok
@@ -152,17 +169,47 @@ class SDKeyStore(FlashKeyStore):
         # mount sd before check
         if platform.sdcard.is_present and file.startswith(self.sdpath):
             platform.sdcard.mount()
-        if not platform.file_exists(file):
-            raise KeyStoreError("File not found.")
+        delete_error = None
+        delete_cause = None
         try:
-            os.remove(file)
-        except Exception as e:
-            print(e)
-            raise KeyStoreError("Failed to delete file '%s'" % file)
+            if not platform.file_exists(file):
+                delete_error = KeyStoreError("File not found.")
+            else:
+                try:
+                    platform.secure_delete_file(file)
+                except Exception as e:
+                    print(e)
+                    delete_error = KeyStoreError(
+                        "Failed to delete file '%s'" % file
+                    )
+                    delete_cause = e
         finally:
-            if platform.sdcard.is_present and file.startswith(self.sdpath):
-                platform.sdcard.unmount()
-            return True
+            # The card may have been removed while the overwrite was in
+            # progress. Cleanup must still be attempted so SDCard's internal
+            # mounted state is not left stale.
+            if file.startswith(self.sdpath):
+                try:
+                    platform.sdcard.unmount()
+                except Exception as e:
+                    print(e)
+                    # Never let secondary cleanup failure hide the primary
+                    # deletion error. If deletion did succeed, report the
+                    # cleanup failure instead of claiming overall success.
+                    if delete_error is None:
+                        delete_error = KeyStoreError(
+                            "Failed to unmount SD card"
+                        )
+                        delete_cause = e
+        if delete_error is not None:
+            if delete_cause is not None:
+                raise delete_error from delete_cause
+            raise delete_error
+        # NOTE: this return must stay OUTSIDE the finally block - a return
+        # inside finally executes while an exception is propagating and
+        # silently discards it, so a failed delete would still report
+        # success. The unmount above belongs to the finally (it must run
+        # on every path); the success return does not.
+        return True
 
     async def storage_menu(self):
         """Manage storage, return True if new key was loaded"""

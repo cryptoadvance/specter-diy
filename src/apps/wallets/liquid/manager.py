@@ -124,7 +124,9 @@ class LWalletManager(WalletManager):
 
 
     async def process_host_command(self, stream, show_screen):
-        platform.delete_recursively(self.tempdir)
+        # See WalletManager.process_host_command(): overwrite the ramdisk
+        # scratch rather than just unlinking it.
+        platform.delete_recursively(self.tempdir, secure=True)
         cmd, stream = self.parse_stream(stream)
         if cmd == ADD_ASSET:
             arr = stream.read().decode().split(" ")

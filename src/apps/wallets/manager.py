@@ -193,7 +193,12 @@ class WalletManager(BaseApp):
         return None, None
 
     async def process_host_command(self, stream, show_screen):
-        platform.delete_recursively(self.tempdir)
+        # Overwrite, don't just unlink: the previous command's scratch in
+        # the SDRAM ramdisk can include a fully parsed PSBT and a signed
+        # transaction, and RAM contents survive a warm reset. This runs at
+        # the start of each command rather than the end because the signed
+        # output has to stay readable until the host has fetched it.
+        platform.delete_recursively(self.tempdir, secure=True)
         cmd, stream = self.parse_stream(stream)
         if cmd == SIGN_PSBT:
             magic = stream.read(len(self.PSBTViewClass.MAGIC))
@@ -510,8 +515,10 @@ class WalletManager(BaseApp):
             # pass path and key for verification
             return self.WalletClass.from_path(path, self.keystore)
         except Exception as e:
-            # if we failed to load -> delete folder and throw an error
-            platform.delete_recursively(path, include_self=True)
+            # if we failed to load -> delete folder and throw an error.
+            # It still holds an encrypted descriptor and meta, so overwrite
+            # rather than just unlink.
+            platform.delete_recursively(path, include_self=True, secure=True)
             raise e
 
     def create_default_wallet(self, path):
@@ -803,4 +810,6 @@ class WalletManager(BaseApp):
         """Deletes all wallets info"""
         self.wallets = []
         self.path = None
-        platform.delete_recursively(self.root_path)
+        # Every wallet folder under root_path holds an encrypted descriptor
+        # and meta - overwrite them, don't just unlink.
+        platform.delete_recursively(self.root_path, secure=True)

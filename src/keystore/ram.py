@@ -87,8 +87,16 @@ class RAMKeyStore(KeyStore):
         flag = sig[64]
         return ec.Signature(sig[:64]), flag
 
-    def save_aead(self, path, adata=b"", plaintext=b"", key=None):
-        """Encrypts and saves plaintext and associated data to file"""
+    def save_aead(self, path, adata=b"", plaintext=b"", key=None, strict=False):
+        """
+        Encrypts and saves plaintext and associated data to file.
+
+        `strict` propagates a failed sync instead of swallowing it. Off by
+        default: most callers here save state that is rewritten on the next
+        boot anyway, and some of them run inside paths where raising means
+        wiping the device. Turn it on where losing the write actually costs
+        the user something - saving a recovery phrase, above all.
+        """
         if key is None:
             key = self.idkey
         if key is None:
@@ -96,7 +104,10 @@ class RAMKeyStore(KeyStore):
         d = aead_encrypt(key, adata, plaintext)
         with open(path, "wb") as f:
             f.write(d)
-        platform.sync()
+            if strict:
+                platform.strict_sync(f)
+        if not strict:
+            platform.sync()
 
     def load_aead(self, path, key=None):
         """

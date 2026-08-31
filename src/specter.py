@@ -135,7 +135,12 @@ class Specter:
             await self.gui.error("Critical error, the device will be wiped.\n\n%s" % e)
             self.gui.show_loader(title="Wiping the device...")
             # wipe everything and reboot
-            self.wipe()
+            while not await self.wipe_or_report():
+                # A failed wipe here must not fall through to normal
+                # operation: we got here because something critical happened
+                # and the device still holds the data the wipe was supposed
+                # to destroy. Keep offering the wipe instead of continuing.
+                self.gui.show_loader(title="Wiping the device...")
         # catch an expected error
         except BaseError as e:
             # show error
@@ -603,7 +608,7 @@ class Specter:
                     "But it doesn't include files stored on SD card or smartcard.\n\n"
                     "Are you sure?",
                 ):
-                    self.wipe()
+                    await self.wipe_or_report()
                 return
             elif menuitem == 777:
                 await self.keystore.change_pin()
@@ -625,6 +630,33 @@ class Specter:
         # TODO: wipe the smartcard as well?
         # platform.wipe
         wipe()
+
+    async def wipe_or_report(self):
+        """
+        Wipes the device, or tells the user plainly that it was not wiped.
+
+        platform.wipe() reboots the device when it succeeds, so returning
+        from it at all means the overwrite did not complete. It now reports
+        a failed write or a failed flush instead of resetting and leaving
+        the data behind, and that error must not escape a security path as
+        an unhandled exception - the user would be left believing the device
+        was erased when it still holds their keys.
+
+        Returns True only if the wipe was not attempted-and-failed. In
+        practice a successful wipe never returns at all.
+        """
+        try:
+            self.wipe()
+            return True
+        except Exception as e:
+            print(e)
+            await self.gui.error(
+                "THE DEVICE WAS NOT WIPED.\n\n%s\n\n"
+                "Your data may still be present on this device. Do not "
+                "treat it as erased, and do not pass it on or dispose of "
+                "it in this state." % e
+            )
+            return False
 
     async def lock(self):
         # lock the keystore

@@ -31,9 +31,10 @@ def setup_native_stubs():
 
     if not hasattr(os, "ilistdir"):
         def _ilistdir(path):
-            for entry in os.scandir(path):
-                mode = 0x4000 if entry.is_dir() else 0x8000
-                yield (entry.name, mode, 0, 0)
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    mode = 0x4000 if entry.is_dir() else 0x8000
+                    yield (entry.name, mode, 0, 0)
         os.ilistdir = _ilistdir
 
     pyb = _ensure_module("pyb")
@@ -158,6 +159,18 @@ def setup_native_stubs():
     bcur = _ensure_module("bcur")
     if not hasattr(bcur, "bcur_decode_stream"):
         bcur.bcur_decode_stream = lambda stream: stream
+
+    # microur backs the QR host and the QR encoder. hosts/__init__.py pulls
+    # in the QR host, so anything importing hosts.sd needs these to exist.
+    microur = _ensure_module("microur")
+    if not hasattr(microur, "__path__"):
+        microur.__path__ = []
+    _ensure_submodule("microur", "decoder", {
+        "FileURDecoder": type("FileURDecoder", (), {}),
+    })
+    _ensure_submodule("microur", "util", {
+        "cbor": types.SimpleNamespace(),
+    })
 
     secp256k1 = _ensure_module("secp256k1")
     if not hasattr(secp256k1, "EC_UNCOMPRESSED"):
