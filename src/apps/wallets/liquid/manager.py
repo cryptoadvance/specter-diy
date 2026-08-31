@@ -60,6 +60,12 @@ class LWalletManager(WalletManager):
             raise WalletError("Unknown sighash type: %d!" % sighash)
         return { "name": SIGHASH_NAMES[sighash], "warning": "" }
 
+    def default_sighash(self, inp):
+        # Liquid has no taproot path and no bare SIGHASH_DEFAULT (0):
+        # the default is always ALL | RANGEPROOF. A bare 0 stays a
+        # custom/unknown sighash and is rejected by get_sighash_info.
+        return self.DEFAULT_SIGHASH
+
 
     def get_address(self, psbtout):
         """Helper function to get an address for every output"""
@@ -296,7 +302,7 @@ class LWalletManager(WalletManager):
             inp.verify(ignore_missing=True)
 
             # check sighash in the input
-            if inp.sighash_type is not None and inp.sighash_type != self.DEFAULT_SIGHASH:
+            if inp.sighash_type is not None and inp.sighash_type != self.default_sighash(inp):
                 metainp["sighash"] = self.get_sighash_info(inp.sighash_type)["name"]
 
             if inp.issue_value:

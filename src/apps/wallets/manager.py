@@ -35,12 +35,15 @@ BASE64_STREAM = 0x64
 RAW_STREAM = 0xFF
 
 SIGHASH_NAMES = {
+    SIGHASH.DEFAULT: "DEFAULT",
     SIGHASH.ALL: "ALL",
     SIGHASH.NONE: "NONE",
     SIGHASH.SINGLE: "SINGLE",
 }
-# add sighash | anyonecanpay
-for sh in list(SIGHASH_NAMES):
+# add sighash | anyonecanpay - only for ALL/NONE/SINGLE.
+# DEFAULT | ANYONECANPAY (0x80) is not a valid BIP341 sighash and must
+# not become an accepted value here.
+for sh in [SIGHASH.ALL, SIGHASH.NONE, SIGHASH.SINGLE]:
     SIGHASH_NAMES[sh | SIGHASH.ANYONECANPAY] = SIGHASH_NAMES[sh] + " | ANYONECANPAY"
 
 class WalletManager(BaseApp):
@@ -390,6 +393,20 @@ class WalletManager(BaseApp):
             raise WalletError("Unknown sighash type: %d!" % sighash)
         return { "name": SIGHASH_NAMES[sighash], "warning": "" }
 
+    def default_sighash(self, inp):
+        """
+        Sighash to use for an input that carries no explicit
+        PSBT_IN_SIGHASH_TYPE and no user-forced sighash.
+
+        Taproot inputs default to SIGHASH_DEFAULT (0x00), which produces a
+        64-byte Schnorr signature with no trailing sighash byte (BIP341).
+        Everything else keeps the manager-wide default (SIGHASH_ALL for
+        Bitcoin, ALL | RANGEPROOF for Liquid).
+        """
+        if getattr(inp, "is_taproot", False):
+            return SIGHASH.DEFAULT
+        return self.DEFAULT_SIGHASH
+
     async def confirm_sighashes(self, meta, show_screen):
         """
         Checks if custom sighashes are used, warns the user and asks for confirmation.
@@ -399,8 +416,13 @@ class WalletManager(BaseApp):
         - False - interrupt signing process (user cancel)
         """
         sighash_name = self.get_sighash_info(self.DEFAULT_SIGHASH)["name"]
-        # check if there are any custom sighashes
-        used_custom_sighashes = any([inp.get("sighash", sighash_name) != sighash_name for inp in meta["inputs"]])
+        # preprocess_psbt() already compared every input against its own
+        # per-input default (self.default_sighash(inp)) and only set
+        # metainp["sighash"] when it differs. So a taproot input carrying
+        # an explicit SIGHASH_ALL is "custom" here even though ALL is the
+        # manager-wide default - comparing against a single global name
+        # would silently miss it.
+        used_custom_sighashes = any(["sighash" in inp for inp in meta["inputs"]])
 
         # no custom sighashes - just continue
         if not used_custom_sighashes:
@@ -408,9 +430,9 @@ class WalletManager(BaseApp):
 
         # ask the user if they want to sign in case of non-default sighashes
         custom_sighashes = [
-                ("Input %d: %s" % (i, inp.get("sighash", sighash_name)))
+                ("Input %d: %s" % (i, inp["sighash"]))
                 for (i, inp) in enumerate(meta["inputs"])
-                if inp.get("sighash", sighash_name) != sighash_name
+                if "sighash" in inp
         ]
         canceltxt = (
             ("Only sign %s" % sighash_name)
@@ -659,7 +681,7 @@ class WalletManager(BaseApp):
             inp.verify(ignore_missing=True)
 
             # check sighash in the input
-            if inp.sighash_type is not None and inp.sighash_type != self.DEFAULT_SIGHASH:
+            if inp.sighash_type is not None and inp.sighash_type != self.default_sighash(inp):
                 metainp["sighash"] = self.get_sighash_info(inp.sighash_type)["name"]
 
             self.fill_zero_fingerprint(inp)
@@ -781,7 +803,12 @@ class WalletManager(BaseApp):
             for i in range(psbtv.num_inputs):
                 self.show_loader(title="Signing input %d of %d" % (i+1, psbtv.num_inputs))
                 inp = psbtv.input(i)
-                inp_sighash = sighash or inp.sighash_type or self.DEFAULT_SIGHASH
+                if sighash is not None:
+                    inp_sighash = sighash
+                elif inp.sighash_type is not None:
+                    inp_sighash = inp.sighash_type
+                else:
+                    inp_sighash = self.default_sighash(inp)
                 for w in wallets:
                     if w is None:
                         continue
