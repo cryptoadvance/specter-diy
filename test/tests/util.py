@@ -40,6 +40,14 @@ def get_keystore(mnemonic="ability "*11+"acid", password=""):
     ks.set_mnemonic(mnemonic, password)
     return ks
 
+def get_xpubs_app(keystore, network):
+    from apps.xpubs import App as XpubsApp
+    platform.maybe_mkdir(TEST_DIR)
+    platform.maybe_mkdir(TEST_DIR+"/xpubs")
+    app = XpubsApp(TEST_DIR+"/xpubs")
+    app.init(keystore, network, show_loader, communicate)
+    return app
+
 def get_wallets_app(keystore, network):
     platform.maybe_mkdir(TEST_DIR)
     platform.maybe_mkdir(TEST_DIR+"/wallets")

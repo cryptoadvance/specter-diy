@@ -23,6 +23,58 @@ If the descriptor contains master public keys but doesn't contain wildcard deriv
 
 The descriptor `wpkh(xpub)` will be converted into `wpkh(xpub/{0,1}/*)`.
 
+## Single-sig wallet types and their derivations
+
+When you create a single-sig wallet from **Master public keys -> ... -> Create
+wallet**, the script type you pick fixes the derivation, so the key-origin in
+the descriptor always matches the key that actually signs:
+
+| Wallet type   | Descriptor   | Standard derivation                   |
+|---------------|--------------|---------------------------------------|
+| Legacy        | `pkh()`      | `m/44h/coin_type_h/account_h` (BIP44) |
+| Nested Segwit | `sh(wpkh())` | `m/49h/coin_type_h/account_h` (BIP49) |
+| Native Segwit | `wpkh()`     | `m/84h/coin_type_h/account_h` (BIP84) |
+| Taproot       | `tr()`       | `m/86h/coin_type_h/account_h` (BIP86) |
+
+`coin_type` is always taken from the **active network**, never from the key you
+were looking at: `0` on Bitcoin mainnet, `1` on testnet/regtest/signet, and the
+network's registered value on Liquid (`1776` on Liquid mainnet, `1` on Liquid
+testnet/regtest). The account index is carried over from the displayed key
+(element `[2]`, so `m/48h/0h/3h/2h` gives account `3`) or the account selected
+in the menu. If the key on screen is not already on the standard path, the
+account key is genuinely re-derived from it — the descriptor never carries one
+path's key-origin over another path's key.
+
+### Recovering a non-standard wallet
+
+Older Specter DIY versions built the descriptor by wrapping *whatever key was on
+screen* in the chosen script, so valid but non-standard wallets exist in the
+wild — for example `tr()` over an `m/84h` key, `pkh()` over an `m/84h` key,
+`wpkh()` over an `m/48h/.../2h` key, or any script over a custom path.
+
+Fresh wallets never do this. But if you pick a wallet type whose standard path
+differs from the key you are viewing, the device offers a choice:
+
+```
+<type> derivation
+[ Standard <type>            m/<purpose>h/<coin>h/<account>h ]
+[ Recover using displayed key   <the path on screen>          ]
+```
+
+`Recover using displayed key` wraps the exact displayed key (its full
+key-origin path preserved — purpose, coin type, account, and deeper levels such
+as BIP48) in the selected script, reproducing the historical wallet
+byte-for-byte. It is confirmed with a warning: this derivation is non-standard,
+other wallet software may not discover it from the seed alone, and it should
+only be used to recover an existing wallet. Cancelling or declining creates
+nothing.
+
+The BIP86 fix from issue #393 is a special case of this: from the `m/84h`
+"Single key", **Create wallet -> Taproot** offers *Standard Taproot* (re-derives
+`m/86h`) and *Recover using displayed key* (`tr(m/84h...)`, the wallet older
+firmware would have made). Keep your wallet descriptors/backups so recovery is
+never guesswork.
+
 ## Miniscript
 
 Specter supports miniscript, but doesn't support policy-to-miniscript compilation (because it's way too expensive). We perform some checks on the miniscipt, so only `B` scripts are allowed on the top level and all arguments in sub-miniscripts have to have properties according to the [spec](http://bitcoin.sipa.be/miniscript/).

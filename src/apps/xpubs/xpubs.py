@@ -10,6 +10,70 @@ from io import BytesIO
 import platform
 from collections import OrderedDict
 
+# --- Standard single-sig wallet types --------------------------------------
+# Each script type has exactly one standard BIP purpose and account-key
+# derivation. Fresh wallets are always built from that derivation - the
+# account key is re-derived when the key currently on screen sits on a
+# different path - so the descriptor key-origin and the signing key can never
+# disagree (issue #393).
+#
+# Older Specter DIY firmware instead wrapped *whatever key was on screen* in
+# the chosen script (issues #393, #281), so valid-but-non-standard wallets
+# exist in the wild: tr(m/84'...), pkh(m/84'...), wpkh(m/48'.../2'...),
+# tr(<custom>...), ... Those stay reproducible through a single generic
+# "recover using the displayed key" choice, shown only when the displayed
+# path differs from the standard one and guarded by a warning - never as an
+# ordinary wallet type.
+# value: (bip_purpose, descriptor_template, menu_label, name_prefix)
+WALLET_TYPES = OrderedDict([
+    ("wpkh",    (84, "wpkh(%s%s/{0,1}/*)",     "Native Segwit", "Native")),
+    ("nested",  (49, "sh(wpkh(%s%s/{0,1}/*))", "Nested Segwit", "Nested")),
+    ("legacy",  (44, "pkh(%s%s/{0,1}/*)",      "Legacy",        "Legacy")),
+    ("taproot", (86, "tr(%s%s/{0,1}/*)",       "Taproot",       "Taproot")),
+])
+_PURPOSE_TO_TYPE = {v[0]: k for k, v in WALLET_TYPES.items()}
+
+_HARDENED = 0x80000000
+
+
+def _parse_path(derivation):
+    """Parsed index list for a derivation string, or None if unparseable."""
+    try:
+        return bip32.parse_path(derivation)
+    except Exception:
+        return None
+
+
+def _same_path(a, b):
+    """True when two derivation strings denote the same BIP32 path."""
+    pa = _parse_path(a)
+    return pa is not None and pa == _parse_path(b)
+
+
+def _account_index(derivation):
+    """Best-effort account number: element [2] when the first three levels are
+    hardened. Covers ``m/P'/C'/A'`` and deeper paths (e.g. BIP48
+    ``m/48'/C'/A'/script'``). Returns None when there is no such element."""
+    idxs = _parse_path(derivation)
+    if idxs is None or len(idxs) < 3 or not all(i >= _HARDENED for i in idxs[:3]):
+        return None
+    return idxs[2] - _HARDENED
+
+
+def _standard_wallet_type(derivation, coin):
+    """The WALLET_TYPES key whose *standard* derivation the displayed path
+    already matches: exactly three hardened levels, a known purpose, and this
+    network's coin_type. None for non-standard / deeper / custom paths (so the
+    UI never calls a wrong-coin_type or multisig key "recommended")."""
+    idxs = _parse_path(derivation)
+    if idxs is None or len(idxs) != 3 or not all(i >= _HARDENED for i in idxs):
+        return None
+    purpose, coin_type = idxs[0] - _HARDENED, idxs[1] - _HARDENED
+    if coin_type != coin:
+        return None
+    return _PURPOSE_TO_TYPE.get(purpose)
+
+
 class XpubApp(BaseApp):
     """
     WalletManager class manages your wallets.
@@ -296,7 +360,7 @@ class XpubApp(BaseApp):
             XPubScreen(xpub=canonical, slip132=slip132, prefix=prefix)
         )
         if res == XPubScreen.CREATE_WALLET:
-            await self.create_wallet(derivation, canonical, prefix, ver, show_screen)
+            await self.create_wallet(derivation, canonical, prefix, show_screen)
         elif res:
             filename = "%s-%s.txt" % (fingerprint, derivation[2:].replace("/", "-"))
             with platform.sdcard as sd:
@@ -308,83 +372,116 @@ class XpubApp(BaseApp):
                       button_text="Close")
             )
 
-    async def create_wallet(self, derivation, xpub, prefix, version, show_screen):
-        """Shows a wallet creation menu and passes descriptor to the wallets app"""
-        net = NETWORKS[self.network]
-        descriptors = OrderedDict({
-            "zpub": ("wpkh(%s%s/{0,1}/*)" % (prefix, xpub), "Native Segwit"),
-            "ypub": ("sh(wpkh(%s%s/{0,1}/*))" % (prefix, xpub), "Nested Segwit"),
-            "legacy": ("pkh(%s%s/{0,1}/*)" % (prefix, xpub), "Legacy"),
-            "taproot": ("tr(%s%s/{0,1}/*)" % (prefix, xpub), "Taproot"),
-            # multisig is not supported yet - requires cosigners app
-        })
+    async def create_wallet(self, derivation, xpub, prefix, show_screen):
+        """Shows a wallet-creation menu and passes a descriptor to the wallets app.
 
-        if version == net["ypub"]:
-            buttons = [
-                (None, "Recommended"),
-                descriptors.pop("ypub"),
-                (None, "Other"),
-            ]
-        elif version == net["zpub"]:
-            buttons = [
-                (None, "Recommended"),
-                descriptors.pop("zpub"),
-                (None, "Other"),
-            ]
-        elif "/86h/" in derivation:
-            buttons = [
-                (None, "Recommended"),
-                descriptors.pop("taproot"),
-                (None, "Other"),
-            ]
-        elif "/44h/" in derivation:
-            buttons = [
-                (None, "Recommended"),
-                descriptors.pop("legacy"),
-                (None, "Other"),
-            ]
-        else:
-            buttons = []
-        buttons += [descriptors[k] for k in descriptors]
-        menuitem = await show_screen(Menu(buttons, last=(255, None),
-                                     title="Select wallet type to create"))
-        if menuitem == 255:
+        The script type the user picks fixes the derivation (see
+        ``WALLET_TYPES``). When the key on screen is not already on that path,
+        the user explicitly chooses between the standard wallet (account key
+        re-derived from the standard path) and a warned recovery wallet built
+        from the displayed key verbatim - the only way to reproduce the
+        non-standard script/derivation pairs older firmware could create.
+        """
+        net = NETWORKS[self.network]
+        coin = net["bip32"]
+        recommended = _standard_wallet_type(derivation, coin)
+
+        buttons = []
+        if recommended:
+            buttons.append((None, "Recommended"))
+            buttons.append((recommended, WALLET_TYPES[recommended][2]))
+        buttons.append((None, "Other"))
+        for key in WALLET_TYPES:
+            if key != recommended:
+                buttons.append((key, WALLET_TYPES[key][2]))
+
+        menuitem = await show_screen(Menu(
+            buttons, last=(255, None),
+            title="Select wallet type to create",
+        ))
+        if menuitem == 255 or menuitem is None or menuitem not in WALLET_TYPES:
             return
-        else:
-            # get wallet names from the wallets app
-            s, _ = await self.communicate(BytesIO(b"listwallets"), app="wallets")
-            names = json.load(s)
-            if menuitem.startswith("pkh("):
-                name_suggestion = "Legacy %d" % self.account
-            elif menuitem.startswith("wpkh("):
-                name_suggestion = "Native %d" % self.account
-            elif menuitem.startswith("sh(wpkh("):
-                name_suggestion = "Nested %d" % self.account
-            elif menuitem.startswith("tr("):
-                name_suggestion = "Taproot %d" % self.account
-            else:
-                name_suggestion = "Wallet %d" % self.account
-            nn = name_suggestion
-            i = 1
-            # make sure we don't suggest existing name
-            while name_suggestion in names:
-                name_suggestion = "%s (%d)" % (nn, i)
-                i += 1
-            name = await show_screen(InputScreen(title="Name your wallet",
-                    note="",
-                    suggestion=name_suggestion,
-                    min_length=1, strip=True
+
+        purpose, template, type_name, name_prefix = WALLET_TYPES[menuitem]
+        # Standard wallets follow the BIP44 layout: purpose fixed by the script
+        # type, coin_type fixed by the active network, account carried over from
+        # the displayed key (or the account selected in the menu).
+        account = _account_index(derivation)
+        std_account = account if account is not None else self.account
+        std_target = "m/%dh/%dh/%dh" % (purpose, coin, std_account)
+
+        use_displayed = False
+        if not _same_path(derivation, std_target):
+            # The displayed key would be discarded for a standard wallet. Make
+            # the choice - and the non-standard option - explicit.
+            choice = await show_screen(Menu(
+                [
+                    ("standard",
+                     "Standard %s\n%s" % (type_name, std_target)),
+                    ("recover",
+                     "Recover using displayed key\n%s\nNon-standard - recovery only"
+                     % derivation),
+                ],
+                last=(255, None),
+                title="%s derivation" % type_name,
+                note=("New wallets use the standard path. Recovery reproduces a "
+                      "wallet made with older Specter DIY versions."),
             ))
-            if not name:
+            if choice == 255 or choice is None:
                 return
-            # send the wallets app addwallet command with descriptor
-            desc = menuitem
-            # add blinding key on liquid
-            if is_liquid(self.network):
-                desc = "blinded(slip77(%s),%s)" % (self.keystore.slip77_key, desc)
-            data = "addwallet %s&%s" % (name, desc)
-            stream = BytesIO(data.encode())
-            await self.communicate(stream, app="wallets")
+            use_displayed = (choice == "recover")
+
+        if use_displayed:
+            confirm = await show_screen(Prompt(
+                "Recover non-standard wallet",
+                "This builds a %s wallet from the key you are viewing:\n\n"
+                "%s\n\n"
+                "This derivation is NOT standard. Other wallet software may "
+                "not discover it from your seed automatically. Only continue "
+                "if you are deliberately recovering an existing wallet."
+                "\n\nContinue?" % (type_name, derivation),
+                warning="Non-standard - recovery only",
+            ))
+            if not confirm:
+                return
+            # displayed key + its exact key-origin path, wrapped in the chosen
+            # script - byte-for-byte what the older firmware produced.
+            key_prefix, key_xpub = prefix, xpub
+        elif _same_path(derivation, std_target):
+            key_prefix, key_xpub = prefix, xpub
+        else:
+            self.show_loader(title="Deriving %s key..." % type_name)
+            hdkey = self.keystore.get_xpub(std_target)
+            key_xpub = hdkey.to_base58(net["xpub"])
+            fingerprint = hexlify(self.keystore.fingerprint).decode()
+            key_prefix = "[%s/%s]" % (fingerprint, std_target[2:])
+
+        desc = template % (key_prefix, key_xpub)
+
+        # get wallet names from the wallets app
+        s, _ = await self.communicate(BytesIO(b"listwallets"), app="wallets")
+        names = json.load(s)
+        base_account = account if account is not None else std_account
+        nn = "%s %d%s" % (name_prefix, base_account,
+                          " recovery" if use_displayed else "")
+        name_suggestion = nn
+        i = 1
+        # make sure we don't suggest an existing name
+        while name_suggestion in names:
+            name_suggestion = "%s (%d)" % (nn, i)
+            i += 1
+        name = await show_screen(InputScreen(title="Name your wallet",
+                note="",
+                suggestion=name_suggestion,
+                min_length=1, strip=True
+        ))
+        if not name:
+            return
+        # add blinding key on liquid
+        if is_liquid(self.network):
+            desc = "blinded(slip77(%s),%s)" % (self.keystore.slip77_key, desc)
+        data = "addwallet %s&%s" % (name, desc)
+        await self.communicate(BytesIO(data.encode()), app="wallets")
 
 
     async def save_menu(self, show_screen):

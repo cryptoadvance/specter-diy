@@ -105,7 +105,13 @@ def setup_native_stubs():
         "DevSettings",
     ]:
         if not hasattr(screens, _name):
-            setattr(screens, _name, type(_name, (), {}))
+            # accept (and ignore) constructor args so app code that does
+            # `Menu(buttons, title=...)` can be exercised natively
+            setattr(
+                screens,
+                _name,
+                type(_name, (), {"__init__": lambda self, *a, **k: None}),
+            )
 
     _ensure_submodule("gui.screens", "mnemonic", {
         "ExportMnemonicScreen": type("ExportMnemonicScreen", (), {}),
@@ -123,6 +129,8 @@ def setup_native_stubs():
     common = _ensure_module("gui.common")
     if not hasattr(common, "HOR_RES"):
         common.HOR_RES = 480
+    if not hasattr(common, "PADDING"):
+        common.PADDING = 20
     if not hasattr(common, "styles"):
         common.styles = types.SimpleNamespace()
     for _name in [
