@@ -630,6 +630,9 @@ class Specter:
         # lock the keystore
         if hasattr(self.keystore, "lock"):
             self.keystore.lock()
+        # let apps discard volatile security-sensitive state
+        for app in self.apps:
+            app.on_lock()
         # disable hosts
         for host in self.hosts:
             await host.disable()

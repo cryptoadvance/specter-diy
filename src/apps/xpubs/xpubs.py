@@ -1,6 +1,7 @@
 from app import BaseApp, AppError
 from gui.screens import Menu, DerivationScreen, NumericScreen, Alert, InputScreen, Prompt
 from .screens import XPubScreen
+from . import scope as xpubauth_scope
 import json
 from binascii import hexlify
 from embit.liquid.networks import NETWORKS
@@ -9,6 +10,11 @@ from helpers import is_liquid
 from io import BytesIO
 import platform
 from collections import OrderedDict
+
+# A single derivation-path request ("xpub <path>") is tiny. Cap the host
+# input well above any realistic path but far below anything that could
+# exhaust RAM on the STM32F469, and enforce it before .decode()/parsing.
+MAX_XPUB_PATH_LEN = 1024
 
 class XpubApp(BaseApp):
     """
@@ -21,12 +27,23 @@ class XpubApp(BaseApp):
     export_generic_json = "json"
     export_specter_diy = "specter-diy"
     button = "Master public keys"
-    prefixes = [b"fingerprint", b"xpub"]
+    prefixes = [b"fingerprint", b"xpub", b"xpubauth"]
     name = "xpub"
 
     def __init__(self, path):
         self.account = 0
-        pass
+        # volatile scoped multi-xpub authorization (RAM only, never
+        # persisted); see scope.py for the grammar and matching rules
+        self._authorization = None
+
+    def init(self, keystore, network, show_loader, communicate):
+        super().init(keystore, network, show_loader, communicate)
+        # a new key or network invalidates any prior authorization -
+        # it belongs to a specific keystore on a specific network
+        self._authorization = None
+
+    def on_lock(self):
+        self._authorization = None
 
     async def menu(self, show_screen, show_all=False):
         net = NETWORKS[self.network]
@@ -260,22 +277,178 @@ class XpubApp(BaseApp):
         # reads prefix from the stream (until first space)
         prefix = self.get_prefix(stream)
         # get device fingerprint, data is ignored
+        # non-interactive: used for device discovery/identification by
+        # companion software, must not require on-device confirmation
         if prefix == b"fingerprint":
             return BytesIO(hexlify(self.keystore.fingerprint)), {}
         # get xpub,
         # data: derivation path in human-readable form like m/44h/1h/0
         elif prefix == b"xpub":
+            # bound the host input before decoding - a derivation path is
+            # tiny, anything larger is malformed or a memory-exhaustion
+            # attempt and must be rejected before it becomes a str
+            raw = stream.read(MAX_XPUB_PATH_LEN + 1)
+            if len(raw) > MAX_XPUB_PATH_LEN:
+                raise AppError("Path request too large")
+            path_str = None
             try:
-                path = stream.read().strip()
+                path_str = raw.strip().decode()
                 # convert to list of indexes
-                path = bip32.parse_path(path.decode())
-            except:
-                raise AppError('Invalid path: "%s"' % path.decode())
-            # get xpub
-            xpub = self.keystore.get_xpub(bip32.path_to_str(path))
+                path = bip32.parse_path(path_str)
+            except (ValueError, IndexError):
+                # narrow, not bare: decode() raises UnicodeError (a
+                # ValueError subclass) on non-UTF-8 input, and
+                # bip32.parse_path raises ValueError / IndexError on a
+                # malformed or empty path component. Anything else is a
+                # real bug and should propagate, not be masked as
+                # "Invalid path".
+                raise AppError('Invalid path: "%s"' % (path_str or raw))
+            # a real derivation path is a handful of levels deep; anything
+            # past the limit the scoped parser already enforces
+            # (scope.MAX_PATH_DEPTH) is malformed or a derivation-DoS
+            # attempt - reject it before doing any BIP32 work
+            if len(path) > xpubauth_scope.MAX_PATH_DEPTH:
+                raise AppError(
+                    "Path too deep (max %d)" % xpubauth_scope.MAX_PATH_DEPTH
+                )
+            # normalize to the canonical string representation
+            derivation = bip32.path_to_str(path)
+            # Validate the request fully - network, then authorization -
+            # *before* deriving anything. The xpub is never leaked on a
+            # mismatch, but there's no reason to spend the derivation on a
+            # request that's going to be refused either way.
+            #
+            # A standard-purpose path (44'/48'/49'/84'/86'/87') whose coin
+            # type doesn't match the network currently active on this
+            # device can never be legitimately shared from here - the same
+            # rule an xpubauth scope is held to (see scope.py), now also
+            # enforced for individual, non-scoped requests. Tell the local
+            # user exactly what was asked for and why it's refused, and
+            # send the host a machine-parseable reason (which network this
+            # device is actually on) instead of silently deriving a key
+            # for a network it isn't set to.
+            if xpubauth_scope.standard_path_coin_type_mismatch(
+                path, NETWORKS[self.network]["bip32"]
+            ):
+                device_net = self.network
+                hint = xpubauth_scope.network_hint_for_path(path)
+                switch_to = hint if hint else "the matching network"
+                # UX note: from a pure usability standpoint this screen
+                # would ideally carry a second "Network settings" button
+                # that takes the user straight to the network picker, so
+                # they don't have to hunt for it in the menu after being
+                # told to switch. It's deliberately left out for now:
+                # host commands run in their own asyncio task, separate
+                # from the main() menu loop, and this firmware has no
+                # primitive for one to drive the other's navigation. The
+                # only way to show the picker from here is to stack it as
+                # a popup over whatever menu happens to be active, which
+                # works but is a fair bit of plumbing for one button.
+                # Worth revisiting if/when cross-task navigation exists -
+                # the UX win is real.
+                await show_screen(
+                    Alert(
+                        "Host tried to get access\nto the following Xpub",
+                        "Derivation:\n%s\n\n"
+                        "This device is currently on %s.\n"
+                        "This Xpub cannot be shared from here.\n\n"
+                        "To share it, switch the device\nto %s in the settings first." % (
+                            derivation, NETWORKS[device_net]["name"], switch_to,
+                        ),
+                        button_text="OK",
+                    )
+                )
+                raise AppError("network mismatch: device is on %s" % device_net)
+            # a previously approved scope covers this exact normalized
+            # path and hasn't already been used - no extra prompt needed
+            authorized = self._authorization is not None and (
+                self._authorization.try_consume(self.network, path)
+            )
+            # derive the xpub - to hand straight back for an authorized
+            # path, or to show the user exactly what would be shared
+            xpub_str = self.keystore.get_xpub(derivation).to_base58(
+                NETWORKS[self.network]["xpub"]
+            )
+            if authorized:
+                if self._authorization.remaining <= 0:
+                    self._authorization = None
+                return BytesIO(xpub_str.encode()), {}
+            fingerprint = hexlify(self.keystore.fingerprint).decode()
+            confirm = await show_screen(
+                Prompt(
+                    "Share Xpub?",
+                    "A connected host wants the\nextended public key for:\n\n%s\n\n%s" % (
+                        derivation, xpub_str,
+                    ),
+                    note="Device fingerprint %s" % fingerprint,
+                )
+            )
+            if not confirm:
+                return False
             # send back as base58
-            return BytesIO(xpub.to_base58(NETWORKS[self.network]["xpub"]).encode()), {}
+            return BytesIO(xpub_str.encode()), {}
+        # xpubauth begin <scope> / xpubauth end -
+        # one confirmation for a bounded, explicit set of paths, see scope.py
+        elif prefix == b"xpubauth":
+            # bound the request as it is read, before .decode()/parsing,
+            # so a hostile host cannot force a huge string allocation
+            # ahead of the MAX_SCOPE_LEN check inside parse_scope
+            raw = stream.read(xpubauth_scope.MAX_SCOPE_COMMAND_LEN + 1)
+            if len(raw) > xpubauth_scope.MAX_SCOPE_COMMAND_LEN:
+                raise AppError("xpubauth request too large")
+            data = raw.strip().decode()
+            if data == "end":
+                self._authorization = None
+                return True
+            if data == "begin" or data.startswith("begin "):
+                scope_str = data[len("begin"):].strip()
+                return await self.xpubauth_begin(scope_str, show_screen)
+            raise AppError("Unknown xpubauth subcommand")
         raise AppError("Unknown command")
+
+    async def xpubauth_begin(self, scope_str, show_screen):
+        # Fail closed: a fresh "begin" revokes any prior authorization
+        # up front, before the new scope is even parsed or displayed.
+        # Whatever happens next - parse error, cancel, or a successful
+        # confirm - the old scope is already gone, so a user who cancels
+        # a suspicious new request is never silently left with a stale
+        # (possibly broader) permission still active.
+        self._authorization = None
+        try:
+            entries, total = xpubauth_scope.parse_scope(
+                scope_str, self.network, NETWORKS[self.network]["bip32"]
+            )
+        except xpubauth_scope.ScopeError as e:
+            raise AppError(str(e))
+        net_name = NETWORKS[self.network]["name"]
+        allowed = "\n".join(entry.format() for entry in entries)
+        fingerprint = hexlify(self.keystore.fingerprint).decode()
+        message = (
+            "Connected software requests temporary\n"
+            "access to multiple public account keys.\n\n"
+            "Network: %s\n\n"
+            "Allowed:\n%s\n\n"
+            "Up to %d extended public keys.\n\n"
+            "Private keys are not shared." % (net_name, allowed, total)
+        )
+        confirm = await show_screen(
+            Prompt(
+                "Share multiple XPUBs?",
+                message,
+                confirm_text="Allow",
+                cancel_text="Cancel",
+                note="Device fingerprint %s" % fingerprint,
+            )
+        )
+        if not confirm:
+            # any prior authorization was already dropped at the top of
+            # this method; nothing new is approved, so the device is now
+            # left with no authorization at all
+            return False
+        # commit the freshly approved scope (any prior authorization was
+        # already cleared above - begin never merges or falls back)
+        self._authorization = xpubauth_scope.Authorization(entries, self.network)
+        return True
 
     async def show_xpub(self, derivation, show_screen):
         self.show_loader(title="Deriving the key...")

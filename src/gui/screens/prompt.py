@@ -9,14 +9,18 @@ class Prompt(Screen):
                  confirm_text="Confirm", cancel_text="Cancel", note=None, warning=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
+        anchor = self.title
+        page_offset = 0
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
             self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
-            obj = self.note
+            # leave a blank line between the note and the message below it
+            anchor = self.note
+            page_offset = 20
         self.page = lv.page(self)
         self.page.set_size(480, 600)
         self.message = add_label(message, scr=self.page)
-        self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
+        self.page.align(anchor, lv.ALIGN.OUT_BOTTOM_MID, 0, page_offset)
         # Initialize an empty icon label. It will display nothing until a symbol is set.
         self.icon = lv.label(self)
         self.icon.set_text("")

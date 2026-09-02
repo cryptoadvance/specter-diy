@@ -1,6 +1,7 @@
 from keystore.ram import RAMKeyStore
 from app import BaseApp
 from apps.wallets import App as WalletsApp
+from apps.xpubs import App as XpubsApp
 import platform
 
 TEST_DIR = "testdir"
@@ -48,3 +49,10 @@ def get_wallets_app(keystore, network):
     wapp = WalletsApp(TEST_DIR+"/wallets")
     wapp.init(keystore, network, show_loader, communicate)
     return wapp
+
+def get_xpubs_app(keystore, network):
+    platform.maybe_mkdir(TEST_DIR)
+    platform.maybe_mkdir(TEST_DIR+"/xpubs")
+    xapp = XpubsApp(TEST_DIR+"/xpubs")
+    xapp.init(keystore, network, show_loader, communicate)
+    return xapp

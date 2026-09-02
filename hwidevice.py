@@ -77,8 +77,9 @@ class SpecterClient(HardwareWalletClient):
         :param bip32_path: The BIP 32 derivation path
         :return: The extended public key
         """
-        # this should be fast
-        xpub = self.query("xpub %s" % bip32_path, timeout=self.TIMEOUT)
+        # xpub now requires on-device user confirmation and may take
+        # arbitrarily long - wait indefinitely, same as sign_tx()
+        xpub = self.query("xpub %s" % bip32_path)
         hd = ExtendedKey.deserialize(xpub)
         # Specter returns xpub with a prefix
         # for a network currently selected on the device
@@ -202,6 +203,58 @@ class SpecterClient(HardwareWalletClient):
 
     def import_wallet(self, name: str, descriptor: str):
         self.query("addwallet {name} {descriptor}")
+
+    def authorize_xpubs(self, scope: Union[str, list]) -> bool:
+        """
+        Requests a scoped multi-XPUB authorization from the device: a
+        single trusted-display confirmation that approves a bounded,
+        explicitly enumerated set of derivation paths. After it is
+        approved, plain get_pubkey_at_path() calls for paths inside that
+        scope are answered without another on-device prompt; anything
+        outside the scope still prompts individually, exactly like a
+        plain get_pubkey_at_path() call always does.
+
+        :param scope: either a single scope string using the device's
+            grammar (entries separated by ";", each an exact path like
+            "m/84h/0h/0h" or a path with one bounded range component
+            like "m/84h/0h/{0-9}h"), or an iterable of such entries,
+            which will be joined with ";" for you.
+        :return: True if the user approved the authorization.
+
+        Raises ActionCanceledError if the user declined it, and
+        BadArgumentError if the scope was rejected (e.g. too large, or
+        mixing paths for more than one network). Older firmware that
+        predates this command will raise UnavailableActionError or
+        BadArgumentError - catch that and simply keep using
+        get_pubkey_at_path() for each path individually:
+
+            try:
+                client.authorize_xpubs(paths)
+                bulk = True
+            except Exception:
+                bulk = False
+            try:
+                for path in paths_to_query:
+                    xpub = client.get_pubkey_at_path(path)
+                    ...  # e.g. BIP-138 recovery, stopping early on success
+            finally:
+                if bulk:
+                    client.end_xpub_authorization()
+        """
+        if not isinstance(scope, str):
+            scope = ";".join(scope)
+        # no timeout - like get_pubkey_at_path(), this waits on a
+        # physical confirmation that can take arbitrarily long
+        res = self.query("xpubauth begin %s" % scope)
+        return res == "success"
+
+    def end_xpub_authorization(self) -> bool:
+        """
+        Explicitly discards any scoped multi-XPUB authorization created
+        by authorize_xpubs(). Safe to call even if none is active.
+        """
+        res = self.query("xpubauth end")
+        return res == "success"
 
 
 def enumerate(password=""):

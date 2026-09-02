@@ -105,7 +105,10 @@ def setup_native_stubs():
         "DevSettings",
     ]:
         if not hasattr(screens, _name):
-            setattr(screens, _name, type(_name, (), {}))
+            def _stub_init(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+            setattr(screens, _name, type(_name, (), {"__init__": _stub_init}))
 
     _ensure_submodule("gui.screens", "mnemonic", {
         "ExportMnemonicScreen": type("ExportMnemonicScreen", (), {}),
@@ -123,6 +126,8 @@ def setup_native_stubs():
     common = _ensure_module("gui.common")
     if not hasattr(common, "HOR_RES"):
         common.HOR_RES = 480
+    if not hasattr(common, "PADDING"):
+        common.PADDING = 20
     if not hasattr(common, "styles"):
         common.styles = types.SimpleNamespace()
     for _name in [

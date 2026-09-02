@@ -64,6 +64,15 @@ class BaseApp:
         """
         delete_recursively(self.path, include_self=True)
 
+    def on_lock(self):
+        """
+        Called when the device is locked.
+        Apps holding volatile, security-sensitive runtime state
+        (e.g. a temporary host permission) should discard it here,
+        since locking/unlocking must not let that state survive.
+        """
+        pass
+
     @property
     def tempdir(self):
         if self.TEMPDIR is None:
