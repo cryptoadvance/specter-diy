@@ -229,17 +229,19 @@ def get_flash_write_protection_status() -> str:
     except Exception:
         return "unknown"
 
-    lower = (option_control >> 16) & 0xFFFF
-    upper = 0xFFFF
+    # nWRP: one "not write-protected" bit per sector (1 = unprotected). The
+    # STM32F469 in its 2 MB dual-bank layout has 12 sectors per bank; the bits
+    # are FLASH_OPTCR[27:16] for bank 1 and FLASH_OPTCR1[27:16] for bank 2.
+    bank1_nwrp = (option_control >> 16) & 0xFFF
+    bank2_nwrp = 0xFFF
 
-    if stm is not None:
-        try:
-            option_control_1 = stm.mem32[0x40023C18]
-            upper = option_control_1 & 0xFFFF
-        except Exception:
-            pass
+    try:
+        option_control_1 = stm.mem32[0x40023C18]
+        bank2_nwrp = (option_control_1 >> 16) & 0xFFF
+    except Exception:
+        pass
 
-    if lower == 0xFFFF and upper == 0xFFFF:
+    if bank1_nwrp == 0xFFF and bank2_nwrp == 0xFFF:
         return "disabled"
     return "enabled"
 
