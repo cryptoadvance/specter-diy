@@ -62,6 +62,8 @@ class WalletManager(BaseApp):
     # supported networks
     Networks = NETWORKS
     DEFAULT_SIGHASH = SIGHASH.ALL
+    # Transaction fee warning threshold; deliberately not a user setting.
+    HIGH_FEE_PERCENT = 10
 
     def __init__(self, path):
         self.root_path = path
@@ -351,10 +353,29 @@ class WalletManager(BaseApp):
         if not await self.confirm_wallets(wallets, show_screen):
             return
 
+        # an unusually high fee must be acknowledged explicitly so it can't
+        # be scrolled past on the confirmation screen
+        if not await self.confirm_fee_warning(meta, show_screen):
+            return
+
         if not await self.confirm_transaction_final(wallets, meta, show_screen):
             return
 
         return dict(sighash=sighash)
+
+    async def confirm_fee_warning(self, meta, show_screen):
+        warning = meta.get("fee_warning")
+        if not warning:
+            return True
+        scr = Prompt(
+            "Warning!",
+            "\n" + warning + "\n\n\n"
+            "The network fee is large compared to the amount this "
+            "transaction moves.\n\n\n"
+            "Double-check the fee rate before continuing.\n\n\n"
+            "Proceed anyway?",
+        )
+        return bool(await show_screen(scr))
 
     async def confirm_transaction_final(self, wallets, meta, show_screen):
         # build title for the tx screen
@@ -740,8 +761,12 @@ class WalletManager(BaseApp):
             # Get values and store in metadata and wallets dict
             value = out.value
             fee -= value
+            owned_by_input_wallet = wallet is not None and wallet in wallets
             metaout.update({
-                "change": (wallet is not None and len(wallets) == 1 and wallet in wallets),
+                "change": (owned_by_input_wallet and len(wallets) == 1),
+                # owned by any of the input wallets (change or wallet-to-wallet
+                # transfer); such outputs never count as "sent" for the fee basis
+                "owned": owned_by_input_wallet,
                 "value": value,
                 "address": self.get_address(out),
             })
@@ -767,7 +792,83 @@ class WalletManager(BaseApp):
 
             out.write_to(fout, version=psbtv.version)
         meta["fee"] = fee
+        self.add_warnings(meta)
         return wallets, meta
+
+    def _fee_basis_for_asset(self, meta, fee_asset=None):
+        """Return (amount, is_send_amount) that the fee should be compared to.
+
+        Only cryptographically verified values are used: the recipient
+        outputs (not owned by any input wallet) if there are any, otherwise
+        the verified total of all inputs (self-transfer fallback).
+        """
+        send_amount = sum(
+            out["value"]
+            for out in meta.get("outputs", [])
+            if out.get("value", 0) > 0
+            and not out.get("fee_output", False)
+            and not out.get("owned", out.get("change", False))
+            and (fee_asset is None or out.get("asset_id") == fee_asset)
+        )
+        if send_amount > 0:
+            return send_amount, True
+        verified_input_total = sum(
+            inp["value"]
+            for inp in meta.get("inputs", [])
+            if inp.get("value", 0) > 0
+            and (fee_asset is None or inp.get("asset_id") == fee_asset)
+        )
+        return verified_input_total, False
+
+    def fee_basis(self, meta):
+        return self._fee_basis_for_asset(meta)
+
+    def fee_assessment(self, meta):
+        """Return fee assessment data for this transaction backend."""
+        fee_basis, is_send_amount = self.fee_basis(meta)
+        return {
+            "fee_basis": fee_basis,
+            "fee_basis_is_send_amount": is_send_amount,
+        }
+
+    def add_warnings(self, meta):
+        """Add transaction-level warnings without replacing existing ones."""
+        fee = meta.get("fee")
+        assessment = self.fee_assessment(meta)
+        meta.pop("fee_warning", None)
+        # expose the basis so the confirmation screen shows the same
+        # percentage that the warning is based on
+        meta["fee_basis"] = assessment.get("fee_basis")
+        meta["fee_basis_is_send_amount"] = assessment.get(
+            "fee_basis_is_send_amount", True
+        )
+        # precompute the percentage once so the warning text and the
+        # confirmation screen can never show a different number
+        fee_percent = None
+        meta["fee_percent"] = None
+        if assessment.get("warning"):
+            meta["fee_warning"] = assessment["warning"]
+            warnings = meta.setdefault("warnings", [])
+            if assessment["warning"] not in warnings:
+                warnings.append(assessment["warning"])
+            return
+
+        fee_basis = assessment.get("fee_basis", 0)
+        if fee is not None and fee > 0 and fee_basis > 0:
+            fee_percent = fee * 100 / fee_basis
+        meta["fee_percent"] = fee_percent
+        if (
+            fee_percent is not None
+            and fee * 100 >= fee_basis * self.HIGH_FEE_PERCENT
+        ):
+            if meta["fee_basis_is_send_amount"]:
+                warning = "Fee is %.2f%% of the send amount - unusually high!" % fee_percent
+            else:
+                warning = "Fee is %.2f%% of total inputs (self-transfer) - unusually high!" % fee_percent
+            meta["fee_warning"] = warning
+            warnings = meta.setdefault("warnings", [])
+            if warning not in warnings:
+                warnings.append(warning)
 
     def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
         for w in wallets:

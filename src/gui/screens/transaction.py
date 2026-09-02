@@ -8,9 +8,6 @@ from ..decorators import on_release
 class TransactionScreen(Prompt):
     def __init__(self, title, meta):
         self.default_asset = meta.get("default_asset", "BTC")
-        send_amount = sum(
-            [out["value"] for out in meta["outputs"] if not out["change"]]
-        )
         super().__init__(title, "")
 
         obj = self.message # for alignments
@@ -75,10 +72,15 @@ class TransactionScreen(Prompt):
 
         fee = meta.get("fee")
         if fee:
-            if send_amount > 0:
-                fee_percent = fee * 100 / send_amount
-                fee_txt = "%d satoshi (%.2f%%)" % (fee, fee_percent)
-            # back to wallet
+            # reuse the exact percentage the high-fee warning was computed
+            # from, so the displayed number can never disagree with it
+            fee_percent = meta.get("fee_percent")
+            if fee_percent is not None:
+                if meta.get("fee_basis_is_send_amount", True):
+                    basis_txt = "of send amount"
+                else:
+                    basis_txt = "of total inputs"
+                fee_txt = "%d satoshi (%.2f%% %s)" % (fee, fee_percent, basis_txt)
             else:
                 fee_txt = "%d satoshi" % (fee,)
             fee = add_label("Fee: " + fee_txt, scr=self.page)
