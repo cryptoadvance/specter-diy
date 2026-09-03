@@ -1,12 +1,21 @@
 name: Reproducible Firmware Build
 
 on:
+  # Automatically run when boot.py is changed on master.
+  # Firmware version bumps are made in this file.
+  push:
+    branches:
+      - master
+    paths:
+      - boot/main/boot.py
+
+  # Also allow an exact commit or tag to be built manually.
   workflow_dispatch:
     inputs:
       ref:
-        description: "Commit SHA or tag to build"
-        required: true
-        default: "b2d87e55338289a258ee985b26c7b064d5b49132"
+        description: "Optional commit SHA or tag to build"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -20,7 +29,7 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
           fetch-depth: 0
 
