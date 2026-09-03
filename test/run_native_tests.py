@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 # Insert src directly after the local dir (highest prio)
 sys.path.insert(1, str((ROOT / "../src").resolve()))
+sys.path.insert(2, str((ROOT / "../f469-disco/libs/common/embit/src").resolve()))
 
 # make the other stuff available with lowest prio
 sys.path.append(str((ROOT / "../f469-disco/libs/common").resolve()))
