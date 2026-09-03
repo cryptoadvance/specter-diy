@@ -346,6 +346,12 @@ sign something you didn't confirm on the device screen.
 - Without the smartcard, a sufficiently equipped attacker with prolonged
   physical access to the device should be considered able to extract
   secrets from the main MCU (see "Threat model").
+- **Saving, replacing and deleting a mnemonic are not power-loss
+  transactional.** A power interruption may cause loss of the locally
+  stored mnemonic. There is no `.old` / `.tmp` recovery protocol and no
+  guarantee that a valid local copy remains. Users must maintain an
+  independent recovery backup of their recovery phrase (see
+  [data-storage.md](./data-storage.md#saving-replacing-and-deleting-a-saved-mnemonic)).
 - Transaction warnings are currently implemented in several different
   places rather than in one central pipeline: the device warns about
   unknown wallets in the inputs, about sighash flags other than

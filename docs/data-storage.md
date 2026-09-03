@@ -58,6 +58,27 @@ encrypted with `pin_secret = tagged_hash("pin", secret + pin)`, derived
 from both the device secret and your PIN — so changing your PIN only
 requires re-encrypting this one key.
 
+### Saving, replacing and deleting a saved mnemonic
+
+Saving a mnemonic writes the encrypted file and synchronizes it. When an
+existing file is replaced, the user must confirm the replacement; Specter
+then performs a best-effort logical overwrite and removes the old file before
+writing the new encrypted file with strict synchronization. Deleting a
+mnemonic uses the same best-effort logical overwrite-before-remove operation.
+
+This is not forensic erasure. The firmware checks every write and every error
+reported by the runtime, but the current MicroPython VFS/block-device layer
+may not propagate every physical I/O failure. Wear-levelling may also retain
+historical physical copies. A successful operation therefore means that the
+logical overwrite path completed as far as the runtime could verify it; only
+physical destruction provides a forensic guarantee.
+
+These operations are deliberately **not power-loss transactional**. A power
+interruption during save, replacement or deletion may cause loss of the
+locally stored mnemonic. There is no `.old` / `.tmp` recovery protocol and
+no guarantee that a valid local copy remains. Users must maintain an
+independent recovery backup of their recovery phrase.
+
 ## QSPI Flash (`/qspi`)
 
 ### Wallet Data

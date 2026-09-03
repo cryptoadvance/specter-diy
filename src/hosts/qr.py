@@ -1058,7 +1058,10 @@ class QRHost(Host):
         return m, n
 
     async def get_data(self, raw=True, chunk_timeout=CHUNK_TIMEOUT):
-        delete_recursively(self.path)
+        # The reassembled QR payload (often a full PSBT) is written here in
+        # the SDRAM ramdisk. Overwrite the previous scan's payload rather
+        # than just unlinking it - RAM survives a warm reset.
+        delete_recursively(self.path, secure=True)
         if self.manager is not None:
             # pass self so user can abort
             await self.manager.gui.show_progress(

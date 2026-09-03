@@ -61,7 +61,9 @@ class USBHost(Host):
         if self.f is not None:
             self.f.close()
             self.f = None
-        platform.delete_recursively(self.path)
+        # The received command (often a full PSBT) was buffered here in the
+        # SDRAM ramdisk - overwrite it, don't just unlink it.
+        platform.delete_recursively(self.path, secure=True)
 
     async def process_command(self, stream):
         if self.manager is None:

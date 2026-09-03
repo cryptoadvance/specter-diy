@@ -139,7 +139,10 @@ class Wallet:
     def wipe(self):
         if self.path is None:
             raise WalletError("I don't know path...")
-        delete_recursively(self.path, include_self=True)
+        # The wallet folder holds the encrypted descriptor and meta. A plain
+        # unlink leaves both readable in QSPI free space, where the still
+        # unrotated enc_secret decrypts them - so overwrite before removing.
+        delete_recursively(self.path, include_self=True, secure=True)
 
     def get_address(self, idx: int, network: str, branch_index=0):
         desc, gap = self.get_descriptor(idx, branch_index)
