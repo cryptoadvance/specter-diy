@@ -1,0 +1,102 @@
+name: Reproducible Firmware Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA or tag to build"
+        required: true
+        default: "b2d87e55338289a258ee985b26c7b064d5b49132"
+
+permissions:
+  contents: read
+
+jobs:
+  reproducible-build:
+    name: Build reproducible firmware
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Show exact commit
+        run: |
+          echo "Building commit:"
+          git rev-parse HEAD
+
+      - name: Configure production public keys
+        run: |
+          cp bootloader/keys/production/pubkeys.c \
+             bootloader/keys/selfsigned/pubkeys.c
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -t specter-reproducible .
+
+      - name: Build unsigned release firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$PWD:/app" \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            specter-reproducible \
+            ./build_firmware.sh \
+              main \
+              bootloader \
+              assemble \
+              hash \
+              ownership \
+            | tee build.log
+
+      - name: Extract message to sign
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          MESSAGE="$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+-[a-z0-9]+' build.log | tail -1)"
+
+          if [ -z "$MESSAGE" ]; then
+            echo "ERROR: Could not find message to sign"
+            exit 1
+          fi
+
+          echo ""
+          echo "=========================================="
+          echo "MESSAGE TO SIGN"
+          echo "$MESSAGE"
+          echo "=========================================="
+          echo ""
+
+          {
+            echo "## Specter DIY reproducible build"
+            echo ""
+            echo "**Commit:** \`$(git rev-parse HEAD)\`"
+            echo ""
+            echo "### Message to sign"
+            echo ""
+            echo '```text'
+            echo "$MESSAGE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build results
+        uses: actions/upload-artifact@v4
+        with:
+          name: specter-reproducible-build
+          path: |
+            release/specter_upgrade.bin
+            release/specter_upgrade_unsigned.bin
+            release/initial_firmware.bin
+            release/sha256.txt
+            build.log
