@@ -77,7 +77,11 @@ class SimController:
                 time.sleep(0.3)
             except:
                 pass
-        os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)  # Send the signal to all the process groups
+        try:
+            # The simulator may exit after handling the quit command above.
+            os.killpg(os.getpgid(self.proc.pid), signal.SIGTERM)
+        except ProcessLookupError:
+            pass
         time.sleep(1)
 
     def query(self, data, commands=[]):
