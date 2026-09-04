@@ -1,19 +1,16 @@
 name: Reproducible Firmware Build
 
 on:
-  # Automatically run when boot.py is changed on master.
-  # Firmware version bumps are made in this file.
   push:
     branches:
       - master
     paths:
       - boot/main/boot.py
 
-  # Also allow an exact commit or tag to be built manually.
   workflow_dispatch:
     inputs:
       ref:
-        description: "Optional commit SHA or tag to build"
+        description: "Optional exact commit SHA or tag to build"
         required: false
         default: ""
 
@@ -33,17 +30,54 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Show exact commit
+      - name: Record exact build inputs
+        shell: bash
         run: |
-          echo "Building commit:"
-          git rev-parse HEAD
+          set -euo pipefail
+
+          mkdir -p release/meta
+
+          git rev-parse HEAD \
+            > release/meta/source-commit.txt
+
+          git submodule status --recursive \
+            > release/meta/submodules.txt
+
+          sha256sum bootloader/keys/production/pubkeys.c \
+            > release/meta/production-pubkeys.sha256
+
+          python3 bootloader/tools/parse_pubkeys.py \
+            bootloader/keys/production/pubkeys.c \
+            > release/meta/production-keys.txt
+
+          BOOT_THRESHOLD="$(
+            sed -n \
+              's/.*\.bootloader_sig_threshold = \([0-9][0-9]*\).*/\1/p' \
+              bootloader/keys/production/pubkeys.c |
+            tail -1
+          )"
+
+          MAIN_THRESHOLD="$(
+            sed -n \
+              's/.*\.main_fw_sig_threshold = \([0-9][0-9]*\).*/\1/p' \
+              bootloader/keys/production/pubkeys.c |
+            tail -1
+          )"
+
+          if [ -z "$BOOT_THRESHOLD" ] || [ -z "$MAIN_THRESHOLD" ]; then
+            echo "ERROR: Could not determine production signature thresholds."
+            exit 1
+          fi
+
+          echo "BOOT_THRESHOLD=$BOOT_THRESHOLD" >> "$GITHUB_ENV"
+          echo "MAIN_THRESHOLD=$MAIN_THRESHOLD" >> "$GITHUB_ENV"
 
       - name: Configure production public keys
         run: |
           cp bootloader/keys/production/pubkeys.c \
              bootloader/keys/selfsigned/pubkeys.c
 
-      - name: Build Docker image
+      - name: Build reproducible Docker image
         run: |
           docker build \
             --platform linux/amd64 \
@@ -68,64 +102,115 @@ jobs:
               ownership \
             | tee build.log
 
-      - name: Create release build summary
+          if [ ! -f release/sha256.txt ]; then
+            echo "ERROR: Build did not create release/sha256.txt"
+            exit 1
+          fi
+
+          # This manifest is PRE-SIGN only.
+          # Rename it so it cannot be confused with the final release manifest.
+          mv release/sha256.txt release/sha256.presign.txt
+
+      - name: Create reproducible build summary
         shell: bash
         run: |
           set -euo pipefail
 
-          MESSAGE="$(grep -Eo '[0-9]+\.[0-9]+\.[0-9]+-[a-z0-9]+' build.log | tail -1)"
+          MESSAGE="$(
+            grep -Eo \
+              '[0-9]+\.[0-9]+\.[0-9]+-[a-z0-9]+' \
+              build.log |
+            tail -1
+          )"
+
           COMMIT="$(git rev-parse HEAD)"
 
+          KEYSET_HASH="$(
+            awk '{print $1}' \
+              release/meta/production-pubkeys.sha256
+          )"
+
           if [ -z "$MESSAGE" ]; then
-            echo "ERROR: Could not find message to sign"
+            echo "ERROR: Could not find firmware signing message."
             exit 1
           fi
-
-          if [ ! -f release/sha256.txt ]; then
-            echo "ERROR: release/sha256.txt was not generated"
-            exit 1
-          fi
-
-          echo ""
-          echo "============================================================"
-          echo "MESSAGE TO SIGN WITH VENDOR KEYS"
-          echo "$MESSAGE"
-          echo "============================================================"
-          echo ""
-          echo "COMMIT"
-          echo "$COMMIT"
-          echo ""
-          echo "ARTIFACT SHA256"
-          cat release/sha256.txt
-          echo ""
 
           {
-            echo "# Specter DIY Reproducible Release Build"
+            echo "# Specter DIY Reproducible Firmware Build"
             echo ""
-            echo "### Source commit"
+
+            echo "## Source"
+            echo ""
+            echo "**Commit:**"
             echo ""
             echo "\`$COMMIT\`"
             echo ""
-            echo "### 🔐 Message to sign with vendor keys"
+
+            echo "**Submodules:**"
             echo ""
-            echo "> **This is the message release signers should sign.**"
+            echo '```text'
+            cat release/meta/submodules.txt
+            echo '```'
+            echo ""
+
+            echo "## 🔐 Firmware signing message"
+            echo ""
+            echo "> ⚠️ **This section is for authorized Specter DIY release signers, not general users.**"
+            echo ">"
+            echo "> This release requires at least **$BOOT_THRESHOLD valid signatures**"
+            echo "> from authorized Specter DIY **production vendor keys**."
+            echo ">"
+            echo "> Only keys contained in the production bootloader key set are accepted."
+            echo ""
+
+            echo "**Each authorized release signer signs this exact message:**"
             echo ""
             echo '```text'
             echo "$MESSAGE"
             echo '```'
             echo ""
-            echo "### 📦 Artifact SHA-256"
+
+            echo "## Production signing configuration"
+            echo ""
+            echo "**Bootloader signature threshold:** $BOOT_THRESHOLD"
+            echo ""
+            echo "**Main firmware signature threshold:** $MAIN_THRESHOLD"
+            echo ""
+            echo "**Production key-set SHA-256:**"
+            echo ""
+            echo "\`$KEYSET_HASH\`"
+            echo ""
+
+            echo "**Production keys:**"
             echo ""
             echo '```text'
-            cat release/sha256.txt
+            cat release/meta/production-keys.txt
             echo '```'
             echo ""
-            echo "### Build result"
+
+            echo "## 📦 Pre-sign reproducible-build hashes"
             echo ""
-            echo "✅ Reproducible firmware build completed successfully."
+            echo "> ⚠️ **These are NOT the final release hashes.**"
+            echo ">"
+            echo "> They were generated before the required firmware signatures were imported."
+            echo "> Use them for reproducible-build comparison only."
+            echo ">"
+            echo "> Do NOT publish this file as \`sha256.signed.txt\`."
+            echo ""
+
+            echo '```text'
+            cat release/sha256.presign.txt
+            echo '```'
+            echo ""
+
+            echo "## ✅ Result"
+            echo ""
+            echo "Reproducible unsigned firmware build completed successfully."
+            echo ""
+            echo "➡️ **Next step: collect at least $BOOT_THRESHOLD valid production vendor signatures for the message above.**"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload build results
+      - name: Upload reproducible build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: specter-reproducible-build
@@ -133,5 +218,7 @@ jobs:
             release/specter_upgrade.bin
             release/specter_upgrade_unsigned.bin
             release/initial_firmware.bin
-            release/sha256.txt
+            release/sha256.presign.txt
+            release/meta/
             build.log
+          retention-days: 90
