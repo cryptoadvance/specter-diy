@@ -24,11 +24,12 @@ jobs:
 
     steps:
       - name: Checkout exact source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Record exact build inputs
         shell: bash
@@ -111,17 +112,35 @@ jobs:
           # Rename it so it cannot be confused with the final release manifest.
           mv release/sha256.txt release/sha256.presign.txt
 
-      - name: Create reproducible build summary
+      - name: Derive firmware signing message from the built binary
         shell: bash
         run: |
           set -euo pipefail
 
+          # Do NOT parse this out of the human-readable build log. Ask the tool
+          # that actually produces it, so the string the offline signers sign is
+          # bound to the binary and not to log formatting.
           MESSAGE="$(
-            grep -Eo \
-              '[0-9]+\.[0-9]+\.[0-9]+-[a-z0-9]+' \
-              build.log |
-            tail -1
+            docker run --rm \
+              --platform linux/amd64 \
+              -v "$PWD:/app" \
+              specter-reproducible \
+              python3 ./bootloader/tools/upgrade-generator.py \
+                message ./release/specter_upgrade.bin
           )"
+
+          if [ -z "$MESSAGE" ]; then
+            echo "ERROR: empty firmware signing message."
+            exit 1
+          fi
+
+          printf '%s\n' "$MESSAGE" > release/meta/signing-message.txt
+          echo "SIGNING_MESSAGE=$MESSAGE" >> "$GITHUB_ENV"
+
+      - name: Create reproducible build summary
+        shell: bash
+        run: |
+          set -euo pipefail
 
           COMMIT="$(git rev-parse HEAD)"
 
@@ -129,11 +148,6 @@ jobs:
             awk '{print $1}' \
               release/meta/production-pubkeys.sha256
           )"
-
-          if [ -z "$MESSAGE" ]; then
-            echo "ERROR: Could not find firmware signing message."
-            exit 1
-          fi
 
           {
             echo "# Specter DIY Reproducible Firmware Build"
@@ -163,10 +177,11 @@ jobs:
             echo "> Only keys contained in the production bootloader key set are accepted."
             echo ""
 
-            echo "**Each authorized release signer signs this exact message:**"
+            echo "**Each authorized release signer signs this exact message"
+            echo "(Bitcoin-style message signature, Base64):**"
             echo ""
             echo '```text'
-            echo "$MESSAGE"
+            echo "$SIGNING_MESSAGE"
             echo '```'
             echo ""
 
@@ -211,7 +226,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload reproducible build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: specter-reproducible-build
           path: |
@@ -222,3 +237,4 @@ jobs:
             release/meta/
             build.log
           retention-days: 90
+          if-no-files-found: error
