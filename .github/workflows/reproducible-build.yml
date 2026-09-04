@@ -23,6 +23,31 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      - name: Require the master version of this workflow
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # workflow_dispatch runs the copy of this file that lives on the ref it
+          # was dispatched from. This step refuses to run any version other than
+          # the reviewed one on master, so a branch cannot produce an
+          # official-looking signing request with a tampered workflow.
+          #
+          # Defence in depth, not a hard boundary on its own: a branch copy could
+          # delete this step. Pair it with required review on
+          # .github/workflows/**.
+          expected="$REPO/.github/workflows/reproducible-build.yml@refs/heads/master"
+          if [ "$WORKFLOW_REF" != "$expected" ]; then
+            echo "ERROR: this workflow must run from master."
+            echo "  running: $WORKFLOW_REF"
+            echo "  expected: $expected"
+            exit 1
+          fi
+          echo "OK: running the master version of this workflow."
+
       - name: Checkout exact source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
