@@ -1,5 +1,24 @@
 name: Reproducible Firmware Build
 
+# ---------------------------------------------------------------------------
+# Triggers:
+#   * push to master touching boot/main/boot.py (i.e. a firmware version bump)
+#   * repository_dispatch (type "reproducible-build") for an exact commit/tag
+#
+# repository_dispatch is used instead of workflow_dispatch on purpose:
+# repository_dispatch always runs the workflow definition from the default
+# branch, regardless of any ref in the payload. A compromised write account
+# therefore cannot push a branch with a tampered version of this file and run
+# "that" version to produce an official-looking signing request. The
+# github.workflow_ref check below is kept only as a cheap sanity assertion.
+#
+# Start a manual build (needs a token with `contents: write` on the repo):
+#
+#   gh api repos/cryptoadvance/specter-diy/dispatches \
+#     -f event_type=reproducible-build \
+#     -F 'client_payload[ref]=v1.10.5'      # optional; omit to build master HEAD
+# ---------------------------------------------------------------------------
+
 on:
   push:
     branches:
@@ -7,12 +26,8 @@ on:
     paths:
       - boot/main/boot.py
 
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Optional exact commit SHA or tag to build"
-        required: false
-        default: ""
+  repository_dispatch:
+    types: [reproducible-build]
 
 permissions:
   contents: read
@@ -21,6 +36,9 @@ jobs:
   reproducible-build:
     name: Build reproducible firmware
     runs-on: ubuntu-24.04
+
+    env:
+      BUILD_REF: ${{ github.event.client_payload.ref }}
 
     steps:
       - name: Require the master version of this workflow
@@ -31,17 +49,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          # workflow_dispatch runs the copy of this file that lives on the ref it
-          # was dispatched from. This step refuses to run any version other than
-          # the reviewed one on master, so a branch cannot produce an
-          # official-looking signing request with a tampered workflow.
-          #
-          # Defence in depth, not a hard boundary on its own: a branch copy could
-          # delete this step. Pair it with required review on
-          # .github/workflows/**.
+          # With push / repository_dispatch GitHub always loads this file from
+          # the default branch, so this is the enforced version by construction.
+          # This check is only a sanity assertion in case the default branch is
+          # ever renamed away from "master" (update the expected value then).
           expected="$REPO/.github/workflows/reproducible-build.yml@refs/heads/master"
           if [ "$WORKFLOW_REF" != "$expected" ]; then
-            echo "ERROR: this workflow must run from master."
+            echo "ERROR: unexpected workflow ref."
             echo "  running: $WORKFLOW_REF"
             echo "  expected: $expected"
             exit 1
@@ -51,7 +65,7 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ env.BUILD_REF || github.sha }}
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
@@ -61,11 +75,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # A manual run against an arbitrary branch/commit would still produce
-          # an official-looking "authorized signers, please sign this message"
-          # summary. Only refs that are part of the reviewed master history may
-          # produce a release signing request. Historical commits and tags on
-          # master keep working.
+          # Only refs that are part of the reviewed master history may produce a
+          # release signing request. Historical commits and tags on master keep
+          # working; arbitrary branches do not.
           git fetch --no-tags --quiet origin \
             "+refs/heads/master:refs/remotes/origin/master"
 
