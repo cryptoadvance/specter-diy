@@ -31,6 +31,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Refuse unreviewed refs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # A manual run against an arbitrary branch/commit would still produce
+          # an official-looking "authorized signers, please sign this message"
+          # summary. Only refs that are part of the reviewed master history may
+          # produce a release signing request. Historical commits and tags on
+          # master keep working.
+          git fetch --no-tags --quiet origin \
+            "+refs/heads/master:refs/remotes/origin/master"
+
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/master; then
+            echo "ERROR: this ref is not part of reviewed master history."
+            echo "Refusing to produce a release signing request for unreviewed code."
+            exit 1
+          fi
+
+          echo "OK: build ref is contained in origin/master history."
+
       - name: Record exact build inputs
         shell: bash
         run: |
