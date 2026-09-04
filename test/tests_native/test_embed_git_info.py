@@ -207,11 +207,130 @@ class GitInfoReproducibilityTest(TestCase):
             )
             self.assertIn("BRANCH = 'release-test'", content_a)
             self.assertIn("COMMIT = %r" % commit, content_a)
+            self.assertIn("WORKING_TREE = 'Clean'", content_a)
             self.assertIn(
                 "REPOSITORY = 'https://example.invalid/other/specter-diy.git'",
                 content_b,
             )
             self.assertIn("COMMIT = %r" % commit, content_b)
+
+            (clone_a / "payload.txt").write_text("modified source\n")
+            modified_content = run_script(root / "git-info-modified.py", clone_a)
+            self.assertIn("WORKING_TREE = 'Modified'", modified_content)
+
+    def test_developer_build_counts_non_ignored_untracked_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            checkout = root / "checkout"
+            checkout.mkdir()
+
+            run_git(checkout, "init")
+            run_git(checkout, "config", "user.name", "Specter Test")
+            run_git(checkout, "config", "user.email", "specter@example.invalid")
+            (checkout / "payload.txt").write_text("source\n")
+            run_git(checkout, "add", "payload.txt")
+            run_git(checkout, "commit", "-m", "fixture")
+
+            (checkout / "new-source.txt").write_text("untracked source\n")
+            content = run_script(root / "git-info.py", checkout)
+
+            self.assertIn("WORKING_TREE = 'Modified'", content)
+
+    def test_developer_build_ignores_ignored_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            checkout = root / "checkout"
+            checkout.mkdir()
+
+            run_git(checkout, "init")
+            run_git(checkout, "config", "user.name", "Specter Test")
+            run_git(checkout, "config", "user.email", "specter@example.invalid")
+            (checkout / ".gitignore").write_text("build/\n")
+            (checkout / "payload.txt").write_text("source\n")
+            run_git(checkout, "add", ".gitignore", "payload.txt")
+            run_git(checkout, "commit", "-m", "fixture")
+
+            build_dir = checkout / "build"
+            build_dir.mkdir()
+            (build_dir / "firmware.bin").write_bytes(b"generated")
+            content = run_script(root / "git-info.py", checkout)
+
+            self.assertIn("WORKING_TREE = 'Clean'", content)
+
+    def test_developer_build_counts_changes_in_initialized_submodules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            nested_source = root / "nested-source"
+            submodule_source = root / "submodule-source"
+            checkout = root / "checkout"
+            nested_source.mkdir()
+            submodule_source.mkdir()
+            checkout.mkdir()
+
+            run_git(nested_source, "init")
+            run_git(nested_source, "config", "user.name", "Specter Test")
+            run_git(
+                nested_source,
+                "config",
+                "user.email",
+                "specter@example.invalid",
+            )
+            (nested_source / "payload.txt").write_text("nested source\n")
+            run_git(nested_source, "add", "payload.txt")
+            run_git(nested_source, "commit", "-m", "nested fixture")
+
+            run_git(submodule_source, "init")
+            run_git(submodule_source, "config", "user.name", "Specter Test")
+            run_git(
+                submodule_source,
+                "config",
+                "user.email",
+                "specter@example.invalid",
+            )
+            (submodule_source / "payload.txt").write_text("submodule source\n")
+            run_git(submodule_source, "add", "payload.txt")
+            run_git(submodule_source, "commit", "-m", "submodule fixture")
+            run_git(
+                submodule_source,
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                str(nested_source),
+                "dependencies/nested",
+            )
+            run_git(submodule_source, "commit", "-am", "add nested fixture")
+
+            run_git(checkout, "init")
+            run_git(checkout, "config", "user.name", "Specter Test")
+            run_git(checkout, "config", "user.email", "specter@example.invalid")
+            run_git(
+                checkout,
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                str(submodule_source),
+                "firmware",
+            )
+            run_git(checkout, "commit", "-am", "parent fixture")
+            run_git(
+                checkout,
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            )
+
+            clean_content = run_script(root / "git-info-clean.py", checkout)
+            self.assertIn("WORKING_TREE = 'Clean'", clean_content)
+
+            nested_checkout = checkout / "firmware" / "dependencies" / "nested"
+            (nested_checkout / "payload.txt").write_text("modified source\n")
+            modified_content = run_script(root / "git-info-modified.py", checkout)
+            self.assertIn("WORKING_TREE = 'Modified'", modified_content)
 
     def test_without_git_metadata_uses_stable_unknown_values(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -223,6 +342,7 @@ class GitInfoReproducibilityTest(TestCase):
             self.assertIn("REPOSITORY = 'unknown'", content)
             self.assertIn("BRANCH = 'unknown'", content)
             self.assertIn("COMMIT = 'unknown'", content)
+            self.assertIn("WORKING_TREE = 'unknown'", content)
 
     def test_without_origin_uses_unknown_repository(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -265,6 +385,7 @@ class GitInfoReproducibilityTest(TestCase):
             self.assertIn("REPOSITORY = 'unknown'", from_checkout)
             self.assertIn("BRANCH = 'unknown'", from_checkout)
             self.assertIn("COMMIT = 'unknown'", from_checkout)
+            self.assertIn("WORKING_TREE = 'unknown'", from_checkout)
             self.assertNotIn(commit, from_checkout)
 
     def test_make_forwards_reproducible_mode(self):
