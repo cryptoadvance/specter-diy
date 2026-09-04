@@ -1,0 +1,682 @@
+name: Release Finalization & Verification
+
+# ---------------------------------------------------------------------------
+# Trigger: repository_dispatch only (NOT workflow_dispatch).
+#
+# `repository_dispatch` always runs the workflow definition from the
+# repository's DEFAULT branch, regardless of any ref in the payload. That is
+# the hard trust boundary this release gate needs: a compromised write account
+# cannot push a branch with the verification logic stripped out and then run
+# "that" version of the workflow, the way it could with `workflow_dispatch`
+# and its selectable ref. The `github.workflow_ref` check below is kept only
+# as a cheap sanity assertion.
+#
+# How to start a run (needs a token with `contents: write` on the repo):
+#
+#   gh api repos/cryptoadvance/specter-diy/dispatches \
+#     -f event_type=release-finalize \
+#     -F 'client_payload[release_tag]=v1.10.5' \
+#     -F 'client_payload[signature_1]=<base64>' \
+#     -F 'client_payload[signature_2]=<base64>' \
+#     -F 'client_payload[signature_3]=' \
+#     -F 'client_payload[signature_4]='
+#
+# client_payload fields:
+#   release_tag  (required)  exact release tag, e.g. v1.10.5 / v1.10.5-rc2
+#   signature_1  (required)  vendor signature, Base64
+#   signature_2  (required)  vendor signature, Base64
+#   signature_3  (optional)  vendor signature, Base64
+#   signature_4  (optional)  vendor signature, Base64
+# ---------------------------------------------------------------------------
+
+on:
+  repository_dispatch:
+    types: [release-finalize]
+
+permissions:
+  contents: read
+
+jobs:
+  finalize:
+    name: Verify and finalize signed release firmware
+    runs-on: ubuntu-24.04
+
+    # Every `run:` step operates on the RELEASE-TAG checkout (source/). The one
+    # exception is the authoritative signature gate, which runs from the
+    # MASTER checkout (trusted/) - see that step.
+    defaults:
+      run:
+        working-directory: source
+
+    env:
+      RELEASE_TAG: ${{ github.event.client_payload.release_tag }}
+      SIG1: ${{ github.event.client_payload.signature_1 }}
+      SIG2: ${{ github.event.client_payload.signature_2 }}
+      SIG3: ${{ github.event.client_payload.signature_3 }}
+      SIG4: ${{ github.event.client_payload.signature_4 }}
+
+    steps:
+      - name: Require the master version of this workflow
+        working-directory: ${{ github.workspace }}
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # With the repository_dispatch trigger GitHub always loads this file
+          # from the default branch, so this is the enforced version by
+          # construction. This check is only a cheap sanity assertion in case
+          # the default branch is ever renamed away from "master" (update the
+          # expected value here at the same time).
+          expected="$REPO/.github/workflows/release-finalize.yml@refs/heads/master"
+          if [ "$WORKFLOW_REF" != "$expected" ]; then
+            echo "ERROR: unexpected workflow ref."
+            echo "  running: $WORKFLOW_REF"
+            echo "  expected: $expected"
+            exit 1
+          fi
+          echo "OK: running the master version of this workflow."
+
+      # trusted/ = the reviewed master checkout. With repository_dispatch this is
+      # always the default branch. The authoritative verifier and its bootloader
+      # tooling are run from here, never from the release tag.
+      - name: Checkout trusted tooling (master)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: trusted
+          submodules: recursive
+          persist-credentials: false
+
+      # source/ = the exact release tag. Everything that is built or inspected
+      # comes from here.
+      - name: Checkout exact release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          path: source
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python for the trusted verifier
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Install trusted verifier dependencies
+        working-directory: ${{ github.workspace }}
+        # Fully pinned + hashed, and taken from trusted/ (master), so the
+        # authoritative gate never runs against unverified code from PyPI.
+        run: pip install --require-hashes -r trusted/tools/release-requirements.txt
+
+      - name: Validate release tag and bind it to reviewed master
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RELEASE_TAG:-}" ]; then
+            echo "ERROR: client_payload.release_tag is missing."
+            exit 1
+          fi
+
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+            echo "ERROR: release_tag must look like v1.10.5 or v1.10.5-rc2."
+            echo "       Got: $RELEASE_TAG"
+            exit 1
+          fi
+
+          if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            echo "ERROR: Tag $RELEASE_TAG does not exist."
+            exit 1
+          fi
+
+          TAG_COMMIT="$(git rev-list -n 1 "$RELEASE_TAG")"
+          HEAD_COMMIT="$(git rev-parse HEAD)"
+
+          if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+            echo "ERROR: Checked-out commit does not match release tag."
+            echo "Tag:  $TAG_COMMIT"
+            echo "HEAD: $HEAD_COMMIT"
+            exit 1
+          fi
+
+          # The tag must point at a commit that is part of the reviewed master
+          # history. Otherwise a tag could be moved onto arbitrary code and this
+          # workflow would still happily build and "verify" it.
+          git fetch --no-tags --quiet origin \
+            "+refs/heads/master:refs/remotes/origin/master"
+
+          if ! git merge-base --is-ancestor \
+                 "$TAG_COMMIT" refs/remotes/origin/master; then
+            echo "ERROR: Release tag $RELEASE_TAG ($TAG_COMMIT) is not an"
+            echo "       ancestor of origin/master. Only tags on reviewed"
+            echo "       master history can be finalized."
+            exit 1
+          fi
+
+          VERSION="${RELEASE_TAG#v}"
+
+          BOOT_THRESHOLD="$(
+            sed -n \
+              's/.*\.bootloader_sig_threshold = \([0-9][0-9]*\).*/\1/p' \
+              bootloader/keys/production/pubkeys.c |
+            tail -1
+          )"
+
+          MAIN_THRESHOLD="$(
+            sed -n \
+              's/.*\.main_fw_sig_threshold = \([0-9][0-9]*\).*/\1/p' \
+              bootloader/keys/production/pubkeys.c |
+            tail -1
+          )"
+
+          if [ -z "$BOOT_THRESHOLD" ] || [ -z "$MAIN_THRESHOLD" ]; then
+            echo "ERROR: Could not determine signature thresholds."
+            exit 1
+          fi
+
+          if [ "$BOOT_THRESHOLD" -gt 4 ]; then
+            echo "ERROR: Production threshold is now >4."
+            echo "This workflow currently exposes four signature inputs and must be updated."
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG_COMMIT=$TAG_COMMIT" >> "$GITHUB_ENV"
+          echo "BOOT_THRESHOLD=$BOOT_THRESHOLD" >> "$GITHUB_ENV"
+          echo "MAIN_THRESHOLD=$MAIN_THRESHOLD" >> "$GITHUB_ENV"
+
+          mkdir -p release/meta
+
+          printf '%s\n' "$TAG_COMMIT" \
+            > release/meta/source-commit.txt
+
+          git submodule status --recursive \
+            > release/meta/submodules.txt
+
+          sha256sum bootloader/keys/production/pubkeys.c \
+            > release/meta/production-pubkeys.sha256
+
+          python3 bootloader/tools/parse_pubkeys.py \
+            bootloader/keys/production/pubkeys.c \
+            > release/meta/production-keys.txt
+
+      - name: Configure production public keys
+        run: |
+          cp bootloader/keys/production/pubkeys.c \
+             bootloader/keys/selfsigned/pubkeys.c
+
+      - name: Build reproducible Docker image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -t specter-reproducible .
+
+      - name: Rebuild unsigned release from exact tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$PWD:/app" \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            specter-reproducible \
+            ./build_firmware.sh \
+              main \
+              bootloader \
+              assemble \
+              ownership \
+            | tee build.log
+
+          test -f release/specter_upgrade.bin
+          test -f release/specter_upgrade_unsigned.bin
+          test -f release/initial_firmware.bin
+
+      - name: Verify release tag matches firmware version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DUMP="$(
+            docker run --rm \
+              --platform linux/amd64 \
+              -v "$PWD:/app" \
+              specter-reproducible \
+              python3 ./bootloader/tools/upgrade-generator.py \
+                dump ./release/specter_upgrade.bin
+          )"
+          printf '%s\n' "$DUMP" > release/meta/upgrade-dump-before.txt
+
+          # Version of the "main" payload section, display format
+          # (e.g. "1.10.5" or "1.10.5-rc3").
+          MAIN_VER="$(
+            printf '%s\n' "$DUMP" \
+              | awk '/^SECTION "main"/{f=1} f&&/^  version:/{print $2; exit}'
+          )"
+
+          if [ -z "$MAIN_VER" ]; then
+            echo "ERROR: could not read main firmware version from upgrade file."
+            exit 1
+          fi
+
+          if [ "$MAIN_VER" != "$VERSION" ]; then
+            echo "ERROR: main firmware version ($MAIN_VER) does not match"
+            echo "       release tag version ($VERSION)."
+            exit 1
+          fi
+
+          BEFORE_MESSAGE="$(
+            docker run --rm \
+              --platform linux/amd64 \
+              -v "$PWD:/app" \
+              specter-reproducible \
+              python3 ./bootloader/tools/upgrade-generator.py \
+                message ./release/specter_upgrade.bin
+          )"
+
+          printf '%s\n' "$BEFORE_MESSAGE" \
+            > release/meta/signing-message-before.txt
+
+          echo "SIGNING_MESSAGE=$BEFORE_MESSAGE" >> "$GITHUB_ENV"
+
+      - name: Import external vendor signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          COUNT=0
+
+          for SIG in "$SIG1" "$SIG2" "$SIG3" "$SIG4"; do
+            if [ -z "$SIG" ]; then
+              continue
+            fi
+
+            # Fail fast on anything that is not plain Base64. Passed via
+            # client_payload, so reject early with a clear message rather than
+            # letting a malformed value fall through to the signing tool.
+            if [[ ! "$SIG" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+              echo "ERROR: signature is not valid Base64: ${SIG:0:12}..."
+              exit 1
+            fi
+
+            docker run --rm \
+              --platform linux/amd64 \
+              -v "$PWD:/app" \
+              specter-reproducible \
+              python3 ./bootloader/tools/upgrade-generator.py \
+                import-sig \
+                -s "$SIG" \
+                ./release/specter_upgrade.bin
+
+            COUNT=$((COUNT + 1))
+          done
+
+          echo "Provided signature count: $COUNT"
+          echo "Required threshold: $BOOT_THRESHOLD"
+
+          if [ "$COUNT" -lt "$BOOT_THRESHOLD" ]; then
+            echo "ERROR: Fewer signatures were provided than the production threshold."
+            exit 1
+          fi
+
+          echo "PROVIDED_SIG_COUNT=$COUNT" >> "$GITHUB_ENV"
+
+      - name: Verify signing did not modify firmware payload
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BEFORE_MESSAGE="$(
+            cat release/meta/signing-message-before.txt
+          )"
+
+          AFTER_MESSAGE="$(
+            docker run --rm \
+              --platform linux/amd64 \
+              -v "$PWD:/app" \
+              specter-reproducible \
+              python3 ./bootloader/tools/upgrade-generator.py \
+                message \
+                ./release/specter_upgrade.bin
+          )"
+
+          printf '%s\n' "$AFTER_MESSAGE" \
+            > release/meta/signing-message-after.txt
+
+          if [ "$BEFORE_MESSAGE" != "$AFTER_MESSAGE" ]; then
+            echo "ERROR: Firmware signing message changed after importing signatures."
+            echo "This indicates that the signed payload changed."
+            exit 1
+          fi
+
+          echo "Payload signing message unchanged."
+
+      - name: Enforce bootloader signature policy (trusted verifier from master)
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Authoritative signature gate. Both the verifier and the bootloader
+          # crypto/parsing code it imports are taken from trusted/ (master), not
+          # from the release tag, so a tag cannot ship a weakened verifier.
+          # verify_release_signatures.py reproduces the on-device
+          # verify_multisig() policy: a bootloader upgrade is accepted only on
+          # >= bootloader_sig_threshold valid signatures from VENDOR keys.
+          # Covered by tools/tests/ (release-tooling-tests.yml).
+
+          # The key set the release ships must be the reviewed master key set.
+          # A key or threshold change must go through an explicit transition
+          # procedure, not the normal finalization workflow.
+          master_keyset="$(sha256sum trusted/bootloader/keys/production/pubkeys.c | awk '{print $1}')"
+          tag_keyset="$(sha256sum source/bootloader/keys/production/pubkeys.c | awk '{print $1}')"
+          if [ "$master_keyset" != "$tag_keyset" ]; then
+            echo "ERROR: production key set differs between master and the"
+            echo "       release tag ($tag_keyset vs $master_keyset)."
+            echo "       Key rotation / threshold changes are out of scope for"
+            echo "       this workflow."
+            exit 1
+          fi
+
+          python3 trusted/tools/verify_release_signatures.py \
+            --upgrade source/release/specter_upgrade.bin \
+            --pubkeys trusted/bootloader/keys/production/pubkeys.c \
+            --boot-threshold "$BOOT_THRESHOLD" \
+            --main-threshold "$MAIN_THRESHOLD" \
+            --provided-count "$PROVIDED_SIG_COUNT" \
+          | tee source/release/meta/vendor-policy-check.txt
+
+      - name: Cross-check with introspect-binary.py
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Secondary, non-authoritative check. Uses the upstream helper as an
+          # independent second implementation. See the vendor-policy step above
+          # for the gate that actually decides pass/fail.
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$PWD:/app" \
+            specter-reproducible \
+            python3 ./bootloader/tools/introspect-binary.py \
+              --type upgrade \
+              --pubkeys ./bootloader/keys/production/pubkeys.c \
+              --boot-threshold "$BOOT_THRESHOLD" \
+              --main-threshold "$MAIN_THRESHOLD" \
+              ./release/specter_upgrade.bin \
+            | tee release/introspection-upgrade.txt
+
+      - name: Dump final upgrade structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$PWD:/app" \
+            specter-reproducible \
+            python3 ./bootloader/tools/upgrade-generator.py \
+              dump \
+              ./release/specter_upgrade.bin \
+            | tee release/upgrade-dump.txt
+
+      - name: Inspect initial firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$PWD:/app" \
+            specter-reproducible \
+            python3 ./bootloader/tools/introspect-binary.py \
+              --type initial \
+              --pubkeys ./bootloader/keys/production/pubkeys.c \
+              ./release/initial_firmware.bin \
+            | tee release/introspection-initial.txt
+
+      - name: Validate initial firmware integrity check record
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Real structural validation of the ICR at the end of
+          # initial_firmware.bin: magic, supported struct revision, and the
+          # record's own CRC32. Full payload-CRC validation needs the memory
+          # map and is left to dedicated bootloader tooling.
+          VERSION="$VERSION" python3 - <<'PY' | tee release/meta/icr-check.txt
+          import os, struct, sys, zlib
+
+          data = open("release/initial_firmware.bin", "rb").read()
+          if len(data) < 32:
+              print("ERROR: initial firmware too small to contain an ICR")
+              sys.exit(1)
+
+          icr = data[-32:]
+          (magic, struct_rev, pl_ver,
+           main_size, main_crc, aux_size, aux_crc, struct_crc) = struct.unpack("<8I", icr)
+
+          if magic != 0x47544E49:  # "INTG" little-endian
+              print(f"ERROR: ICR magic mismatch: 0x{magic:08x}")
+              sys.exit(1)
+
+          if struct_rev != 1:
+              print(f"ERROR: unsupported ICR struct revision: {struct_rev}")
+              sys.exit(1)
+
+          calc_crc = zlib.crc32(icr[:28]) & 0xffffffff
+          if calc_crc != struct_crc:
+              print(f"ERROR: ICR self-CRC invalid "
+                    f"(stored 0x{struct_crc:08x}, computed 0x{calc_crc:08x})")
+              sys.exit(1)
+
+          major = pl_ver // 100_000_000
+          minor = pl_ver // 100_000 % 1000
+          patch = pl_ver // 100 % 1000
+          rc = pl_ver % 100
+          icr_ver = f"{major}.{minor}.{patch}" + ("" if rc == 99 else f"-rc{rc}")
+
+          print(f"ICR OK: struct_rev={struct_rev} payload_version={icr_ver} "
+                f"main_size={main_size} self_crc=0x{struct_crc:08x}")
+
+          want = os.environ.get("VERSION", "")
+          if want and icr_ver != want:
+              print(f"ERROR: ICR payload version ({icr_ver}) does not match "
+                    f"release tag version ({want}).")
+              sys.exit(1)
+          PY
+
+      - name: Verify expected production keys are present in initial firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+
+          tools = Path("bootloader/tools").resolve()
+          sys.path.insert(0, str(tools))
+
+          from parse_pubkeys import get_pubkey_info
+
+          pubkeys_path = Path("bootloader/keys/production/pubkeys.c")
+          binary_path = Path("release/initial_firmware.bin")
+
+          info = get_pubkey_info(str(pubkeys_path))
+          binary = binary_path.read_bytes()
+
+          expected = {}
+
+          for key_type in ("vendor", "maintainer"):
+              for owner, fingerprint, pubkey in info[key_type]:
+                  if pubkey not in expected:
+                      expected[pubkey] = {
+                          "owner": owner,
+                          "fingerprint": fingerprint,
+                          "types": set(),
+                      }
+
+                  expected[pubkey]["types"].add(key_type)
+
+          missing = []
+
+          print(f"Checking {len(expected)} unique production public keys are "
+                f"present as byte sequences in the image:")
+
+          for pubkey, meta in expected.items():
+              types = "/".join(sorted(meta["types"]))
+
+              if pubkey in binary:
+                  print(
+                      f"OK: {meta['owner']} "
+                      f"({types}) {meta['fingerprint']}"
+                  )
+              else:
+                  missing.append(meta)
+                  print(
+                      f"MISSING: {meta['owner']} "
+                      f"({types}) {meta['fingerprint']}"
+                  )
+
+          if missing:
+              print("ERROR: Not all expected production keys are present in the image.")
+              sys.exit(1)
+
+          print("All expected production keys are present in the image.")
+          print("NOTE: this confirms presence only, not that they form the "
+                "bootloader's effective active key set / thresholds.")
+          PY
+
+      - name: Prepare final release files and SHA-256 manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FINAL_DIR="final-release"
+
+          mkdir -p "$FINAL_DIR/verification"
+
+          cp release/specter_upgrade.bin \
+            "$FINAL_DIR/specter_upgrade_${RELEASE_TAG}.bin"
+
+          cp release/initial_firmware.bin \
+            "$FINAL_DIR/initial_firmware_${RELEASE_TAG}.bin"
+
+          # The unsigned upgrade is a reproducibility artifact, not part of the
+          # signed release. Keep it out of final-release/sha256.txt so that
+          # manifest only covers files that carry the vendor signatures.
+          cp release/specter_upgrade_unsigned.bin \
+            "$FINAL_DIR/verification/specter_upgrade_unsigned_${RELEASE_TAG}.bin"
+
+          cp release/introspection-upgrade.txt \
+            "$FINAL_DIR/verification/"
+
+          cp release/introspection-initial.txt \
+            "$FINAL_DIR/verification/"
+
+          cp release/upgrade-dump.txt \
+            "$FINAL_DIR/verification/"
+
+          cp build.log \
+            "$FINAL_DIR/verification/"
+
+          cp -r release/meta \
+            "$FINAL_DIR/verification/meta"
+
+          (
+            cd "$FINAL_DIR"
+            sha256sum -- *.bin > sha256.txt
+          )
+
+      - name: Create final release summary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KEYSET_HASH="$(
+            awk '{print $1}' \
+              release/meta/production-pubkeys.sha256
+          )"
+
+          {
+            echo "# Specter DIY Release Finalization"
+            echo ""
+
+            echo "## ✅ Verification results"
+            echo ""
+            echo "- Release tag exists: **$RELEASE_TAG**"
+            echo "- Tag commit: \`$TAG_COMMIT\`"
+            echo "- Tag commit is an ancestor of \`origin/master\` (reviewed history)"
+            echo "- Main firmware version matches tag: **$VERSION**"
+            echo "- Firmware signing message unchanged while importing signatures"
+            echo "- **$PROVIDED_SIG_COUNT** signatures imported, all from production keys, no duplicate signer"
+            echo "- Release key set is byte-identical to the reviewed master key set"
+            echo "- Key set valid: thresholds within [1, number of eligible keys]"
+            echo "- Bootloader policy enforced by the **master** copy of \`verify_release_signatures.py\`: >= $BOOT_THRESHOLD valid **vendor** signatures"
+            echo "- Cross-checked with \`introspect-binary.py\` (from the release tag, non-authoritative)"
+            echo "- \`initial_firmware.bin\` ICR structurally valid (magic, revision, self-CRC, version)"
+            echo "- Expected production public keys present in \`initial_firmware.bin\`"
+            echo "- \`final-release/sha256.txt\` covers the signed upgrade + initial firmware (the unsigned reproducibility build is under \`verification/\`)"
+            echo ""
+
+            echo "## 🔐 Firmware signing message"
+            echo ""
+            echo '```text'
+            echo "$SIGNING_MESSAGE"
+            echo '```'
+            echo ""
+
+            echo "## Production key configuration"
+            echo ""
+            echo "**Bootloader threshold:** $BOOT_THRESHOLD"
+            echo ""
+            echo "**Main firmware threshold:** $MAIN_THRESHOLD"
+            echo ""
+            echo "**Production key-set SHA-256:**"
+            echo ""
+            echo "\`$KEYSET_HASH\`"
+            echo ""
+
+            echo "## 📦 FINAL release SHA-256 manifest"
+            echo ""
+            echo "> Hashes of \`specter_upgrade_${RELEASE_TAG}.bin\` (carries the vendor"
+            echo "> signatures) and \`initial_firmware_${RELEASE_TAG}.bin\`."
+            echo "> This is the manifest that must be GPG-signed."
+            echo ""
+            echo '```text'
+            cat final-release/sha256.txt
+            echo '```'
+            echo ""
+
+            echo "## 🔏 Remaining manual step: GPG-sign sha256.txt"
+            echo ""
+            echo "> ⚠️ The private GPG key must remain local/offline."
+            echo "> Do NOT upload it to GitHub Actions."
+            echo ""
+            echo "Sign the final manifest offline with the authorized release-manifest"
+            echo "signer defined by the current release policy / SECURITY.md, e.g.:"
+            echo ""
+            echo '```bash'
+            echo 'gpg --clearsign --output sha256.signed.txt sha256.txt'
+            echo '```'
+            echo ""
+
+            echo "### Status"
+            echo ""
+            echo "🟡 **Firmware finalization passed. Ready for final GPG manifest signing.**"
+            echo ""
+            echo "The release is not fully complete until \`sha256.signed.txt\` has been produced and verified."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload final release package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: specter-diy-${{ env.RELEASE_TAG }}-final
+          path: source/final-release/
+          retention-days: 90
+          if-no-files-found: error

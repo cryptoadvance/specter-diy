@@ -1,0 +1,19 @@
+# Runtime dependencies of the authoritative release signature gate
+# (tools/verify_release_signatures.py) and its tests (tools/tests/).
+#
+# Kept fully pinned + hashed in tools/release-requirements.txt so the gate does
+# not depend on whatever happens to be the latest release on PyPI at the time.
+# Regenerate after changing this file:
+#
+#   pip install pip-tools
+#   pip-compile --allow-unsafe --generate-hashes --strip-extras \
+#     -o tools/release-requirements.txt tools/release-requirements.in
+#
+# pytest is a runtime dependency only because bootloader/tools/core/blsection.py
+# imports it at module scope; the verifier itself does not use it.
+
+bitstring
+click
+cryptography
+intelhex
+pytest
