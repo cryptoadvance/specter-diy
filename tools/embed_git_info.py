@@ -35,11 +35,13 @@ def _sanitize_remote_url(url: Optional[str]) -> str:
 
     url = url.strip()
 
-    # SCP-like SSH syntax ([user@]host:path, e.g. git@github.com:org/repo.git)
-    # cannot carry credentials in a userinfo field; allow as-is. Anything
-    # else without a scheme (local paths, junk strings) is rejected.
+    # SCP-like SSH syntax (git@host:path, e.g. git@github.com:org/repo.git)
+    # has no credential field, but the user part could still carry PII
+    # (emails, internal usernames). Only the conventional "git" login used
+    # by major hosting services is allowlisted; anything else without a
+    # scheme (other users, local paths, junk strings) is rejected.
     if "://" not in url:
-        if re.match(r"^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+(:[0-9]+)?:[^/\\].*$", url):
+        if re.match(r"^git@[A-Za-z0-9._-]+(:[0-9]+)?:[^/\\].*$", url):
             return url
         return UNKNOWN_VALUE
 

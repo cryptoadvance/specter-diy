@@ -132,6 +132,20 @@ class GitUrlSanitizationTest(TestCase):
         result = self.module._sanitize_remote_url("github.com:org/repo.git")
         self.assertEqual("unknown", result)
 
+    def test_rejects_scp_like_with_non_git_user(self):
+        """scp-like remotes with a user other than git may leak PII
+        (emails, internal usernames) and fail closed to unknown."""
+        result = self.module._sanitize_remote_url(
+            "john.doe@git.example.invalid:org/repo.git"
+        )
+        self.assertEqual("unknown", result)
+
+    def test_accepts_scp_like_git_user_with_port(self):
+        """scp-like syntax with the standard git user and a port passes."""
+        url = "git@git.example.invalid:2222:org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual(url, result)
+
     def test_accepts_uppercase_scheme(self):
         """URL schemes are case-insensitive (RFC 3986); HTTPS:// is valid."""
         url = "HTTPS://github.com/org/repo.git"
