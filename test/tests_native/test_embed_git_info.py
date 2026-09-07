@@ -45,13 +45,13 @@ class GitUrlSanitizationTest(TestCase):
 
     def test_sanitizes_https_url_with_token(self):
         """Token in HTTPS URL must be stripped."""
-        url = "https://ghp_secret123@github.com/org/repo.git"
+        url = "https://SECRET-TOKEN@github.com/org/repo.git"
         result = self.module._sanitize_remote_url(url)
         self.assertEqual("https://github.com/org/repo.git", result)
 
     def test_sanitizes_https_url_with_user_pass(self):
-        """User:pass in HTTPS URL must be stripped."""
-        url = "https://user:pass@gitlab.com/org/repo.git"
+        """User:password in HTTPS URL must be stripped."""
+        url = "https://user:PASSWORD@gitlab.com/org/repo.git"
         result = self.module._sanitize_remote_url(url)
         self.assertEqual("https://gitlab.com/org/repo.git", result)
 
@@ -87,13 +87,13 @@ class GitUrlSanitizationTest(TestCase):
 
     def test_rejects_malformed_url_with_multiple_ats(self):
         """Malformed URLs with @ in netloc after stripping are rejected."""
-        url = "https://token@host@evil.com/repo.git"
+        url = "https://CRED@host@evil.com/repo.git"
         result = self.module._sanitize_remote_url(url)
         self.assertEqual("unknown", result)
 
     def test_sanitizes_url_with_port(self):
         """URLs with ports are preserved."""
-        url = "https://token@github.com:8443/org/repo.git"
+        url = "https://CRED@github.com:8443/org/repo.git"
         result = self.module._sanitize_remote_url(url)
         self.assertEqual("https://github.com:8443/org/repo.git", result)
 
@@ -140,7 +140,7 @@ class GitUrlSanitizationTest(TestCase):
 
     def test_strips_userinfo_with_mixed_case_scheme(self):
         """Userinfo stripping works regardless of scheme case."""
-        url = "Https://token@github.com/org/repo.git"
+        url = "Https://CRED@github.com/org/repo.git"
         result = self.module._sanitize_remote_url(url)
         self.assertEqual("Https://github.com/org/repo.git", result)
 

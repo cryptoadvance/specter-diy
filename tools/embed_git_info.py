@@ -24,7 +24,7 @@ def _sanitize_remote_url(url: Optional[str]) -> str:
     """Strip credentials from a git remote URL before embedding.
 
     Origin URLs may contain tokens or passwords, e.g.
-    https://<token>@github.com/org/repo.git or https://user:pass@host/...
+    https://<token>@github.com/org/repo.git or https://user:<password>@host/...
     These would end up frozen into firmware and shown on the About screen,
     so the userinfo component must never be embedded.
 
