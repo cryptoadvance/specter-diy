@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -19,9 +20,55 @@ def _run_git(args: list[str]) -> Optional[str]:
     return result.decode().strip() or None
 
 
+def _sanitize_remote_url(url: Optional[str]) -> str:
+    """Strip credentials from a git remote URL before embedding.
+
+    Origin URLs may contain tokens or passwords, e.g.
+    https://<token>@github.com/org/repo.git or https://user:pass@host/...
+    These would end up frozen into firmware and shown on the About screen,
+    so the userinfo component must never be embedded.
+
+    Returns "unknown" for empty, malformed, or disallowed URLs.
+    """
+    if not url:
+        return UNKNOWN_VALUE
+
+    url = url.strip()
+
+    # SCP-like SSH syntax ([user@]host:path, e.g. git@github.com:org/repo.git)
+    # cannot carry credentials in a userinfo field; allow as-is. Anything
+    # else without a scheme (local paths, junk strings) is rejected.
+    if "://" not in url:
+        if re.match(r"^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+(:[0-9]+)?:[^/\\].*$", url):
+            return url
+        return UNKNOWN_VALUE
+
+    # Only allow safe protocols (reject file://, ftp://, etc.)
+    allowed_schemes = ("https://", "http://", "ssh://", "git://")
+    if not any(url.startswith(scheme) for scheme in allowed_schemes):
+        return UNKNOWN_VALUE
+
+    # Strip userinfo: scheme://[user[:pass]@]host/path
+    # [^@/]+ matches the userinfo component (no @ or / allowed inside)
+    sanitized = re.sub(r"^([a-zA-Z][a-zA-Z0-9+.-]*://)[^@/]+@", r"\1", url)
+
+    # Safety net: if after stripping we still have an @ in the netloc,
+    # something is malformed (e.g. multiple @s). Fail closed to unknown.
+    try:
+        netloc = sanitized.split("://", 1)[1].split("/", 1)[0]
+        if "@" in netloc:
+            return UNKNOWN_VALUE
+    except (IndexError, AttributeError):
+        return UNKNOWN_VALUE
+
+    return sanitized
+
+
 def discover_repository() -> str:
     repo = _run_git(["config", "--get", "remote.origin.url"])
-    return repo or UNKNOWN_VALUE
+    if repo:
+        return _sanitize_remote_url(repo)
+    return UNKNOWN_VALUE
 
 
 def discover_branch() -> str:
