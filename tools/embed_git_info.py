@@ -44,8 +44,10 @@ def _sanitize_remote_url(url: Optional[str]) -> str:
         return UNKNOWN_VALUE
 
     # Only allow safe protocols (reject file://, ftp://, etc.)
-    allowed_schemes = ("https://", "http://", "ssh://", "git://")
-    if not any(url.startswith(scheme) for scheme in allowed_schemes):
+    # URL schemes are case-insensitive (RFC 3986), so match case-insensitively.
+    allowed_schemes = ("https", "http", "ssh", "git")
+    scheme_match = re.match(r"^([a-zA-Z][a-zA-Z0-9+.-]*)://", url)
+    if scheme_match is None or scheme_match.group(1).lower() not in allowed_schemes:
         return UNKNOWN_VALUE
 
     # Strip userinfo: scheme://[user[:pass]@]host/path

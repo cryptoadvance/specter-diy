@@ -13,6 +13,8 @@ SCRIPT = REPO_ROOT / "tools" / "embed_git_info.py"
 def load_embed_git_info():
     """Load tools/embed_git_info.py as a module."""
     spec = importlib.util.spec_from_file_location("embed_git_info", SCRIPT)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load embed_git_info from %s" % SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -129,6 +131,18 @@ class GitUrlSanitizationTest(TestCase):
         """host:path without user@ is not scp syntax; reject it."""
         result = self.module._sanitize_remote_url("github.com:org/repo.git")
         self.assertEqual("unknown", result)
+
+    def test_accepts_uppercase_scheme(self):
+        """URL schemes are case-insensitive (RFC 3986); HTTPS:// is valid."""
+        url = "HTTPS://github.com/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("HTTPS://github.com/org/repo.git", result)
+
+    def test_strips_userinfo_with_mixed_case_scheme(self):
+        """Userinfo stripping works regardless of scheme case."""
+        url = "Https://token@github.com/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("Https://github.com/org/repo.git", result)
 
 
 class GitInfoReproducibilityTest(TestCase):
