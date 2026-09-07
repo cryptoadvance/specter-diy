@@ -17,7 +17,7 @@ QR codes are a default way for Specter to communicate with the host. QR codes ar
 
 For secret storage we support agnostic mode (wallet forgets all secrets when turned off), reckless mode (stores secrets in flash of the application microcontroller) and secure element integration is coming soon.
 
-Our main focus is multisignature setup with other hardware wallets, but wallet can also work as a single signer. We try to make it compatible with Bitcoin Core where we can - PSBT for unsigned transactions, wallet descriptors for importing/exporting multisig wallets. To communicate with Bitcoin Core easier we are also working on [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) - a small python flask server talking to your Bitcoin Core node.
+Our main focus is multisignature setup with other hardware wallets, but wallet can also work as a single signer. We try to make it compatible with Bitcoin Core where we can - PSBT for unsigned transactions, wallet descriptors for importing/exporting multisig wallets. To communicate with Bitcoin Core easier we are also working on [Specter Desktop app](https://github.com/cryptoadvance/specter-desktop) - a small Python [Flask](https://github.com/pallets/flask) server talking to your Bitcoin Core node.
 
 Most of the firmware is written in MicroPython which makes the code easy to audit and change. We use [secp256k1](https://github.com/bitcoin-core/secp256k1) library from Bitcoin Core for elliptic curve calculations and [LVGL](https://lvgl.io/) library for GUI.
 
@@ -39,7 +39,7 @@ All the docs are stored in the [`docs/`](./docs) folder:
 - [`security-model.md`](./docs/security-model.md) explains possible attack vectors and security model of the project
 - [`SECURITY.md`](./SECURITY.md) describes how to report vulnerabilities (disclosure policy)
 - [`development.md`](./docs/development.md) explains how to start developing on Specter
-- [`simulator.md`](./docs/simulator.md) shows how to run a simulator on unix/macOS
+- [`simulator.md`](./docs/simulator.md) shows how to run a simulator on Unix/macOS
 - [`communication.md`](./docs/communication.md) defines communication protocol with the host over QR codes and USB
 - [`roadmap.md`](./docs/roadmap.md) explains what we need to implement before we can consider the wallet be ready to use with real funds.
 

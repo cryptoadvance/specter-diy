@@ -66,7 +66,7 @@ To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler
 sudo apt-get install build-essential gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd
 ```
 
-**Archlinux**:
+**Arch Linux**:
 ```sh
 sudo pacman -S arm-none-eabi-gcc arm-none-eabi-binutils openocd base-devel python-case
 ```
@@ -79,7 +79,7 @@ brew tap ArmMbed/homebrew-formulae
 brew install arm-none-eabi-gcc
 ```
 
-On **Windows**: Install linux subsystem and follow Linux instructions.
+On **Windows**: Install Windows Subsystem for Linux (WSL) and follow Linux instructions.
 
 ### Prerequisities (Manually): Simulator
 
@@ -98,7 +98,7 @@ brew install sdl2
 **Windows**:
 - `sudo apt install libsdl2-dev` on Linux side.
 - install and launch [Xming](https://sourceforge.net/projects/xming/) on Windows side
-- set `export DISPLAY=:0` on linux part
+- set `export DISPLAY=:0` on Linux part
 
 ## Build
 
