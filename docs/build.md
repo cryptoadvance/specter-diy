@@ -132,9 +132,9 @@ also creates `release/disco-nobootloader.{bin,hex}`, which contain the plain fir
 `disco-nobootloader.bin` image is identical to the `nix build` output and can be flashed directly to a development board when
 you need a faster iteration loop.
 
-## Run Unittests
+## Run Unit Tests
 
-Currently unittests work only on linuxport, and there are... not many... Contributions are very welcome!
+Currently unit tests work only on linuxport, and there are... not many... Contributions are very welcome!
 
 ```
 make test
