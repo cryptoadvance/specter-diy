@@ -20,12 +20,8 @@ run_main() {
   echo -e "${INFO}
 ══════════════════════ Building main firmware ═════════════════════════════
 ${ENDCOLOR}"
-  # Release firmware must not embed clone-local git metadata (remote URL, branch
-  # or commit), otherwise two builders of the same source produce different
-  # frozen modules and different firmware hashes. See tools/embed_git_info.py.
-  export SPECTER_REPRODUCIBLE_BUILD=1
   make clean
-  make disco USE_DBOOT=1
+  make disco USE_DBOOT=1 REPRODUCIBLE=1
 }
 
 run_bootloader() {
@@ -100,11 +96,9 @@ run_nobootloader() {
 ═════════════════════ Building firmware without bootloader ════════════════
 ${ENDCOLOR}"
 
-  # Same deterministic provenance as the bootloader release build.
-  export SPECTER_REPRODUCIBLE_BUILD=1
   mkdir -p release
   make clean
-  make disco
+  make disco REPRODUCIBLE=1
   cp ./bin/specter-diy.bin ./release/disco-nobootloader.bin
   cp ./bin/specter-diy.hex ./release/disco-nobootloader.hex
   echo -e "Standard firmware without bootloader saved to release/disco-nobootloader.{bin,hex}"

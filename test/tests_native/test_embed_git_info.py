@@ -1,3 +1,4 @@
+import importlib.util
 import os
 import subprocess
 import sys
@@ -9,27 +10,157 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "tools" / "embed_git_info.py"
 
 
+def load_embed_git_info():
+    """Load tools/embed_git_info.py as a module."""
+    spec = importlib.util.spec_from_file_location("embed_git_info", SCRIPT)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load embed_git_info from %s" % SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def run_git(cwd: Path, *args: str) -> str:
     return subprocess.check_output(
         ["git", *args], cwd=cwd, text=True, stderr=subprocess.DEVNULL
     ).strip()
 
 
-def run_script(output: Path, cwd: Path, extra_env=None) -> str:
-    env = dict(os.environ)
-    for key in ("SPECTER_REPRODUCIBLE_BUILD", "SPECTER_GIT_REPOSITORY",
-                "SPECTER_GIT_BRANCH", "SPECTER_GIT_COMMIT"):
-        env.pop(key, None)
-    if extra_env:
-        env.update(extra_env)
+def run_script(output: Path, cwd: Path, extra_args=None) -> str:
+    args = [sys.executable, str(SCRIPT)]
+    if extra_args:
+        args.extend(extra_args)
+    args.append(str(output))
     subprocess.check_call(
-        [sys.executable, str(SCRIPT), str(output)], cwd=cwd, env=env
+        args, cwd=cwd
     )
     return output.read_text()
 
 
+class GitUrlSanitizationTest(TestCase):
+    """Test that git remote URLs are sanitized before embedding."""
+
+    def setUp(self):
+        self.module = load_embed_git_info()
+
+    def test_sanitizes_https_url_with_token(self):
+        """Token in HTTPS URL must be stripped."""
+        url = "https://SECRET-TOKEN@github.com/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("https://github.com/org/repo.git", result)
+
+    def test_sanitizes_https_url_with_user_pass(self):
+        """User:password in HTTPS URL must be stripped."""
+        url = "https://user:PASSWORD@gitlab.com/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("https://gitlab.com/org/repo.git", result)
+
+    def test_sanitizes_ssh_url_with_user(self):
+        """SSH URLs with explicit user (git@) are kept as-is (no secret)."""
+        url = "git@github.com:org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("git@github.com:org/repo.git", result)
+
+    def test_sanitizes_ssh_scheme_url(self):
+        """SSH scheme URLs keep scheme, strip userinfo."""
+        url = "ssh://git@github.com:22/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("ssh://github.com:22/org/repo.git", result)
+
+    def test_sanitizes_git_scheme_url(self):
+        """Git protocol URLs pass through (no userinfo possible)."""
+        url = "git://github.com/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("git://github.com/org/repo.git", result)
+
+    def test_rejects_file_protocol(self):
+        """file:// URLs leak local paths and are rejected."""
+        url = "file:///home/user/repo"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("unknown", result)
+
+    def test_rejects_ftp_protocol(self):
+        """FTP URLs are not in allowlist and rejected."""
+        url = "ftp://user@host/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("unknown", result)
+
+    def test_rejects_malformed_url_with_multiple_ats(self):
+        """Malformed URLs with @ in netloc after stripping are rejected."""
+        url = "https://CRED@host@evil.com/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("unknown", result)
+
+    def test_sanitizes_url_with_port(self):
+        """URLs with ports are preserved."""
+        url = "https://CRED@github.com:8443/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("https://github.com:8443/org/repo.git", result)
+
+    def test_rejects_empty_url(self):
+        """Empty URLs are rejected."""
+        result = self.module._sanitize_remote_url("")
+        self.assertEqual("unknown", result)
+
+    def test_rejects_none(self):
+        """None is rejected."""
+        result = self.module._sanitize_remote_url(None)
+        self.assertEqual("unknown", result)
+
+    def test_rejects_absolute_local_path(self):
+        """Local filesystem paths leak usernames and are rejected."""
+        result = self.module._sanitize_remote_url("/home/user/repo")
+        self.assertEqual("unknown", result)
+
+    def test_rejects_relative_local_path(self):
+        """Relative local paths are rejected."""
+        result = self.module._sanitize_remote_url("../repo")
+        self.assertEqual("unknown", result)
+
+    def test_rejects_windows_path(self):
+        """Windows paths are rejected."""
+        result = self.module._sanitize_remote_url(r"C:\Users\marco\repo")
+        self.assertEqual("unknown", result)
+
+    def test_rejects_plain_string(self):
+        """Arbitrary non-URL strings are rejected."""
+        result = self.module._sanitize_remote_url("just-a-random-string")
+        self.assertEqual("unknown", result)
+
+    def test_rejects_scp_like_without_user(self):
+        """host:path without user@ is not scp syntax; reject it."""
+        result = self.module._sanitize_remote_url("github.com:org/repo.git")
+        self.assertEqual("unknown", result)
+
+    def test_rejects_scp_like_with_non_git_user(self):
+        """scp-like remotes with a user other than git may leak PII
+        (emails, internal usernames) and fail closed to unknown."""
+        result = self.module._sanitize_remote_url(
+            "john.doe@git.example.invalid:org/repo.git"
+        )
+        self.assertEqual("unknown", result)
+
+    def test_accepts_scp_like_git_user_with_port(self):
+        """scp-like syntax with the standard git user and a port passes."""
+        url = "git@git.example.invalid:2222:org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual(url, result)
+
+    def test_accepts_uppercase_scheme(self):
+        """URL schemes are case-insensitive (RFC 3986); HTTPS:// is valid."""
+        url = "HTTPS://github.com/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("HTTPS://github.com/org/repo.git", result)
+
+    def test_strips_userinfo_with_mixed_case_scheme(self):
+        """Userinfo stripping works regardless of scheme case."""
+        url = "Https://CRED@github.com/org/repo.git"
+        result = self.module._sanitize_remote_url(url)
+        self.assertEqual("Https://github.com/org/repo.git", result)
+
+
 class GitInfoReproducibilityTest(TestCase):
-    def test_same_commit_ignores_remote_and_checkout_ref(self):
+    def test_developer_build_embeds_local_checkout_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source = root / "source"
@@ -69,15 +200,137 @@ class GitInfoReproducibilityTest(TestCase):
             content_a = run_script(root / "git-info-a.py", clone_a)
             content_b = run_script(root / "git-info-b.py", clone_b)
 
-            self.assertEqual(content_a, content_b)
-            # Checkout metadata is not source identity. Keeping it neutral also
-            # avoids attributing fork-only commits to the upstream repository.
-            self.assertIn("REPOSITORY = 'unknown'", content_a)
-            self.assertIn("BRANCH = 'unknown'", content_a)
+            self.assertNotEqual(content_a, content_b)
+            self.assertIn(
+                "REPOSITORY = 'git@example.invalid:fork/specter-diy.git'",
+                content_a,
+            )
+            self.assertIn("BRANCH = 'release-test'", content_a)
             self.assertIn("COMMIT = %r" % commit, content_a)
-            self.assertNotIn("release-test", content_a)
-            self.assertNotIn("example.invalid", content_a)
-            self.assertNotIn("cryptoadvance/specter-diy", content_a)
+            self.assertIn("WORKING_TREE = 'Clean'", content_a)
+            self.assertIn(
+                "REPOSITORY = 'https://example.invalid/other/specter-diy.git'",
+                content_b,
+            )
+            self.assertIn("COMMIT = %r" % commit, content_b)
+
+            (clone_a / "payload.txt").write_text("modified source\n")
+            modified_content = run_script(root / "git-info-modified.py", clone_a)
+            self.assertIn("WORKING_TREE = 'Modified'", modified_content)
+
+    def test_developer_build_counts_non_ignored_untracked_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            checkout = root / "checkout"
+            checkout.mkdir()
+
+            run_git(checkout, "init")
+            run_git(checkout, "config", "user.name", "Specter Test")
+            run_git(checkout, "config", "user.email", "specter@example.invalid")
+            (checkout / "payload.txt").write_text("source\n")
+            run_git(checkout, "add", "payload.txt")
+            run_git(checkout, "commit", "-m", "fixture")
+
+            (checkout / "new-source.txt").write_text("untracked source\n")
+            content = run_script(root / "git-info.py", checkout)
+
+            self.assertIn("WORKING_TREE = 'Modified'", content)
+
+    def test_developer_build_ignores_ignored_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            checkout = root / "checkout"
+            checkout.mkdir()
+
+            run_git(checkout, "init")
+            run_git(checkout, "config", "user.name", "Specter Test")
+            run_git(checkout, "config", "user.email", "specter@example.invalid")
+            (checkout / ".gitignore").write_text("build/\n")
+            (checkout / "payload.txt").write_text("source\n")
+            run_git(checkout, "add", ".gitignore", "payload.txt")
+            run_git(checkout, "commit", "-m", "fixture")
+
+            build_dir = checkout / "build"
+            build_dir.mkdir()
+            (build_dir / "firmware.bin").write_bytes(b"generated")
+            content = run_script(root / "git-info.py", checkout)
+
+            self.assertIn("WORKING_TREE = 'Clean'", content)
+
+    def test_developer_build_counts_changes_in_initialized_submodules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            nested_source = root / "nested-source"
+            submodule_source = root / "submodule-source"
+            checkout = root / "checkout"
+            nested_source.mkdir()
+            submodule_source.mkdir()
+            checkout.mkdir()
+
+            run_git(nested_source, "init")
+            run_git(nested_source, "config", "user.name", "Specter Test")
+            run_git(
+                nested_source,
+                "config",
+                "user.email",
+                "specter@example.invalid",
+            )
+            (nested_source / "payload.txt").write_text("nested source\n")
+            run_git(nested_source, "add", "payload.txt")
+            run_git(nested_source, "commit", "-m", "nested fixture")
+
+            run_git(submodule_source, "init")
+            run_git(submodule_source, "config", "user.name", "Specter Test")
+            run_git(
+                submodule_source,
+                "config",
+                "user.email",
+                "specter@example.invalid",
+            )
+            (submodule_source / "payload.txt").write_text("submodule source\n")
+            run_git(submodule_source, "add", "payload.txt")
+            run_git(submodule_source, "commit", "-m", "submodule fixture")
+            run_git(
+                submodule_source,
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                str(nested_source),
+                "dependencies/nested",
+            )
+            run_git(submodule_source, "commit", "-am", "add nested fixture")
+
+            run_git(checkout, "init")
+            run_git(checkout, "config", "user.name", "Specter Test")
+            run_git(checkout, "config", "user.email", "specter@example.invalid")
+            run_git(
+                checkout,
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                str(submodule_source),
+                "firmware",
+            )
+            run_git(checkout, "commit", "-am", "parent fixture")
+            run_git(
+                checkout,
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "update",
+                "--init",
+                "--recursive",
+            )
+
+            clean_content = run_script(root / "git-info-clean.py", checkout)
+            self.assertIn("WORKING_TREE = 'Clean'", clean_content)
+
+            nested_checkout = checkout / "firmware" / "dependencies" / "nested"
+            (nested_checkout / "payload.txt").write_text("modified source\n")
+            modified_content = run_script(root / "git-info-modified.py", checkout)
+            self.assertIn("WORKING_TREE = 'Modified'", modified_content)
 
     def test_without_git_metadata_uses_stable_unknown_values(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -89,9 +342,20 @@ class GitInfoReproducibilityTest(TestCase):
             self.assertIn("REPOSITORY = 'unknown'", content)
             self.assertIn("BRANCH = 'unknown'", content)
             self.assertIn("COMMIT = 'unknown'", content)
+            self.assertIn("WORKING_TREE = 'unknown'", content)
+
+    def test_without_origin_uses_unknown_repository(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_git(root, "init")
+
+            content = run_script(root / "git-info.py", root)
+
+            self.assertIn("REPOSITORY = 'unknown'", content)
+            self.assertNotIn(str(root), content)
 
     def test_reproducible_build_output_is_source_acquisition_independent(self):
-        """Release builds (SPECTER_REPRODUCIBLE_BUILD=1) must produce identical
+        """Reproducible builds must produce identical
         output from a git checkout and from a .git-less source archive."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -111,31 +375,35 @@ class GitInfoReproducibilityTest(TestCase):
             archive.mkdir()
             (archive / "payload.txt").write_text("same source\n")
 
-            env = {"SPECTER_REPRODUCIBLE_BUILD": "1"}
-            from_checkout = run_script(root / "a.py", checkout, env)
-            from_archive = run_script(root / "b.py", archive, env)
+            reproducible_args = ["--reproducible"]
+            from_checkout = run_script(
+                root / "a.py", checkout, reproducible_args
+            )
+            from_archive = run_script(root / "b.py", archive, reproducible_args)
 
             self.assertEqual(from_checkout, from_archive)
             self.assertIn("REPOSITORY = 'unknown'", from_checkout)
             self.assertIn("BRANCH = 'unknown'", from_checkout)
             self.assertIn("COMMIT = 'unknown'", from_checkout)
+            self.assertIn("WORKING_TREE = 'unknown'", from_checkout)
             self.assertNotIn(commit, from_checkout)
 
-    def test_explicit_overrides_are_embedded(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            content = run_script(
-                root / "git-info.py",
-                root,
-                {
-                    "SPECTER_GIT_REPOSITORY": "https://example.org/specter-diy",
-                    "SPECTER_GIT_BRANCH": "v9.9.9",
-                    "SPECTER_GIT_COMMIT": "0" * 40,
-                },
-            )
+    def test_make_forwards_reproducible_mode(self):
+        environment_command = subprocess.check_output(
+            ["make", "-n", "git-info"],
+            cwd=REPO_ROOT,
+            env={**os.environ, "REPRODUCIBLE": "1"},
+            text=True,
+        )
+        developer_command = subprocess.check_output(
+            ["make", "-n", "git-info", "REPRODUCIBLE=0"], cwd=REPO_ROOT, text=True
+        )
+        reproducible_command = subprocess.check_output(
+            ["make", "-n", "git-info", "REPRODUCIBLE=1"],
+            cwd=REPO_ROOT,
+            text=True,
+        )
 
-            self.assertIn(
-                "REPOSITORY = 'https://example.org/specter-diy'", content
-            )
-            self.assertIn("BRANCH = 'v9.9.9'", content)
-            self.assertIn("COMMIT = '%s'" % ("0" * 40), content)
+        self.assertIn("--reproducible", environment_command)
+        self.assertNotIn("--reproducible", developer_command)
+        self.assertIn("--reproducible", reproducible_command)

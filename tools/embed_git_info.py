@@ -4,25 +4,14 @@
 from __future__ import annotations
 
 import argparse
-import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Optional
 
 UNKNOWN_VALUE = "unknown"
-
-# Environment switch used by release builds (see build_firmware.sh). When set, no
-# git commands are run and every value is emitted as UNKNOWN_VALUE, so the frozen
-# module is byte-identical whether the source came from a git checkout, a shallow
-# clone, a fork, or a source archive without any .git metadata at all.
-REPRODUCIBLE_ENV = "SPECTER_REPRODUCIBLE_BUILD"
-
-# Optional explicit overrides. An empty value is treated as UNKNOWN_VALUE. These
-# let a release process pin documented provenance constants without reintroducing
-# any dependency on the local clone state.
-REPOSITORY_ENV = "SPECTER_GIT_REPOSITORY"
-BRANCH_ENV = "SPECTER_GIT_BRANCH"
-COMMIT_ENV = "SPECTER_GIT_COMMIT"
+CLEAN_VALUE = "Clean"
+MODIFIED_VALUE = "Modified"
 
 
 def _run_git(args: list[str]) -> Optional[str]:
@@ -30,71 +19,121 @@ def _run_git(args: list[str]) -> Optional[str]:
         result = subprocess.check_output(["git", *args], stderr=subprocess.DEVNULL)
     except (OSError, subprocess.CalledProcessError):
         return None
-    return result.decode().strip() or None
+    return result.decode().strip()
 
 
-def _env_override(name: str) -> Optional[str]:
-    value = os.environ.get(name)
-    if value is None:
-        return None
-    return value.strip() or UNKNOWN_VALUE
+def _sanitize_remote_url(url: Optional[str]) -> str:
+    """Strip credentials from a git remote URL before embedding.
 
+    Origin URLs may contain tokens or passwords, e.g.
+    https://<token>@github.com/org/repo.git or https://user:<password>@host/...
+    These would end up frozen into firmware and shown on the About screen,
+    so the userinfo component must never be embedded.
 
-def _reproducible_build() -> bool:
-    return os.environ.get(REPRODUCIBLE_ENV, "").strip() not in ("", "0", "false", "False")
+    Returns "unknown" for empty, malformed, or disallowed URLs.
+    """
+    if not url:
+        return UNKNOWN_VALUE
+
+    url = url.strip()
+
+    # SCP-like SSH syntax (git@host:path, e.g. git@github.com:org/repo.git)
+    # has no credential field, but the user part could still carry PII
+    # (emails, internal usernames). Only the conventional "git" login used
+    # by major hosting services is allowlisted; anything else without a
+    # scheme (other users, local paths, junk strings) is rejected.
+    if "://" not in url:
+        if re.match(r"^git@[A-Za-z0-9._-]+(:[0-9]+)?:[^/\\].*$", url):
+            return url
+        return UNKNOWN_VALUE
+
+    # Only allow safe protocols (reject file://, ftp://, etc.)
+    # URL schemes are case-insensitive (RFC 3986), so match case-insensitively.
+    allowed_schemes = ("https", "http", "ssh", "git")
+    scheme_match = re.match(r"^([a-zA-Z][a-zA-Z0-9+.-]*)://", url)
+    if scheme_match is None or scheme_match.group(1).lower() not in allowed_schemes:
+        return UNKNOWN_VALUE
+
+    # Strip userinfo: scheme://[user[:pass]@]host/path
+    # [^@/]+ matches the userinfo component (no @ or / allowed inside)
+    sanitized = re.sub(r"^([a-zA-Z][a-zA-Z0-9+.-]*://)[^@/]+@", r"\1", url)
+
+    # Safety net: if after stripping we still have an @ in the netloc,
+    # something is malformed (e.g. multiple @s). Fail closed to unknown.
+    try:
+        netloc = sanitized.split("://", 1)[1].split("/", 1)[0]
+        if "@" in netloc:
+            return UNKNOWN_VALUE
+    except (IndexError, AttributeError):
+        return UNKNOWN_VALUE
+
+    return sanitized
 
 
 def discover_repository() -> str:
-    override = _env_override(REPOSITORY_ENV)
-    if override is not None:
-        return override
-    # A clone remote is build-environment metadata, not source identity. Using
-    # a canonical upstream URL would also misattribute fork-only commits to the
-    # upstream repository, so do not embed a repository URL at all.
+    repo = _run_git(["config", "--get", "remote.origin.url"])
+    if repo:
+        return _sanitize_remote_url(repo)
     return UNKNOWN_VALUE
 
 
 def discover_branch() -> str:
-    override = _env_override(BRANCH_ENV)
-    if override is not None:
-        return override
-    # Branch/tag refs can differ for the same commit (branch checkout, detached
-    # HEAD, shallow clone, etc.), so embedding them breaks reproducible builds.
-    return UNKNOWN_VALUE
+    branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+    if branch and branch != "HEAD":
+        return branch
+    describe = _run_git(["describe", "--all"])
+    return describe or UNKNOWN_VALUE
 
 
-def discover_commit(reproducible: bool) -> str:
-    override = _env_override(COMMIT_ENV)
-    if override is not None:
-        return override
-    if reproducible:
-        # The full object id is only present in a git checkout; a source archive
-        # has no .git and would embed "unknown" instead. Release builds must not
-        # depend on how the source was obtained, so drop it entirely.
-        return UNKNOWN_VALUE
-    # Dev builds embed the concrete revision. Use the full object id: git's
-    # default abbreviated SHA length can vary with the objects present in a clone.
+def discover_commit() -> str:
+    # Use the full object id: git's default abbreviated SHA length can vary with
+    # the objects present in a clone.
     commit = _run_git(["rev-parse", "HEAD"])
     if commit:
         return commit
     return UNKNOWN_VALUE
 
 
-def build_content(repository: str, branch: str, commit: str) -> str:
+def discover_working_tree() -> str:
+    status = _run_git(
+        [
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=normal",
+            "--ignore-submodules=none",
+        ]
+    )
+    # None means Git failed; an empty string is a successful clean status;
+    # non-empty output describes at least one modification.
+    if status is None:
+        return UNKNOWN_VALUE
+    if status:
+        return MODIFIED_VALUE
+    return CLEAN_VALUE
+
+
+def build_content(
+    repository: str, branch: str, commit: str, working_tree: str
+) -> str:
     return (
         "# This file is auto-generated by tools/embed_git_info.py\n"
         "REPOSITORY = %r\n"
         "BRANCH = %r\n"
-        "COMMIT = %r\n" % (repository, branch, commit)
+        "COMMIT = %r\n"
+        "WORKING_TREE = %r\n" % (repository, branch, commit, working_tree)
     )
 
 
 def write_git_info(path: Path, reproducible: bool) -> None:
-    repository = discover_repository()
-    branch = discover_branch()
-    commit = discover_commit(reproducible)
+    if reproducible:
+        repository = branch = commit = working_tree = UNKNOWN_VALUE
+    else:
+        repository = discover_repository()
+        branch = discover_branch()
+        commit = discover_commit()
+        working_tree = discover_working_tree()
 
-    content = build_content(repository, branch, commit)
+    content = build_content(repository, branch, commit, working_tree)
 
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -120,18 +159,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--reproducible",
         action="store_true",
-        help=(
-            "emit static values with no git lookups (also enabled by the "
-            "%s environment variable)" % REPRODUCIBLE_ENV
-        ),
+        help="emit static values with no git lookups",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    reproducible = args.reproducible or _reproducible_build()
-    write_git_info(Path(args.output), reproducible)
+    write_git_info(Path(args.output), args.reproducible)
 
 
 if __name__ == "__main__":
