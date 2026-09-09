@@ -1,5 +1,10 @@
 # this should run with python3
 import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(1, str((ROOT / "../../f469-disco/libs/common/embit/src").resolve()))
+
 if sys.implementation.name == 'micropython':
     print("This file should run with python3, not micropython!")
     sys.exit(1)
