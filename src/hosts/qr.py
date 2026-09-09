@@ -27,14 +27,35 @@ MODEL_UNKNOWN = 0
 MODEL_GM65 = 1
 MODEL_M3Y = 2
 
+# Host-side preferences that map onto the scanner (see MASK). A factory
+# reset puts the scanner back to its defaults, so these follow. The
+# "enabled" toggle is deliberately not in here: it controls whether the
+# QR button shows up in the main menu, not how the scanner behaves.
+DEFAULT_SCANNER_SETTINGS = {
+    "aim": True,
+    "light": False,
+    "sound": True,
+}
+
 RETRY_DELAY_MS = 100
 DELAY_AFTER_FACTORY_RESET = 200
+# A GM65 factory reset reboots the module: it stops answering for a while
+# and comes back on the defaults from Form 2-1 (standard TTL-232, 9600).
+# 200ms is not enough to cover that, so poll until it is back.
+SCANNER_REBOOT_TIMEOUT_MS = 3000
+SCANNER_REBOOT_POLL_MS = 100
 CHUNK_TIMEOUT = 0.5
 
 # ------ GM65 Scanner
-# Header:0x7E 0x00 Types:0x08 Lens:0x01 Address:0x00D9 Data:0x55 (Restore to user setting) - 0x50 (Restore to factory setting) CRC: 0xABCD (no checksum)
+# Write frame: 0x7E 0x00 | 0x08 (write) | Len | Address(2) | Data | CRC(2)
+# Refs are to the GM65-S User Manual, chapter 9 "Serial Port Instruction":
+# https://github.com/3rdIteration/SerialBarcodeReaderTools/blob/master/Manuals/GM65/GM65-S-UserManual.pdf
+#   - CRC may be 0xAB 0xCD when checking is not required (ch. 9.1, p.41)
+#   - a successful write is ACKed with 0x02 0x00 0x00 0x01 0x00 0x33 0x31 (== SUCCESS, ch. 9.3, p.44)
 HEADER = b"\x7E\x00"
 CRC_NO_CHECKSUM = b"\xAB\xCD"
+# Zone bit 0x00D9 (write-only), data 0x55 = "reset to defaults" (register table, p.61).
+# Per default parameters (Form 2-1, p.6) this also puts the UART back to 9600 baud.
 FACTORY_RESET_CMD = HEADER + b"\x08\x01\x00\xD9\x55" + CRC_NO_CHECKSUM
 
 """ We switch the scanner to continuous mode to initiate scanning and
@@ -138,13 +159,11 @@ class QRHost(Host):
         # default settings, extend it with more settings if applicable
         self.settings = {
             "enabled": True,
-            "aim": True,
-            "light": False,
-            "sound": True,
             # internal flag that indicates whether RAW compatibility fix
             # has been applied and persisted on the scanner
             "raw_fix_applied": False,
         }
+        self.settings.update(DEFAULT_SCANNER_SETTINGS)
 
         self._initial_reset_marker = None
         self._boot_reset_pending = False
@@ -165,6 +184,10 @@ class QRHost(Host):
 
         self.f = None
         self.software_version = None
+        # RAW mode as last verified on the scanner itself; None while
+        # unknown. The host-side "raw_fix_applied" setting only records
+        # whether we ever applied it, which is not the same thing.
+        self._raw_mode_on_scanner = None
         self.baudrate = baudrate
         self.uart = pyb.UART(uart, baudrate, read_buf_len=READ_BUFFER_LEN)
         if simulator:
@@ -438,6 +461,7 @@ class QRHost(Host):
                     if val_check is None or val_check != RAW_MODE_VALUE:
                         return False
                 save_required = True
+            self._raw_mode_on_scanner = True
             if not raw_fix_applied:
                 raw_fix_applied = True
                 settings_changed = True
@@ -446,6 +470,7 @@ class QRHost(Host):
             # requires the RAW mode compatibility tweak.
             raw_fix_applied = False
             settings_changed = True
+            self._raw_mode_on_scanner = None
 
         # Save settings to EEPROM if anything has changed.
         if save_required:
@@ -480,6 +505,17 @@ class QRHost(Host):
         self._set_baud(BAUD_RATE_115200)
         return True
     
+    def _wait_for_scanner(self, timeout_ms, poll_ms=SCANNER_REBOOT_POLL_MS):
+        """Poll until the scanner answers a read, or give up."""
+        waited = 0
+        while True:
+            if self.get_setting(SERIAL_ADDR, retries=1) is not None:
+                return True
+            if waited >= timeout_ms:
+                return False
+            time.sleep_ms(poll_ms)
+            waited += poll_ms
+
     def _set_baud(self, baudrate):
         self.uart.deinit()
         self.baudrate=baudrate
@@ -535,7 +571,10 @@ class QRHost(Host):
         if self.is_configured:
             return
 
-        # PIN trigger mode
+        self._fallback_to_pin_trigger()
+
+    def _fallback_to_pin_trigger(self):
+        """Last resort when the scanner cannot be configured over UART."""
         self._set_baud(BAUD_RATE_9600)
         self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
         self.trigger.on()
@@ -545,12 +584,16 @@ class QRHost(Host):
     def _format_scanner_info(self):
         version = self.software_version
         version_text = "unknown" if version is None else str(version)
-        raw_fix_applied = self.settings.get("raw_fix_applied", False)
-        
         if version is None:
             raw_fix = "Unknown"
         elif version == VERSION_NEEDS_RAW:
-            raw_fix = "Applied" if raw_fix_applied else "Not applied"
+            # Read back what we verified on the scanner. The host-side flag
+            # survives a reset that wiped the scanner, so trusting it here
+            # reported "Applied" for a scanner that had just lost RAW mode.
+            if self._raw_mode_on_scanner is None:
+                raw_fix = "Unknown"
+            else:
+                raw_fix = "Applied" if self._raw_mode_on_scanner else "Not applied"
         else:
             raw_fix = "Not needed"
         scanner_name = "unknown"
@@ -578,6 +621,11 @@ class QRHost(Host):
         configured = self.configure()
         if not configured:
             self.settings = previous_settings
+            # The scanner has just been wiped, so leaving it unconfigured
+            # would make it unusable until the next power cycle:
+            # Host.enable() only calls init() once per session, so nothing
+            # retries on its own. Fall back the way init() does.
+            self._fallback_to_pin_trigger()
             return False
         self.is_configured = True
         return True
@@ -599,12 +647,36 @@ class QRHost(Host):
             return bool(res)
         
         if self.scanner_model == MODEL_GM65:
-            return bool(self.query(FACTORY_RESET_CMD))
+            prev_baudrate = self.baudrate
+            ack = self.query(FACTORY_RESET_CMD)
+            # The reset is fire-and-forget: once the command is on the wire
+            # the scanner is back on its 9600 default, whether or not the
+            # ACK survives the baud change. Gating the host-side switch on
+            # the ACK leaves the two desynced with no way back, because
+            # configure_gm65() does not probe baud rates (issue #355).
+            # Going through _set_baud() also drops the boot noise the
+            # module emits past the ACK, which would otherwise be read as
+            # the first reply of the reconfiguration.
+            self._set_baud(BAUD_RATE_9600)
+            # Whatever RAW mode the scanner had is gone now.
+            self._raw_mode_on_scanner = False
+            if self._wait_for_scanner(SCANNER_REBOOT_TIMEOUT_MS):
+                return True
+            if ack == SUCCESS:
+                # It acknowledged the reset but is not talking yet. Stay at
+                # 9600 so the reconfiguration meets it where it comes up.
+                return True
+            self._set_baud(prev_baudrate)
+            return False
         return False
     
     def _pre_reset_scanner(self):
         previous_settings = dict(self.settings)
         settings_snapshot = dict(previous_settings)
+        # The scanner goes back to its factory state, so the preferences
+        # that are written onto it go back to their defaults with it.
+        # They are restored from previous_settings if the reset fails.
+        settings_snapshot.update(DEFAULT_SCANNER_SETTINGS)
         settings_snapshot["raw_fix_applied"] = False
         return settings_snapshot, previous_settings
 
@@ -665,8 +737,9 @@ class QRHost(Host):
 
         def trigger_factory_reset():
             scr.show_loader(
-                text="Resetting scanner to defaults...",
-                title="Factory reset",
+                text="Resetting the QR scanner to its defaults.\n"
+                     "Your keys and device settings are untouched.",
+                title="QR scanner reset",
             )
             scr.set_value("factory_reset")
 
@@ -684,7 +757,8 @@ class QRHost(Host):
                 await show_screen(
                     Alert(
                         "Success!",
-                        "\n\nScanner restored and settings re-applied.",
+                        "\n\nQR scanner and its settings are back\n"
+                        "at their defaults.",
                         button_text="Close",
                     )
                 )
@@ -692,7 +766,7 @@ class QRHost(Host):
                 await show_screen(
                     Alert(
                         "Error",
-                        "\n\nFailed to factory reset scanner!",
+                        "\n\nFailed to reset the QR scanner!",
                         button_text="Close",
                     )
                 )

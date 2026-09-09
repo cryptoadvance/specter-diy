@@ -6,3 +6,4 @@ from .test_change_classification import *
 from .test_transaction_confirmation import *
 from .test_change_security import *
 from .test_embed_git_info import *
+from .test_qr_factory_reset import *

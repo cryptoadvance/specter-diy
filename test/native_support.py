@@ -64,6 +64,22 @@ def setup_native_stubs():
         pyb.UART = lambda *args, **kwargs: None
         pyb.USB_VCP = lambda *args, **kwargs: None
 
+    if not hasattr(pyb, "Pin"):
+        class _DummyPin:
+            OUT = "out"
+            IN = "in"
+
+            def __init__(self, *args, **kwargs):
+                self.value = False
+
+            def on(self):
+                self.value = True
+
+            def off(self):
+                self.value = False
+
+        pyb.Pin = _DummyPin
+
     lvgl = _ensure_module("lvgl")
     if not hasattr(lvgl, "SYMBOL"):
         class _Symbol:
@@ -170,6 +186,14 @@ def setup_native_stubs():
         secp256k1.ecdsa_signature_normalize = lambda sig: sig
         secp256k1.ecdsa_verify = lambda sig, msg, pub: True
         secp256k1.ecdsa_sign_recoverable = lambda msghash, secret: bytes(65)
+
+    import time as _stdtime
+    if not hasattr(_stdtime, "sleep_ms"):
+        _stdtime.sleep_ms = lambda ms: _stdtime.sleep(ms / 1000.0)
+        _stdtime.sleep_us = lambda us: _stdtime.sleep(us / 1000000.0)
+        _stdtime.ticks_ms = lambda: int(_stdtime.time() * 1000)
+        _stdtime.ticks_us = lambda: int(_stdtime.time() * 1000000)
+        _stdtime.ticks_diff = lambda a, b: a - b
 
     utime = _ensure_module("utime")
     if not hasattr(utime, "time"):
