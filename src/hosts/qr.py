@@ -725,8 +725,9 @@ class QRHost(Host):
 
         def trigger_factory_reset():
             scr.show_loader(
-                text="Resetting scanner to defaults...",
-                title="Factory reset",
+                text="Resetting the QR scanner to its defaults.\n"
+                     "Your keys and device settings are untouched.",
+                title="QR scanner reset",
             )
             scr.set_value("factory_reset")
 
@@ -744,7 +745,8 @@ class QRHost(Host):
                 await show_screen(
                     Alert(
                         "Success!",
-                        "\n\nScanner restored and settings re-applied.",
+                        "\n\nQR scanner restored, and your scanner\n"
+                        "settings were re-applied.",
                         button_text="Close",
                     )
                 )
@@ -752,7 +754,7 @@ class QRHost(Host):
                 await show_screen(
                     Alert(
                         "Error",
-                        "\n\nFailed to factory reset scanner!",
+                        "\n\nFailed to reset the QR scanner!",
                         button_text="Close",
                     )
                 )
