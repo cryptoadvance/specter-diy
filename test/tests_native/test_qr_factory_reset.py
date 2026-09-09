@@ -22,6 +22,7 @@ import pyb
 import hosts.qr as qr
 from hosts.qr import (
     BAR_TYPE_ADDR,
+    DEFAULT_SCANNER_SETTINGS,
     BAUD_RATE_9600,
     BAUD_RATE_115200,
     BAUD_RATE_ADDR,
@@ -324,6 +325,41 @@ class QRResetTestCase(unittest.TestCase):
         self.assertTrue(host._send_factory_reset())
         self.assertTrue(host._apply_post_reset_configuration(snapshot, previous))
         self.assertTrue(scanner.raw_mode_on)
+
+    # -- what the reset is supposed to restore ----------------------------
+
+    def test_reset_puts_the_scanner_preferences_back_to_defaults(self):
+        """A factory reset means factory defaults, preferences included."""
+        host, scanner, _ = self.make_host()
+        host.settings.update(
+            {"sound": False, "aim": False, "light": True, "enabled": False}
+        )
+
+        snapshot, previous = host._pre_reset_scanner()
+        self.assertTrue(host._send_factory_reset())
+        self.assertTrue(host._apply_post_reset_configuration(snapshot, previous))
+
+        for key, value in DEFAULT_SCANNER_SETTINGS.items():
+            self.assertEqual(host.settings[key], value, key)
+        self.assertFalse(
+            host.settings["enabled"],
+            "'enabled' controls the main-menu button, not the scanner, so a "
+            "scanner reset must leave it alone",
+        )
+
+    def test_failed_reset_gives_the_preferences_back(self):
+        """Nothing was restored, so the user's choices must survive."""
+        host, scanner, _ = self.make_host()
+        host.settings.update({"sound": False, "aim": False, "light": True})
+
+        snapshot, previous = host._pre_reset_scanner()
+        self.assertTrue(host._send_factory_reset())
+        scanner.busy_until_ms = 10 ** 9
+        self.assertFalse(host._apply_post_reset_configuration(snapshot, previous))
+
+        self.assertFalse(host.settings["sound"])
+        self.assertFalse(host.settings["aim"])
+        self.assertTrue(host.settings["light"])
 
     # -- not leaving the scanner worse than we found it -------------------
 

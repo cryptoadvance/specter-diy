@@ -27,6 +27,16 @@ MODEL_UNKNOWN = 0
 MODEL_GM65 = 1
 MODEL_M3Y = 2
 
+# Host-side preferences that map onto the scanner (see MASK). A factory
+# reset puts the scanner back to its defaults, so these follow. The
+# "enabled" toggle is deliberately not in here: it controls whether the
+# QR button shows up in the main menu, not how the scanner behaves.
+DEFAULT_SCANNER_SETTINGS = {
+    "aim": True,
+    "light": False,
+    "sound": True,
+}
+
 RETRY_DELAY_MS = 100
 DELAY_AFTER_FACTORY_RESET = 200
 # A GM65 factory reset reboots the module: it stops answering for a while
@@ -149,13 +159,11 @@ class QRHost(Host):
         # default settings, extend it with more settings if applicable
         self.settings = {
             "enabled": True,
-            "aim": True,
-            "light": False,
-            "sound": True,
             # internal flag that indicates whether RAW compatibility fix
             # has been applied and persisted on the scanner
             "raw_fix_applied": False,
         }
+        self.settings.update(DEFAULT_SCANNER_SETTINGS)
 
         self._initial_reset_marker = None
         self._boot_reset_pending = False
@@ -665,6 +673,10 @@ class QRHost(Host):
     def _pre_reset_scanner(self):
         previous_settings = dict(self.settings)
         settings_snapshot = dict(previous_settings)
+        # The scanner goes back to its factory state, so the preferences
+        # that are written onto it go back to their defaults with it.
+        # They are restored from previous_settings if the reset fails.
+        settings_snapshot.update(DEFAULT_SCANNER_SETTINGS)
         settings_snapshot["raw_fix_applied"] = False
         return settings_snapshot, previous_settings
 
@@ -745,8 +757,8 @@ class QRHost(Host):
                 await show_screen(
                     Alert(
                         "Success!",
-                        "\n\nQR scanner restored, and your scanner\n"
-                        "settings were re-applied.",
+                        "\n\nQR scanner and its settings are back\n"
+                        "at their defaults.",
                         button_text="Close",
                     )
                 )
