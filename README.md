@@ -86,4 +86,23 @@ A few pictures of the UI:
 
 ### Key generation and recovery
 
+## M3Y Scanner Fix
+
+If you are experiencing issues with the M3Y Scanner not reading QR codes properly, especially for multi-signature wallets or non-animated QR codes, you can fix it by updating the firmware on the M3Y Scanner module.
+
+The fix involves flashing the M3Y Scanner with a custom firmware that resolves the QR code decoding issues. The firmware files and instructions can be found in the [Specter-DIY issue #314](https://github.com/cryptoadvance/specter-diy/issues/314).
+
+Steps to fix:
+1. Download the fixed firmware binary from the issue comments (look for `disco-m3y-nobootloader-v2.bin.txt` or similar).
+2. Rename the file to remove the `.txt` extension (e.g., `disco-m3y-nobootloader-v2.bin`).
+3. Follow the instructions in the Specter-DIY documentation to flash the firmware onto the M3Y Scanner module connected to your Waveshare board or Shield Lite.
+4. After flashing, test the scanner with various QR codes to ensure it reads both animated and non-animated codes correctly.
+
+This fix addresses the following issues:
+- Inability to scan non-animated QR codes (e.g., static wallet descriptors).
+- Failure to scan certain multi-signature wallet descriptors.
+- Scanner not turning on or not reading any QR codes.
+
+Credits go to the contributors in the Specter-DIY community who identified and tested the fix.
+
 ![](./docs/pictures/init_screens.jpg)
