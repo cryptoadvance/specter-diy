@@ -1,0 +1,298 @@
+name: Reproducible Firmware Build
+
+# ---------------------------------------------------------------------------
+# Triggers:
+#   * push to master touching boot/main/boot.py (i.e. a firmware version bump)
+#   * repository_dispatch (type "reproducible-build") for an exact commit/tag
+#
+# repository_dispatch is used instead of workflow_dispatch on purpose:
+# repository_dispatch always runs the workflow definition from the default
+# branch, regardless of any ref in the payload. A compromised write account
+# therefore cannot push a branch with a tampered version of this file and run
+# "that" version to produce an official-looking signing request. The
+# github.workflow_ref check below is kept only as a cheap sanity assertion.
+#
+# Start a manual build (needs a token with `contents: write` on the repo):
+#
+#   gh api repos/cryptoadvance/specter-diy/dispatches \
+#     -f event_type=reproducible-build \
+#     -F 'client_payload[ref]=v1.10.5'      # optional; omit to build master HEAD
+# ---------------------------------------------------------------------------
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - boot/main/boot.py
+
+  repository_dispatch:
+    types: [reproducible-build]
+
+permissions:
+  contents: read
+
+jobs:
+  reproducible-build:
+    name: Build reproducible firmware
+    runs-on: ubuntu-24.04
+
+    env:
+      BUILD_REF: ${{ github.event.client_payload.ref }}
+
+    steps:
+      - name: Require the master version of this workflow
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # With push / repository_dispatch GitHub always loads this file from
+          # the default branch, so this is the enforced version by construction.
+          # This check is only a sanity assertion in case the default branch is
+          # ever renamed away from "master" (update the expected value then).
+          expected="$REPO/.github/workflows/reproducible-build.yml@refs/heads/master"
+          if [ "$WORKFLOW_REF" != "$expected" ]; then
+            echo "ERROR: unexpected workflow ref."
+            echo "  running: $WORKFLOW_REF"
+            echo "  expected: $expected"
+            exit 1
+          fi
+          echo "OK: running the master version of this workflow."
+
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.BUILD_REF || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refuse unreviewed refs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Only refs that are part of the reviewed master history may produce a
+          # release signing request. Historical commits and tags on master keep
+          # working; arbitrary branches do not.
+          git fetch --no-tags --quiet origin \
+            "+refs/heads/master:refs/remotes/origin/master"
+
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/master; then
+            echo "ERROR: this ref is not part of reviewed master history."
+            echo "Refusing to produce a release signing request for unreviewed code."
+            exit 1
+          fi
+
+          echo "OK: build ref is contained in origin/master history."
+
+      - name: Record exact build inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p release/meta
+
+          git rev-parse HEAD \
+            > release/meta/source-commit.txt
+
+          git submodule status --recursive \
+            > release/meta/submodules.txt
+
+          sha256sum bootloader/keys/production/pubkeys.c \
+            > release/meta/production-pubkeys.sha256
+
+          python3 bootloader/tools/parse_pubkeys.py \
+            bootloader/keys/production/pubkeys.c \
+            > release/meta/production-keys.txt
+
+          BOOT_THRESHOLD="$(
+            sed -n \
+              's/.*\.bootloader_sig_threshold = \([0-9][0-9]*\).*/\1/p' \
+              bootloader/keys/production/pubkeys.c |
+            tail -1
+          )"
+
+          MAIN_THRESHOLD="$(
+            sed -n \
+              's/.*\.main_fw_sig_threshold = \([0-9][0-9]*\).*/\1/p' \
+              bootloader/keys/production/pubkeys.c |
+            tail -1
+          )"
+
+          if [ -z "$BOOT_THRESHOLD" ] || [ -z "$MAIN_THRESHOLD" ]; then
+            echo "ERROR: Could not determine production signature thresholds."
+            exit 1
+          fi
+
+          echo "BOOT_THRESHOLD=$BOOT_THRESHOLD" >> "$GITHUB_ENV"
+          echo "MAIN_THRESHOLD=$MAIN_THRESHOLD" >> "$GITHUB_ENV"
+
+      - name: Configure production public keys
+        run: |
+          cp bootloader/keys/production/pubkeys.c \
+             bootloader/keys/selfsigned/pubkeys.c
+
+      - name: Build reproducible Docker image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -t specter-reproducible .
+
+      - name: Build unsigned release firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$PWD:/app" \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            specter-reproducible \
+            ./build_firmware.sh \
+              main \
+              bootloader \
+              assemble \
+              hash \
+              ownership \
+            | tee build.log
+
+          if [ ! -f release/sha256.txt ]; then
+            echo "ERROR: Build did not create release/sha256.txt"
+            exit 1
+          fi
+
+          # This manifest is PRE-SIGN only.
+          # Rename it so it cannot be confused with the final release manifest.
+          mv release/sha256.txt release/sha256.presign.txt
+
+      - name: Derive firmware signing message from the built binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Do NOT parse this out of the human-readable build log. Ask the tool
+          # that actually produces it, so the string the offline signers sign is
+          # bound to the binary and not to log formatting.
+          MESSAGE="$(
+            docker run --rm \
+              --platform linux/amd64 \
+              -v "$PWD:/app" \
+              specter-reproducible \
+              python3 ./bootloader/tools/upgrade-generator.py \
+                message ./release/specter_upgrade.bin
+          )"
+
+          if [ -z "$MESSAGE" ]; then
+            echo "ERROR: empty firmware signing message."
+            exit 1
+          fi
+
+          printf '%s\n' "$MESSAGE" > release/meta/signing-message.txt
+          echo "SIGNING_MESSAGE=$MESSAGE" >> "$GITHUB_ENV"
+
+      - name: Create reproducible build summary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          COMMIT="$(git rev-parse HEAD)"
+
+          KEYSET_HASH="$(
+            awk '{print $1}' \
+              release/meta/production-pubkeys.sha256
+          )"
+
+          {
+            echo "# Specter DIY Reproducible Firmware Build"
+            echo ""
+
+            echo "## Source"
+            echo ""
+            echo "**Commit:**"
+            echo ""
+            echo "\`$COMMIT\`"
+            echo ""
+
+            echo "**Submodules:**"
+            echo ""
+            echo '```text'
+            cat release/meta/submodules.txt
+            echo '```'
+            echo ""
+
+            echo "## 🔐 Firmware signing message"
+            echo ""
+            echo "> ⚠️ **This section is for authorized Specter DIY release signers, not general users.**"
+            echo ">"
+            echo "> This release requires at least **$BOOT_THRESHOLD valid signatures**"
+            echo "> from authorized Specter DIY **production vendor keys**."
+            echo ">"
+            echo "> Only keys contained in the production bootloader key set are accepted."
+            echo ""
+
+            echo "**Each authorized release signer signs this exact message"
+            echo "(Bitcoin-style message signature, Base64):**"
+            echo ""
+            echo '```text'
+            echo "$SIGNING_MESSAGE"
+            echo '```'
+            echo ""
+
+            echo "## Production signing configuration"
+            echo ""
+            echo "**Bootloader signature threshold:** $BOOT_THRESHOLD"
+            echo ""
+            echo "**Main firmware signature threshold:** $MAIN_THRESHOLD"
+            echo ""
+            echo "**Production key-set SHA-256:**"
+            echo ""
+            echo "\`$KEYSET_HASH\`"
+            echo ""
+
+            echo "**Production keys:**"
+            echo ""
+            echo '```text'
+            cat release/meta/production-keys.txt
+            echo '```'
+            echo ""
+
+            echo "## 📦 Pre-sign reproducible-build hashes"
+            echo ""
+            echo "> ⚠️ **These are NOT the final release hashes.**"
+            echo ">"
+            echo "> They were generated before the required firmware signatures were imported."
+            echo "> Use them for reproducible-build comparison only."
+            echo ">"
+            echo "> Do NOT publish this file as \`sha256.signed.txt\`."
+            echo ""
+
+            echo '```text'
+            cat release/sha256.presign.txt
+            echo '```'
+            echo ""
+
+            echo "## ✅ Result"
+            echo ""
+            echo "Reproducible unsigned firmware build completed successfully."
+            echo ""
+            echo "➡️ **Next step: collect at least $BOOT_THRESHOLD valid production vendor signatures for the message above.**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reproducible build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: specter-reproducible-build
+          path: |
+            release/specter_upgrade.bin
+            release/specter_upgrade_unsigned.bin
+            release/initial_firmware.bin
+            release/sha256.presign.txt
+            release/meta/
+            build.log
+          retention-days: 90
+          if-no-files-found: error
