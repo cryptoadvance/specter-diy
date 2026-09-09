@@ -29,6 +29,11 @@ MODEL_M3Y = 2
 
 RETRY_DELAY_MS = 100
 DELAY_AFTER_FACTORY_RESET = 200
+# A GM65 factory reset reboots the module: it stops answering for a while
+# and comes back on the defaults from Form 2-1 (standard TTL-232, 9600).
+# 200ms is not enough to cover that, so poll until it is back.
+SCANNER_REBOOT_TIMEOUT_MS = 3000
+SCANNER_REBOOT_POLL_MS = 100
 CHUNK_TIMEOUT = 0.5
 
 # ------ GM65 Scanner
@@ -171,6 +176,10 @@ class QRHost(Host):
 
         self.f = None
         self.software_version = None
+        # RAW mode as last verified on the scanner itself; None while
+        # unknown. The host-side "raw_fix_applied" setting only records
+        # whether we ever applied it, which is not the same thing.
+        self._raw_mode_on_scanner = None
         self.baudrate = baudrate
         self.uart = pyb.UART(uart, baudrate, read_buf_len=READ_BUFFER_LEN)
         if simulator:
@@ -444,6 +453,7 @@ class QRHost(Host):
                     if val_check is None or val_check != RAW_MODE_VALUE:
                         return False
                 save_required = True
+            self._raw_mode_on_scanner = True
             if not raw_fix_applied:
                 raw_fix_applied = True
                 settings_changed = True
@@ -452,6 +462,7 @@ class QRHost(Host):
             # requires the RAW mode compatibility tweak.
             raw_fix_applied = False
             settings_changed = True
+            self._raw_mode_on_scanner = None
 
         # Save settings to EEPROM if anything has changed.
         if save_required:
@@ -486,6 +497,17 @@ class QRHost(Host):
         self._set_baud(BAUD_RATE_115200)
         return True
     
+    def _wait_for_scanner(self, timeout_ms, poll_ms=SCANNER_REBOOT_POLL_MS):
+        """Poll until the scanner answers a read, or give up."""
+        waited = 0
+        while True:
+            if self.get_setting(SERIAL_ADDR, retries=1) is not None:
+                return True
+            if waited >= timeout_ms:
+                return False
+            time.sleep_ms(poll_ms)
+            waited += poll_ms
+
     def _set_baud(self, baudrate):
         self.uart.deinit()
         self.baudrate=baudrate
@@ -541,7 +563,10 @@ class QRHost(Host):
         if self.is_configured:
             return
 
-        # PIN trigger mode
+        self._fallback_to_pin_trigger()
+
+    def _fallback_to_pin_trigger(self):
+        """Last resort when the scanner cannot be configured over UART."""
         self._set_baud(BAUD_RATE_9600)
         self.trigger = pyb.Pin(QRSCANNER_TRIGGER, pyb.Pin.OUT)
         self.trigger.on()
@@ -551,12 +576,16 @@ class QRHost(Host):
     def _format_scanner_info(self):
         version = self.software_version
         version_text = "unknown" if version is None else str(version)
-        raw_fix_applied = self.settings.get("raw_fix_applied", False)
-        
         if version is None:
             raw_fix = "Unknown"
         elif version == VERSION_NEEDS_RAW:
-            raw_fix = "Applied" if raw_fix_applied else "Not applied"
+            # Read back what we verified on the scanner. The host-side flag
+            # survives a reset that wiped the scanner, so trusting it here
+            # reported "Applied" for a scanner that had just lost RAW mode.
+            if self._raw_mode_on_scanner is None:
+                raw_fix = "Unknown"
+            else:
+                raw_fix = "Applied" if self._raw_mode_on_scanner else "Not applied"
         else:
             raw_fix = "Not needed"
         scanner_name = "unknown"
@@ -584,6 +613,11 @@ class QRHost(Host):
         configured = self.configure()
         if not configured:
             self.settings = previous_settings
+            # The scanner has just been wiped, so leaving it unconfigured
+            # would make it unusable until the next power cycle:
+            # Host.enable() only calls init() once per session, so nothing
+            # retries on its own. Fall back the way init() does.
+            self._fallback_to_pin_trigger()
             return False
         self.is_configured = True
         return True
@@ -605,13 +639,27 @@ class QRHost(Host):
             return bool(res)
         
         if self.scanner_model == MODEL_GM65:
-            # factory reset restores the GM65 to its 9600 baud default,
-            # so the host UART has to follow or configure_gm65() will
-            # talk to the scanner at the wrong baudrate (see issue #355)
-            res = self.query(FACTORY_RESET_CMD) == SUCCESS
-            if res and self.baudrate != BAUD_RATE_9600:
-                self._set_baud(BAUD_RATE_9600)
-            return res
+            prev_baudrate = self.baudrate
+            ack = self.query(FACTORY_RESET_CMD)
+            # The reset is fire-and-forget: once the command is on the wire
+            # the scanner is back on its 9600 default, whether or not the
+            # ACK survives the baud change. Gating the host-side switch on
+            # the ACK leaves the two desynced with no way back, because
+            # configure_gm65() does not probe baud rates (issue #355).
+            # Going through _set_baud() also drops the boot noise the
+            # module emits past the ACK, which would otherwise be read as
+            # the first reply of the reconfiguration.
+            self._set_baud(BAUD_RATE_9600)
+            # Whatever RAW mode the scanner had is gone now.
+            self._raw_mode_on_scanner = False
+            if self._wait_for_scanner(SCANNER_REBOOT_TIMEOUT_MS):
+                return True
+            if ack == SUCCESS:
+                # It acknowledged the reset but is not talking yet. Stay at
+                # 9600 so the reconfiguration meets it where it comes up.
+                return True
+            self._set_baud(prev_baudrate)
+            return False
         return False
     
     def _pre_reset_scanner(self):
