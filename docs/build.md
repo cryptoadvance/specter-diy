@@ -8,7 +8,7 @@ Check [reproducible-build](./reproducible-build.md) if you want to use Docker.
 
 ## Prerequisites for the Nix build
 
-There are multiple ways to get all necessary tools. The recommended way is to use the Nix flake with direnv.
+There are multiple ways to get all necessary tools. The recommended way is to use the Nix flake with `direnv`.
 If that's too complicated for you, you can use the traditional `nix-shell` or install the tools manually (which mighty be tricky to get the dependencies right).
 
 ### Install Nix on Ubuntu 24.04
@@ -35,9 +35,9 @@ newgrp nix-users
 ### Nix flake (Recommended)
 
 The easiest way to get all necessary tools is to use the Nix flake from the root of the repository. You need to have [Nix](https://nixos.org/) (on Mac use [determinate](https://github.com/DeterminateSystems/nix-installer)) with flakes enabled. This only works with Nix >2.7 (check with `nix --version`).
-Install direnv with `brew install direnv` (on Mac) or `sudo apt install direnv` (on Linux). direnv automatically loads and unloads the environment described in `.envrc` when you enter or leave the repository, so the development tooling is ready without extra commands.
+Install `direnv` with `brew install direnv` (on Mac) or `sudo apt install direnv` (on Linux). `direnv` automatically loads and unloads the environment described in `.envrc` when you enter or leave the repository, so the development tooling is ready without extra commands.
 
-Make sure that [flakes are enabled](https://nixos.wiki/wiki/Flakes) in your Nix config. On Linux systems, your user might need to be added to the nix-users group.
+Make sure that [flakes are enabled](https://nixos.wiki/wiki/Flakes) in your Nix config. On Linux systems, your user might need to be added to the `nix-users` group.
 
 ```sh
 # Enter development shell
@@ -66,7 +66,7 @@ To compile the firmware for the board you will need `arm-none-eabi-gcc` compiler
 sudo apt-get install build-essential gcc-arm-none-eabi binutils-arm-none-eabi gdb-multiarch openocd
 ```
 
-**Archlinux**:
+**Arch Linux**:
 ```sh
 sudo pacman -S arm-none-eabi-gcc arm-none-eabi-binutils openocd base-devel python-case
 ```
@@ -79,7 +79,7 @@ brew tap ArmMbed/homebrew-formulae
 brew install arm-none-eabi-gcc
 ```
 
-On **Windows**: Install linux subsystem and follow Linux instructions.
+On **Windows**: Install Windows Subsystem for Linux (WSL) and follow Linux instructions.
 
 ### Prerequisities (Manually): Simulator
 
@@ -96,17 +96,17 @@ brew install sdl2
 ```
 
 **Windows**:
-- `sudo apt install libsdl2-dev` on Linux side.
+- `sudo apt install libsdl2-dev` on Linux side
 - install and launch [Xming](https://sourceforge.net/projects/xming/) on Windows side
-- set `export DISPLAY=:0` on linux part
+- set `export DISPLAY=:0` on Linux part
 
 ## Build
 
-All build commands might need a prefix like `nix develop -c` or need to be run from `nix develop` shell. If you use direnv, you don't need to do anything, apart from an initial `direnv allow`.
+All build commands might need a prefix like `nix develop -c` or need to be run from `nix develop` shell. If you use `direnv`, you don't need to do anything, apart from an initial `direnv allow`.
 
 ### Starting the build
 
-After entering the development shell (either with `nix develop` or via direnv), start the default firmware build with:
+After entering the development shell (either with `nix develop` or via `direnv`), start the default firmware build with:
 
 ```sh
 make disco
@@ -132,9 +132,9 @@ also creates `release/disco-nobootloader.{bin,hex}`, which contain the plain fir
 `disco-nobootloader.bin` image is identical to the `nix build` output and can be flashed directly to a development board when
 you need a faster iteration loop.
 
-## Run Unittests
+## Run Unit Tests
 
-Currently unittests work only on linuxport, and there are... not many... Contributions are very welcome!
+Currently unit tests work only on linuxport, and there are... not many... Contributions are very welcome!
 
 ```
 make test
