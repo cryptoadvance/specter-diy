@@ -88,14 +88,18 @@ After the initial installation, the device only accepts signed firmware:
 The **initial** installation is the trust-critical step, because the
 bootloader is not installed at the factory — you flash it yourself:
 
-1. Verify the PGP signature of `sha256.signed.txt`. Since v1.10.3 the
-   hash file is signed with the **"Specter Signer 2026"** key,
-   controlled by k9ert
-   (fingerprint `9DC3 3CA8 3058 9DE3 B322 5C26 EEF5 756B 2EA4 2349`,
-   available from the
-   [Ubuntu keyserver](http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9dc33ca830589de3b3225c26eef5756b2ea42349)).
-   Older releases were signed with [Stepan's release
-   key](https://stepansnigirev.com/ss-specter-release.asc).
+1. Verify the PGP signature of `sha256.signed.txt`. The signing key varies
+   by release — check the release notes for which one applies:
+   - **v1.10.5**: Mike Tolkachev (@miketlk), fingerprint
+     `F2DB C4C6 14C1 13E2 B15F 879A DD5C 1264 EBD6 45BE`, key at
+     <https://github.com/miketlk.gpg> (also listed in
+     [SECURITY.md](https://github.com/cryptoadvance/specter-diy/blob/master/SECURITY.md)).
+   - **v1.10.3–v1.10.4**: the **"Specter Signer 2026"** key, controlled by
+     k9ert (fingerprint `9DC3 3CA8 3058 9DE3 B322 5C26 EEF5 756B 2EA4 2349`,
+     available from the
+     [Ubuntu keyserver](http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9dc33ca830589de3b3225c26eef5756b2ea42349)).
+   - **Older releases**: [Stepan's release
+     key](https://stepansnigirev.com/ss-specter-release.asc).
 2. Verify the hash of `initial_firmware_<version>.bin` against the signed
    hash file.
 3. Flash from a computer you trust.
