@@ -156,9 +156,9 @@ class AsyncGUI:
         await self.load_screen(alert)
         return await alert.result()
 
-    async def error(self, msg, popup=False):
+    async def error(self, msg, popup=False, button_text="OK"):
         """Shows an error"""
-        alert = Alert("Error!", msg, button_text="OK")
+        alert = Alert("Error!", msg, button_text=button_text)
         if popup:
             await self.open_popup(alert)
         else:
