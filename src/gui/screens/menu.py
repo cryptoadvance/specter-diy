@@ -6,14 +6,20 @@ from ..decorators import on_release, cb_with_args
 
 class Menu(Screen):
     def __init__(
-        self, buttons=[], title="What do you want to do?", note=None, y0=60, last=None
+        self, buttons=[], title="What do you want to do?", note=None, y0=60, last=None, subtitle=None
     ):
         super().__init__()
         y = y0
         self.title = add_label(title, style="title", scr=self)
+        obj = self.title
+        if subtitle is not None:
+            self.subtitle = add_label(subtitle, scr=self)
+            self.subtitle.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            y += 5 + self.subtitle.get_height()
+            obj = self.subtitle
         if note is not None:
             self.note = add_label(note, style="hint", scr=self)
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
             y += self.note.get_height()
         self.page = lv.page(self)
         h = 800 - y - 20

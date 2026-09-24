@@ -1,6 +1,7 @@
 from .screen import Screen
 from .menu import Menu
 from .alert import Alert
+from .advancedalert import AdvancedAlert
 from .prompt import Prompt
 from .qralert import QRAlert
 from .progress import Progress

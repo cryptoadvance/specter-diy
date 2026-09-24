@@ -4,6 +4,7 @@ import json
 from io import BytesIO
 import asyncio
 
+import platform
 from platform import (
     CriticalErrorWipeImmediately,
     reboot,
@@ -23,6 +24,7 @@ from embit import bip39
 from embit.liquid.networks import NETWORKS
 from gui.screens.settings import HostSettings
 from gui.screens.mnemonic import MnemonicPrompt
+from pgp.ui import PGPVerification
 
 # small helper functions
 from helpers import gen_mnemonic, fix_mnemonic
@@ -33,7 +35,7 @@ class SpecterError(BaseError):
     NAME = "Specter error"
 
 
-class Specter:
+class Specter(PGPVerification):
     """Specter class.
     Call .start() method to register in the event loop
     It will then call the .setup() and .main() functions to display the GUI
@@ -57,6 +59,10 @@ class Specter:
         self.current_menu = self.initmenu
         self.dev = False
         self.apps = apps
+        self.pgp_fingerprint = None
+        self.pgp_key_file = None
+        self.pgp_signing_keys = []
+        self.pgp_expires_at = None
 
     def _firmware_note(self, include_details=False):
         primary_note = "Firmware version %s" % get_version()
@@ -257,7 +263,12 @@ class Specter:
         ]
         if self.keystore.is_key_saved and self.keystore.load_button:
             buttons.append((2, self.keystore.load_button))
-        buttons += [(None, "Settings"), (3, "Device settings")]
+        buttons += [
+            (None, "Settings"),
+            (3, "Device settings"),
+            (None, "Other tools"),
+            (4, "PGP verification"),
+        ]
         # wait for menu selection
         menuitem = await self.gui.menu(buttons)
 
@@ -285,6 +296,8 @@ class Specter:
             return self.mainmenu
         elif menuitem == 3:
             await self.update_devsettings()
+        elif menuitem == 4:
+            await self.pgp_verification()
         elif menuitem == 777:
             return await self.import_mnemonic()
         # lock device

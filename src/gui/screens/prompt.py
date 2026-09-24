@@ -6,17 +6,22 @@ from ..decorators import on_release, cb_with_args
 
 class Prompt(Screen):
     def __init__(self, title="Are you sure?", message="Make a choice",
-                 confirm_text="Confirm", cancel_text="Cancel", note=None, warning=None):
+                 confirm_text="Confirm", cancel_text="Cancel", note=None, warning=None, subtitle=None):
         super().__init__()
         self.title = add_label(title, scr=self, style="title")
+        obj = self.title
+        if subtitle is not None:
+            self.subtitle = add_label(subtitle, scr=self)
+            self.subtitle.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            obj = self.subtitle
         if note is not None:
             self.note = add_label(note, scr=self, style="hint")
-            self.note.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
+            self.note.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 5)
             obj = self.note
         self.page = lv.page(self)
         self.page.set_size(480, 600)
         self.message = add_label(message, scr=self.page)
-        self.page.align(self.title, lv.ALIGN.OUT_BOTTOM_MID, 0, 0)
+        self.page.align(obj, lv.ALIGN.OUT_BOTTOM_MID, 0, 12)
         # Initialize an empty icon label. It will display nothing until a symbol is set.
         self.icon = lv.label(self)
         self.icon.set_text("")
