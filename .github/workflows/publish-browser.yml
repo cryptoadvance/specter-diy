@@ -1,0 +1,24 @@
+name: Publish browser simulator
+
+# Publish only from the trusted workflow_run context in this repository. The
+# reusable implementation lives in the simulator repository; Pages and PR
+# permissions remain scoped to this caller.
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
+  pages: write
+  id-token: write
+
+jobs:
+  publish:
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/publish-browser.yml@35dde15f894f9e7417e25dd41550b97270778242
+    with:
+      simulator_repository: cryptoadvance/specter-diy-web-simulator
+      simulator_commit: 35dde15f894f9e7417e25dd41550b97270778242

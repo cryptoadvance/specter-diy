@@ -5,39 +5,106 @@ on:
     branches: [main, master]
   push:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open PR number to build
+        required: true
+        type: string
+      head_sha:
+        description: Current PR head SHA (7 to 40 hexadecimal characters)
+        required: true
+        type: string
+
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Manual PR {0} {1}', inputs.pr_number, inputs.head_sha) || github.event_name == 'pull_request' && format('PR {0}', github.event.pull_request.number) || github.sha }}
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
-  build:
-    name: Build Firmware
+  target:
+    name: Record workflow target
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      repository: ${{ steps.resolve.outputs.repository }}
+      simulator_repository: ${{ steps.resolve.outputs.simulator_repository }}
+      simulator_commit: ${{ steps.resolve.outputs.simulator_commit }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
+      - name: Test immutable source resolver
+        run: python3 .github/simulator/test_resolve_build_target.py
+      - name: Resolve exact source and simulator commits
+        id: resolve
+        env:
+          TARGET_EVENT: ${{ github.event_name }}
+          TARGET_PR: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number || 0 }}
+          TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event.pull_request.head.sha || github.sha }}
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          TARGET_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          TARGET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TARGET_SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
+          TARGET_SIMULATOR_COMMIT: 35dde15f894f9e7417e25dd41550b97270778242
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/simulator/resolve_build_target.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-target
+          if-no-files-found: error
+          path: target.json
+
+  build:
+    name: Build firmware from exact source commit
+    runs-on: ubuntu-latest
+    needs: target
+    env:
+      EXPECTED_SHA: ${{ needs.target.outputs.sha }}
+      SPECTER_SOURCE_REPOSITORY: ${{ needs.target.outputs.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.target.outputs.repository }}
+          ref: ${{ needs.target.outputs.sha }}
           submodules: recursive
-      
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v14
-
-      - name: Cache Nix store
-        uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/nix
-            /nix/store
+          path: /nix/store
           key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            nix-${{ runner.os }}-
-
-      - name: Build Unix simulator
-        run: nix develop -c make unix
-
-      - name: Build STM32F469 Discovery firmware
-        run: nix develop -c make disco
-
-      - name: Upload firmware artifacts
+          restore-keys: nix-${{ runner.os }}-
+      - uses: DeterminateSystems/nix-installer-action@v14
+      - name: Build Unix simulator and STM32 firmware
+        run: |
+          nix develop -c make unix
+          nix develop -c make disco
+      - name: Record firmware provenance
+        run: python3 .github/simulator/source_info.py firmware
+      - name: Upload firmware binaries
+        id: firmware-upload
         uses: actions/upload-artifact@v4
         with:
           name: firmware-binaries
+          if-no-files-found: error
           path: |
             bin/specter-diy.bin
             bin/specter-diy.hex
+            source.json
+      - name: Add firmware download to workflow summary
+        env:
+          ARTIFACT_URL: ${{ steps.firmware-upload.outputs.artifact-url }}
+        run: |
+          echo "## Specter firmware" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download the tested firmware artifact]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+  browser:
+    name: Build and smoke-test browser simulator
+    needs: target
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@35dde15f894f9e7417e25dd41550b97270778242
+    with:
+      source_repository: ${{ needs.target.outputs.repository }}
+      source_commit: ${{ needs.target.outputs.sha }}
+      simulator_repository: ${{ needs.target.outputs.simulator_repository }}
+      simulator_commit: ${{ needs.target.outputs.simulator_commit }}
+      pr_number: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number || 0 }}
