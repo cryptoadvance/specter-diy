@@ -47,7 +47,7 @@ jobs:
           TARGET_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           TARGET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TARGET_SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
-          TARGET_SIMULATOR_COMMIT: 35dde15f894f9e7417e25dd41550b97270778242
+          TARGET_SIMULATOR_COMMIT: 2406c673f94d6f8f65014592ec6db3b27a2e28f3
           GH_TOKEN: ${{ github.token }}
         run: python3 .github/simulator/resolve_build_target.py
       - uses: actions/upload-artifact@v4
@@ -101,7 +101,7 @@ jobs:
   browser:
     name: Build and smoke-test browser simulator
     needs: target
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@35dde15f894f9e7417e25dd41550b97270778242
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@2406c673f94d6f8f65014592ec6db3b27a2e28f3
     with:
       source_repository: ${{ needs.target.outputs.repository }}
       source_commit: ${{ needs.target.outputs.sha }}
