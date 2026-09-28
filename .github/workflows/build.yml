@@ -10,7 +10,7 @@ on:
       pr_number:
         description: Open PR number to build
         required: true
-        type: string
+        type: number
       head_sha:
         description: Current PR head SHA (7 to 40 hexadecimal characters)
         required: true
@@ -35,8 +35,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-      - name: Test source and latest simulator-main resolver
-        run: python3 .github/simulator/test_resolve_build_target.py
+      - name: Test source and pinned simulator resolvers
+        run: |
+          python3 .github/simulator/test_resolve_build_target.py
+          python3 .github/simulator/test_resolve_publisher_target.py
       - name: Resolve exact source and simulator commits
         id: resolve
         env:
@@ -47,6 +49,7 @@ jobs:
           TARGET_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           TARGET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TARGET_SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
+          TARGET_SIMULATOR_COMMIT: c3373fef311b8684d0ea226ba17d4a2880abee12
           GH_TOKEN: ${{ github.token }}
         run: python3 .github/simulator/resolve_build_target.py
       - uses: actions/upload-artifact@v4
@@ -100,7 +103,7 @@ jobs:
   browser:
     name: Build and smoke-test browser simulator
     needs: target
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@main
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@c3373fef311b8684d0ea226ba17d4a2880abee12
     with:
       source_repository: ${{ needs.target.outputs.repository }}
       source_commit: ${{ needs.target.outputs.sha }}

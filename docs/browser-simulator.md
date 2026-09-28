@@ -2,18 +2,26 @@
 
 The browser simulator tooling is maintained in
 [`cryptoadvance/specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator).
-This firmware repository calls its reusable GitHub Actions workflows at the
-current workflows from the simulator repository's `main` branch. At the start
-of each build, the target job resolves `main` to one exact commit SHA and uses
-that SHA for all simulator tooling in that run. Each build records the exact
-firmware source and simulator-tooling commits, so it automatically follows
-latest `main` without losing per-build provenance.
+This firmware repository pins both reusable workflow definitions and simulator
+tooling to the same full commit SHA in `.github/workflows/build.yml` and
+`.github/workflows/publish-browser.yml`. Updating simulator tooling requires
+reviewing a full SHA and changing those trusted workflow pins together; builds
+never resolve a moving `main` branch. Each build records the exact firmware
+source and simulator-tooling commits in its provenance metadata. The trusted
+publisher rejects successful build artifacts whose simulator repository or
+commit differs from its own fixed configuration, so a PR can choose Specter
+source but cannot choose the tooling version accepted for publication.
 
 The trusted `Publish browser simulator` workflow publishes the stable build
 and PR previews through this repository's GitHub Pages site:
 
 - Stable: <https://cryptoadvance.github.io/specter-diy/>
 - PR preview: `https://cryptoadvance.github.io/specter-diy/pr/<number>/`
+
+For default-branch pushes, the trusted publisher also compares the completed
+run's SHA with the current default-branch SHA immediately before invoking the
+reusable publisher. Older or non-default-branch runs are skipped to prevent a
+slow build from replacing a newer stable page.
 
 To test the browser simulator with Specter Desktop, use the local
 [`specter-virtual-host`](https://github.com/cryptoadvance/specter-virtual-host)

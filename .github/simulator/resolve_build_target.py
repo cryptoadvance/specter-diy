@@ -14,18 +14,7 @@ def fetch_pull(repository: str, number: str, token: str) -> dict:
         return json.load(response)
 
 
-def fetch_simulator_main(repository: str, token: str) -> str:
-    request = Request(f"https://api.github.com/repos/{repository}/commits/main", headers={
-        "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
-    })
-    with urlopen(request, timeout=30) as response:
-        commit = json.load(response).get("sha")
-    if not isinstance(commit, str) or not re.fullmatch(r"[a-f0-9]{40}", commit):
-        raise ValueError(f"Simulator repository {repository} returned no valid main commit SHA")
-    return commit
-
-
-def resolve(env, fetch=fetch_pull, fetch_main=fetch_simulator_main) -> dict:
+def resolve(env, fetch=fetch_pull) -> dict:
     event = env["TARGET_EVENT"]
     number = str(env["TARGET_PR"]).strip(" \t")
     sha = env["TARGET_SHA"].strip(" \t")
@@ -65,9 +54,9 @@ def resolve(env, fetch=fetch_pull, fetch_main=fetch_simulator_main) -> dict:
     simulator_repository = env["TARGET_SIMULATOR_REPOSITORY"]
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", simulator_repository):
         raise ValueError("Invalid simulator repository")
-    simulator_commit = fetch_main(simulator_repository, env["GH_TOKEN"])
-    if not isinstance(simulator_commit, str) or not re.fullmatch(r"[a-f0-9]{40}", simulator_commit):
-        raise ValueError("Simulator main did not resolve to a full commit SHA")
+    simulator_commit = env["TARGET_SIMULATOR_COMMIT"].strip(" \t")
+    if not re.fullmatch(r"[a-f0-9]{40}", simulator_commit):
+        raise ValueError("Expected a full simulator commit SHA from trusted workflow configuration")
     return {"event": event, "number": int(number), "branch": branch,
             "commit": sha, "repository": repository,
             "simulator_repository": simulator_repository,

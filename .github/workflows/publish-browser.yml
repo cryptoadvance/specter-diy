@@ -17,7 +17,45 @@ permissions:
   id-token: write
 
 jobs:
+  resolve:
+    name: Resolve simulator tooling commit
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      simulator_commit: ${{ steps.resolve.outputs.simulator_commit }}
+      should_publish: ${{ steps.resolve.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Download build target from the triggering run
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: build-target
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: build-target
+      - name: Resolve the simulator tooling commit
+        id: resolve
+        env:
+          BUILD_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          BUILD_EVENT: ${{ github.event.workflow_run.event }}
+          BUILD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TARGET_FILE: build-target/target.json
+          SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
+          TRUSTED_SIMULATOR_COMMIT: c3373fef311b8684d0ea226ba17d4a2880abee12
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/simulator/resolve_publisher_target.py
+
   publish:
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/publish-browser.yml@main
+    needs: resolve
+    if: needs.resolve.outputs.should_publish == 'true'
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/publish-browser.yml@c3373fef311b8684d0ea226ba17d4a2880abee12
     with:
       simulator_repository: cryptoadvance/specter-diy-web-simulator
+      simulator_commit: ${{ needs.resolve.outputs.simulator_commit }}
