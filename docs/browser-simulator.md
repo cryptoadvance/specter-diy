@@ -12,16 +12,26 @@ publisher rejects successful build artifacts whose simulator repository or
 commit differs from its own fixed configuration, so a PR can choose Specter
 source but cannot choose the tooling version accepted for publication.
 
+The `Build` workflow starts directly on `pull_request` with only
+`contents: read`. Its firmware and browser jobs check out the exact PR head
+repository and SHA, run the firmware tests and browser smoke tests, and upload
+their outputs. PR source, submodules, build scripts, and all artifacts are
+untrusted. The default-branch `Publish browser simulator` workflow starts on
+`workflow_run(Build)` and receives the write and Pages permissions. It checks
+the current PR and both artifact manifests against GitHub's run metadata and
+the approved simulator pin before publishing. Publisher code comes from the
+pinned simulator checkout; it never runs code from a PR artifact.
+
 The trusted `Publish browser simulator` workflow publishes the stable build
 and PR previews through this repository's GitHub Pages site:
 
 - Stable: <https://cryptoadvance.github.io/specter-diy/>
 - PR preview: `https://cryptoadvance.github.io/specter-diy/pr/<number>/`
 
-For default-branch pushes, the trusted publisher also compares the completed
-run's SHA with the current default-branch SHA immediately before invoking the
-reusable publisher. Older or non-default-branch runs are skipped to prevent a
-slow build from replacing a newer stable page.
+For default-branch pushes, the trusted publisher compares the completed run's
+SHA with the current default-branch SHA before staging the stable page. Older
+or non-default-branch runs are skipped, preventing a slow build from replacing
+a newer stable page.
 
 To test the browser simulator with Specter Desktop, use the local
 [`specter-virtual-host`](https://github.com/cryptoadvance/specter-virtual-host)
