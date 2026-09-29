@@ -17,7 +17,18 @@ def fetch_pull(repository: str, number: int, token: str) -> dict:
         return json.load(response)
 
 
-def resolve(env, fetch=fetch_pull) -> dict:
+def fetch_simulator_main(repository: str, token: str) -> str:
+    request = Request(f"https://api.github.com/repos/{repository}/commits/main", headers={
+        "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+    })
+    with urlopen(request, timeout=30) as response:
+        commit = json.load(response).get("sha")
+    if not isinstance(commit, str) or not SHA.fullmatch(commit):
+        raise ValueError("Simulator main did not resolve to a full commit SHA")
+    return commit
+
+
+def resolve(env, fetch=fetch_pull, fetch_main=fetch_simulator_main) -> dict:
     event = env["TARGET_EVENT"]
     base_repository = env["GITHUB_REPOSITORY"]
     base_branch = env["TARGET_DEFAULT_BRANCH"]
@@ -48,10 +59,11 @@ def resolve(env, fetch=fetch_pull) -> dict:
     if not SHA.fullmatch(commit) or not REPOSITORY.fullmatch(repository) or not branch:
         raise ValueError("Invalid source identity")
     simulator_repository = env["TARGET_SIMULATOR_REPOSITORY"]
-    simulator_commit = env["TARGET_SIMULATOR_COMMIT"]
-    if simulator_repository != "cryptoadvance/specter-diy-web-simulator" or \
-            not SHA.fullmatch(simulator_commit):
-        raise ValueError("Invalid approved simulator identity")
+    if simulator_repository != "cryptoadvance/specter-diy-web-simulator":
+        raise ValueError("Unexpected simulator repository")
+    simulator_commit = fetch_main(simulator_repository, env["GH_TOKEN"])
+    if not SHA.fullmatch(simulator_commit):
+        raise ValueError("Simulator main did not resolve to a full commit SHA")
     return {"event": event, "number": number, "branch": branch,
             "repository": repository, "commit": commit,
             "base_repository": base_repository, "base_branch": base_branch,

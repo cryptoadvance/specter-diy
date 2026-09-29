@@ -21,17 +21,20 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(permissions.strip(), "contents: read")
         self.assertNotIn("secrets:", BUILD)
 
-    def test_immutable_workflow_and_tooling_pin_match(self):
+    def test_reusable_workflows_are_immutable_and_tooling_uses_resolved_main(self):
         pins = re.findall(r"(?:browser-simulator|publish-browser)\.yml@([A-Za-z0-9_.-]+)",
                           BUILD + PUBLISH)
         self.assertEqual(len(pins), 2)
         self.assertTrue(all(re.fullmatch(r"[a-f0-9]{40}", pin) for pin in pins))
         self.assertEqual(pins[0], pins[1])
-        self.assertIn(f"TARGET_SIMULATOR_COMMIT: {pins[0]}", BUILD)
-        self.assertIn(f"simulator_commit: {pins[0]}", PUBLISH)
-        self.assertIn(f"ref: {pins[0]}", BUILD)
+        self.assertIn("fetch_main(simulator_repository", (ROOT / ".github/simulator/resolve_build_target.py").read_text())
+        self.assertIn("ref: ${{ needs.target.outputs.simulator_commit }}", BUILD)
+        self.assertIn("ref: ${{ needs.resolve.outputs.simulator_commit }}", PUBLISH)
+        self.assertIn("target.get(\"simulator_commit\") != current", (ROOT / ".github/simulator/resolve_publisher_target.py").read_text())
 
     def test_pr_checkout_and_trusted_provenance_are_separate(self):
+        self.assertIn("repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}", BUILD)
+        self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.event.repository.default_branch }}", BUILD)
         self.assertIn("repository: ${{ needs.target.outputs.repository }}", BUILD)
         self.assertIn("ref: ${{ needs.target.outputs.sha }}", BUILD)
         self.assertIn("python3 simulator-tools/web/tools/source_info.py firmware", BUILD)

@@ -34,7 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.event.repository.default_branch }}
           persist-credentials: false
       - name: Record exact source and approved simulator commit
         id: resolve
@@ -48,7 +49,6 @@ jobs:
           TARGET_BASE_REPOSITORY: ${{ github.event.pull_request.base.repo.full_name || github.repository }}
           TARGET_BASE_BRANCH: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
           TARGET_SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
-          TARGET_SIMULATOR_COMMIT: be15b999952e69de73b6aaede355cb4d7619bd4e
           GH_TOKEN: ${{ github.token }}
         run: python3 .github/simulator/resolve_build_target.py
       - uses: actions/upload-artifact@v4
@@ -71,12 +71,12 @@ jobs:
           ref: ${{ needs.target.outputs.sha }}
           submodules: recursive
           persist-credentials: false
-      - name: Check out approved provenance tooling
+      - name: Check out reviewed provenance generator
         uses: actions/checkout@v4
         with:
           repository: cryptoadvance/specter-diy-web-simulator
           ref: be15b999952e69de73b6aaede355cb4d7619bd4e
-          path: simulator-tools
+          path: provenance-tools
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@v14
       - name: Build Unix simulator and STM32 firmware
@@ -87,8 +87,8 @@ jobs:
       - name: Record firmware provenance
         env:
           SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
-          SIMULATOR_COMMIT: be15b999952e69de73b6aaede355cb4d7619bd4e
-        run: python3 simulator-tools/web/tools/source_info.py firmware
+          SIMULATOR_COMMIT: ${{ needs.target.outputs.simulator_commit }}
+        run: python3 provenance-tools/web/tools/source_info.py firmware
       - name: Upload firmware binaries
         id: firmware-upload
         uses: actions/upload-artifact@v4
@@ -109,7 +109,7 @@ jobs:
   browser:
     name: Build and smoke-test browser simulator
     needs: target
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@be15b999952e69de73b6aaede355cb4d7619bd4e
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@05256b9068dded056d88ee9555688c03979a9584
     with:
       source_repository: ${{ needs.target.outputs.repository }}
       source_commit: ${{ needs.target.outputs.sha }}

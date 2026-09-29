@@ -2,25 +2,26 @@
 
 The browser simulator tooling is maintained in
 [`cryptoadvance/specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator).
-This firmware repository pins both reusable workflow definitions and simulator
-tooling to the same full commit SHA in `.github/workflows/build.yml` and
-`.github/workflows/publish-browser.yml`. Updating simulator tooling requires
-reviewing a full SHA and changing those trusted workflow pins together; builds
-never resolve a moving `main` branch. Each build records the exact firmware
-source and simulator-tooling commits in its provenance metadata. The trusted
-publisher rejects successful build artifacts whose simulator repository or
-commit differs from its own fixed configuration, so a PR can choose Specter
-source but cannot choose the tooling version accepted for publication.
+This firmware repository pins both reusable workflow definitions to reviewed
+full commit SHAs. The build resolves the current `main` commit of the simulator
+repository and checks out that exact revision as tooling. It records the exact
+firmware source and simulator-tooling commits in provenance metadata. Before
+publishing a successful build, the trusted publisher checks that the recorded
+simulator commit still equals the current simulator `main` tip. If `main`
+advanced while the build ran, publication fails closed and the build must be
+rerun.
 
 The `Build` workflow starts directly on `pull_request` with only
 `contents: read`. Its firmware and browser jobs check out the exact PR head
 repository and SHA, run the firmware tests and browser smoke tests, and upload
-their outputs. PR source, submodules, build scripts, and all artifacts are
-untrusted. The default-branch `Publish browser simulator` workflow starts on
+their outputs. The target job also checks out the PR head so a resolver added
+by that PR is available on its first run; this job has no write permissions or
+secrets. PR source, submodules, build scripts, and all artifacts are untrusted.
+The default-branch `Publish browser simulator` workflow starts on
 `workflow_run(Build)` and receives the write and Pages permissions. It checks
 the current PR and both artifact manifests against GitHub's run metadata and
-the approved simulator pin before publishing. Publisher code comes from the
-pinned simulator checkout; it never runs code from a PR artifact.
+the simulator `main` tip before publishing. Publisher code comes from its
+pinned reusable workflow revision; it never runs code from a PR artifact.
 
 The trusted `Publish browser simulator` workflow publishes the stable build
 and PR previews through this repository's GitHub Pages site:
