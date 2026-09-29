@@ -28,8 +28,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertTrue(all(re.fullmatch(r"[a-f0-9]{40}", pin) for pin in pins))
         self.assertEqual(pins[0], pins[1])
         self.assertIn("fetch_main(simulator_repository", (ROOT / ".github/simulator/resolve_build_target.py").read_text())
-        self.assertIn("ref: ${{ needs.target.outputs.simulator_commit }}", BUILD)
-        self.assertIn("ref: ${{ needs.resolve.outputs.simulator_commit }}", PUBLISH)
+        self.assertIn("simulator_commit: ${{ needs.target.outputs.simulator_commit }}", BUILD)
+        self.assertIn("simulator_commit: ${{ needs.resolve.outputs.simulator_commit }}", PUBLISH)
         self.assertIn("target.get(\"simulator_commit\") != current", (ROOT / ".github/simulator/resolve_publisher_target.py").read_text())
 
     def test_pr_checkout_and_trusted_provenance_are_separate(self):
@@ -37,7 +37,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.event.repository.default_branch }}", BUILD)
         self.assertIn("repository: ${{ needs.target.outputs.repository }}", BUILD)
         self.assertIn("ref: ${{ needs.target.outputs.sha }}", BUILD)
-        self.assertIn("python3 simulator-tools/web/tools/source_info.py firmware", BUILD)
+        self.assertIn("python3 provenance-tools/web/tools/source_info.py firmware", BUILD)
         self.assertNotIn("python3 .github/simulator/source_info.py", BUILD)
         self.assertNotIn("REQUEST_WORKFLOW_PATH", BUILD)
 
