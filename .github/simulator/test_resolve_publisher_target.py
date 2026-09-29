@@ -96,7 +96,7 @@ class ResolvePublisherTargetTests(unittest.TestCase):
 
     def test_pr_publisher_does_not_need_default_branch_check(self):
         self.assertTrue(should_publish(
-            "pull_request", "feature", SIMULATOR_SHA, "master", "owner/repo", "token",
+            "workflow_run", "feature", SIMULATOR_SHA, "master", "owner/repo", "token",
             lambda *_: self.fail("PR runs use PR-specific stale checks"),
         ))
 
