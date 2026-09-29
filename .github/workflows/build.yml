@@ -71,12 +71,12 @@ jobs:
           ref: ${{ needs.target.outputs.sha }}
           submodules: recursive
           persist-credentials: false
-      - name: Check out reviewed provenance generator
+      - name: Check out resolved simulator tooling
         uses: actions/checkout@v4
         with:
-          repository: cryptoadvance/specter-diy-web-simulator
-          ref: be15b999952e69de73b6aaede355cb4d7619bd4e
-          path: provenance-tools
+          repository: ${{ needs.target.outputs.simulator_repository }}
+          ref: ${{ needs.target.outputs.simulator_commit }}
+          path: simulator-tools
           persist-credentials: false
       - uses: DeterminateSystems/nix-installer-action@v14
       - name: Build Unix simulator and STM32 firmware
@@ -88,7 +88,7 @@ jobs:
         env:
           SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
           SIMULATOR_COMMIT: ${{ needs.target.outputs.simulator_commit }}
-        run: python3 provenance-tools/web/tools/source_info.py firmware
+        run: python3 simulator-tools/web/tools/source_info.py firmware
       - name: Upload firmware binaries
         id: firmware-upload
         uses: actions/upload-artifact@v4
@@ -109,7 +109,7 @@ jobs:
   browser:
     name: Build and smoke-test browser simulator
     needs: target
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@05256b9068dded056d88ee9555688c03979a9584
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@main
     with:
       source_repository: ${{ needs.target.outputs.repository }}
       source_commit: ${{ needs.target.outputs.sha }}

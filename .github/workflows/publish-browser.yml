@@ -1,7 +1,7 @@
 name: Publish browser simulator
 
 # Only this default-branch workflow receives write and Pages permissions.
-# The pinned publisher reads PR artifacts as hostile data and runs trusted code.
+# The publisher runs from this repository's protected default branch.
 on:
   workflow_run:
     workflows: [Build]
@@ -46,7 +46,95 @@ jobs:
 
   publish:
     needs: resolve
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/publish-browser.yml@05256b9068dded056d88ee9555688c03979a9584
-    with:
-      simulator_repository: cryptoadvance/specter-diy-web-simulator
-      simulator_commit: ${{ needs.resolve.outputs.simulator_commit }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    concurrency:
+      group: specter-pages-publisher
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Check out resolved simulator shell as data
+        uses: actions/checkout@v4
+        with:
+          repository: cryptoadvance/specter-diy-web-simulator
+          ref: ${{ needs.resolve.outputs.simulator_commit }}
+          path: simulator-tools
+          persist-credentials: false
+      - name: Download build target
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          mkdir -p /tmp/specter-artifacts/target
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name build-target --dir /tmp/specter-artifacts/target
+      - name: Download browser and firmware artifacts
+        if: github.event.workflow_run.conclusion == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          mkdir -p /tmp/specter-artifacts/browser /tmp/specter-artifacts/firmware /tmp/specter-artifacts/runtime
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name browser-simulator --dir /tmp/specter-artifacts/browser
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name firmware-binaries --dir /tmp/specter-artifacts/firmware
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name trusted-runtime --dir /tmp/specter-artifacts/runtime
+      - name: Prepare GitHub Pages branch
+        run: |
+          if git fetch origin gh-pages:refs/remotes/origin/gh-pages; then
+            git worktree add -B gh-pages pages origin/gh-pages
+          else
+            git worktree add --detach pages
+            git -C pages switch --orphan gh-pages
+            git -C pages rm -rf . || true
+          fi
+          git -C pages config user.name 'github-actions[bot]'
+          git -C pages config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Verify artifacts and stage current preview
+        id: prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          APPROVED_SIMULATOR_COMMIT: ${{ needs.resolve.outputs.simulator_commit }}
+          TRUSTED_WEB: simulator-tools/web
+        run: |
+          python3 .github/simulator/publish_preview.py prepare \
+            --event "$GITHUB_EVENT_PATH" \
+            --target /tmp/specter-artifacts/target/target.json \
+            --browser /tmp/specter-artifacts/browser \
+            --firmware /tmp/specter-artifacts/firmware \
+            --runtime /tmp/specter-artifacts/runtime/trusted-micropython.js \
+            --pages pages --state /tmp/specter-preview-state.json
+          if test -f pages/index.html || test -d pages/pr; then
+            echo 'has_site=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'has_site=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Recheck source before publication
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/simulator/publish_preview.py recheck --event "$GITHUB_EVENT_PATH" --state /tmp/specter-preview-state.json
+      - name: Push static Pages branch
+        run: |
+          git -C pages add -A
+          if ! git -C pages diff --cached --quiet; then
+            git -C pages commit -m "Update Specter browser preview from run ${{ github.event.workflow_run.id }}"
+            git -C pages push origin HEAD:gh-pages
+          fi
+      - name: Stage static Pages artifact
+        if: steps.prepare.outputs.has_site == 'true'
+        run: python3 -c "import shutil; shutil.copytree('pages', 'site-dist', ignore=shutil.ignore_patterns('.git'))"
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.prepare.outputs.has_site == 'true'
+        with:
+          path: site-dist
+      - uses: actions/deploy-pages@v4
+        if: steps.prepare.outputs.has_site == 'true'
+      - name: Replace PR build comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/simulator/publish_preview.py comment --state /tmp/specter-preview-state.json
