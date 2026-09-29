@@ -1,0 +1,16 @@
+name: PR build request
+
+# This unprivileged workflow is intentionally disposable. The actual Build
+# workflow runs from the default branch after this request completes.
+on:
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Requesting a trusted Specter browser build.'

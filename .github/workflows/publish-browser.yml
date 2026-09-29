@@ -12,7 +12,6 @@ permissions:
   actions: read
   contents: write
   issues: write
-  pull-requests: write
   pages: write
   id-token: write
 
@@ -48,14 +47,13 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TARGET_FILE: build-target/target.json
           SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
-          TRUSTED_SIMULATOR_COMMIT: c3373fef311b8684d0ea226ba17d4a2880abee12
           GH_TOKEN: ${{ github.token }}
         run: python3 .github/simulator/resolve_publisher_target.py
 
   publish:
     needs: resolve
     if: needs.resolve.outputs.should_publish == 'true'
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/publish-browser.yml@c3373fef311b8684d0ea226ba17d4a2880abee12
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/publish-browser.yml@main
     with:
       simulator_repository: cryptoadvance/specter-diy-web-simulator
       simulator_commit: ${{ needs.resolve.outputs.simulator_commit }}

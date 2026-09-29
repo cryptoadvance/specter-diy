@@ -18,7 +18,7 @@ class ResolvePublisherTargetTests(unittest.TestCase):
         path.write_text(data)
         return path
 
-    def test_success_uses_the_trusted_build_target_commit(self):
+    def test_success_uses_build_commit_if_it_is_on_current_main_history(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_target(
                 directory,
@@ -26,20 +26,23 @@ class ResolvePublisherTargetTests(unittest.TestCase):
                 f'"simulator_commit": "{SIMULATOR_SHA}"}}',
             )
             result = resolve_simulator_commit(
-                path, "success", SIMULATOR_REPOSITORY, SIMULATOR_SHA)
+                path, "success", SIMULATOR_REPOSITORY, "token",
+                lambda *_: "c" * 40,
+                lambda repository, commit, main_sha, token: commit == SIMULATOR_SHA)
         self.assertEqual(result, SIMULATOR_SHA)
 
     def test_success_without_a_valid_target_fails_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "missing.json"
             with self.assertRaisesRegex(ValueError, "Successful build has no valid target"):
-                resolve_simulator_commit(path, "success", SIMULATOR_REPOSITORY, SIMULATOR_SHA)
+                resolve_simulator_commit(
+                    path, "success", SIMULATOR_REPOSITORY, "token", lambda *_: SIMULATOR_SHA)
 
-    def test_failed_run_without_target_uses_the_trusted_pin(self):
+    def test_failed_run_without_target_uses_current_main(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "missing.json"
             result = resolve_simulator_commit(
-                path, "failure", SIMULATOR_REPOSITORY, SIMULATOR_SHA)
+                path, "failure", SIMULATOR_REPOSITORY, "token", lambda *_: SIMULATOR_SHA)
         self.assertEqual(result, SIMULATOR_SHA)
 
     def test_target_from_another_repository_is_rejected(self):
@@ -50,9 +53,10 @@ class ResolvePublisherTargetTests(unittest.TestCase):
                 f'"simulator_commit": "{SIMULATOR_SHA}"}}',
             )
             with self.assertRaisesRegex(ValueError, "unexpected simulator repository"):
-                resolve_simulator_commit(path, "success", SIMULATOR_REPOSITORY, SIMULATOR_SHA)
+                resolve_simulator_commit(
+                    path, "success", SIMULATOR_REPOSITORY, "token", lambda *_: SIMULATOR_SHA)
 
-    def test_target_commit_different_from_trusted_pin_is_rejected(self):
+    def test_target_commit_not_on_official_main_history_is_rejected(self):
         other_sha = "c" * 40
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_target(
@@ -60,8 +64,17 @@ class ResolvePublisherTargetTests(unittest.TestCase):
                 '{"simulator_repository": "cryptoadvance/specter-diy-web-simulator", '
                 f'"simulator_commit": "{other_sha}"}}',
             )
-            with self.assertRaisesRegex(ValueError, "does not match trusted"):
-                resolve_simulator_commit(path, "success", SIMULATOR_REPOSITORY, SIMULATOR_SHA)
+            with self.assertRaisesRegex(ValueError, "not in the official main history"):
+                resolve_simulator_commit(
+                    path, "success", SIMULATOR_REPOSITORY, "token",
+                    lambda *_: SIMULATOR_SHA,
+                    lambda *_: False)
+
+    def test_invalid_current_main_sha_fails_closed(self):
+        with self.assertRaisesRegex(ValueError, "full 40-character SHA"):
+            resolve_simulator_commit(
+                Path("missing.json"), "failure", SIMULATOR_REPOSITORY, "token",
+                lambda *_: "main")
 
     def test_latest_default_branch_push_is_allowed(self):
         self.assertTrue(should_publish(
@@ -86,11 +99,6 @@ class ResolvePublisherTargetTests(unittest.TestCase):
             "pull_request", "feature", SIMULATOR_SHA, "master", "owner/repo", "token",
             lambda *_: self.fail("PR runs use PR-specific stale checks"),
         ))
-
-    def test_invalid_trusted_pin_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "full 40-character SHA"):
-            resolve_simulator_commit(Path("missing.json"), "failure", SIMULATOR_REPOSITORY, "main")
-
 
 if __name__ == "__main__":
     unittest.main()

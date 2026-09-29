@@ -1,8 +1,9 @@
 name: Build
 
 on:
-  pull_request:
-    branches: [main, master]
+  workflow_run:
+    workflows: [PR build request]
+    types: [completed]
   push:
     branches: [main, master]
   workflow_dispatch:
@@ -16,7 +17,7 @@ on:
         required: true
         type: string
 
-run-name: ${{ github.event_name == 'workflow_dispatch' && format('Manual PR {0} {1}', inputs.pr_number, inputs.head_sha) || github.event_name == 'pull_request' && format('PR {0}', github.event.pull_request.number) || github.sha }}
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Manual PR {0} {1}', inputs.pr_number, inputs.head_sha) || github.event_name == 'workflow_run' && format('PR build request {0}', github.event.workflow_run.id) || github.sha }}
 
 permissions:
   contents: read
@@ -29,13 +30,14 @@ jobs:
     outputs:
       sha: ${{ steps.resolve.outputs.sha }}
       repository: ${{ steps.resolve.outputs.repository }}
+      number: ${{ steps.resolve.outputs.number }}
       simulator_repository: ${{ steps.resolve.outputs.simulator_repository }}
       simulator_commit: ${{ steps.resolve.outputs.simulator_commit }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
-      - name: Test source and pinned simulator resolvers
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Test source and simulator resolvers
         run: |
           python3 .github/simulator/test_resolve_build_target.py
           python3 .github/simulator/test_resolve_publisher_target.py
@@ -49,7 +51,12 @@ jobs:
           TARGET_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           TARGET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TARGET_SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
-          TARGET_SIMULATOR_COMMIT: c3373fef311b8684d0ea226ba17d4a2880abee12
+          REQUEST_WORKFLOW_PATH: ${{ github.event.workflow_run.path || '' }}
+          REQUEST_EVENT: ${{ github.event.workflow_run.event || '' }}
+          REQUEST_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
+          REQUEST_HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name || '' }}
+          REQUEST_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch || '' }}
+          REQUEST_HEAD_SHA: ${{ github.event.workflow_run.head_sha || '' }}
           GH_TOKEN: ${{ github.token }}
         run: python3 .github/simulator/resolve_build_target.py
       - uses: actions/upload-artifact@v4
@@ -71,11 +78,6 @@ jobs:
           repository: ${{ needs.target.outputs.repository }}
           ref: ${{ needs.target.outputs.sha }}
           submodules: recursive
-      - uses: actions/cache@v4
-        with:
-          path: /nix/store
-          key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-keys: nix-${{ runner.os }}-
       - uses: DeterminateSystems/nix-installer-action@v14
       - name: Build Unix simulator and STM32 firmware
         run: |
@@ -103,10 +105,10 @@ jobs:
   browser:
     name: Build and smoke-test browser simulator
     needs: target
-    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@c3373fef311b8684d0ea226ba17d4a2880abee12
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/browser-simulator.yml@main
     with:
       source_repository: ${{ needs.target.outputs.repository }}
       source_commit: ${{ needs.target.outputs.sha }}
       simulator_repository: ${{ needs.target.outputs.simulator_repository }}
       simulator_commit: ${{ needs.target.outputs.simulator_commit }}
-      pr_number: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number || 0 }}
+      pr_number: ${{ fromJSON(needs.target.outputs.number) }}
