@@ -1,7 +1,7 @@
 name: Publish browser simulator
 
-# Only this default-branch workflow receives write and Pages permissions.
-# The publisher runs from this repository's protected default branch.
+# This workflow runs from the protected default branch. Its runtime build has
+# read-only permissions; only the separate publish job receives write access.
 on:
   workflow_run:
     workflows: [Build]
@@ -44,8 +44,51 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 .github/simulator/resolve_publisher_target.py
 
-  publish:
+  runtime:
+    name: Build independently trusted runtime
     needs: resolve
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      SPECTER_SOURCE_REPOSITORY: ${{ github.repository }}
+      SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
+      SIMULATOR_COMMIT: ${{ needs.resolve.outputs.simulator_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: cryptoadvance/specter-diy-web-simulator
+          ref: ${{ needs.resolve.outputs.simulator_commit }}
+          path: simulator-tools
+          persist-credentials: false
+      - name: Install resolved simulator tooling
+        run: rsync -a --delete simulator-tools/web/ web/
+      - name: Install Emscripten 3.1.74
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git .browser-work/emsdk
+          .browser-work/emsdk/emsdk install 3.1.74
+          .browser-work/emsdk/emsdk activate 3.1.74
+      - name: Build runtime from protected Specter source
+        run: bash web/browser/build-browser.sh
+      - name: Stage independently built JavaScript
+        run: |
+          cp "web/builds/$GITHUB_REPOSITORY/$(git rev-parse HEAD)/micropython.js" trusted-micropython.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: publisher-runtime
+          if-no-files-found: error
+          path: trusted-micropython.js
+
+  publish:
+    needs: [resolve, runtime]
+    if: always() && needs.resolve.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -80,10 +123,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
-          mkdir -p /tmp/specter-artifacts/browser /tmp/specter-artifacts/firmware /tmp/specter-artifacts/runtime
+          mkdir -p /tmp/specter-artifacts/browser /tmp/specter-artifacts/firmware
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name browser-simulator --dir /tmp/specter-artifacts/browser
           gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name firmware-binaries --dir /tmp/specter-artifacts/firmware
-          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name trusted-runtime --dir /tmp/specter-artifacts/runtime
+      - name: Download independently built runtime
+        if: github.event.workflow_run.conclusion == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: publisher-runtime
+          path: /tmp/specter-artifacts/runtime
       - name: Prepare GitHub Pages branch
         run: |
           if git fetch origin gh-pages:refs/remotes/origin/gh-pages; then

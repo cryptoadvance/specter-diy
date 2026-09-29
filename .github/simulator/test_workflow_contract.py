@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static permissions and immutable reusable-workflow contract."""
+"""Static permissions and single-resolution simulator contract."""
 from pathlib import Path
 import unittest
 
@@ -21,14 +21,26 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("secrets:", BUILD)
 
     def test_build_uses_current_simulator_and_publisher_stays_local(self):
-        self.assertIn("browser-simulator.yml@main", BUILD)
+        self.assertNotIn("specter-diy-web-simulator/.github/workflows/", BUILD)
+        self.assertIn("needs: [target, browser_runtime]", BUILD)
+        self.assertEqual(BUILD.count("ref: ${{ needs.target.outputs.simulator_commit }}"), 3)
+        self.assertIn("python3 simulator-tools/web/browser/replace_glue.py", BUILD)
         self.assertNotIn("specter-diy-web-simulator/.github/workflows/publish-browser.yml@", PUBLISH)
         self.assertNotIn("be15b999", BUILD + PUBLISH)
         self.assertNotIn("05256b9", BUILD + PUBLISH)
         self.assertIn("fetch_main(simulator_repository", (ROOT / ".github/simulator/resolve_build_target.py").read_text())
-        self.assertIn("simulator_commit: ${{ needs.target.outputs.simulator_commit }}", BUILD)
+        self.assertIn("SIMULATOR_COMMIT: ${{ needs.target.outputs.simulator_commit }}", BUILD)
         self.assertIn("ref: ${{ needs.resolve.outputs.simulator_commit }}", PUBLISH)
         self.assertIn("target.get(\"simulator_commit\") != current", (ROOT / ".github/simulator/resolve_publisher_target.py").read_text())
+
+    def test_privileged_job_only_validates_read_only_runtime(self):
+        runtime = PUBLISH.split("  runtime:\n", 1)[1].split("  publish:\n", 1)[0]
+        publish = PUBLISH.split("  publish:\n", 1)[1]
+        self.assertIn("permissions:\n      contents: read", runtime)
+        self.assertIn("bash web/browser/build-browser.sh", runtime)
+        self.assertNotIn("build-browser.sh", publish)
+        self.assertIn("name: publisher-runtime", PUBLISH)
+        self.assertNotIn("--name trusted-runtime", PUBLISH)
 
     def test_pr_checkout_and_trusted_provenance_are_separate(self):
         self.assertIn("repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}", BUILD)

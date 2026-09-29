@@ -215,12 +215,13 @@ class DirectPublisherTests(unittest.TestCase):
     def test_privileged_workflow_never_executes_pr_artifact(self):
         workflow = (Path(__file__).resolve().parents[1] /
                     "workflows/publish-browser.yml").read_text()
+        publish = workflow.split("  publish:\n", 1)[1]
         self.assertIn("ref: ${{ github.event.repository.default_branch }}", workflow)
         self.assertIn("ref: ${{ needs.resolve.outputs.simulator_commit }}", workflow)
-        self.assertNotIn("ref: ${{ github.event.workflow_run.head_sha }}", workflow)
-        self.assertNotIn("python3 /tmp/specter-artifacts", workflow)
-        self.assertNotIn("bash /tmp/specter-artifacts", workflow)
-        self.assertNotIn("build-browser.sh", workflow)
+        self.assertNotIn("ref: ${{ github.event.workflow_run.head_sha }}", publish)
+        self.assertNotIn("python3 /tmp/specter-artifacts", publish)
+        self.assertNotIn("bash /tmp/specter-artifacts", publish)
+        self.assertNotIn("build-browser.sh", publish)
 
     def test_unexpected_browser_file_and_symlink_are_rejected(self):
         tree = self.root / "web"

@@ -2,8 +2,8 @@
 
 The browser simulator tooling is maintained in
 [`cryptoadvance/specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator).
-The build calls the simulator's current `main` reusable workflow, resolves its
-current commit once, and checks out that exact revision in every build job. It records the exact
+The build resolves simulator `main` once and checks out that exact revision in
+every build job. It runs simulator scripts from this checkout and records the exact
 firmware source and simulator-tooling commits in provenance metadata. Before
 publishing a successful build, the trusted publisher checks that the recorded
 simulator commit still equals the current simulator `main` tip. If `main`
@@ -20,9 +20,10 @@ The default-branch `Publish browser simulator` workflow starts on
 `workflow_run(Build)` and receives the write and Pages permissions. It checks
 the current PR and both artifact manifests against GitHub's run metadata and
 the simulator `main` tip before publishing. Publisher code comes from this
-repository's protected default branch. It validates the separately built
-runtime against the browser artifact and copies the simulator shell as data;
-it never builds or executes simulator code with write or Pages permissions.
+repository's protected default branch. A separate read-only job in that
+workflow builds the trusted runtime from the resolved simulator SHA. The
+write-enabled job validates it against the browser artifact and copies the
+simulator shell as data; it never builds or executes simulator code.
 
 The trusted `Publish browser simulator` workflow publishes the stable build
 and PR previews through this repository's GitHub Pages site:
