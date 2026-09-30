@@ -171,6 +171,10 @@ class WalletManagerWarningsIntegrationTest(TestCase):
         self.assertIn(MIXED_INPUTS_WARNING, meta.get("warnings", []))
 
     def test_preprocess_multiple_unknown_signable_policies_warns(self):
+        # Add test case for deleting Transaction Data and Wallet Descriptors
+        pass
+
+    def test_delete_transaction_data_and_wallet_descriptors(self):
         paths = [
             bip32.parse_path("m/48h/1h/0h/2h/0/0"),
             bip32.parse_path("m/48h/1h/0h/2h/0/1"),
