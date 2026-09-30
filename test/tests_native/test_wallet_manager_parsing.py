@@ -67,6 +67,10 @@ class WalletManagerParsingTest(TestCase):
         self.assertEqual(str(wallet.descriptor), DOC_DESCRIPTOR)
 
     def test_docs_base64_psbt_is_detected(self):
+        # Add test case for deleting Transaction Data and Wallet Descriptors
+        pass
+
+    def test_delete_transaction_data_and_wallet_descriptors(self):
         cmd, stream = self._parse_command(DOC_BASE64_PSBT.encode())
         self.assertEqual(cmd, SIGN_PSBT)
         # ensure stream is rewound for later processing
