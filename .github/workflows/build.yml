@@ -209,6 +209,7 @@ jobs:
         run: |
           npm ci --prefix web
           npx --prefix web playwright install --with-deps chromium
+          ln -s ../../web/node_modules simulator-tools/web/node_modules
           python3 -m http.server 8765 --directory web > /tmp/specter-browser.log 2>&1 &
           CI=true npm run test:browser --prefix web
           node simulator-tools/web/tests/test-network-policy.mjs
