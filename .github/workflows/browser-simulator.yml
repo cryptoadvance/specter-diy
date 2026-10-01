@@ -1,0 +1,37 @@
+name: Browser Simulator
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+  push:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-simulator-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-preview:
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.base.ref == github.event.repository.default_branch &&
+       github.event.action != 'closed') ||
+      (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
+    # cryptoadvance/specter-diy-web-simulator at this immutable commit. To
+    # update, review a new commit and change this full SHA and the publisher
+    # pin together; existing forks otherwise keep the reviewed implementation.
+    uses: cryptoadvance/specter-diy-web-simulator/.github/workflows/build-preview.yml@95bfa2ec09badfe29b8e5a30a0f674c996b19af0
+    permissions:
+      contents: read
+
+  closed-pr-signal:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' &&
+        github.event.pull_request.base.ref == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Signal trusted publisher to remove a closed PR preview
+        run: echo "Closed PR preview cleanup is handled by the protected workflow_run publisher."
