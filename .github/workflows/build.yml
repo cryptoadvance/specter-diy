@@ -5,39 +5,242 @@ on:
     branches: [main, master]
   push:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open PR number to build
+        required: true
+        type: number
+      head_sha:
+        description: Current PR head SHA (7 to 40 hexadecimal characters)
+        required: true
+        type: string
+
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Manual PR {0} {1}', inputs.pr_number, inputs.head_sha) || github.event_name == 'pull_request' && format('PR {0} {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || github.sha }}
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    name: Build Firmware
+  target:
+    name: Record workflow target
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.resolve.outputs.commit }}
+      repository: ${{ steps.resolve.outputs.repository }}
+      number: ${{ steps.resolve.outputs.number }}
+      simulator_repository: ${{ steps.resolve.outputs.simulator_repository }}
+      simulator_commit: ${{ steps.resolve.outputs.simulator_commit }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Record exact source and approved simulator commit
+        id: resolve
+        env:
+          TARGET_EVENT: ${{ github.event_name }}
+          TARGET_PR: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number || 0 }}
+          TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.head_sha || github.event.pull_request.head.sha || github.sha }}
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          TARGET_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          TARGET_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          TARGET_BASE_REPOSITORY: ${{ github.event.pull_request.base.repo.full_name || github.repository }}
+          TARGET_BASE_BRANCH: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+          TARGET_SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/simulator/resolve_build_target.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-target
+          if-no-files-found: error
+          path: target.json
+
+  build:
+    name: Build firmware from exact source commit
+    runs-on: ubuntu-latest
+    needs: target
+    env:
+      EXPECTED_SHA: ${{ needs.target.outputs.sha }}
+      SPECTER_SOURCE_REPOSITORY: ${{ needs.target.outputs.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.target.outputs.repository }}
+          ref: ${{ needs.target.outputs.sha }}
           submodules: recursive
-      
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v14
-
-      - name: Cache Nix store
-        uses: actions/cache@v3
+          persist-credentials: false
+      - name: Check out resolved simulator tooling
+        uses: actions/checkout@v4
         with:
-          path: |
-            ~/.cache/nix
-            /nix/store
-          key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            nix-${{ runner.os }}-
-
-      - name: Build Unix simulator
-        run: nix develop -c make unix
-
-      - name: Build STM32F469 Discovery firmware
-        run: nix develop -c make disco
-
-      - name: Upload firmware artifacts
+          repository: ${{ needs.target.outputs.simulator_repository }}
+          ref: ${{ needs.target.outputs.simulator_commit }}
+          path: simulator-tools
+          persist-credentials: false
+      - uses: DeterminateSystems/nix-installer-action@v14
+      - name: Build Unix simulator and STM32 firmware
+        run: |
+          nix develop -c make unix
+          nix develop -c make disco
+          nix develop -c make test
+      - name: Record firmware provenance
+        env:
+          SIMULATOR_REPOSITORY: cryptoadvance/specter-diy-web-simulator
+          SIMULATOR_COMMIT: ${{ needs.target.outputs.simulator_commit }}
+        run: python3 simulator-tools/web/tools/source_info.py firmware
+      - name: Upload firmware binaries
+        id: firmware-upload
         uses: actions/upload-artifact@v4
         with:
           name: firmware-binaries
+          if-no-files-found: error
           path: |
             bin/specter-diy.bin
             bin/specter-diy.hex
+            source.json
+      - name: Add firmware download to workflow summary
+        env:
+          ARTIFACT_URL: ${{ steps.firmware-upload.outputs.artifact-url }}
+        run: |
+          echo "## Specter firmware" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download the tested firmware artifact]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+  browser_runtime:
+    name: Build trusted Emscripten JavaScript
+    runs-on: ubuntu-latest
+    needs: target
+    timeout-minutes: 90
+    env:
+      SPECTER_SOURCE_REPOSITORY: ${{ github.repository }}
+      SIMULATOR_REPOSITORY: ${{ needs.target.outputs.simulator_repository }}
+      SIMULATOR_COMMIT: ${{ needs.target.outputs.simulator_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.target.outputs.simulator_repository }}
+          ref: ${{ needs.target.outputs.simulator_commit }}
+          path: simulator-tools
+          persist-credentials: false
+      - name: Install resolved simulator tooling
+        run: rsync -a --delete simulator-tools/web/ web/
+      - name: Install Emscripten 3.1.74
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git .browser-work/emsdk
+          .browser-work/emsdk/emsdk install 3.1.74
+          .browser-work/emsdk/emsdk activate 3.1.74
+      - name: Build Emscripten JavaScript from the default branch
+        run: bash web/browser/build-browser.sh
+      - name: Stage runtime for browser smoke tests
+        run: |
+          cp "web/builds/$GITHUB_REPOSITORY/$(git rev-parse HEAD)/micropython.js" trusted-micropython.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-runtime
+          if-no-files-found: error
+          path: trusted-micropython.js
+
+  browser:
+    name: Build and smoke-test browser simulator
+    runs-on: ubuntu-latest
+    needs: [target, browser_runtime]
+    timeout-minutes: 90
+    env:
+      EXPECTED_SHA: ${{ needs.target.outputs.sha }}
+      SPECTER_SOURCE_REPOSITORY: ${{ needs.target.outputs.repository }}
+      SIMULATOR_REPOSITORY: ${{ needs.target.outputs.simulator_repository }}
+      SIMULATOR_COMMIT: ${{ needs.target.outputs.simulator_commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.target.outputs.repository }}
+          ref: ${{ needs.target.outputs.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Check out resolved simulator tooling
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ needs.target.outputs.simulator_repository }}
+          ref: ${{ needs.target.outputs.simulator_commit }}
+          path: simulator-tools
+          persist-credentials: false
+      - name: Overlay simulator tooling onto the source checkout
+        run: |
+          test -d simulator-tools/web
+          rsync -a --delete simulator-tools/web/ web/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Emscripten 3.1.74
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git .browser-work/emsdk
+          .browser-work/emsdk/emsdk install 3.1.74
+          .browser-work/emsdk/emsdk activate 3.1.74
+      - name: Build actual Specter code for WebAssembly
+        run: bash web/browser/build-browser.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-runtime
+          path: trusted-runtime
+      - name: Use default-branch Emscripten JavaScript with PR firmware
+        run: python3 simulator-tools/web/browser/replace_glue.py web trusted-runtime/trusted-micropython.js
+      - name: Verify source, simulator, and artifact hashes
+        run: python3 web/browser/verify_build.py
+      - name: Test preview provenance and publication rules
+        run: |
+          python3 simulator-tools/web/tests/test-trust-boundary.py
+          python3 simulator-tools/web/tests/test-source-project.py
+          python3 web/tests/test-trigger-pr.py
+          python3 web/tests/test-resolve-build-target.py
+          python3 simulator-tools/web/tests/test-usb-vcp.py
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Browser smoke tests
+        run: |
+          npm ci --prefix web
+          npx --prefix web playwright install --with-deps chromium
+          ln -s ../../web/node_modules simulator-tools/web/node_modules
+          python3 -m http.server 8765 --directory web > /tmp/specter-browser.log 2>&1 &
+          CI=true npm run test:browser --prefix web
+          node simulator-tools/web/tests/test-network-policy.mjs
+          git clone --depth 1 https://github.com/cryptoadvance/specter-virtual-host.git .browser-work/virtual-host
+          (cd .browser-work/virtual-host && go run . --site http://127.0.0.1:8765 --no-open) > /tmp/specter-virtual-host.log 2>&1 &
+          node simulator-tools/web/tests/test-usb-transport.mjs
+      - name: Record browser provenance
+        run: python3 simulator-tools/web/tools/source_info.py browser
+      - name: Upload browser firmware build
+        id: browser-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-simulator
+          if-no-files-found: error
+          path: |
+            web/browser/current.json
+            web/builds/**
+            source.json
+      - name: Add simulator links to workflow summary
+        env:
+          ARTIFACT_URL: ${{ steps.browser-upload.outputs.artifact-url }}
+          PREVIEW_NUMBER: ${{ needs.target.outputs.number }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPOSITORY="${GITHUB_REPOSITORY#*/}"
+          echo "## Specter browser simulator" >> "$GITHUB_STEP_SUMMARY"
+          if test "$PREVIEW_NUMBER" != "0"; then
+            echo "[Open this PR in the browser simulator](https://${OWNER}.github.io/${REPOSITORY}/pr/${PREVIEW_NUMBER}/)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "The preview becomes available after the trusted Publish workflow has accepted this build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "[Download the tested browser build]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Open the live reference simulator](https://try.clavastack.com/?variant=diy) (reference deployment, not this commit)" >> "$GITHUB_STEP_SUMMARY"

@@ -40,8 +40,14 @@ All the docs are stored in the [`docs/`](./docs) folder:
 - [`SECURITY.md`](./SECURITY.md) describes how to report vulnerabilities (disclosure policy)
 - [`development.md`](./docs/development.md) explains how to start developing on Specter
 - [`simulator.md`](./docs/simulator.md) shows how to run a simulator on unix/macOS
+- [`browser-simulator.md`](./docs/browser-simulator.md) explains the browser simulator, PR previews, and Virtual Host connection
 - [`communication.md`](./docs/communication.md) defines communication protocol with the host over QR codes and USB
 - [`roadmap.md`](./docs/roadmap.md) explains what we need to implement before we can consider the wallet be ready to use with real funds.
+
+The browser simulator is maintained in
+[`cryptoadvance/specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator)
+and connects to Specter Desktop through
+[`cryptoadvance/specter-virtual-host`](https://github.com/cryptoadvance/specter-virtual-host).
 
 Specter-Shield documentation and all the files are available in the [`shield/`](./shield) folder:
 

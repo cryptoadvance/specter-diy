@@ -21,5 +21,6 @@ nav:
     - 'Developing': development.md
     - communication.md
     - simulator.md
+    - browser-simulator.md
 theme: 
   name: readthedocs
