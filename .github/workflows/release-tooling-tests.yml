@@ -1,0 +1,53 @@
+name: Release tooling tests
+
+# Exercises the authoritative signature gate used by release-finalize.yml
+# (tools/verify_release_signatures.py) against the committed test key set.
+# Runs on every PR that touches the release tooling, so the security-critical
+# verifier can never silently regress the way an earlier inline version did.
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - tools/verify_release_signatures.py
+      - tools/release-requirements.*
+      - tools/tests/**
+      - .github/workflows/release-finalize.yml
+      - .github/workflows/release-tooling-tests.yml
+      - bootloader
+  pull_request:
+    paths:
+      - tools/verify_release_signatures.py
+      - tools/release-requirements.*
+      - tools/tests/**
+      - .github/workflows/release-finalize.yml
+      - .github/workflows/release-tooling-tests.yml
+      - bootloader
+
+permissions:
+  contents: read
+
+jobs:
+  verify-release-signatures:
+    name: verify_release_signatures.py
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        # Same fully pinned + hashed set the release workflow uses.
+        run: pip install --require-hashes -r tools/release-requirements.txt
+
+      - name: Run signature-policy tests
+        run: python3 -m pytest tools/tests -v
