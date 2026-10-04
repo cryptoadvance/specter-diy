@@ -280,7 +280,9 @@ jobs:
             echo ""
             echo "Reproducible unsigned firmware build completed successfully."
             echo ""
-            echo "➡️ **Next step: collect at least $BOOT_THRESHOLD valid production vendor signatures for the message above.**"
+            echo "➡️ **Next step:** [Open the release-finalization workflow]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/release-finalize.yml)."
+            echo ""
+            echo "On that page, select **Run workflow**. The `master` branch is selected by default; enter the release tag and at least $BOOT_THRESHOLD vendor signatures. The form has two required signature fields and one optional third field, so a threshold increase from two to three needs no workflow edit. If the threshold exceeds three, add another form input or use repository_dispatch. GitHub does not provide a supported link that opens this form with a per-run release tag prefilled. The finalizer rebuilds the selected tag and verifies the signatures against the exact firmware message."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload reproducible build artifacts
