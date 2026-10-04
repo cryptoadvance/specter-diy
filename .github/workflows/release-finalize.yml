@@ -1,15 +1,21 @@
 name: Release Finalization & Verification
 
 # ---------------------------------------------------------------------------
-# Trigger: repository_dispatch only (NOT workflow_dispatch).
+# Triggers:
+#   * repository_dispatch (release-finalize): always runs the default-branch
+#     workflow and remains the hard trust-boundary path.
+#   * workflow_dispatch: provides a GitHub UI form for authorized maintainers.
+#     Select `master` in the branch selector. The workflow_ref check below
+#     rejects other refs, but a modified branch could remove that check; use
+#     repository_dispatch where protection against a compromised write account
+#     is required.
 #
 # `repository_dispatch` always runs the workflow definition from the
 # repository's DEFAULT branch, regardless of any ref in the payload. That is
 # the hard trust boundary this release gate needs: a compromised write account
 # cannot push a branch with the verification logic stripped out and then run
-# "that" version of the workflow, the way it could with `workflow_dispatch`
-# and its selectable ref. The `github.workflow_ref` check below is kept only
-# as a cheap sanity assertion.
+# "that" version of the workflow. The manual form is a convenience path and
+# should only be run against the default branch.
 #
 # How to start a run (needs a token with `contents: write` on the repo):
 #
@@ -27,9 +33,34 @@ name: Release Finalization & Verification
 #   signature_2  (required)  vendor signature, Base64
 #   signature_3  (optional)  vendor signature, Base64
 #   signature_4  (optional)  vendor signature, Base64
+#
+# Manual UI: Actions > Release Finalization & Verification > Run workflow.
+# Select `master` and provide the release tag plus both required signatures.
+# The form has two required signature fields and one optional third field.
 # ---------------------------------------------------------------------------
 
+run-name: >-
+  Finalize release ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.client_payload.release_tag || github.run_number }}
+
 on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Exact reviewed release tag, for example v1.10.5
+        required: true
+        type: string
+      signature_1:
+        description: First authorized vendor signature (Base64 Bitcoin message signature)
+        required: true
+        type: string
+      signature_2:
+        description: Second authorized vendor signature (Base64 Bitcoin message signature)
+        required: true
+        type: string
+      signature_3:
+        description: Third authorized vendor signature (optional; Base64 Bitcoin message signature)
+        required: false
+        type: string
   repository_dispatch:
     types: [release-finalize]
 
@@ -49,11 +80,11 @@ jobs:
         working-directory: source
 
     env:
-      RELEASE_TAG: ${{ github.event.client_payload.release_tag }}
-      SIG1: ${{ github.event.client_payload.signature_1 }}
-      SIG2: ${{ github.event.client_payload.signature_2 }}
-      SIG3: ${{ github.event.client_payload.signature_3 }}
-      SIG4: ${{ github.event.client_payload.signature_4 }}
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.client_payload.release_tag }}
+      SIG1: ${{ github.event_name == 'workflow_dispatch' && inputs.signature_1 || github.event.client_payload.signature_1 }}
+      SIG2: ${{ github.event_name == 'workflow_dispatch' && inputs.signature_2 || github.event.client_payload.signature_2 }}
+      SIG3: ${{ github.event_name == 'workflow_dispatch' && inputs.signature_3 || github.event.client_payload.signature_3 }}
+      SIG4: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.signature_4 || '' }}
 
     steps:
       - name: Require the master version of this workflow
@@ -65,11 +96,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # With the repository_dispatch trigger GitHub always loads this file
-          # from the default branch, so this is the enforced version by
-          # construction. This check is only a cheap sanity assertion in case
-          # the default branch is ever renamed away from "master" (update the
-          # expected value here at the same time).
+          # repository_dispatch always loads this file from the default branch.
+          # For workflow_dispatch, reject a different selected ref. This is a
+          # usability guard, not a security boundary: a modified branch could
+          # remove the check. Keep master as the default branch or use
+          # repository_dispatch when that distinction matters.
           expected="$REPO/.github/workflows/release-finalize.yml@refs/heads/master"
           if [ "$WORKFLOW_REF" != "$expected" ]; then
             echo "ERROR: unexpected workflow ref."
@@ -78,6 +109,54 @@ jobs:
             exit 1
           fi
           echo "OK: running the master version of this workflow."
+
+      - name: Validate signature input encoding
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import base64
+          import os
+          import sys
+
+          signatures = {
+              "signature_1": os.environ.get("SIG1", ""),
+              "signature_2": os.environ.get("SIG2", ""),
+              "signature_3": os.environ.get("SIG3", ""),
+              "signature_4": os.environ.get("SIG4", ""),
+          }
+
+          errors = []
+          for name in ("signature_1", "signature_2"):
+              if not signatures[name]:
+                  errors.append(f"{name} is required.")
+
+          for name, value in signatures.items():
+              if not value:
+                  continue
+              try:
+                  decoded = base64.b64decode(value, validate=True)
+              except Exception:
+                  errors.append(f"{name} is not valid Base64.")
+                  continue
+              if len(decoded) != 65 or base64.b64encode(decoded).decode("ascii") != value:
+                  errors.append(
+                      f"{name} must be a canonical Base64 Bitcoin message signature "
+                      "(65 decoded bytes)."
+                  )
+
+          if errors:
+              for error in errors:
+                  print(f"::error::{error}")
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                  summary.write("## ❌ Signature input format error\n\n")
+                  summary.write("\n".join(f"- {error}" for error in errors) + "\n")
+              sys.exit(1)
+
+          print("Both required signature fields have valid Base64 encoding.")
+          PY
 
       # trusted/ = the reviewed master checkout. With repository_dispatch this is
       # always the default branch. The authoritative verifier and its bootloader
@@ -179,7 +258,13 @@ jobs:
 
           if [ "$BOOT_THRESHOLD" -gt 4 ]; then
             echo "ERROR: Production threshold is now >4."
-            echo "This workflow currently exposes four signature inputs and must be updated."
+            echo "This workflow currently accepts at most four signatures via repository_dispatch."
+            exit 1
+          fi
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$BOOT_THRESHOLD" -gt 3 ]; then
+            echo "ERROR: The manual form accepts at most three signatures."
+            echo "Use repository_dispatch for a fourth signature or add another form input."
             exit 1
           fi
 
@@ -295,22 +380,26 @@ jobs:
               continue
             fi
 
-            # Fail fast on anything that is not plain Base64. Passed via
-            # client_payload, so reject early with a clear message rather than
-            # letting a malformed value fall through to the signing tool.
-            if [[ ! "$SIG" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
-              echo "ERROR: signature is not valid Base64: ${SIG:0:12}..."
-              exit 1
-            fi
-
-            docker run --rm \
+            SIGNATURE_INDEX=$((COUNT + 1))
+            IMPORT_LOG="release/meta/signature-import-${SIGNATURE_INDEX}.log"
+            if ! docker run --rm \
               --platform linux/amd64 \
               -v "$PWD:/app" \
               specter-reproducible \
               python3 ./bootloader/tools/upgrade-generator.py \
                 import-sig \
                 -s "$SIG" \
-                ./release/specter_upgrade.bin
+                ./release/specter_upgrade.bin \
+              > "$IMPORT_LOG" 2>&1; then
+              cat "$IMPORT_LOG"
+              {
+                echo "## ❌ Signature $SIGNATURE_INDEX could not be imported"
+                echo ""
+                echo "It must be a recoverable Base64 Bitcoin-message signature for the exact firmware signing message."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            cat "$IMPORT_LOG"
 
             COUNT=$((COUNT + 1))
           done
@@ -382,13 +471,27 @@ jobs:
             exit 1
           fi
 
-          python3 trusted/tools/verify_release_signatures.py \
+          if ! python3 trusted/tools/verify_release_signatures.py \
             --upgrade source/release/specter_upgrade.bin \
             --pubkeys trusted/bootloader/keys/production/pubkeys.c \
             --boot-threshold "$BOOT_THRESHOLD" \
             --main-threshold "$MAIN_THRESHOLD" \
             --provided-count "$PROVIDED_SIG_COUNT" \
-          | tee source/release/meta/vendor-policy-check.txt
+            > source/release/meta/vendor-policy-check.txt 2>&1; then
+            cat source/release/meta/vendor-policy-check.txt
+            {
+              echo "## ❌ Firmware signature verification failed"
+              echo ""
+              echo "The signatures were decoded and imported, but they do not satisfy the production bootloader policy for this exact rebuilt firmware."
+              echo ""
+              echo '```text'
+              cat source/release/meta/vendor-policy-check.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          cat source/release/meta/vendor-policy-check.txt
 
       - name: Cross-check with introspect-binary.py
         shell: bash
