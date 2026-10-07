@@ -16,3 +16,7 @@ Available in [our shop](https://specter.solutions/shop/specter-shield/). Assembl
 
 - Design by @geometrick-design: https://www.thingiverse.com/thing:4671552, [instructions](3dprinting.md)
 - Design by @SeedSigner: https://www.thingiverse.com/thing:4733846, [files and instructions](./Alternative_3D_Printed_Case)
+
+## Metal case for Specter-DIY + Shield:
+
+- Design by @geometrick-design: CNC-machined metal housing, [files and build video](./Specter%20Shield%20Metal%20Case%20%28orange%20pioneer%29)
