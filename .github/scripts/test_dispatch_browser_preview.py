@@ -2,6 +2,8 @@
 """Unit tests for preview dispatch authorization, comments, and timeout contracts."""
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
+from io import BytesIO
 import json
 import os
 import sys
@@ -15,6 +17,34 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class BrowserPreviewDispatcherTests(unittest.TestCase):
+    def test_api_http_error_reports_status_without_response_body(self):
+        error = HTTPError("https://api.github.com/private", 403, "denied", {},
+                          BytesIO(b"sensitive server detail"))
+        with patch.object(dispatcher, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    r"POST /repos/example/repo/issues/1/comments returned HTTP 403") as raised:
+                dispatcher.gh("POST", "/repos/example/repo/issues/1/comments", "token", {})
+        self.assertNotIn("sensitive server detail", str(raised.exception))
+
+    def test_api_http_error_reports_github_message_without_raw_body(self):
+        error = HTTPError(
+            "https://api.github.com/private", 403, "denied", {},
+            BytesIO(b'{"message":"Resource not accessible by personal access token",'
+                    b'"documentation_url":"https://example.test/private"}'))
+        with patch.object(dispatcher, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    r"HTTP 403: Resource not accessible by personal access token") as raised:
+                dispatcher.gh("POST", "/repos/example/repo/issues/1/comments", "token", {})
+        self.assertNotIn("example.test", str(raised.exception))
+
+    def test_comment_token_falls_back_to_workflow_token_when_unset(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(dispatcher.comment_auth_token("workflow-token"), "workflow-token")
+        with patch.dict(os.environ, {"SPECTER_PREVIEW_COMMENT_TOKEN": " scoped-token "}, clear=True):
+            self.assertEqual(dispatcher.comment_auth_token("workflow-token"), "scoped-token")
+
     def test_fork_pr_dispatches_without_approval_label(self):
         workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
         source = (ROOT / ".github/scripts/dispatch_browser_preview.py").read_text()
@@ -22,6 +52,8 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
         self.assertIn("github.event.action == 'closed' && 'delete'", workflow)
         self.assertNotIn("preview-approved", workflow + source)
         self.assertNotIn("PR_LABELS_JSON", workflow + source)
+        self.assertIn("SPECTER_PREVIEW_COMMENT_TOKEN: ${{ secrets.SPECTER_PREVIEW_COMMENT_TOKEN }}",
+                      workflow)
 
         sha = "a" * 40
         request_id = f"specter-pr-12-{sha}-123-1"
@@ -64,13 +96,14 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
             "GITHUB_RUN_ID": "123",
             "GITHUB_RUN_ATTEMPT": "1",
             "GITHUB_TOKEN": "workflow-token",
+            "SPECTER_PREVIEW_COMMENT_TOKEN": "comment-token",
             "WEB_SIMULATOR_DISPATCH_TOKEN": "dispatch-token",
             "WEB_SIMULATOR_REPOSITORY": "cryptoadvance/specter-diy-web-simulator",
         }
         with patch.dict(os.environ, environment), \
                 patch.object(dispatcher, "current", return_value=True), \
                 patch.object(dispatcher, "gh", side_effect=fake_gh), \
-                patch.object(dispatcher, "comment"), \
+                patch.object(dispatcher, "comment") as write_comment, \
                 patch.object(dispatcher, "urlopen", return_value=Response()):
             dispatcher.main()
 
@@ -80,6 +113,9 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
         self.assertEqual(dispatches[0][3]["inputs"]["head_repository"], "contributor/specter-diy")
         self.assertEqual(dispatches[0][3]["inputs"]["base_sha"], "b" * 40)
         self.assertEqual(dispatches[0][3]["inputs"]["base_ref"], "master")
+        self.assertGreaterEqual(write_comment.call_count, 1)
+        self.assertTrue(all(call.args[2] == "comment-token"
+                            for call in write_comment.call_args_list))
 
     def test_unknown_or_stale_pr_state_never_authorizes_a_comment(self):
         with patch.object(dispatcher, "current", return_value=None), \
@@ -121,18 +157,37 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
         self.assertEqual(len(patch_calls), 1)
         self.assertEqual(patch_calls[0][1], "/repos/cryptoadvance/specter-diy/issues/comments/900")
 
-    def test_timeout_constants_fit_remote_chain_and_caller_workflow(self):
+    def test_timeout_constants_cover_the_complete_remote_chain(self):
         self.assertEqual(dispatcher.REMOTE_VALIDATE_TIMEOUT_MINUTES, 5)
         self.assertEqual(dispatcher.REMOTE_BUILD_TIMEOUT_MINUTES, 180)
+        self.assertEqual(dispatcher.REMOTE_RUNTIME_TIMEOUT_MINUTES, 180)
+        self.assertEqual(dispatcher.REMOTE_VERIFY_TIMEOUT_MINUTES, 120)
         self.assertEqual(dispatcher.REMOTE_FINALIZE_TIMEOUT_MINUTES, 10)
-        self.assertGreater(dispatcher.POLL_TIMEOUT_MINUTES,
-                            dispatcher.REMOTE_VALIDATE_TIMEOUT_MINUTES +
-                            dispatcher.REMOTE_BUILD_TIMEOUT_MINUTES +
-                            dispatcher.REMOTE_FINALIZE_TIMEOUT_MINUTES)
+
+        expected_chain = (
+            dispatcher.REMOTE_VALIDATE_TIMEOUT_MINUTES
+            + max(dispatcher.REMOTE_BUILD_TIMEOUT_MINUTES,
+                  dispatcher.REMOTE_RUNTIME_TIMEOUT_MINUTES)
+            + dispatcher.REMOTE_VERIFY_TIMEOUT_MINUTES
+            + dispatcher.REMOTE_FINALIZE_TIMEOUT_MINUTES
+        )
+        self.assertEqual(expected_chain, 315)
+        self.assertEqual(dispatcher.REMOTE_CHAIN_TIMEOUT_MINUTES, expected_chain)
+        self.assertEqual(dispatcher.REMOTE_SCHEDULING_ALLOWANCE_MINUTES, 15)
+        self.assertEqual(dispatcher.POLL_TIMEOUT_MINUTES,
+                         expected_chain + dispatcher.REMOTE_SCHEDULING_ALLOWANCE_MINUTES)
+        self.assertEqual(dispatcher.POLL_TIMEOUT_MINUTES, 330)
+        self.assertEqual(dispatcher.CALLER_WORKFLOW_TIMEOUT_MINUTES, 360)
         self.assertLess(dispatcher.POLL_TIMEOUT_MINUTES,
                         dispatcher.CALLER_WORKFLOW_TIMEOUT_MINUTES)
+
         workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
         self.assertIn(f"timeout-minutes: {dispatcher.CALLER_WORKFLOW_TIMEOUT_MINUTES}", workflow)
+
+    def test_base_branch_edits_trigger_preview_revalidation(self):
+        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
+        trigger_types = next(line for line in workflow.splitlines() if "types:" in line)
+        self.assertIn("edited", trigger_types)
 
     def test_close_cleanup_remains_wired_without_label_trigger(self):
         workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()

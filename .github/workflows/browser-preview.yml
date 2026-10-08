@@ -2,7 +2,7 @@ name: Browser simulator preview
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review, closed]
+    types: [opened, synchronize, reopened, ready_for_review, edited, closed]
 
 permissions:
   contents: read
@@ -18,7 +18,7 @@ jobs:
     name: Dispatch and report browser preview
     if: github.event.pull_request.base.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 360
     steps:
       - name: Check out trusted default-branch dispatcher
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 pinned commit
@@ -39,6 +39,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
           GITHUB_TOKEN: ${{ github.token }}
+          SPECTER_PREVIEW_COMMENT_TOKEN: ${{ secrets.SPECTER_PREVIEW_COMMENT_TOKEN }}
           WEB_SIMULATOR_DISPATCH_TOKEN: ${{ secrets.WEB_SIMULATOR_DISPATCH_TOKEN }}
           WEB_SIMULATOR_REPOSITORY: ${{ vars.WEB_SIMULATOR_REPOSITORY }}
         run: python3 .github/scripts/dispatch_browser_preview.py
