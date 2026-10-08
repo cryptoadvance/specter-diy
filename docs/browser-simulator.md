@@ -2,13 +2,13 @@
 
 Browser previews are built and hosted by the paired
 [`specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator)
-repository. The preview URL is
-`https://<owner>.github.io/specter-diy-web-simulator/pr/<number>/`.
+repository. The preview URL includes the full source commit SHA:
+`https://<owner>.github.io/specter-diy-web-simulator/pr/<number>/<full-head-sha>/`.
 
-Specter DIY's trusted PR workflow only dispatches PR metadata, polls the
-Web Simulator's public status record, and updates one PR comment. It does not
-build browser code or publish Pages. The remote build uses the exact PR head
-SHA; a close event removes its preview. Regular firmware CI in this repository
+Specter DIY's trusted PR workflow validates live PR metadata, dispatches the
+exact request to the paired Web Simulator, and exits. The remote build uses the
+exact PR head SHA and owns preview publication and the final PR comment. A close
+event removes every preview for that PR. Regular firmware CI in this repository
 remains independent.
 
 Forks that want previews must fork **both** repositories under the same owner.

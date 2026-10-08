@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Unit tests for preview dispatch authorization, comments, and timeout contracts."""
+"""Tests for exact PR validation and short-lived preview dispatch."""
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
-from io import BytesIO
 import json
 import os
 import sys
@@ -14,183 +14,149 @@ import dispatch_browser_preview as dispatcher
 
 
 ROOT = Path(__file__).resolve().parents[2]
+SHA = "a" * 40
+BASE_SHA = "b" * 40
+UPDATED = "2026-10-02T12:00:00Z"
+
+
+def environment():
+    return {
+        "BASE_REPOSITORY": "cryptoadvance/specter-diy",
+        "PR_NUMBER": "12",
+        "BASE_SHA": BASE_SHA,
+        "BASE_REF": "master",
+        "HEAD_REPOSITORY": "contributor/specter-diy",
+        "HEAD_SHA": SHA,
+        "HEAD_REF": "feature",
+        "SOURCE_UPDATED_AT": UPDATED,
+        "ACTION": "build",
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_TOKEN": "workflow-token",
+        "WEB_SIMULATOR_DISPATCH_TOKEN": "dispatch-token",
+        "WEB_SIMULATOR_REPOSITORY": "cryptoadvance/specter-diy-web-simulator",
+    }
+
+
+def live_pr(**changes):
+    result = {
+        "number": 12,
+        "state": "open",
+        "updated_at": UPDATED,
+        "base": {"repo": {"full_name": "cryptoadvance/specter-diy"},
+                 "sha": BASE_SHA, "ref": "master"},
+        "head": {"repo": {"full_name": "contributor/specter-diy"},
+                 "sha": SHA, "ref": "feature"},
+    }
+    for key, value in changes.items():
+        result[key] = value
+    return result
 
 
 class BrowserPreviewDispatcherTests(unittest.TestCase):
-    def test_api_http_error_reports_status_without_response_body(self):
-        error = HTTPError("https://api.github.com/private", 403, "denied", {},
-                          BytesIO(b"sensitive server detail"))
-        with patch.object(dispatcher, "urlopen", side_effect=error):
-            with self.assertRaisesRegex(
-                    RuntimeError,
-                    r"POST /repos/example/repo/issues/1/comments returned HTTP 403") as raised:
-                dispatcher.gh("POST", "/repos/example/repo/issues/1/comments", "token", {})
-        self.assertNotIn("sensitive server detail", str(raised.exception))
-
-    def test_api_http_error_reports_github_message_without_raw_body(self):
-        error = HTTPError(
-            "https://api.github.com/private", 403, "denied", {},
-            BytesIO(b'{"message":"Resource not accessible by personal access token",'
-                    b'"documentation_url":"https://example.test/private"}'))
-        with patch.object(dispatcher, "urlopen", side_effect=error):
-            with self.assertRaisesRegex(
-                    RuntimeError,
-                    r"HTTP 403: Resource not accessible by personal access token") as raised:
-                dispatcher.gh("POST", "/repos/example/repo/issues/1/comments", "token", {})
-        self.assertNotIn("example.test", str(raised.exception))
-
-    def test_fork_pr_dispatches_without_approval_label(self):
-        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
-        source = (ROOT / ".github/scripts/dispatch_browser_preview.py").read_text()
-        self.assertIn("closed", workflow)
-        self.assertIn("github.event.action == 'closed' && 'delete'", workflow)
-        self.assertNotIn("  issues: write", workflow)
-        self.assertIn("  pull-requests: write", workflow)
-        self.assertNotIn("  pull-requests: read", workflow)
-        self.assertNotIn("preview-approved", workflow + source)
-        self.assertNotIn("PR_LABELS_JSON", workflow + source)
-        self.assertNotIn("SPECTER_PREVIEW_COMMENT_TOKEN", workflow + source)
-        self.assertIn("comment_token = token", source)
-
-        sha = "a" * 40
-        request_id = f"specter-pr-12-{sha}-123-1"
-        status = {
-            "request_id": request_id,
-            "source_sha": sha,
-            "pr_number": 12,
-            "status": "cancelled",
-            "run_url": "https://github.com/cryptoadvance/specter-diy-web-simulator/actions/runs/456",
-        }
-
-        class Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self):
-                return json.dumps(status).encode()
-
+    def test_dispatches_exact_fork_pr_metadata_and_returns_without_polling(self):
         calls = []
 
         def fake_gh(method, path, token="", data=None):
             calls.append((method, path, token, data))
-            if method == "GET" and path == "/repos/cryptoadvance/specter-diy-web-simulator":
+            if path == "/repos/cryptoadvance/specter-diy/pulls/12":
+                return live_pr()
+            if path == "/repos/cryptoadvance/specter-diy-web-simulator":
                 return {"default_branch": "main"}
             return None
 
-        environment = {
-            "BASE_REPOSITORY": "cryptoadvance/specter-diy",
-            "PR_NUMBER": "12",
-            "BASE_SHA": "b" * 40,
-            "BASE_REF": "master",
-            "HEAD_REPOSITORY": "contributor/specter-diy",
-            "HEAD_SHA": sha,
-            "HEAD_REF": "feature",
-            "SOURCE_UPDATED_AT": "2026-10-02T12:00:00Z",
-            "ACTION": "build",
-            "GITHUB_RUN_ID": "123",
-            "GITHUB_RUN_ATTEMPT": "1",
-            "GITHUB_TOKEN": "workflow-token",
-            "WEB_SIMULATOR_DISPATCH_TOKEN": "dispatch-token",
-            "WEB_SIMULATOR_REPOSITORY": "cryptoadvance/specter-diy-web-simulator",
-        }
-        with patch.dict(os.environ, environment), \
-                patch.object(dispatcher, "current", return_value=True), \
-                patch.object(dispatcher, "gh", side_effect=fake_gh), \
-                patch.object(dispatcher, "comment") as write_comment, \
-                patch.object(dispatcher, "urlopen", return_value=Response()):
+        with patch.dict(os.environ, environment()), patch.object(dispatcher, "gh", side_effect=fake_gh):
             dispatcher.main()
 
-        dispatches = [call for call in calls if call[0] == "POST"]
-        self.assertEqual(len(dispatches), 1)
-        self.assertEqual(dispatches[0][2], "dispatch-token")
-        self.assertEqual(dispatches[0][3]["inputs"]["head_repository"], "contributor/specter-diy")
-        self.assertEqual(dispatches[0][3]["inputs"]["base_sha"], "b" * 40)
-        self.assertEqual(dispatches[0][3]["inputs"]["base_ref"], "master")
-        self.assertGreaterEqual(write_comment.call_count, 1)
-        self.assertTrue(all(call.args[2] == "workflow-token"
-                            for call in write_comment.call_args_list))
+        posts = [call for call in calls if call[0] == "POST"]
+        self.assertEqual(len(posts), 1)
+        method, path, token, body = posts[0]
+        self.assertEqual(method, "POST")
+        self.assertEqual(path, "/repos/cryptoadvance/specter-diy-web-simulator/actions/workflows/preview.yml/dispatches")
+        self.assertEqual(token, "dispatch-token")
+        self.assertEqual(body["ref"], "main")
+        self.assertEqual(body["inputs"], {
+            "request_id": f"specter-pr-12-{SHA}-123-2",
+            "action": "build",
+            "base_repository": "cryptoadvance/specter-diy",
+            "base_sha": BASE_SHA,
+            "base_ref": "master",
+            "pr_number": "12",
+            "head_repository": "contributor/specter-diy",
+            "head_sha": SHA,
+            "head_ref": "feature",
+            "source_updated_at": UPDATED,
+        })
+        self.assertEqual([call[1] for call in calls].count("/repos/cryptoadvance/specter-diy/pulls/12"), 1)
 
-    def test_unknown_or_stale_pr_state_never_authorizes_a_comment(self):
-        with patch.object(dispatcher, "current", return_value=None), \
-                patch.object(dispatcher, "comment") as write_comment:
-            self.assertFalse(dispatcher._comment_if_current(
-                "cryptoadvance/specter-diy", 12, "build", "a" * 40, "token", "text"))
-            write_comment.assert_not_called()
-        with patch.object(dispatcher, "current", return_value=False), \
-                patch.object(dispatcher, "comment") as write_comment:
-            self.assertFalse(dispatcher._comment_if_current(
-                "cryptoadvance/specter-diy", 12, "build", "a" * 40, "token", "text"))
-            write_comment.assert_not_called()
-        with patch.object(dispatcher, "current", return_value=True), \
-                patch.object(dispatcher, "comment") as write_comment:
-            self.assertTrue(dispatcher._comment_if_current(
-                "cryptoadvance/specter-diy", 12, "build", "a" * 40, "token", "text"))
-            write_comment.assert_called_once()
+    def test_stale_live_pr_is_not_dispatched(self):
+        for pr in (live_pr(head={"repo": {"full_name": "other/specter-diy"},
+                             "sha": SHA, "ref": "feature"}),
+                   live_pr(head={"repo": {"full_name": "contributor/specter-diy"},
+                                 "sha": "c" * 40, "ref": "feature"}),
+                   live_pr(base={"repo": {"full_name": "cryptoadvance/specter-diy"},
+                                 "sha": "d" * 40, "ref": "master"}),
+                   live_pr(state="closed")):
+            with self.subTest(pr=pr), patch.dict(os.environ, environment()), \
+                    patch.object(dispatcher, "gh", side_effect=[pr]) as api:
+                dispatcher.main()
+                api.assert_called_once()
 
-    def test_bot_comment_searches_all_api_pages(self):
-        first = [{"id": index, "body": "other", "user": {"login": "someone"}}
-                 for index in range(100)]
-        second = [{"id": 900, "body": "previous " + dispatcher.MARKER,
-                   "user": {"login": "github-actions[bot]"}}]
-        calls = []
+    def test_request_metadata_requires_full_exact_identity(self):
+        for key, value in (("PR_NUMBER", "0"), ("HEAD_SHA", "A" * 40),
+                           ("BASE_SHA", "short"), ("BASE_REF", "../main"),
+                           ("HEAD_REF", "feature\\branch"),
+                           ("SOURCE_UPDATED_AT", "2026-10-02T12:00:00"),
+                           ("GITHUB_RUN_ATTEMPT", "0"),
+                           ("WEB_SIMULATOR_REPOSITORY", "attacker/example")):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                dispatcher.request_from_environment({**environment(), key: value})
 
-        def fake_gh(method, path, _token, data=None):
-            calls.append((method, path, data))
-            if method == "GET" and path.endswith("page=1"):
-                return first
-            if method == "GET" and path.endswith("page=2"):
-                return second
-            return None
+    def test_default_pairing_uses_the_base_repository_owner(self):
+        env = environment()
+        env.pop("WEB_SIMULATOR_REPOSITORY")
+        with patch.dict(os.environ, env), patch.object(dispatcher, "gh") as api:
+            api.side_effect = [live_pr(), {"default_branch": "main"}, None]
+            dispatcher.main()
+        self.assertEqual(api.call_args_list[-1].args[1],
+                         "/repos/cryptoadvance/specter-diy-web-simulator/actions/workflows/preview.yml/dispatches")
 
-        with patch.object(dispatcher, "gh", side_effect=fake_gh):
-            dispatcher.comment("cryptoadvance/specter-diy", 12, "token", "updated")
-        self.assertIn(("GET", "/repos/cryptoadvance/specter-diy/issues/12/comments?per_page=100&page=1", None), calls)
-        self.assertIn(("GET", "/repos/cryptoadvance/specter-diy/issues/12/comments?per_page=100&page=2", None), calls)
-        patch_calls = [call for call in calls if call[0] == "PATCH"]
-        self.assertEqual(len(patch_calls), 1)
-        self.assertEqual(patch_calls[0][1], "/repos/cryptoadvance/specter-diy/issues/comments/900")
+    def test_close_dispatch_requires_live_closed_pr(self):
+        env = {**environment(), "ACTION": "delete", "HEAD_REPOSITORY": "",
+               "HEAD_REF": ""}
+        request = dispatcher.request_from_environment(env)
+        self.assertFalse(dispatcher.current(request, "token", lambda *_: live_pr()))
+        closed = live_pr(state="closed", head={"repo": None, "sha": SHA, "ref": "feature"})
+        self.assertTrue(dispatcher.current(request, "token", lambda *_: closed))
 
-    def test_timeout_constants_cover_the_complete_remote_chain(self):
-        self.assertEqual(dispatcher.REMOTE_VALIDATE_TIMEOUT_MINUTES, 5)
-        self.assertEqual(dispatcher.REMOTE_BUILD_TIMEOUT_MINUTES, 180)
-        self.assertEqual(dispatcher.REMOTE_RUNTIME_TIMEOUT_MINUTES, 180)
-        self.assertEqual(dispatcher.REMOTE_VERIFY_TIMEOUT_MINUTES, 120)
-        self.assertEqual(dispatcher.REMOTE_FINALIZE_TIMEOUT_MINUTES, 10)
-
-        expected_chain = (
-            dispatcher.REMOTE_VALIDATE_TIMEOUT_MINUTES
-            + max(dispatcher.REMOTE_BUILD_TIMEOUT_MINUTES,
-                  dispatcher.REMOTE_RUNTIME_TIMEOUT_MINUTES)
-            + dispatcher.REMOTE_VERIFY_TIMEOUT_MINUTES
-            + dispatcher.REMOTE_FINALIZE_TIMEOUT_MINUTES
-        )
-        self.assertEqual(expected_chain, 315)
-        self.assertEqual(dispatcher.REMOTE_CHAIN_TIMEOUT_MINUTES, expected_chain)
-        self.assertEqual(dispatcher.REMOTE_SCHEDULING_ALLOWANCE_MINUTES, 15)
-        self.assertEqual(dispatcher.POLL_TIMEOUT_MINUTES,
-                         expected_chain + dispatcher.REMOTE_SCHEDULING_ALLOWANCE_MINUTES)
-        self.assertEqual(dispatcher.POLL_TIMEOUT_MINUTES, 330)
-        self.assertEqual(dispatcher.CALLER_WORKFLOW_TIMEOUT_MINUTES, 360)
-        self.assertLess(dispatcher.POLL_TIMEOUT_MINUTES,
-                        dispatcher.CALLER_WORKFLOW_TIMEOUT_MINUTES)
-
-        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
-        self.assertIn(f"timeout-minutes: {dispatcher.CALLER_WORKFLOW_TIMEOUT_MINUTES}", workflow)
-
-    def test_pr_edits_do_not_trigger_preview_builds(self):
-        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
-        trigger_types = next(line for line in workflow.splitlines() if "types:" in line)
-        self.assertNotIn("edited", trigger_types)
-
-    def test_close_cleanup_remains_wired_without_label_trigger(self):
-        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
-        self.assertIn("closed", workflow)
-        self.assertNotIn("labeled", workflow)
-        self.assertNotIn("PR_LABELS_JSON", workflow)
+    def test_edit_events_do_not_start_builds_and_closed_event_dispatches_cleanup(self):
+        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text(encoding="utf-8")
+        types = next(line for line in workflow.splitlines() if "types:" in line)
+        self.assertNotIn("edited", types)
+        self.assertIn("closed", types)
         self.assertIn("github.event.action == 'closed' && 'delete'", workflow)
+
+    def test_http_error_does_not_expose_response_body(self):
+        error = HTTPError("https://api.github.com/private", 403, "denied", {},
+                          BytesIO(b"sensitive response content"))
+        with patch.object(dispatcher, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 403") as raised:
+                dispatcher.gh("POST", "/repos/example/repo/dispatches", "token", {})
+        self.assertNotIn("sensitive response content", str(raised.exception))
+
+    def test_workflow_is_short_trusted_and_has_no_polling_or_pr_comment_write(self):
+        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text(encoding="utf-8")
+        source = (ROOT / ".github/scripts/dispatch_browser_preview.py").read_text(encoding="utf-8")
+        self.assertIn("timeout-minutes: 10", workflow)
+        self.assertIn("pull-requests: read", workflow)
+        self.assertNotIn("pull-requests: write", workflow)
+        self.assertNotIn("issues: write", workflow)
+        self.assertNotIn("github.event.pull_request.head", workflow.split("run:", 1)[-1])
+        self.assertNotIn("sleep(", source)
+        self.assertNotIn("status/pr/", source)
+        self.assertNotIn("comments", source)
+        self.assertNotIn("poll", source.lower())
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", workflow)
 
 
 if __name__ == "__main__":

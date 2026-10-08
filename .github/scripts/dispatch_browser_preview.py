@@ -1,227 +1,169 @@
 #!/usr/bin/env python3
-"""Dispatch exact PR metadata and maintain its single preview comment."""
-from time import monotonic, sleep, time
+"""Validate a live Specter PR and dispatch its exact preview request."""
+from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import json
 import os
 import re
 import sys
 
+
 API = "https://api.github.com"
-MARKER = "<!-- specter-web-simulator-preview -->"
-
-# Keep these values in sync with the paired Web Simulator workflow. Its
-# critical path is validate + max(build, trusted_runtime) + verify + finalize.
-# Current limits total 315m; polling adds 15m, and the caller has 30m more.
-REMOTE_VALIDATE_TIMEOUT_MINUTES = 5
-REMOTE_BUILD_TIMEOUT_MINUTES = 180
-REMOTE_RUNTIME_TIMEOUT_MINUTES = 180
-REMOTE_VERIFY_TIMEOUT_MINUTES = 120
-REMOTE_FINALIZE_TIMEOUT_MINUTES = 10
-REMOTE_SCHEDULING_ALLOWANCE_MINUTES = 15
-REMOTE_CHAIN_TIMEOUT_MINUTES = (
-    REMOTE_VALIDATE_TIMEOUT_MINUTES
-    + max(REMOTE_BUILD_TIMEOUT_MINUTES, REMOTE_RUNTIME_TIMEOUT_MINUTES)
-    + REMOTE_VERIFY_TIMEOUT_MINUTES
-    + REMOTE_FINALIZE_TIMEOUT_MINUTES
-)
-POLL_TIMEOUT_MINUTES = REMOTE_CHAIN_TIMEOUT_MINUTES + REMOTE_SCHEDULING_ALLOWANCE_MINUTES
-CALLER_WORKFLOW_TIMEOUT_MINUTES = 360
+REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
+SHA_RE = re.compile(r"[a-f0-9]{40}\Z")
 
 
-def gh(method, path, token="", data=None):
+def gh(method, path, token, data=None):
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "specter-preview"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     raw = json.dumps(data).encode() if data is not None else None
-    if raw:
+    if raw is not None:
         headers["Content-Type"] = "application/json"
     try:
         with urlopen(Request(API + path, data=raw, headers=headers, method=method), timeout=25) as response:
             result = response.read()
             return json.loads(result) if result else None
     except HTTPError as exc:
-        endpoint = path.split("?", 1)[0]
-        message = ""
-        try:
-            payload = json.loads(exc.read(4096))
-            if isinstance(payload, dict) and isinstance(payload.get("message"), str):
-                message = re.sub(r"[^A-Za-z0-9 .,:'/_-]", "", payload["message"])[:180]
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            pass
-        detail = f": {message}" if message else ""
-        raise RuntimeError(
-            f"GitHub API {method} {endpoint} returned HTTP {exc.code}{detail}"
-        ) from exc
-    except (URLError, TimeoutError, json.JSONDecodeError):
-        raise RuntimeError("GitHub API request failed")
+        raise RuntimeError(f"GitHub API {method} {path.split('?', 1)[0]} returned HTTP {exc.code}") from exc
+    except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError("GitHub API request failed") from exc
 
 
-def list_comments(repo, number, token):
-    """Fetch every issue-comment page so the bot comment stays unique."""
-    path = f"/repos/{repo}/issues/{number}/comments"
-    comments = []
-    page = 1
-    while True:
-        batch = gh("GET", path + "?" + urlencode({"per_page": 100, "page": page}), token)
-        if not isinstance(batch, list):
-            raise RuntimeError("GitHub returned an invalid issue-comment page")
-        comments.extend(batch)
-        if len(batch) < 100:
-            return comments
-        page += 1
-
-
-def comment(repo, number, token, text):
-    path = f"/repos/{repo}/issues/{number}/comments"
-    comments = list_comments(repo, number, token)
-    found = [c for c in comments if MARKER in c.get("body", "") and
-             c.get("user", {}).get("login") == "github-actions[bot]"]
-    body = {"body": f"{text}\n\n{MARKER}"}
-    if found:
-        gh("PATCH", f"/repos/{repo}/issues/comments/{found[0]['id']}", token, body)
-        for duplicate in found[1:]:
-            gh("DELETE", f"/repos/{repo}/issues/comments/{duplicate['id']}", token)
-    else:
-        gh("POST", path, token, body)
-
-
-def pages_root(repo):
-    owner, name = repo.split("/", 1)
-    host = owner.lower() + ".github.io"
-    return f"https://{host}/" + ("" if name.lower() == host else f"{name}/")
-
-
-def current(repo, number, action, sha, token, base_sha=None, base_ref=None):
+def parse_time(value):
+    if not isinstance(value, str) or len(value) > 40:
+        raise ValueError("source_updated_at must be an RFC3339 timestamp")
     try:
-        pr = gh("GET", f"/repos/{repo}/pulls/{number}", token)
-    except RuntimeError:
-        return None
-    return ((pr.get("state") == "closed" if action == "delete" else pr.get("state") == "open") and
-            pr.get("head", {}).get("sha") == sha and
-            (action == "delete" or base_sha is None or pr.get("base", {}).get("sha") == base_sha) and
-            (action == "delete" or base_ref is None or pr.get("base", {}).get("ref") == base_ref))
+        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("source_updated_at must be an RFC3339 timestamp") from exc
+    if result.tzinfo is None:
+        raise ValueError("source_updated_at must include a timezone")
+    return result.astimezone(timezone.utc)
 
 
-def result_text(status, short_sha, preview, simulator):
-    repo = re.escape(simulator)
-    run = status.get("run_url", "")
-    if not re.fullmatch(rf"https://github\.com/{repo}/actions/runs/[1-9][0-9]*", run):
-        raise ValueError("invalid run URL")
-    if status["status"] == "success":
-        page, firmware = status.get("preview_url", ""), status.get("firmware_url", "")
-        if page != preview or not re.fullmatch(
-                rf"https://github\.com/{repo}/actions/runs/[1-9][0-9]*/artifacts/[1-9][0-9]*", firmware):
-            raise ValueError("invalid result URL")
-        return (f"🧪 Specter PR Build · {short_sha} ✅\n\n🖥️ [Open browser simulator]({page})\n\n"
-                f"⬇️ [Download firmware artifact]({firmware})\n\nSource commit: `{short_sha}`\n\n"
-                f"🔧 [Build logs]({run})\n\n⚠️ Experimental development build. Never enter a real seed phrase or use real funds.")
-    if status["status"] in ("failure", "cancelled"):
-        return (f"🧪 Specter PR Build · {short_sha} ❌\n\nNo browser preview is available for the current commit.\n\n"
-                f"Source commit: `{short_sha}`\n\n🔧 [Build logs]({run})")
-    if status["status"] == "deleted":
-        return f"🧪 Specter PR Build · {short_sha} 🗑️\n\nPreview removed because this PR was closed."
-    raise ValueError("unsupported status")
+def valid_ref(value):
+    if (not isinstance(value, str) or not 1 <= len(value) <= 255 or
+            value.startswith(("/", ".")) or value.endswith(("/", ".", ".lock"))):
+        return False
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        return False
+    if any(part in value for part in ("..", "//", "@{", "\\", " ", "~", "^", ":", "?", "*", "[")):
+        return False
+    return all(part and not part.startswith(".") and not part.endswith(".lock")
+               for part in value.split("/"))
 
 
-def _comment_if_current(repo, number, action, sha, token, text, base_sha=None, base_ref=None,
-                        comment_token=None):
-    if current(repo, number, action, sha, token, base_sha, base_ref) is True:
-        comment(repo, number, comment_token or token, text)
-        return True
-    return False
+def request_from_environment(env):
+    base = env["BASE_REPOSITORY"]
+    simulator = env.get("WEB_SIMULATOR_REPOSITORY", "").strip()
+    if not simulator and REPOSITORY_RE.fullmatch(base):
+        simulator = f"{base.split('/', 1)[0]}/specter-diy-web-simulator"
+    action = env["ACTION"]
+    try:
+        number = int(env["PR_NUMBER"])
+        run_id = int(env["GITHUB_RUN_ID"])
+        run_attempt = int(env["GITHUB_RUN_ATTEMPT"])
+    except (KeyError, ValueError) as exc:
+        raise ValueError("invalid PR or workflow run identity") from exc
+
+    head_repository = env.get("HEAD_REPOSITORY", "")
+    head_ref = env.get("HEAD_REF", "")
+    head_sha = env["HEAD_SHA"]
+    base_sha = env["BASE_SHA"]
+    base_ref = env["BASE_REF"]
+    source_updated_at = env["SOURCE_UPDATED_AT"]
+
+    if not REPOSITORY_RE.fullmatch(base) or base.rsplit("/", 1)[1].lower() != "specter-diy":
+        raise ValueError("invalid Specter base repository")
+    if (not REPOSITORY_RE.fullmatch(simulator) or
+            simulator.split("/", 1)[0].lower() != base.split("/", 1)[0].lower()):
+        raise ValueError("invalid paired Web Simulator repository")
+    if not 1 <= number <= 9999999 or run_id <= 0 or run_attempt <= 0:
+        raise ValueError("invalid PR or workflow run identity")
+    if action not in ("build", "delete"):
+        raise ValueError("invalid preview action")
+    if not SHA_RE.fullmatch(head_sha) or not SHA_RE.fullmatch(base_sha):
+        raise ValueError("invalid full PR SHA")
+    if not valid_ref(base_ref):
+        raise ValueError("invalid PR base ref")
+    if action == "build":
+        if (not REPOSITORY_RE.fullmatch(head_repository) or
+                head_repository.rsplit("/", 1)[1].lower() != "specter-diy" or
+                not valid_ref(head_ref)):
+            raise ValueError("invalid PR head repository or ref")
+    elif head_repository and not REPOSITORY_RE.fullmatch(head_repository):
+        raise ValueError("invalid PR head repository")
+
+    parse_time(source_updated_at)
+    request_id = f"specter-pr-{number}-{head_sha}-{run_id}-{run_attempt}"
+    return {
+        "request_id": request_id,
+        "action": action,
+        "base_repository": base,
+        "base_sha": base_sha,
+        "base_ref": base_ref,
+        "pr_number": number,
+        "head_repository": head_repository,
+        "head_sha": head_sha,
+        "head_ref": head_ref,
+        "source_updated_at": source_updated_at,
+    }
+
+
+def current(request, token, pull_fetcher=None):
+    fetch = pull_fetcher or (lambda repo, number: gh(
+        "GET", f"/repos/{repo}/pulls/{number}", token))
+    pr = fetch(request["base_repository"], request["pr_number"])
+    if int(pr.get("number", -1)) != request["pr_number"]:
+        return False
+    base, head = pr.get("base") or {}, pr.get("head") or {}
+    base_repo = (base.get("repo") or {}).get("full_name", "")
+    if base_repo.lower() != request["base_repository"].lower():
+        return False
+    if head.get("sha") != request["head_sha"]:
+        return False
+    if request["action"] == "build":
+        if (pr.get("state") != "open" or base.get("sha") != request["base_sha"] or
+                base.get("ref") != request["base_ref"]):
+            return False
+        if ((head.get("repo") or {}).get("full_name", "").lower() !=
+                request["head_repository"].lower() or head.get("ref") != request["head_ref"]):
+            return False
+    else:
+        if pr.get("state") != "closed":
+            return False
+        live_repository = (head.get("repo") or {}).get("full_name", "")
+        if live_repository and request["head_repository"] and (
+                live_repository.lower() != request["head_repository"].lower()):
+            return False
+    if parse_time(pr.get("updated_at", "")) < parse_time(request["source_updated_at"]):
+        return False
+    return True
+
+
+def dispatch(request, simulator, token, github=None):
+    github = github or gh
+    service = github("GET", f"/repos/{simulator}", token)
+    default_branch = service.get("default_branch") if isinstance(service, dict) else None
+    if not isinstance(default_branch, str) or not valid_ref(default_branch):
+        raise RuntimeError("Web Simulator repository has no valid default branch")
+    inputs = {key: str(value) for key, value in request.items()}
+    github("POST", f"/repos/{simulator}/actions/workflows/preview.yml/dispatches", token,
+           {"ref": default_branch, "inputs": inputs})
 
 
 def main():
-    base = os.environ["BASE_REPOSITORY"]
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", base):
-        raise ValueError("invalid base repository")
-    number, sha, action = int(os.environ["PR_NUMBER"]), os.environ["HEAD_SHA"], os.environ["ACTION"]
-    base_sha, base_ref = os.environ["BASE_SHA"], os.environ["BASE_REF"]
-    if (not re.fullmatch(r"[a-f0-9]{40}", sha) or
-            not re.fullmatch(r"[a-f0-9]{40}", base_sha) or
-            not base_ref or len(base_ref) > 255 or
-            action not in ("build", "delete")):
-        raise ValueError("invalid PR metadata")
-    owner = base.split("/", 1)[0]
-    simulator = os.environ.get("WEB_SIMULATOR_REPOSITORY", "").strip() or f"{owner}/specter-diy-web-simulator"
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", simulator):
-        raise ValueError("invalid paired repository")
+    request = request_from_environment(os.environ)
     token = os.environ["GITHUB_TOKEN"]
-    # pull_request_target receives the base repository's token with the
-    # workflow-scoped issues:write permission. Use it for comments instead of
-    # a long-lived personal token stored as a repository secret.
-    comment_token = token
-    short = sha[:7]
-    request_id = f"specter-pr-{number}-{sha}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
-    root = pages_root(simulator)
-    preview, status_url = root + f"pr/{number}/", root + f"status/pr/{number}.json"
-
-    # A failed metadata lookup (None) must never authorize a status comment or
-    # a privileged remote dispatch. Fork and same-repository PRs follow the
-    # same verified path; the build job remains isolated from repository writes.
-    if current(base, number, action, sha, token, base_sha, base_ref) is not True:
+    if not current(request, token):
         return
-
-    if not os.environ.get("WEB_SIMULATOR_DISPATCH_TOKEN"):
-        _comment_if_current(
-            base, number, action, sha, token,
-            f"🧪 Specter PR Build · {short} ⚠️\n\nConfigure the paired Web Simulator and `WEB_SIMULATOR_DISPATCH_TOKEN` secret.",
-            base_sha, base_ref, comment_token=comment_token)
-        return
-    try:
-        service = gh("GET", f"/repos/{simulator}")
-        inputs = {"request_id": request_id, "action": action, "base_repository": base,
-                  "base_sha": base_sha, "base_ref": base_ref,
-                  "pr_number": str(number), "head_repository": os.environ.get("HEAD_REPOSITORY", ""),
-                  "head_sha": sha, "head_ref": os.environ.get("HEAD_REF", ""),
-                  "source_updated_at": os.environ["SOURCE_UPDATED_AT"]}
-        gh("POST", f"/repos/{simulator}/actions/workflows/preview.yml/dispatches",
-           os.environ["WEB_SIMULATOR_DISPATCH_TOKEN"], {"ref": service["default_branch"], "inputs": inputs})
-    except (RuntimeError, KeyError) as exc:
-        _comment_if_current(
-            base, number, action, sha, token,
-            f"🧪 Specter PR Build · {short} ⚠️\n\nThe paired Web Simulator could not start ({type(exc).__name__}). Check Actions settings and the secret's Actions: write permission.",
-            base_sha, base_ref, comment_token=comment_token)
-        return
-
-    note = "Removing the preview for this closed PR." if action == "delete" else "Browser simulator and firmware are being built."
-    _comment_if_current(base, number, action, sha, token,
-                        f"🧪 Specter PR Build · {short} ⏳\n\n{note}\n\nSource commit: `{short}`",
-                        base_sha, base_ref, comment_token=comment_token)
-    deadline, delay = monotonic() + POLL_TIMEOUT_MINUTES * 60, 10
-    while monotonic() < deadline:
-        state = current(base, number, action, sha, token, base_sha, base_ref)
-        if state is False:
-            return
-        url = status_url + "?" + urlencode({"request_id": request_id, "poll": int(time())})
-        try:
-            with urlopen(Request(url, headers={"Cache-Control": "no-cache"}), timeout=20) as response:
-                result = json.load(response)
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
-            result = None
-        if (isinstance(result, dict) and result.get("request_id") == request_id and
-                result.get("source_sha") == sha and result.get("pr_number") == number):
-            try:
-                text = result_text(result, short, preview, simulator)
-            except (ValueError, KeyError):
-                text = f"🧪 Specter PR Build · {short} ⚠️\n\nThe Web Simulator returned an invalid result link."
-            state = current(base, number, action, sha, token, base_sha, base_ref)
-            if state is False:
-                return
-            if state is True:
-                comment(base, number, comment_token, text)
-                return
-            # An API error is unknown, not proof that this result is current.
-            # Keep polling and retry verification instead of writing a comment.
-        sleep(min(delay, max(0, deadline - monotonic())))
-        delay = min(60, int(delay * 1.5))
-    _comment_if_current(
-        base, number, action, sha, token,
-        f"🧪 Specter PR Build · {short} ⚠️\n\nThe remote Web Simulator did not return a matching result in time. Check its Actions page or rerun the preview.",
-        base_sha, base_ref, comment_token=comment_token)
+    simulator = os.environ.get("WEB_SIMULATOR_REPOSITORY", "").strip()
+    if not simulator:
+        simulator = f"{request['base_repository'].split('/', 1)[0]}/specter-diy-web-simulator"
+    dispatch(request, simulator,
+             os.environ["WEB_SIMULATOR_DISPATCH_TOKEN"])
 
 
 if __name__ == "__main__":

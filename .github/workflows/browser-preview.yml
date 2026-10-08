@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
 
 concurrency:
   group: browser-preview-${{ github.repository }}-${{ github.event.pull_request.number }}
@@ -14,17 +14,17 @@ concurrency:
 
 jobs:
   preview:
-    name: Dispatch and report browser preview
+    name: Dispatch browser preview
     if: github.event.pull_request.base.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 10
     steps:
       - name: Check out trusted default-branch dispatcher
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 pinned commit
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
-      - name: Dispatch to the paired Web Simulator and update the PR comment
+      - name: Dispatch exact PR metadata to the paired Web Simulator
         env:
           BASE_REPOSITORY: ${{ github.event.repository.full_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
