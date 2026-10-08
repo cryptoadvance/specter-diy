@@ -18,7 +18,7 @@ jobs:
     name: Dispatch and report browser preview
     if: github.event.pull_request.base.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 240
     steps:
       - name: Check out trusted default-branch dispatcher
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 pinned commit
@@ -28,6 +28,8 @@ jobs:
       - name: Dispatch to the paired Web Simulator and update the PR comment
         env:
           BASE_REPOSITORY: ${{ github.event.repository.full_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
