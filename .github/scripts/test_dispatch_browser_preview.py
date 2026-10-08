@@ -112,6 +112,15 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 dispatcher.request_from_environment({**environment(), key: value})
 
+    def test_renamed_fork_is_allowed_when_it_matches_live_pr(self):
+        env = {**environment(), "HEAD_REPOSITORY": "contributor/renamed-specter-fork"}
+        pr = live_pr(head={"repo": {"full_name": env["HEAD_REPOSITORY"]},
+                           "sha": SHA, "ref": "feature"})
+        with patch.dict(os.environ, env), patch.object(dispatcher, "gh",
+                side_effect=[pr, {"default_branch": "main"}, None]) as api:
+            dispatcher.main()
+        self.assertEqual(api.call_args_list[-1].args[0], "POST")
+
     def test_default_pairing_uses_the_base_repository_owner(self):
         env = environment()
         env.pop("WEB_SIMULATOR_REPOSITORY")

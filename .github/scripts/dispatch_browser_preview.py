@@ -90,7 +90,6 @@ def request_from_environment(env):
         raise ValueError("invalid PR base ref")
     if action == "build":
         if (not REPOSITORY_RE.fullmatch(head_repository) or
-                head_repository.rsplit("/", 1)[1].lower() != "specter-diy" or
                 not valid_ref(head_ref)):
             raise ValueError("invalid PR head repository or ref")
     elif head_repository and not REPOSITORY_RE.fullmatch(head_repository):
