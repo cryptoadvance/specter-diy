@@ -39,21 +39,18 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
                 dispatcher.gh("POST", "/repos/example/repo/issues/1/comments", "token", {})
         self.assertNotIn("example.test", str(raised.exception))
 
-    def test_comment_token_falls_back_to_workflow_token_when_unset(self):
-        with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(dispatcher.comment_auth_token("workflow-token"), "workflow-token")
-        with patch.dict(os.environ, {"SPECTER_PREVIEW_COMMENT_TOKEN": " scoped-token "}, clear=True):
-            self.assertEqual(dispatcher.comment_auth_token("workflow-token"), "scoped-token")
-
     def test_fork_pr_dispatches_without_approval_label(self):
         workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
         source = (ROOT / ".github/scripts/dispatch_browser_preview.py").read_text()
         self.assertIn("closed", workflow)
         self.assertIn("github.event.action == 'closed' && 'delete'", workflow)
+        self.assertNotIn("  issues: write", workflow)
+        self.assertIn("  pull-requests: write", workflow)
+        self.assertNotIn("  pull-requests: read", workflow)
         self.assertNotIn("preview-approved", workflow + source)
         self.assertNotIn("PR_LABELS_JSON", workflow + source)
-        self.assertIn("SPECTER_PREVIEW_COMMENT_TOKEN: ${{ secrets.SPECTER_PREVIEW_COMMENT_TOKEN }}",
-                      workflow)
+        self.assertNotIn("SPECTER_PREVIEW_COMMENT_TOKEN", workflow + source)
+        self.assertIn("comment_token = token", source)
 
         sha = "a" * 40
         request_id = f"specter-pr-12-{sha}-123-1"
@@ -96,7 +93,6 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
             "GITHUB_RUN_ID": "123",
             "GITHUB_RUN_ATTEMPT": "1",
             "GITHUB_TOKEN": "workflow-token",
-            "SPECTER_PREVIEW_COMMENT_TOKEN": "comment-token",
             "WEB_SIMULATOR_DISPATCH_TOKEN": "dispatch-token",
             "WEB_SIMULATOR_REPOSITORY": "cryptoadvance/specter-diy-web-simulator",
         }
@@ -114,7 +110,7 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
         self.assertEqual(dispatches[0][3]["inputs"]["base_sha"], "b" * 40)
         self.assertEqual(dispatches[0][3]["inputs"]["base_ref"], "master")
         self.assertGreaterEqual(write_comment.call_count, 1)
-        self.assertTrue(all(call.args[2] == "comment-token"
+        self.assertTrue(all(call.args[2] == "workflow-token"
                             for call in write_comment.call_args_list))
 
     def test_unknown_or_stale_pr_state_never_authorizes_a_comment(self):
@@ -184,10 +180,10 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
         self.assertIn(f"timeout-minutes: {dispatcher.CALLER_WORKFLOW_TIMEOUT_MINUTES}", workflow)
 
-    def test_base_branch_edits_trigger_preview_revalidation(self):
+    def test_pr_edits_do_not_trigger_preview_builds(self):
         workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
         trigger_types = next(line for line in workflow.splitlines() if "types:" in line)
-        self.assertIn("edited", trigger_types)
+        self.assertNotIn("edited", trigger_types)
 
     def test_close_cleanup_remains_wired_without_label_trigger(self):
         workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()

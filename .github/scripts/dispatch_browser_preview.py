@@ -94,11 +94,6 @@ def pages_root(repo):
     return f"https://{host}/" + ("" if name.lower() == host else f"{name}/")
 
 
-def comment_auth_token(workflow_token):
-    """Use a fork-specific comment token when configured; otherwise GITHUB_TOKEN."""
-    return os.environ.get("SPECTER_PREVIEW_COMMENT_TOKEN", "").strip() or workflow_token
-
-
 def current(repo, number, action, sha, token, base_sha=None, base_ref=None):
     try:
         pr = gh("GET", f"/repos/{repo}/pulls/{number}", token)
@@ -155,7 +150,10 @@ def main():
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", simulator):
         raise ValueError("invalid paired repository")
     token = os.environ["GITHUB_TOKEN"]
-    comment_token = comment_auth_token(token)
+    # pull_request_target receives the base repository's token with the
+    # workflow-scoped issues:write permission. Use it for comments instead of
+    # a long-lived personal token stored as a repository secret.
+    comment_token = token
     short = sha[:7]
     request_id = f"specter-pr-{number}-{sha}-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}"
     root = pages_root(simulator)
