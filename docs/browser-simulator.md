@@ -2,14 +2,26 @@
 
 Browser previews are built and hosted by the paired
 [`specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator)
-repository. The preview URL includes the full source commit SHA:
+repository. The preview URL is
 `https://<owner>.github.io/specter-diy-web-simulator/pr/<number>/<full-head-sha>/`.
 
-Specter DIY's trusted PR workflow validates live PR metadata, dispatches the
-exact request to the paired Web Simulator, and exits. The remote build uses the
-exact PR head SHA and owns preview publication and the final PR comment. A close
-event removes every preview for that PR. Regular firmware CI in this repository
-remains independent.
+Specter DIY's trusted PR workflow validates the live PR, dispatches its exact
+metadata to the paired Web Simulator, and exits. It does not build PR-controlled
+code, poll for the remote result, or publish Pages. The Web Simulator validates
+the request again, builds and tests the exact PR head SHA, publishes a
+commit-specific preview, and owns the single preview comment on the PR. When a
+new commit preview succeeds, it removes the older browser pages for that PR;
+failed builds keep the last successful preview online.
+
+The existing Specter DIY firmware build and its GitHub Actions artifacts are
+not changed by this PR. All preview-specific firmware artifacts are created
+and managed independently by the Web Simulator. After successfully publishing
+and reporting a newer preview, the Web Simulator removes its own superseded
+firmware artifacts; a failed build preserves the last successful preview and
+firmware. Closing a PR triggers cleanup of the Web Simulator's own firmware
+artifacts and browser previews. If GitHub Pages approaches its size budget,
+the Web Simulator can remove previews from the least recently updated PRs
+while preserving the currently published PR and its firmware artifact.
 
 Forks that want previews must fork **both** repositories under the same owner.
 Enable Actions in both, enable GitHub Pages with the GitHub Actions source in
