@@ -5,6 +5,7 @@ import platform
 from binascii import hexlify
 from helpers import a2b_base64_stream
 
+
 class SDHost(Host):
     """
     SDHost class.
@@ -15,6 +16,9 @@ class SDHost(Host):
 
     button = "Open SD card file"
     settings_button = "SD card"
+    
+    # Delete command constant
+    DELETE = 187
 
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)
@@ -40,6 +44,102 @@ class SDHost(Host):
                 break
             fout.write(b, l)
 
+    def truncate(self, fname):
+        if len(fname) <= 33:
+            return fname
+        return fname[:18]+"..."+fname[-12:]
+
+    async def delete_file(self, filepath):
+        """
+        Delete a file from the SD card.
+        Returns True if successful, False otherwise.
+        """
+        try:
+            os.remove(filepath)
+            return True
+        except OSError as e:
+            # Show error message if deletion fails
+            await self.manager.gui.prompt(
+                "Error!",
+                f"Failed to delete file:\n{str(e)}"
+            )
+            return False
+
+    async def select_file(self, extensions):
+        files = sum([
+            [
+                f[0] for f in os.ilistdir(self.sdpath)
+                if f[0].lower().endswith(ext)
+                and f[1] == 0x8000
+            ] for ext in extensions
+        ], [])
+
+        if len(files) == 0:
+            raise HostError(
+                "\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions)
+            )
+
+        files.sort()
+        
+        while True:  # Keep showing menu until user selects a file to open or cancels
+            buttons = []
+            for ext in extensions:
+                title = [(None, ext+" files")]
+                barr = [
+                    (self.sdpath+"/"+f, self.truncate(f))
+                    for f in files
+                    if f.lower().endswith(ext)
+                ]
+                if len(barr) == 0:
+                    buttons += [(None, "%s files - No files" % ext)]
+                else:
+                    buttons += title + barr
+                    # Add delete options for each file
+                    for f in files:
+                        if f.lower().endswith(ext):
+                            filepath = self.sdpath+"/"+f
+                            display_name = self.truncate(f) + " [Delete]"
+                            buttons.append((filepath + "_delete", display_name))
+            
+            # Show menu and get user selection
+            selected = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
+            
+            if selected is None:
+                # User cancelled
+                return None
+                
+            if selected.endswith("_delete"):
+                # User selected to delete a file
+                filepath_to_delete = selected[:-7]  # Remove "_delete" suffix
+                # Show confirmation prompt
+                confirm = await self.manager.gui.prompt(
+                    "Delete file?",
+                    f"Are you sure you want to delete\\n{filepath_to_delete.split('/')[-1]}?"
+                )
+                if confirm:
+                    # Attempt to delete the file
+                    if await self.delete_file(filepath_to_delete):
+                        # File deleted successfully, refresh file list and continue loop
+                        files = sum([
+                            [
+                                f[0] for f in os.ilistdir(self.sdpath)
+                                if f[0].lower().endswith(ext)
+                                and f[1] == 0x8000
+                            ] for ext in extensions
+                        ], [])
+                        files.sort()
+                        # Continue loop to show updated menu
+                        continue
+                    else:
+                        # Delete failed (error already shown), continue loop
+                        continue
+                else:
+                    # User cancelled deletion, continue loop
+                    continue
+            else:
+                # User selected to open a file
+                return selected
+
     async def get_data(self, raw=False, chunk_timeout=0.1):
         """
         Loads host command from the SD card.
@@ -58,46 +158,10 @@ class SDHost(Host):
                         fout.write(b"sign ")
                     fout.write(start)
                     self.copy(fin, fout)
-            self.f = open(self.fram,"rb")
+            self.f = open(self.fram, "rb")
         finally:
             platform.sdcard.unmount()
         return self.f
-
-    def truncate(self, fname):
-        if len(fname) <= 33:
-            return fname
-        return fname[:18]+"..."+fname[-12:]
-
-    async def select_file(self, extensions):
-        files = sum([
-            [
-                f[0] for f in os.ilistdir(self.sdpath)
-                if f[0].lower().endswith(ext)
-                and f[1] == 0x8000
-            ] for ext in extensions
-        ], [])
-        
-        if len(files) == 0:
-            raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
-        # elif len(files) == 1:
-        #     return self.sdpath+"/"+ files[0]
-        
-        files.sort()
-        buttons = []
-        for ext in extensions:
-            title = [(None, ext+" files")]
-            barr = [
-                (self.sdpath+"/"+f, self.truncate(f))
-                for f in files
-                if f.lower().endswith(ext)
-            ]
-            if len(barr) == 0:
-                buttons += [(None, "%s files - No files" % ext)]
-            else:
-                buttons += title + barr
-        
-        fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
-        return fname
 
     def completed_filename(self, filename):
         suffix = "" if self.parent is None else ("."+hexlify(self.parent.fingerprint).decode())
@@ -110,7 +174,6 @@ class SDHost(Host):
             arr = arr[:-1] + ["completed%s" % suffix, arr[-1]]
         return ".".join(arr)
 
-
     async def send_data(self, stream, *args, **kwargs):
         """
         Saves transaction in base64 encoding to SD card
@@ -121,7 +184,8 @@ class SDHost(Host):
         self.reset_and_mount()
         try:
             if platform.file_exists(new_fname):
-                confirm = await self.manager.gui.prompt("Overwrite?",
+                confirm = await self.manager.gui.prompt(
+                    "Overwrite?",
                     "File %s exists. Overwrite?" % new_fname.split("/")[-1]
                 )
                 if not confirm:
@@ -137,7 +201,10 @@ class SDHost(Host):
                 stream.seek(0)
         finally:
             platform.sdcard.unmount()
-        show_qr = await self.manager.gui.prompt("Success!", "\n\nProcessed request is saved to\n\n%s\n\nShow as QR code?" % new_fname.split("/")[-1])
+        show_qr = await self.manager.gui.prompt(
+            "Success!",
+            "\n\nProcessed request is saved to\n\n%s\n\nShow as QR code?" % new_fname.split("/")[-1]
+        )
         if show_qr:
             await self._show_qr(stream, *args, **kwargs)
 
