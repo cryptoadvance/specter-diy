@@ -90,8 +90,8 @@ class NewMnemonicScreen(MnemonicScreen):
 
         # fix mnemonic components
         self.kb = lv.btnm(self)
-        self.kb.set_map(["1", "2", "4", "8", "16", "32", "\n",
-                         "64", "128", "256", "512", "1024", ""])
+        self.kb.set_map(["1024", "512", "256", "128", "64", "\n",
+                         "32", "16", "8", "4", "2", "1", ""])
         self.kb.set_ctrl_map([lv.btnm.CTRL.TGL_ENABLE for i in range(11)])
         self.kb.set_width(HOR_RES)
         self.kb.set_height(100)
@@ -116,47 +116,82 @@ class NewMnemonicScreen(MnemonicScreen):
         idx = 12*int(dx > obj.get_width()//2) + int(12*dy/obj.get_height())
         self.change_word(idx)
 
+    def _checksum_bits(self, idx):
+        """
+        Number of trailing (least significant) bits of word ``idx`` that
+        are BIP39 checksum rather than user-chosen entropy.
+
+        Only the last word of a mnemonic carries checksum bits, and their
+        count is ``word_count / 3`` (4 bits for 12 words ... 8 for 24).
+        Every other word is 11 bits of entropy.
+        """
+        if idx != len(self.table.words) - 1:
+            return 0
+        return len(self.table.words) // 3
+
+    def _bit_ctrl_map(self, word_idx, cs_bits):
+        """
+        Build the 11-entry control map for the bit keyboard.
+
+        Button ``i`` represents bit ``10 - i`` of the wordlist index, so
+        the ``cs_bits`` checksum bits are the last buttons. They are shown
+        toggled to their computed value but marked inactive - the checksum
+        is derived from the entropy and cannot be chosen by the user.
+        """
+        cmap = []
+        for i in range(11):
+            state = lv.btnm.CTRL.TGL_STATE if ((word_idx >> (10 - i)) & 1) else 0
+            if i >= 11 - cs_bits:
+                cmap.append(lv.btnm.CTRL.INACTIVE | state)
+            else:
+                cmap.append(lv.btnm.CTRL.TGL_ENABLE | state)
+        return cmap
+
+    def _word_hint(self, idx, cs_bits):
+        word = self.table.words[idx]
+        txt = "Changing word number %d:\n%s (%d in wordlist)" % (
+            idx + 1, word.upper(), self.wordlist.index(word) + 1
+        )
+        if cs_bits:
+            txt += "\nlast %d bits are the BIP39 checksum (calculated)" % cs_bits
+        return txt
+
+    def _show_word_bits(self, idx):
+        """Sync the bit keyboard and the hint with the word stored at ``idx``."""
+        cs_bits = self._checksum_bits(idx)
+        word_idx = self.wordlist.index(self.table.words[idx])
+        self.kb.set_ctrl_map(self._bit_ctrl_map(word_idx, cs_bits))
+        self.instruction.set_text(self._word_hint(idx, cs_bits))
+
     def change_word(self, idx):
         if idx >= len(self.table.words):
             return
-        word = self.table.words[idx]
-        self.instruction.set_text(
-            "Changing word number %d:\n%s (%d in wordlist)"
-            % (idx+1, word.upper(), self.wordlist.index(word)+1)
-        )
         # hide switch
         if not self.switch.get_hidden():
             self.switch.set_hidden(True)
             self.switch_lbl.set_hidden(True)
         self.kb.set_hidden(False)
-        word_idx = self.wordlist.index(word)
-        self.kb.set_ctrl_map([
-            lv.btnm.CTRL.TGL_ENABLE | (lv.btnm.CTRL.TGL_STATE if ((word_idx>>i)&1) else 0)
-            for i in range(11)
-        ])
+        self._show_word_bits(idx)
         # callback on toggle
         def cb(obj, event):
             if event != lv.EVENT.RELEASED:
                 return
-            c = obj.get_active_btn_text()
-            if c is None:
+            if obj.get_active_btn_text() is None:
                 return
-            bits = [obj.get_btn_ctrl(i, lv.btnm.CTRL.TGL_STATE) for i in range(11)]
+            # read the entropy bits from the keyboard; the checksum bits
+            # are inactive and get recomputed by the fixer below
             num = 0
-            for i, bit in enumerate(reversed(bits)):
+            for i in range(11):
                 num = num << 1
-                if bit:
+                if obj.get_btn_ctrl(i, lv.btnm.CTRL.TGL_STATE):
                     num += 1
-            # change word
-            word = self.wordlist[num]
-            self.table.words[idx] = word
-            # fix mnemonic
+            self.table.words[idx] = self.wordlist[num]
+            # fix checksum of the mnemonic
             mnemonic = " ".join(self.table.words)
             self.table.set_mnemonic(self.fixer(mnemonic))
-            self.instruction.set_text(
-                "Changing word number %d:\n%s (%d in wordlist)"
-                % (idx+1, word.upper(), self.wordlist.index(word)+1)
-            )
+            # the fixer may have rewritten the checksum bits of the last
+            # word - refresh the keyboard from what is actually stored
+            self._show_word_bits(idx)
         self.kb.set_event_cb(cb)
 
 
