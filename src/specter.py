@@ -66,7 +66,7 @@ class Specter:
 
         sections = [primary_note]
 
-        repo, branch, commit = get_git_info()
+        repo, branch, commit, working_tree = get_git_info()
         repo_details = []
         if repo != "unknown":
             repo_details.append("Repo: %s" % repo)
@@ -74,6 +74,8 @@ class Specter:
             repo_details.append("Branch: %s" % branch)
         if commit != "unknown":
             repo_details.append("Commit: %s" % commit)
+        if working_tree != "unknown":
+            repo_details.append("Working tree: %s" % working_tree)
         if repo_details:
             sections.append("\n".join(repo_details))
 

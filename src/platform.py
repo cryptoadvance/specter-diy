@@ -136,9 +136,10 @@ def get_git_info():
     repo = "unknown"
     branch = "unknown"
     commit = "unknown"
+    working_tree = "unknown"
 
     try:
-        from git_info import REPOSITORY, BRANCH, COMMIT
+        from git_info import REPOSITORY, BRANCH, COMMIT, WORKING_TREE
 
         if REPOSITORY:
             repo = REPOSITORY
@@ -146,10 +147,12 @@ def get_git_info():
             branch = BRANCH
         if COMMIT:
             commit = COMMIT
+        if WORKING_TREE:
+            working_tree = WORKING_TREE
     except:
         pass
 
-    return repo, branch, commit
+    return repo, branch, commit, working_tree
 
 
 def get_version() -> str:
