@@ -14,6 +14,7 @@ FROZEN_MANIFEST_DEBUG ?= ../../../../manifests/debug.py
 FROZEN_MANIFEST_UNIX ?= ../../../../manifests/unix.py
 DEBUG ?= 0
 USE_DBOOT ?= 0
+REPRODUCIBLE ?= 0
 GIT_INFO ?= src/git_info.py
 
 $(TARGET_DIR):
@@ -37,7 +38,7 @@ mpy-cross: $(TARGET_DIR) $(MPY_DIR)/mpy-cross/Makefile $(EMBIT_INIT)
 # embed git metadata for firmware builds
 .PHONY: git-info
 git-info:
-	./tools/embed_git_info.py $(GIT_INFO)
+	./tools/embed_git_info.py $(if $(filter 1,$(REPRODUCIBLE)),--reproducible) $(GIT_INFO)
 
 # disco board with bitcoin library
 disco: $(TARGET_DIR) mpy-cross $(MPY_DIR)/ports/stm32 git-info
