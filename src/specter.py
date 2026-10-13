@@ -532,42 +532,11 @@ class Specter:
                            key=self.keystore.settings_key
         )
 
-    async def experimental_settings(self):
-
-        controls = [{
-            "label": "Taproot",
-            "hint": "Taproot support only for single-key wallets\nwithout tap script trees",
-            "value": self.GLOBAL.get("experimental", {}).get("taproot", False)
-        }]
-
-        scr = HostSettings(
-            controls,
-            title="Experimental features",
-            note="Experimental features are unstable,\n"
-            "only enable them if you really want to try.\n"
-            "Report developers in case of any issues.",
-        )
-        res = await self.gui.show_screen()(scr)
-        if res is None:
-            return
-        taproot, *_ = res
-        # for now only experimental, can be extended
-        settings = {
-            "experimental": {
-                "taproot": taproot,
-            }
-        }
-        self.GLOBAL = settings
-        BaseApp.GLOBAL = settings
-        self.save_settings(settings)
-
     async def update_devsettings(self):
         buttons = [
             (None, "Categories")
         ] + [
             (1, "Communication"),
-            # (2, "Applications"),
-            # (3, "Experimental"),
         ] + [
             (None, "Global settings"),
             (42, "About this device"),
@@ -586,8 +555,6 @@ class Specter:
             )
             if menuitem == 255:
                 return
-            elif menuitem == 3:
-                await self.experimental_settings()
             elif menuitem == 456:
                 if await self.gui.prompt(
                     "Reboot the device?",
