@@ -12,6 +12,7 @@ from platform import (
     get_version,
     get_git_info,
     get_battery_status,
+    get_battery_info,
     get_build_type,
     get_firmware_boot_mode,
     get_flash_read_protection_status,
@@ -109,6 +110,19 @@ class Specter:
         else:
             build_note = "Build type: %s" % _format_status(build_type)
         sections.append(build_note)
+
+        detected, meter_type, voltage, charging = get_battery_info()
+        battery_lines = ["Detected Battery Meter: %s (%s)" % ("Yes" if detected else "No", meter_type)]
+        if voltage is not None:
+            battery_lines.append("Battery Voltage: %.2f V" % voltage)
+        if detected:
+            if charging is None:
+                battery_lines.append("Charging State: Unknown")
+            elif charging:
+                battery_lines.append("Charging State: Charging")
+            else:
+                battery_lines.append("Charging State: Not charging")
+        sections.append("\n".join(battery_lines))
 
         return "\n\n".join(sections)
 

@@ -13,6 +13,7 @@ nav:
     - assembly.md
     - 'Shield Lite': shield-lite.md
     - 'Shield': shield.md
+    - 'Battery Meter': battery-meter.md
   - Software:
     - quickstart.md
     - security-model.md

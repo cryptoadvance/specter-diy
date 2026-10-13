@@ -1,0 +1,8 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "2024-08-17_00-10-03")(type "KiCad")(uri "C:/Users/ytcry/Downloads/ST8034HNQR/KiCADv6/2024-08-17_00-10-03.kicad_sym")(options "")(descr ""))
+  (lib (name "specter_symbols")(type "KiCad")(uri "C:/Users/ytcry/Documents/Github/specter-diy/shield/kicad/Custom_Symbols/specter_symbols.kicad_sym")(options "")(descr ""))
+  (lib (name "7312P0225A13LF")(type "KiCad")(uri "C:/Users/ytcry/Documents/Github/specter-diy/shield/kicad/Custom_Symbols/7312P0225A13LF/7312P0225A13LF.kicad_sym")(options "")(descr ""))
+  (lib (name "SFV12R-2STE1HLF")(type "KiCad")(uri "C:/Users/crypto/Documents/GitHub/specter-diy/shield/kicad/Custom_Symbols/SFV12R_2STE1HLF/SFV12R-2STE1HLF.kicad_sym")(options "")(descr ""))
+  (lib (name "Library")(type "KiCad")(uri "C:/Users/ytcry/OneDrive - 12940086 CANADA INC/YouTube/Work In Progress/2024-XX-XX Specter Shield DIY/kicad/Smartcard_Hat_ST8034HNQR_Oneside/Library.kicad_sym")(options "")(descr ""))
+)
