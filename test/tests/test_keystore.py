@@ -1,5 +1,5 @@
 from unittest import TestCase
-from keystore import FlashKeyStore
+from keystore import FlashKeyStore, PinError
 import os
 import platform
 
@@ -54,6 +54,35 @@ class FlashKeyStoreTest(TestCase):
         files = [f[0] for f in os.ilistdir(TEST_DIR)]
         self.assertFalse("secret" in files)
         self.assertFalse("pin" in files)
+
+    def test_pin_verification(self):
+        """Correct PIN unlocks, incorrect PIN is rejected (L6 constant-time comparison)"""
+        import hmac
+        from helpers import tagged_hash
+
+        ks = self.get_keystore()
+        init_keystore(ks)
+        pin = "1234"
+        key = tagged_hash("pin", ks.secret)
+        ks.pin = hmac.new(key=key, msg=pin.encode(), digestmod="sha256").digest()
+        ks.save_state()
+
+        # correct PIN unlocks and resets the attempt counter
+        ks._unlock(pin)
+        self.assertFalse(ks.is_locked)
+        self.assertEqual(ks.pin_attempts_left, ks.pin_attempts_max)
+
+        # wrong PIN is rejected and consumes one attempt, without wiping
+        ks.lock()
+        attempts_before = ks.pin_attempts_left
+        with self.assertRaises(PinError):
+            ks._unlock("0000")
+        self.assertTrue(ks.is_locked)
+        self.assertEqual(ks.pin_attempts_left, attempts_before - 1)
+
+        # correct PIN still works afterwards
+        ks._unlock(pin)
+        self.assertFalse(ks.is_locked)
 
     def test_change_pin_file(self):
         """Test wipe exception if pin state changed"""

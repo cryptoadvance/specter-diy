@@ -36,6 +36,34 @@ def tagged_hash(tag: str, data: bytes) -> bytes:
     return hashlib.sha256(hashtag + hashtag + data).digest()
 
 
+def consteq(a: bytes, b: bytes) -> bool:
+    """
+    Fixed-work comparison for MACs, HMACs and other fixed-length
+    authentication values. Plain `==`/`!=` on bytes can stop as soon as
+    a differing byte is found, so its timing can leak how many leading
+    bytes matched; for equal-length inputs this instead compares every
+    byte without an early exit that depends on where they differ. The
+    length check below is NOT constant-time and input length is not
+    treated as secret, so this is only appropriate where both inputs
+    have a fixed, public length (e.g. a 32-byte HMAC-SHA256 digest) -
+    do not use it to compare secret-dependent variable-length data.
+    Used because the MicroPython build on this device (custom C `hmac`
+    usermod) has no `hmac.compare_digest()`.
+
+    SECURITY: do not "simplify" the loop below back to `a == b` / `!=`,
+    and do not add an early `return False` inside the loop - either
+    change reintroduces the timing side channel this function exists
+    to remove. A test asserting equal() == equal() cannot catch that
+    regression, since both implementations return the same booleans.
+    """
+    if len(a) != len(b):
+        return False
+    result = 0
+    for x, y in zip(a, b):
+        result |= x ^ y
+    return result == 0
+
+
 def encrypt(plain: bytes, key: bytes) -> bytes:
     """Encrypt data with bit padding (0x80...)"""
     iv = rng.get_random_bytes(IV_SIZE)
@@ -93,7 +121,8 @@ def aead_decrypt(ciphertext: bytes, key: bytes) -> tuple:
 
     aes_key = tagged_hash("aes", key)
     hmac_key = tagged_hash("hmac", key)
-    if mac != hmac.new(hmac_key, ct, digestmod="sha256").digest():
+    # constant-time compare (L6) - do not replace with == / !=
+    if not consteq(mac, hmac.new(hmac_key, ct, digestmod="sha256").digest()):
         raise Exception("Invalid HMAC")
     b = BytesIO(ct)
     l = compact.read_from(b)

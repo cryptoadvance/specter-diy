@@ -11,7 +11,7 @@ from platform import CriticalErrorWipeImmediately
 from binascii import hexlify, unhexlify
 from rng import get_random_bytes
 from embit import ec, bip39, bip32
-from helpers import tagged_hash
+from helpers import tagged_hash, consteq
 from gui.screens import Alert, PinScreen, Menu, MnemonicScreen, InputScreen
 
 
@@ -126,8 +126,8 @@ class FlashKeyStore(RAMKeyStore):
         # calculate hmac with entered PIN
         key = tagged_hash("pin", self.secret)
         pin_hmac = hmac.new(key=key, msg=pin.encode(), digestmod="sha256").digest()
-        # check hmac is the same
-        if pin_hmac != self.pin:
+        # check hmac is the same (constant-time compare, L6 - do not replace with == / !=)
+        if not consteq(pin_hmac, self.pin):
             raise PinError(
                 "Invalid PIN!\n%d of %d attempts left..."
                 % (self._pin_attempts_left, self._pin_attempts_max)

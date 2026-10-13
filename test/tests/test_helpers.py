@@ -1,7 +1,43 @@
 from unittest import TestCase
-from helpers import conv_time
+from helpers import conv_time, consteq, aead_encrypt, aead_decrypt
 
 class HelpersTest(TestCase):
+    def test_consteq(self):
+        """consteq() must agree with regular equality on all these cases (L6)"""
+        self.assertTrue(consteq(b"", b""))
+        self.assertTrue(consteq(b"abcdef", b"abcdef"))
+        # mismatch in the first byte
+        self.assertFalse(consteq(b"abcdef", b"xbcdef"))
+        # mismatch in the last byte
+        self.assertFalse(consteq(b"abcdef", b"abcdex"))
+        # mismatch in the middle
+        self.assertFalse(consteq(b"abcdef", b"abXdef"))
+        # different lengths, same prefix
+        self.assertFalse(consteq(b"abc", b"abcd"))
+        self.assertFalse(consteq(b"abcd", b"abc"))
+        # different lengths, one empty
+        self.assertFalse(consteq(b"", b"a"))
+        self.assertFalse(consteq(b"a", b""))
+
+    def test_aead_roundtrip(self):
+        """Valid storage MAC still authenticates and decrypts (L6)"""
+        key = b"0" * 32
+        adata = b"associated-data"
+        plaintext = b"top secret mnemonic"
+        ct = aead_encrypt(key, adata, plaintext)
+        out_adata, out_plaintext = aead_decrypt(ct, key)
+        self.assertEqual(out_adata, adata)
+        self.assertEqual(out_plaintext, plaintext)
+
+    def test_aead_rejects_tampered_mac(self):
+        """A tampered/invalid storage MAC is still rejected (L6)"""
+        key = b"0" * 32
+        ct = aead_encrypt(key, b"ad", b"top secret mnemonic")
+        # flip the last bit of the MAC
+        tampered = ct[:-1] + bytes([ct[-1] ^ 0x01])
+        with self.assertRaises(Exception):
+            aead_decrypt(tampered, key)
+
     def test_conv_time(self):
         """Test conv_time function: used for converting nLocktime to human-readable timestamp"""
         self.assertEqual(conv_time(0), (1970, 1, 1, 0, 0, 0, 3, 1))
