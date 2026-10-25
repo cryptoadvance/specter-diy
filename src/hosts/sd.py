@@ -4,6 +4,13 @@ import os
 import platform
 from binascii import hexlify
 from helpers import a2b_base64_stream
+import lvgl as lv
+
+# Special values returned by the file picker instead of a file name.
+# They can't collide with a real file, because the picker
+# always returns a full path to a file on the SD card.
+DELETE_FILE = "delete-file"
+WIPE_SD_CARD = "wipe-sd-card"
 
 class SDHost(Host):
     """
@@ -11,10 +18,16 @@ class SDHost(Host):
     Manages communication with SD card:
     - loading unsigned transaction and authentications
     - saving signed transaction to the card
+    - deleting files from the card
     """
 
     button = "Open SD card file"
     settings_button = "SD card"
+
+    # file types we can load from the SD card
+    # (wallet descriptors are saved as .json,
+    # signed transactions keep the extension of the source file)
+    extensions = (".psbt", ".txt", ".json")
 
     def __init__(self, path, sdpath=fpath("/sd")):
         super().__init__(path)
@@ -46,9 +59,21 @@ class SDHost(Host):
         """
         self.reset_and_mount()
         try:
-            sd_file = await self.select_file([".psbt", ".txt", ".json"])
-            if sd_file is None:
-                return
+            while True:
+                sd_file = await self.select_file(self.extensions)
+                if sd_file is None:
+                    return
+                # the user picked an action instead of a file -
+                # do it and show the picker again
+                if sd_file == DELETE_FILE:
+                    await self.delete_files()
+                elif sd_file == WIPE_SD_CARD:
+                    await self.wipe_sd_card()
+                else:
+                    break
+                # nothing left to open - don't show an empty picker
+                if len(self.list_files(self.extensions)) == 0:
+                    return
             self.sd_file = sd_file
             with open(self.fram, "wb") as fout:
                 with open(self.sd_file, "rb") as fin:
@@ -68,7 +93,8 @@ class SDHost(Host):
             return fname
         return fname[:18]+"..."+fname[-12:]
 
-    async def select_file(self, extensions):
+    def list_files(self, extensions):
+        """Returns a sorted list of files on the SD card with given extensions"""
         files = sum([
             [
                 f[0] for f in os.ilistdir(self.sdpath)
@@ -76,13 +102,16 @@ class SDHost(Host):
                 and f[1] == 0x8000
             ] for ext in extensions
         ], [])
-        
+        files.sort()
+        return files
+
+    async def select_file(self, extensions, allow_delete=True):
+        files = self.list_files(extensions)
         if len(files) == 0:
             raise HostError("\n\nNo matching files found on the SD card\nAllowed: %s" % ", ".join(extensions))
         # elif len(files) == 1:
         #     return self.sdpath+"/"+ files[0]
-        
-        files.sort()
+
         buttons = []
         for ext in extensions:
             title = [(None, ext+" files")]
@@ -95,9 +124,97 @@ class SDHost(Host):
                 buttons += [(None, "%s files - No files" % ext)]
             else:
                 buttons += title + barr
-        
+
+        # actions that don't open a file
+        if allow_delete:
+            buttons += [(None, None)]
+            buttons += [(DELETE_FILE, lv.SYMBOL.TRASH + " Delete a file")]
+            buttons += [(WIPE_SD_CARD, lv.SYMBOL.TRASH + " Delete ALL files")]
+
         fname = await self.manager.gui.menu(buttons, title="Select a file", last=(None, "Cancel"))
         return fname
+
+    async def delete_files(self):
+        """
+        Lets the user delete files from the SD card one by one.
+        SD card has to be mounted by the caller.
+        """
+        while True:
+            if len(self.list_files(self.extensions)) == 0:
+                await self.manager.gui.alert(
+                    "Nothing to delete",
+                    "\n\nThere are no files on the SD card\nthat can be deleted.",
+                    button_text="Close",
+                )
+                return
+            fname = await self.select_file(self.extensions, allow_delete=False)
+            if fname is None:
+                return
+            short = self.truncate(fname.split("/")[-1])
+            confirm = await self.manager.gui.prompt(
+                "Delete file?",
+                "\n\n%s\n\nThe file will be overwritten with random data "
+                "and deleted from the SD card." % short,
+            )
+            if not confirm:
+                continue
+            try:
+                platform.secure_delete_file(fname)
+            except Exception as e:
+                print(e)
+                await self.manager.gui.alert(
+                    "Error!",
+                    "\n\nFailed to delete\n\n%s" % short,
+                )
+                continue
+            await self.manager.gui.alert(
+                "Success!",
+                "\n\nFile deleted:\n\n%s" % short,
+                button_text="Close",
+            )
+
+    async def wipe_sd_card(self):
+        """
+        Overwrites all files in the root folder of the SD card
+        with random data and deletes them.
+        SD card has to be mounted by the caller.
+        """
+        names = [
+            f[0] for f in os.ilistdir(self.sdpath)
+            if f[1] == 0x8000
+        ]
+        if len(names) == 0:
+            await self.manager.gui.alert(
+                "Nothing to delete",
+                "\n\nThe SD card is already empty.",
+                button_text="Close",
+            )
+            return
+        confirm = await self.manager.gui.prompt(
+            "Delete ALL files?",
+            "\n\nAll %d files on the SD card will be overwritten "
+            "with random data and deleted.\n\nThis cannot be undone!" % len(names),
+        )
+        if not confirm:
+            return
+        failed = 0
+        for name in names:
+            try:
+                platform.secure_delete_file(self.sdpath + "/" + name)
+            except Exception as e:
+                print(e)
+                failed += 1
+        if failed > 0:
+            await self.manager.gui.alert(
+                "Error!",
+                "\n\nFailed to delete %d of %d files." % (failed, len(names)),
+            )
+        else:
+            await self.manager.gui.alert(
+                "Success!",
+                "\n\nAll %d files are deleted." % len(names),
+                button_text="Close",
+            )
 
     def completed_filename(self, filename):
         suffix = "" if self.parent is None else ("."+hexlify(self.parent.fingerprint).decode())

@@ -312,6 +312,42 @@ def delete_recursively(path, include_self=False):
     raise RuntimeError("Failed to delete folder %s" % path)
 
 
+def secure_delete_file(fname, chunk_size=512):
+    """
+    Deletes a file, overwriting its content with random data first.
+    This is best-effort: it removes the data from the blocks that are
+    currently mapped to the file, but it is not a secure erase of the
+    whole media. On flash storage with wear leveling (SD cards, internal
+    flash) the controller may keep copies in blocks that are not
+    reachable anymore, and free space on the card is not touched at all.
+    Use it as a defense in depth measure, not as a guarantee.
+    """
+    try:
+        size = os.stat(fname)[6]
+    except OSError:
+        # file doesn't exist - nothing to delete
+        return
+    if size > 0:
+        try:
+            with open(fname, "r+b") as f:
+                left = size
+                while left > 0:
+                    n = chunk_size if left > chunk_size else left
+                    f.write(os.urandom(n))
+                    left -= n
+                try:
+                    f.flush()
+                    os.fsync(f)
+                except (AttributeError, OSError):
+                    pass
+        except Exception as e:
+            # overwriting is best-effort,
+            # but we still want to remove the file
+            print(e)
+    os.remove(fname)
+    sync()
+
+
 if not simulator:
     stlk = pyb.UART("YB", 9600)
 
