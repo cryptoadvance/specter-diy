@@ -3,11 +3,12 @@ from binascii import hexlify
 from io import BytesIO
 
 from app import BaseApp, AppError
-from embit import bip39, bip85
+from embit import bip85
 from gui.common import add_button, add_button_pair, align_button_pair
 from gui.decorators import on_release
 from gui.screens import Menu, NumericScreen, QRAlert, Alert, Prompt
 from gui.screens.mnemonic import MnemonicScreen
+from helpers import mnemonic_to_seedqr
 import platform
 
 class QRWithSD(QRAlert):
@@ -112,12 +113,11 @@ class App(BaseApp):
                 Bip85MnemonicScreen(mnemonic=mnemonic, title=title, note=note)
             )
             if action == Bip85MnemonicScreen.QR:
-                seedqr = "".join(
-                    "%04d" % bip39.WORDLIST.index(word)
-                    for word in mnemonic.split()
-                )
+                seedqr = mnemonic_to_seedqr(mnemonic)
+                if num_words == 18:
+                    note += "\nSeedSigner supports only 12/24-word SeedQRs."
                 await show_screen(
-                    QRAlert("Derived mnemonic as Standard SeedQR", seedqr, note=note)
+                    QRAlert("%s as Standard SeedQR" % title, seedqr, note=note)
                 )
             elif action == Bip85MnemonicScreen.SD:
                 fname = "bip85-%s-mnemonic-%d-%d.txt" % (

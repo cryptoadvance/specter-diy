@@ -30,6 +30,13 @@ def fix_mnemonic(phrase):
     return bip39.mnemonic_from_bytes(entropy)
 
 
+def mnemonic_to_seedqr(mnemonic):
+    """Encode a BIP39 mnemonic as a Standard SeedQR digit string."""
+    return "".join(
+        "%04d" % bip39.WORDLIST.index(word) for word in mnemonic.split()
+    )
+
+
 def tagged_hash(tag: str, data: bytes) -> bytes:
     """BIP-Schnorr tag-specific key derivation"""
     hashtag = hashlib.sha256(tag.encode()).digest()
