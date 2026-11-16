@@ -27,7 +27,8 @@ jobs:
           python3 -m compileall ../src ../test
 
   tests:
-    runs-on: ubuntu-latest
+    # Frozen imports segfault on 26.04, including on master.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
