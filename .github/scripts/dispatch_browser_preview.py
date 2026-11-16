@@ -142,6 +142,84 @@ def current(request, token, pull_fetcher=None):
     return True
 
 
+# GitHub author_association reflects prior contributions to this repository.
+# A first-time contributor requires a PR-specific maintainer approval comment.
+TRUSTED_ASSOCIATIONS = frozenset(("OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"))
+APPROVAL_COMMAND = "/build preview"
+LOGIN_RE = re.compile(r"[A-Za-z0-9-]{1,39}\\Z")
+
+
+def has_write_access(repository, username, token):
+    """Use actual repository access, not user-controlled comment text or labels."""
+    if not isinstance(username, str) or not LOGIN_RE.fullmatch(username):
+        return False
+    result = gh("GET", f"/repos/{repository}/collaborators/{username}/permission", token)
+    # GitHub maps the maintain role to the legacy 'write' permission.
+    return isinstance(result, dict) and result.get("permission") in ("write", "admin")
+
+
+def is_maintainer_approval(repository, number, comment, token):
+    if not isinstance(comment, dict):
+        return False
+    expected_issue_url = f"{API}/repos/{repository}/issues/{number}"
+    if comment.get("issue_url") != expected_issue_url:
+        return False
+    if (comment.get("body") or "").strip() != APPROVAL_COMMAND:
+        return False
+    login = (comment.get("user") or {}).get("login")
+    return has_write_access(repository, login, token)
+
+
+def previously_approved(repository, number, token):
+    """An approval applies to the entire PR, including future head commits.
+
+    The comment remains the source of truth. Editing/deleting it or revoking the
+    maintainer's write access prevents further automatic builds.
+    """
+    for page in range(1, 21):
+        comments = gh("GET", f"/repos/{repository}/issues/{number}/comments?per_page=100&page={page}", token)
+        if not isinstance(comments, list):
+            return False
+        for comment in comments:
+            if is_maintainer_approval(repository, number, comment, token):
+                return True
+        if len(comments) < 100:
+            return False
+    # Fail closed if a PR has more than 2,000 comments.
+    return False
+
+
+def request_environment_for_comment(env, pr):
+    """Supply the exact live PR fields absent from issue_comment events."""
+    base = pr.get("base") or {}
+    head = pr.get("head") or {}
+    result = dict(env)
+    result.update({
+        "BASE_SHA": base.get("sha", ""),
+        "BASE_REF": base.get("ref", ""),
+        "HEAD_SHA": head.get("sha", ""),
+        "HEAD_REF": head.get("ref", ""),
+        "HEAD_REPOSITORY": (head.get("repo") or {}).get("full_name", ""),
+        "SOURCE_UPDATED_AT": pr.get("updated_at", ""),
+    })
+    return result
+
+
+def approval_event_valid(env, token):
+    """Only a live, exact maintainer command on this PR may initiate a build."""
+    repository = env["BASE_REPOSITORY"]
+    if not REPOSITORY_RE.fullmatch(repository) or repository.rsplit("/", 1)[1].lower() != "specter-diy":
+        raise ValueError("invalid Specter base repository")
+    number = int(env["PR_NUMBER"])
+    comment_id = int(env["COMMENT_ID"])
+    if not 1 <= number <= 9999999 or comment_id <= 0:
+        raise ValueError("invalid PR or comment identity")
+    if env["ACTION"] != "build":
+        return False
+    comment = gh("GET", f"/repos/{repository}/issues/comments/{comment_id}", token)
+    return is_maintainer_approval(repository, number, comment, token)
+
+
 def dispatch(request, simulator, token, github=None):
     github = github or gh
     service = github("GET", f"/repos/{simulator}", token)
@@ -154,15 +232,38 @@ def dispatch(request, simulator, token, github=None):
 
 
 def main():
-    request = request_from_environment(os.environ)
-    token = os.environ["GITHUB_TOKEN"]
-    if not current(request, token):
+    env = dict(os.environ)
+    token = env["GITHUB_TOKEN"]
+    event_name = env.get("EVENT_NAME", "pull_request_target")
+    if event_name not in ("pull_request_target", "issue_comment"):
         return
-    simulator = os.environ.get("WEB_SIMULATOR_REPOSITORY", "").strip()
+
+    if event_name == "issue_comment":
+        if not approval_event_valid(env, token):
+            return
+        repository = env["BASE_REPOSITORY"]
+        pr = gh("GET", f"/repos/{repository}/pulls/{int(env['PR_NUMBER'])}", token)
+        env = request_environment_for_comment(env, pr)
+    else:
+        # Reject malformed event metadata before constructing API paths.
+        request = request_from_environment(env)
+        pr = gh("GET", f"/repos/{request['base_repository']}/pulls/{request['pr_number']}", token)
+
+    request = request_from_environment(env)
+    if not current(request, token, lambda *_: pr):
+        return
+
+    if request["action"] == "build" and event_name != "issue_comment":
+        author_association = pr.get("author_association")
+        trusted_author = author_association in TRUSTED_ASSOCIATIONS
+        if not trusted_author and not previously_approved(
+                request["base_repository"], request["pr_number"], token):
+            return
+
+    simulator = env.get("WEB_SIMULATOR_REPOSITORY", "").strip()
     if not simulator:
         simulator = f"{request['base_repository'].split('/', 1)[0]}/specter-diy-web-simulator"
-    dispatch(request, simulator,
-             os.environ["WEB_SIMULATOR_DISPATCH_TOKEN"])
+    dispatch(request, simulator, env["WEB_SIMULATOR_DISPATCH_TOKEN"])
 
 
 if __name__ == "__main__":
