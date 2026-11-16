@@ -3,7 +3,7 @@ from binascii import hexlify
 from io import BytesIO
 
 from app import BaseApp, AppError
-from embit import bip85
+from embit import bip39, bip85
 from gui.common import add_button, add_button_pair, align_button_pair
 from gui.decorators import on_release
 from gui.screens import Menu, NumericScreen, QRAlert, Alert, Prompt
@@ -112,8 +112,15 @@ class App(BaseApp):
                 Bip85MnemonicScreen(mnemonic=mnemonic, title=title, note=note)
             )
             if action == Bip85MnemonicScreen.QR:
+                nums = [bip39.WORDLIST.index(w) for w in mnemonic.split()]
+                seedqr = "".join([("000" + str(n))[-4:] for n in nums])
                 await show_screen(
-                    QRAlert(title=title, message=mnemonic, note=note)
+                    QRAlert(
+                        title="Derived mnemonic as Standard SeedQR",
+                        message=seedqr,
+                        qr_message=seedqr,
+                        note=note,
+                    )
                 )
             elif action == Bip85MnemonicScreen.SD:
                 fname = "bip85-%s-mnemonic-%d-%d.txt" % (
