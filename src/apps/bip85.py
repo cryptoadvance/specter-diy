@@ -112,15 +112,12 @@ class App(BaseApp):
                 Bip85MnemonicScreen(mnemonic=mnemonic, title=title, note=note)
             )
             if action == Bip85MnemonicScreen.QR:
-                nums = [bip39.WORDLIST.index(w) for w in mnemonic.split()]
-                seedqr = "".join([("000" + str(n))[-4:] for n in nums])
+                seedqr = "".join(
+                    "%04d" % bip39.WORDLIST.index(word)
+                    for word in mnemonic.split()
+                )
                 await show_screen(
-                    QRAlert(
-                        title="Derived mnemonic as Standard SeedQR",
-                        message=seedqr,
-                        qr_message=seedqr,
-                        note=note,
-                    )
+                    QRAlert("Derived mnemonic as Standard SeedQR", seedqr, note=note)
                 )
             elif action == Bip85MnemonicScreen.SD:
                 fname = "bip85-%s-mnemonic-%d-%d.txt" % (
