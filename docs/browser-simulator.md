@@ -1,5 +1,32 @@
 # Browser simulator PR previews
 
+## PR-specific preview approval
+
+Known contributors (GitHub `author_association` of `OWNER`, `MEMBER`,
+`COLLABORATOR`, or `CONTRIBUTOR`) trigger browser previews automatically.
+Other contributors need one approval comment on **each PR**:
+
+```
+/build preview
+```
+
+This command must be posted by a user with current `write`, `maintain`,
+or `admin` permission on Specter DIY. The dispatcher verifies actual
+repository permissions using GitHub's API; a comment from a user with
+`read` or `triage` permission never approves a build.
+
+**One approval covers the entire PR, including subsequent commits.**
+The dispatcher checks the PR's own comments on every update. An approval on
+PR #123 never authorizes PR #124, even for the same author. The approval is
+stored as the maintainer's comment, requiring no new repository write token.
+Deleting or editing the command comment, or revoking the approving user's
+write permission, stops future automatic preview dispatches. Closing a PR
+still triggers preview cleanup independently of its approval status.
+
+The comment-triggered workflow only runs trusted default-branch dispatcher
+code. PR-controlled code is executed solely by the separate unprivileged
+simulator build.
+
 Browser previews are built and hosted by the paired
 [`specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator)
 repository. The preview URL is
