@@ -6,7 +6,13 @@ import hmac
 from embit import ec, bip39, bip32
 from embit.liquid import slip77
 from embit.transaction import SIGHASH
-from helpers import aead_encrypt, aead_decrypt, mnemonic_to_seedqr, tagged_hash
+from helpers import (
+    aead_encrypt,
+    aead_decrypt,
+    mnemonic_to_compact_seedqr,
+    mnemonic_to_standard_seedqr,
+    tagged_hash,
+)
 import secp256k1
 from gui.screens import Alert, PinScreen, Prompt, Menu, QRAlert
 from gui.screens.mnemonic import ExportMnemonicScreen
@@ -384,10 +390,10 @@ class RAMKeyStore(KeyStore):
                 if v == 255:
                     return
                 elif v == 1:
-                    qr_msg = mnemonic_to_seedqr(self.mnemonic)
+                    qr_msg = mnemonic_to_standard_seedqr(self.mnemonic)
                     msg = qr_msg
                 elif v == 2:
-                    qr_msg = bip39.mnemonic_to_bytes(self.mnemonic)
+                    qr_msg = mnemonic_to_compact_seedqr(self.mnemonic)
                     msg = hexlify(qr_msg).decode()
                 elif v == 3:
                     qr_msg = self.mnemonic

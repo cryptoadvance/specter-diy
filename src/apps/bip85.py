@@ -8,7 +8,7 @@ from gui.common import add_button, add_button_pair, align_button_pair
 from gui.decorators import on_release
 from gui.screens import Menu, NumericScreen, QRAlert, Alert, Prompt
 from gui.screens.mnemonic import MnemonicScreen
-from helpers import mnemonic_to_seedqr
+from helpers import mnemonic_to_standard_seedqr
 import platform
 
 class QRWithSD(QRAlert):
@@ -113,7 +113,7 @@ class App(BaseApp):
                 Bip85MnemonicScreen(mnemonic=mnemonic, title=title, note=note)
             )
             if action == Bip85MnemonicScreen.QR:
-                seedqr = mnemonic_to_seedqr(mnemonic)
+                seedqr = mnemonic_to_standard_seedqr(mnemonic)
                 if num_words == 18:
                     note += "\nSeedSigner supports only 12/24-word SeedQRs."
                 await show_screen(

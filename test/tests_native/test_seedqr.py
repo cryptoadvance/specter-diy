@@ -1,19 +1,20 @@
 from unittest import TestCase
 
 from embit import bip39
-from helpers import mnemonic_to_seedqr
+from helpers import mnemonic_to_compact_seedqr, mnemonic_to_standard_seedqr
 
 
 class SeedQRTest(TestCase):
-    def test_seedqr_uses_zero_based_four_digit_indices(self):
+    def test_standard_seedqr_uses_zero_based_four_digit_indices(self):
         mnemonic = "abandon abuse access zoo"
-        self.assertEqual(mnemonic_to_seedqr(mnemonic), "0000000900102047")
+        self.assertEqual(mnemonic_to_standard_seedqr(mnemonic), "0000000900102047")
 
-    def test_seedqr_round_trips_bip39_word_counts(self):
+    def test_standard_and_compact_seedqr_preserve_bip39_entropy(self):
         for word_count in (12, 18, 24):
             entropy = bytes(word_count * 4 // 3)
             mnemonic = bip39.mnemonic_from_bytes(entropy)
-            seedqr = mnemonic_to_seedqr(mnemonic)
+            seedqr = mnemonic_to_standard_seedqr(mnemonic)
+            compact_seedqr = mnemonic_to_compact_seedqr(mnemonic)
             decoded = " ".join(
                 bip39.WORDLIST[int(seedqr[i:i + 4])]
                 for i in range(0, len(seedqr), 4)
@@ -21,3 +22,4 @@ class SeedQRTest(TestCase):
             self.assertEqual(len(seedqr), word_count * 4)
             self.assertEqual(decoded, mnemonic)
             self.assertEqual(bip39.mnemonic_to_bytes(decoded), entropy)
+            self.assertEqual(compact_seedqr, entropy)
