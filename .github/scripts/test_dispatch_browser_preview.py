@@ -42,6 +42,7 @@ def live_pr(**changes):
     result = {
         "number": 12,
         "state": "open",
+        "author_association": "CONTRIBUTOR",
         "updated_at": UPDATED,
         "base": {"repo": {"full_name": "cryptoadvance/specter-diy"},
                  "sha": BASE_SHA, "ref": "master"},
@@ -145,6 +146,89 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
         self.assertIn("closed", types)
         self.assertIn("github.event.action == 'closed' && 'delete'", workflow)
 
+
+    def test_new_contributor_needs_approval_but_next_commit_builds_automatically(self):
+        untrusted = live_pr(author_association="FIRST_TIME_CONTRIBUTOR")
+        calls = []
+
+        def fake_gh(method, path, token="", data=None):
+            calls.append((method, path))
+            if path.endswith("/pulls/12"):
+                return untrusted
+            if "/issues/12/comments?" in path:
+                return [{"issue_url": "https://api.github.com/repos/cryptoadvance/specter-diy/issues/12",
+                         "body": "/build preview", "user": {"login": "maintainer"}}]
+            if path.endswith("/collaborators/maintainer/permission"):
+                return {"permission": "write"}
+            if path.endswith("/specter-diy-web-simulator"):
+                return {"default_branch": "main"}
+            return None
+
+        with patch.dict(os.environ, environment()), patch.object(dispatcher, "gh", side_effect=fake_gh):
+            dispatcher.main()
+        self.assertEqual(sum(method == "POST" for method, _ in calls), 1)
+        self.assertIn(("GET", "/repos/cryptoadvance/specter-diy/issues/12/comments?per_page=100&page=1"), calls)
+
+    def test_new_contributor_is_not_dispatched_without_approved_comment(self):
+        def fake_gh(method, path, token="", data=None):
+            if path.endswith("/pulls/12"):
+                return live_pr(author_association="FIRST_TIME_CONTRIBUTOR")
+            if "/issues/12/comments?" in path:
+                return [{"issue_url": "https://api.github.com/repos/cryptoadvance/specter-diy/issues/12",
+                         "body": "/build preview", "user": {"login": "reader"}}]
+            if path.endswith("/collaborators/reader/permission"):
+                return {"permission": "read"}
+            self.fail(f"unexpected request {method} {path}")
+
+        with patch.dict(os.environ, environment()), patch.object(dispatcher, "gh", side_effect=fake_gh):
+            dispatcher.main()
+
+    def test_maintainer_comment_approves_current_pr_regardless_of_author(self):
+        env = {**environment(), "EVENT_NAME": "issue_comment", "COMMENT_ID": "55",
+               "BASE_SHA": "", "BASE_REF": "", "HEAD_SHA": "", "HEAD_REF": "",
+               "HEAD_REPOSITORY": "", "SOURCE_UPDATED_AT": ""}
+        calls = []
+
+        def fake_gh(method, path, token="", data=None):
+            calls.append((method, path))
+            if path.endswith("/issues/comments/55"):
+                return {"issue_url": "https://api.github.com/repos/cryptoadvance/specter-diy/issues/12",
+                        "body": "/build preview", "user": {"login": "maintainer"}}
+            if path.endswith("/collaborators/maintainer/permission"):
+                return {"permission": "write"}
+            if path.endswith("/pulls/12"):
+                return live_pr(author_association="FIRST_TIME_CONTRIBUTOR")
+            if path.endswith("/specter-diy-web-simulator"):
+                return {"default_branch": "main"}
+            return None
+
+        with patch.dict(os.environ, env), patch.object(dispatcher, "gh", side_effect=fake_gh):
+            dispatcher.main()
+        self.assertEqual(sum(method == "POST" for method, _ in calls), 1)
+        self.assertFalse(any("/issues/12/comments?" in path for _, path in calls))
+
+    def test_approval_is_bound_to_pr_not_author(self):
+        comment = {"issue_url": "https://api.github.com/repos/cryptoadvance/specter-diy/issues/12",
+                   "body": "/build preview", "user": {"login": "maintainer"}}
+        with patch.object(dispatcher, "gh", return_value={"permission": "write"}) as api:
+            self.assertTrue(dispatcher.is_maintainer_approval(
+                "cryptoadvance/specter-diy", 12, comment, "token"))
+            self.assertFalse(dispatcher.is_maintainer_approval(
+                "cryptoadvance/specter-diy", 13, comment, "token"))
+        api.assert_called_once()
+
+    def test_comments_by_read_only_users_are_not_approvals(self):
+        comment = {"issue_url": "https://api.github.com/repos/cryptoadvance/specter-diy/issues/12",
+                   "body": "/build preview", "user": {"login": "reader"}}
+        with patch.object(dispatcher, "gh", return_value={"permission": "read"}):
+            self.assertFalse(dispatcher.is_maintainer_approval(
+                "cryptoadvance/specter-diy", 12, comment, "token"))
+        comment["body"] = "Quoted: /build preview"
+        with patch.object(dispatcher, "gh") as api:
+            self.assertFalse(dispatcher.is_maintainer_approval(
+                "cryptoadvance/specter-diy", 12, comment, "token"))
+            api.assert_not_called()
+
     def test_http_error_does_not_expose_response_body(self):
         error = HTTPError("https://api.github.com/private", 403, "denied", {},
                           BytesIO(b"sensitive response content"))
@@ -163,7 +247,9 @@ class BrowserPreviewDispatcherTests(unittest.TestCase):
         self.assertNotIn("github.event.pull_request.head", workflow.split("run:", 1)[-1])
         self.assertNotIn("sleep(", source)
         self.assertNotIn("status/pr/", source)
-        self.assertNotIn("comments", source)
+        self.assertNotIn("issues: write", workflow)
+        self.assertIn("issues: read", workflow)
+        self.assertIn("issue_comment:", workflow)
         self.assertNotIn("poll", source.lower())
         self.assertIn("ref: ${{ github.event.repository.default_branch }}", workflow)
 
