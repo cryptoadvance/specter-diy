@@ -29,7 +29,9 @@ jobs:
         run: python3 .github/scripts/test_dispatch_browser_preview.py
 
   tests:
-    runs-on: ubuntu-latest
+    # MicroPython Unix frozen-import smoke currently segfaults on Ubuntu 26.04;
+    # pin the last verified runner until compatibility is fixed upstream.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
