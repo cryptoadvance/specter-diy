@@ -154,8 +154,8 @@ def has_write_access(repository, username, token):
     if not isinstance(username, str) or not LOGIN_RE.fullmatch(username):
         return False
     result = gh("GET", f"/repos/{repository}/collaborators/{username}/permission", token)
-    # GitHub maps the maintain role to the legacy 'write' permission.
-    return isinstance(result, dict) and result.get("permission") in ("write", "admin")
+    # Accept repository write, maintain, or admin authorization.
+    return isinstance(result, dict) and result.get("permission") in ("write", "maintain", "admin")
 
 
 def is_maintainer_approval(repository, number, comment, token):
