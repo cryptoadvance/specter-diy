@@ -146,7 +146,7 @@ def current(request, token, pull_fetcher=None):
 # A first-time contributor requires a PR-specific maintainer approval comment.
 TRUSTED_ASSOCIATIONS = frozenset(("OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"))
 APPROVAL_COMMAND = "/build preview"
-LOGIN_RE = re.compile(r"[A-Za-z0-9-]{1,39}\\Z")
+LOGIN_RE = re.compile(r"[A-Za-z0-9-]{1,39}\Z")
 
 
 def has_write_access(repository, username, token):
