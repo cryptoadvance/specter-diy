@@ -3,19 +3,27 @@ name: Browser simulator preview
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, closed]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
   pull-requests: read
+  issues: read
 
 concurrency:
-  group: browser-preview-${{ github.repository }}-${{ github.event.pull_request.number }}
+  group: browser-preview-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   preview:
     name: Dispatch browser preview
-    if: github.event.pull_request.base.repo.full_name == github.repository
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.base.repo.full_name == github.repository) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       github.event.comment.body == '/build preview')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -29,7 +37,9 @@ jobs:
           BASE_REPOSITORY: ${{ github.event.repository.full_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_ID: ${{ github.event.comment.id || '' }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
