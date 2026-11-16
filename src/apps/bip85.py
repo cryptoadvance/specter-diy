@@ -114,8 +114,6 @@ class App(BaseApp):
             )
             if action == Bip85MnemonicScreen.QR:
                 seedqr = mnemonic_to_standard_seedqr(mnemonic)
-                if num_words == 18:
-                    note += "\nSeedSigner supports only 12/24-word SeedQRs."
                 await show_screen(
                     QRAlert("%s as Standard SeedQR" % title, seedqr, note=note)
                 )
