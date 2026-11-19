@@ -2,6 +2,7 @@ from ..manager import *
 from gui.common import format_addr
 
 from embit import script, bip32, ec, compact, hashes
+from embit.base import EmbitError
 from embit.liquid.psetview import PSETView, ser_string
 from embit.liquid.networks import NETWORKS
 from embit.liquid.transaction import LSIGHASH as SIGHASH
@@ -44,12 +45,33 @@ class LWalletManager(WalletManager):
     DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
 
     def addresses_match(self, candidate, target):
-        """Liquid: confidential and unconfidential forms share one script."""
-        # A Liquid QR may contain lq1/tlq1 (confidential) or ex1/tex1
-        # (unconfidential). Compare both forms so either QR verifies.
-        candidate_unconf = to_unconfidential(candidate)
-        target_unconf = to_unconfidential(target)
-        return candidate in (target, target_unconf) or candidate_unconf in (target, target_unconf)
+        """Compare Liquid address forms while preserving blinding-key identity."""
+        bech32_prefixes = ("lq1", "tlq1", "ex1", "tex1")
+
+        def normalize_bech32_case(address):
+            if address.lower().startswith(bech32_prefixes) and (
+                address.islower() or address.isupper()
+            ):
+                return address.lower()
+            return address
+
+        candidate = normalize_bech32_case(candidate)
+        target = normalize_bech32_case(target)
+        if candidate == target:
+            return True
+
+        try:
+            candidate_unconf = to_unconfidential(candidate)
+            target_unconf = to_unconfidential(target)
+        except (ValueError, TypeError, RuntimeError, EmbitError):
+            # A malformed or non-Liquid scanned address cannot match.
+            return False
+
+        candidate_is_confidential = candidate != candidate_unconf
+        target_is_confidential = target != target_unconf
+        if candidate_is_confidential and target_is_confidential:
+            return False
+        return candidate_unconf == target_unconf
 
 
     def __init__(self, path):
