@@ -5,7 +5,7 @@ from .screens import WalletScreen, ConfirmWalletScreen
 import platform
 import os
 from binascii import hexlify, unhexlify, a2b_base64
-from embit import script, bip32, compact
+from embit import script, bip32, compact, base58
 from embit.psbt import DerivationPath, CompressMode
 from embit.psbtview import PSBTView, read_write, PSBTError
 from embit.networks import NETWORKS
@@ -305,8 +305,14 @@ class WalletManager(BaseApp):
             if query:
                 for arg in query.split("&"):
                     if arg.startswith("index="):
-                        idx = int(arg[6:])
+                        try:
+                            idx = int(arg[6:])
+                        except ValueError:
+                            raise WalletError("Invalid address index")
+                        if idx < 0 or idx >= 0x80000000:
+                            raise WalletError("Invalid address index")
                         break
+            self.validate_address(addr_part)
             if idx is not None:
                 w, _ = self.find_wallet_from_address(addr_part, index=idx)
                 await show_screen(WalletScreen(w, self.network, idx))
@@ -379,8 +385,11 @@ class WalletManager(BaseApp):
                         candidate, _ = wallet.get_address(
                             idx, self.network, branch_idx
                         )
-                        if self.addresses_match(normalize(candidate), target):
-                            found = (idx, branch_idx)
+                        match_type = self.address_match_type(
+                            normalize(candidate), target
+                        )
+                        if match_type is not None:
+                            found = (idx, branch_idx, match_type)
                             break
                     if found is not None:
                         break
@@ -389,7 +398,19 @@ class WalletManager(BaseApp):
                     gui_loader.hide_loader()
 
             if found is not None:
-                idx, branch_idx = found
+                idx, branch_idx, match_type = found
+                if match_type == "same_script":
+                    confirmed = await show_screen(
+                        Prompt(
+                            "Unconfidential address",
+                            "The scanned address has the same output script as this wallet, "
+                            "but it does not include the wallet's confidential blinding key.",
+                            confirm_text="Show wallet address",
+                            cancel_text="Cancel",
+                        )
+                    )
+                    if not confirmed:
+                        return False
                 await show_screen(
                     WalletScreen(
                         wallet, self.network, idx, branch_index=branch_idx
@@ -418,21 +439,61 @@ class WalletManager(BaseApp):
         """Allow network-specific managers to compare address variants."""
         return candidate == target
 
-    @staticmethod
-    def address_network_hint(address):
+    def address_match_type(self, candidate, target):
+        return "exact" if self.addresses_match(candidate, target) else None
+
+    def validate_address(self, address):
+        """Reject malformed or unsupported Bitcoin addresses before wallet search."""
+        address = address.strip()
+        normalized = address.lower()
+        separator = normalized.find("1")
+        hrp = normalized[:separator] if separator > 0 else None
+        bech32_hrps = [
+            network.get("bech32")
+            for network in self.Networks.values()
+            if network.get("bech32")
+        ]
+
+        if hrp in bech32_hrps:
+            if not (address.islower() or address.isupper()):
+                raise WalletError("Invalid Bitcoin address")
+            try:
+                script.address_to_scriptpubkey(normalized)
+            except Exception:
+                raise WalletError("Invalid Bitcoin address")
+            return
+
+        try:
+            payload = base58.decode_check(address)
+        except Exception:
+            raise WalletError("Invalid Bitcoin address")
+        base58_versions = [
+            network.get(version)
+            for network in self.Networks.values()
+            for version in ("p2pkh", "p2sh")
+            if network.get(version)
+        ]
+        if len(payload) != 21 or payload[:1] not in base58_versions:
+            raise WalletError("Invalid Bitcoin address")
+
+    def address_network_hint(self, address):
         """Return the expected Specter network for recognizable address prefixes."""
-        addr = address.lower()
+        addr = address
+        lower_addr = addr.lower()
         # Liquid uses ex1/lq1 on mainnet and tex1/tlq1 on testnet.
-        if addr.startswith("ex1") or addr.startswith("lq1"):
+        if lower_addr.startswith(("ex1", "lq1")):
             return "liquidv1", "Liquid Mainnet"
-        if addr.startswith("tex1") or addr.startswith("tlq1"):
+        if lower_addr.startswith(("tex1", "tlq1")):
             return "liquidtestnet", "Liquid Testnet"
-        # Bitcoin Testnet and Signet deliberately share the tb1/m/n/2
-        # address prefixes, so an address alone cannot distinguish them.
-        if (addr.startswith("tb1") or addr.startswith("m") or
-                addr.startswith("n") or addr.startswith("2")):
+        if lower_addr.startswith("bc1") or addr.startswith(("1", "3")):
+            return "main", "Bitcoin Mainnet"
+        # Testnet and Signet share tb1. Legacy m/n/2 addresses also use the
+        # same prefixes on Regtest, so they cannot identify one network alone.
+        if lower_addr.startswith("tb1"):
             return ("test", "signet"), "Bitcoin Testnet or Signet"
-        if addr.startswith("bcrt1"):
+        if addr.startswith(("m", "n", "2")):
+            return ("test", "signet", "regtest"), "Bitcoin Testnet, Signet or Regtest"
+        if lower_addr.startswith("bcrt1"):
             return "regtest", "Bitcoin Regtest"
         return None
 

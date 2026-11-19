@@ -5,12 +5,16 @@ if sys.implementation.name != 'micropython':
 
     setup_native_stubs()
 
+import asyncio
 from unittest import TestCase
 from io import BytesIO
 import gc
 
+from embit import ec, script
+from embit.networks import NETWORKS
 from tests.util import get_keystore, get_wallets_app, clear_testdir
 from apps.wallets.manager import ADD_WALLET, SIGN_PSBT, VERIFY_ADDRESS
+from apps.wallets.wallet import WalletError
 
 DOC_DESCRIPTOR = (
     "wsh(sortedmulti(2,"
@@ -77,3 +81,67 @@ class WalletManagerParsingTest(TestCase):
         self.assertEqual(cmd, VERIFY_ADDRESS)
         # parse_stream should keep address data available for processing
         self.assertEqual(stream.read().decode(), DOC_ADDRESS_REQUEST.replace("bitcoin:", "", 1))
+
+    def test_regtest_legacy_address_hint_includes_regtest(self):
+        public_key = ec.PrivateKey(b"\x00" * 31 + b"\x01").get_public_key()
+        regtest_address = script.p2pkh(public_key).address(NETWORKS["regtest"])
+
+        networks, name = self.manager.address_network_hint(regtest_address)
+
+        self.manager.validate_address(regtest_address)
+        self.assertIn("regtest", networks)
+        self.assertIn("Regtest", name)
+        invalid_address = regtest_address[:-1] + (
+            "1" if regtest_address[-1] != "1" else "2"
+        )
+        with self.assertRaises(WalletError):
+            self.manager.validate_address(invalid_address)
+
+    def test_testnet_bech32_hint_does_not_include_regtest(self):
+        networks, name = self.manager.address_network_hint("tb1qexample")
+
+        self.assertEqual(networks, ("test", "signet"))
+        self.assertEqual(name, "Bitcoin Testnet or Signet")
+
+    def test_bitcoin_mainnet_hint_recognizes_base58_and_bech32(self):
+        for address in ("1example", "3example", "bc1qexample"):
+            self.assertEqual(
+                self.manager.address_network_hint(address),
+                ("main", "Bitcoin Mainnet"),
+            )
+
+    def test_invalid_address_is_rejected_before_wallet_selection(self):
+        shown_screens = []
+
+        async def show_screen(screen):
+            shown_screens.append(screen)
+            return self.manager.wallets[0]
+
+        with self.assertRaises(WalletError):
+            asyncio.run(
+                self.wallets_app.process_host_command(
+                    BytesIO(b"bitcoin:bcrt1invalid"), show_screen
+                )
+            )
+
+        self.assertEqual(shown_screens, [])
+
+    def test_invalid_index_value_raises_wallet_error(self):
+        address, _ = self.manager.wallets[0].get_address(0, self.manager.network)
+        shown_screens = []
+
+        async def show_screen(screen):
+            shown_screens.append(screen)
+            return self.manager.wallets[0]
+
+        with self.assertRaises(WalletError):
+            asyncio.run(
+                self.wallets_app.process_host_command(
+                    BytesIO(
+                        ("bitcoin:%s?index=not-an-integer" % address).encode()
+                    ),
+                    show_screen,
+                )
+            )
+
+        self.assertEqual(shown_screens, [])
