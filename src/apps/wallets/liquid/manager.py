@@ -43,6 +43,14 @@ class LWalletManager(WalletManager):
     Networks = {k: v for k, v in NETWORKS.items() if v.get("blech32")}
     DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
 
+    def addresses_match(self, candidate, target):
+        """Liquid: confidential and unconfidential forms share one script."""
+        # A Liquid QR may contain lq1/tlq1 (confidential) or ex1/tex1
+        # (unconfidential). Compare both forms so either QR verifies.
+        candidate_unconf = to_unconfidential(candidate)
+        target_unconf = to_unconfidential(target)
+        return candidate in (target, target_unconf) or candidate_unconf in (target, target_unconf)
+
 
     def __init__(self, path):
         super().__init__(path)
