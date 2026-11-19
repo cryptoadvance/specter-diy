@@ -312,16 +312,27 @@ class WalletManager(BaseApp):
                         if idx < 0 or idx >= 0x80000000:
                             raise WalletError("Invalid address index")
                         break
-            self.validate_address(addr_part)
-            if idx is not None:
-                w, _ = self.find_wallet_from_address(addr_part, index=idx)
-                await show_screen(WalletScreen(w, self.network, idx))
-                return True
+            prepared_target = self.validate_address(
+                addr_part, prepare_match=idx is None
+            )
+            try:
+                if idx is not None:
+                    w, _ = self.find_wallet_from_address(addr_part, index=idx)
+                    await show_screen(WalletScreen(w, self.network, idx))
+                    return True
 
-            wallet = await self.select_wallet_for_verification(show_screen)
-            if wallet is None:
-                return False
-            return await self.verify_address_in_wallet(wallet, addr_part, show_screen)
+                wallet = await self.select_wallet_for_verification(show_screen)
+                if wallet is None:
+                    return False
+                return await self.verify_address_in_wallet(
+                    wallet,
+                    addr_part,
+                    show_screen,
+                    prepared_target=prepared_target,
+                )
+            finally:
+                # Keep any parsed Liquid address data only for this scan.
+                prepared_target = None
         elif cmd == DERIVE_ADDRESS:
             arr = stream.read().split(b" ")
             redeem_script = None
@@ -356,7 +367,9 @@ class WalletManager(BaseApp):
             return None
         return selection
 
-    async def verify_address_in_wallet(self, wallet, address, show_screen, batch_size=25):
+    async def verify_address_in_wallet(
+        self, wallet, address, show_screen, batch_size=25, prepared_target=None
+    ):
         addr_to_check = address.strip()
         address_lower = addr_to_check.lower()
         if (
@@ -386,7 +399,7 @@ class WalletManager(BaseApp):
                             idx, self.network, branch_idx
                         )
                         match_type = self.address_match_type(
-                            normalize(candidate), target
+                            normalize(candidate), target, prepared_target
                         )
                         if match_type is not None:
                             found = (idx, branch_idx, match_type)
@@ -439,10 +452,10 @@ class WalletManager(BaseApp):
         """Allow network-specific managers to compare address variants."""
         return candidate == target
 
-    def address_match_type(self, candidate, target):
+    def address_match_type(self, candidate, target, prepared_target=None):
         return "exact" if self.addresses_match(candidate, target) else None
 
-    def validate_address(self, address):
+    def validate_address(self, address, prepare_match=False):
         """Reject malformed or unsupported Bitcoin addresses before wallet search."""
         address = address.strip()
         normalized = address.lower()

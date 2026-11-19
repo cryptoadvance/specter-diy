@@ -12,6 +12,7 @@ from unittest.mock import patch
 import gc
 
 import apps.wallets.manager as wallet_manager_module
+import apps.wallets.liquid.manager as liquid_manager_module
 from embit.liquid.addresses import to_unconfidential
 from tests.util import clear_testdir, get_keystore, get_wallets_app
 
@@ -70,18 +71,29 @@ class WalletAddressVerificationFlowTest(TestCase):
     def test_liquid_qr_verifies_unconfidential_form_of_wallet_address(self):
         app = get_wallets_app(self.keystore, "liquidv1")
         confidential_address, _ = app.manager.wallets[0].get_address(
-            0, app.manager.network
+            5, app.manager.network
         )
         unconfidential_address = to_unconfidential(confidential_address)
 
-        result, shown_screens = self._process_qr(
-            app, "liquid:" + unconfidential_address
-        )
+        original_to_unconfidential = liquid_manager_module.to_unconfidential
+        with patch.object(
+            liquid_manager_module,
+            "to_unconfidential",
+            wraps=original_to_unconfidential,
+        ) as decode_address:
+            result, shown_screens = self._process_qr(
+                app, "liquid:" + unconfidential_address
+            )
 
         self.assertTrue(result)
         self.assertEqual(len(shown_screens), 3)
         self.assertIsInstance(shown_screens[1], _DummyPrompt)
         self.assertIn("same output script", shown_screens[1].args[1])
+        scanned_target_decodes = [
+            call for call in decode_address.call_args_list
+            if call.args[0] == unconfidential_address
+        ]
+        self.assertEqual(len(scanned_target_decodes), 1)
 
     def test_liquid_confidential_qr_exact_match_needs_no_script_prompt(self):
         app = get_wallets_app(self.keystore, "liquidv1")

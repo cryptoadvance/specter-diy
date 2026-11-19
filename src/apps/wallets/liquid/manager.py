@@ -45,7 +45,7 @@ class LWalletManager(WalletManager):
     Networks = {k: v for k, v in NETWORKS.items() if v.get("blech32")}
     DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
 
-    def validate_address(self, address):
+    def validate_address(self, address, prepare_match=False):
         """Reject malformed or unsupported Liquid addresses before wallet search."""
         if address == "Fee":
             raise WalletError("Invalid Liquid address")
@@ -57,9 +57,20 @@ class LWalletManager(WalletManager):
             elif not address.islower():
                 raise WalletError("Invalid Liquid address")
         try:
-            to_unconfidential(address)
+            unconfidential = to_unconfidential(address)
         except (ValueError, TypeError, RuntimeError, EmbitError, IndexError):
             raise WalletError("Invalid Liquid address")
+        if not prepare_match:
+            return None
+
+        normalized_address = address
+        if normalized.startswith(bech32_prefixes) and address.isupper():
+            normalized_address = normalized
+        return (
+            normalized_address,
+            unconfidential,
+            normalized_address != unconfidential,
+        )
 
     def address_network_hint(self, address):
         hint = super().address_network_hint(address)
@@ -91,7 +102,7 @@ class LWalletManager(WalletManager):
                 return network_name, names.get(network_name, network_name)
         return None
 
-    def address_match_type(self, candidate, target):
+    def address_match_type(self, candidate, target, prepared_target=None):
         """Classify Liquid matches while preserving blinding-key identity."""
         bech32_prefixes = ("lq1", "tlq1", "ex1", "tex1", "el1", "ert1")
 
@@ -103,19 +114,23 @@ class LWalletManager(WalletManager):
             return address
 
         candidate = normalize_bech32_case(candidate)
-        target = normalize_bech32_case(target)
+        if prepared_target is None:
+            target = normalize_bech32_case(target)
+        else:
+            target, target_unconf, target_is_confidential = prepared_target
         if candidate == target:
             return "exact"
 
         try:
             candidate_unconf = to_unconfidential(candidate)
-            target_unconf = to_unconfidential(target)
+            if prepared_target is None:
+                target_unconf = to_unconfidential(target)
+                target_is_confidential = target != target_unconf
         except (ValueError, TypeError, RuntimeError, EmbitError, IndexError):
             # A malformed or non-Liquid scanned address cannot match.
             return None
 
         candidate_is_confidential = candidate != candidate_unconf
-        target_is_confidential = target != target_unconf
         if candidate_is_confidential and target_is_confidential:
             return None
         if candidate_unconf == target_unconf:
