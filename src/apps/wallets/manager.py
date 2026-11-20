@@ -312,27 +312,21 @@ class WalletManager(BaseApp):
                         if idx < 0 or idx >= 0x80000000:
                             raise WalletError("Invalid address index")
                         break
-            prepared_target = self.validate_address(
-                addr_part, prepare_match=idx is None
-            )
-            try:
-                if idx is not None:
-                    w, _ = self.find_wallet_from_address(addr_part, index=idx)
-                    await show_screen(WalletScreen(w, self.network, idx))
-                    return True
-
-                wallet = await self.select_wallet_for_verification(show_screen)
-                if wallet is None:
-                    return False
-                return await self.verify_address_in_wallet(
-                    wallet,
-                    addr_part,
-                    show_screen,
-                    prepared_target=prepared_target,
+            prepared_target = self.validate_address(addr_part, prepare_match=True)
+            if idx is not None:
+                return await self.verify_address_at_index(
+                    addr_part, idx, show_screen, prepared_target
                 )
-            finally:
-                # Keep any parsed Liquid address data only for this scan.
-                prepared_target = None
+
+            wallet = await self.select_wallet_for_verification(show_screen)
+            if wallet is None:
+                return False
+            return await self.verify_address_in_wallet(
+                wallet,
+                addr_part,
+                show_screen,
+                prepared_target=prepared_target,
+            )
         elif cmd == DERIVE_ADDRESS:
             arr = stream.read().split(b" ")
             redeem_script = None
@@ -367,21 +361,37 @@ class WalletManager(BaseApp):
             return None
         return selection
 
+    @staticmethod
+    def normalize_verification_address(address):
+        """Normalize case-insensitive Bitcoin bech32 addresses before matching."""
+        if address.lower().startswith(("bc1", "tb1", "bcrt1")):
+            return address.lower()
+        return address
+
+    async def verify_address_at_index(
+        self, address, index, show_screen, prepared_target=None
+    ):
+        """Use the same match rules for indexed and indexless QR verification."""
+        target = self.normalize_verification_address(address)
+        for wallet in self.wallets:
+            for branch_idx in range(wallet.descriptor.num_branches):
+                candidate, _ = wallet.get_address(index, self.network, branch_idx)
+                match_type = self.address_match_type(
+                    self.normalize_verification_address(candidate),
+                    target,
+                    prepared_target,
+                )
+                if match_type is not None:
+                    return await self.show_verified_address(
+                        wallet, index, branch_idx, match_type, show_screen
+                    )
+        raise WalletError("Can't find wallet owning address %s" % address)
+
     async def verify_address_in_wallet(
         self, wallet, address, show_screen, batch_size=25, prepared_target=None
     ):
         addr_to_check = address.strip()
-        address_lower = addr_to_check.lower()
-        if (
-            address_lower.startswith("bc1")
-            or address_lower.startswith("tb1")
-            or address_lower.startswith("bcrt1")
-        ):
-            target = address_lower
-            normalize = lambda a: a.lower()
-        else:
-            target = addr_to_check
-            normalize = lambda a: a
+        target = self.normalize_verification_address(addr_to_check)
 
         start_idx = 0
         branches = wallet.descriptor.num_branches
@@ -399,7 +409,9 @@ class WalletManager(BaseApp):
                             idx, self.network, branch_idx
                         )
                         match_type = self.address_match_type(
-                            normalize(candidate), target, prepared_target
+                            self.normalize_verification_address(candidate),
+                            target,
+                            prepared_target,
                         )
                         if match_type is not None:
                             found = (idx, branch_idx, match_type)
@@ -412,24 +424,9 @@ class WalletManager(BaseApp):
 
             if found is not None:
                 idx, branch_idx, match_type = found
-                if match_type == "same_script":
-                    confirmed = await show_screen(
-                        Prompt(
-                            "Unconfidential address",
-                            "The scanned address has the same output script as this wallet, "
-                            "but it does not include the wallet's confidential blinding key.",
-                            confirm_text="Show wallet address",
-                            cancel_text="Cancel",
-                        )
-                    )
-                    if not confirmed:
-                        return False
-                await show_screen(
-                    WalletScreen(
-                        wallet, self.network, idx, branch_index=branch_idx
-                    )
+                return await self.show_verified_address(
+                    wallet, idx, branch_idx, match_type, show_screen
                 )
-                return True
 
             message = (
                 "The address %s was not found between indexes %d and %d.\n\n"
@@ -447,6 +444,28 @@ class WalletManager(BaseApp):
             if not cont:
                 return False
             start_idx += batch_size
+
+    async def show_verified_address(
+        self, wallet, idx, branch_idx, match_type, show_screen
+    ):
+        """Show an exact match, or explicitly distinguish an unconfidential scan."""
+        if match_type == "same_script":
+            confirmed = await show_screen(
+                Prompt(
+                    "Script match only",
+                    "The scanned unconfidential address matches this wallet's "
+                    "output script, but lacks its confidential blinding key. "
+                    "Compare the wallet's confidential address before receiving.",
+                    confirm_text="Show wallet address",
+                    cancel_text="Cancel",
+                )
+            )
+            if not confirmed:
+                return False
+        await show_screen(
+            WalletScreen(wallet, self.network, idx, branch_index=branch_idx)
+        )
+        return True
 
     def addresses_match(self, candidate, target):
         """Allow network-specific managers to compare address variants."""

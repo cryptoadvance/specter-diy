@@ -51,7 +51,7 @@ class LiquidAddressVerificationTest(TestCase):
                 self.first_confidential_address, self.unconfidential_address
             )
         )
-        self.assertTrue(
+        self.assertFalse(
             self.manager.addresses_match(
                 self.unconfidential_address, self.first_confidential_address
             )
@@ -61,6 +61,14 @@ class LiquidAddressVerificationTest(TestCase):
                 self.first_confidential_address, self.unconfidential_address
             ),
             "same_script",
+        )
+
+    def test_confidential_scan_does_not_match_unconfidential_candidate(self):
+        # The target has a blinding key that the wallet's raw address lacks.
+        self.assertIsNone(
+            self.manager.address_match_type(
+                self.unconfidential_address, self.first_confidential_address
+            )
         )
 
     def test_identical_confidential_addresses_match(self):

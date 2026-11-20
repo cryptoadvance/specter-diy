@@ -95,6 +95,42 @@ class WalletAddressVerificationFlowTest(TestCase):
         ]
         self.assertEqual(len(scanned_target_decodes), 1)
 
+    def test_indexed_liquid_unconfidential_scan_requires_warning(self):
+        app = get_wallets_app(self.keystore, "liquidv1")
+        address, _ = app.manager.wallets[0].get_address(5, app.manager.network)
+        raw_address = to_unconfidential(address)
+        payload = "liquidnetwork:" + raw_address + "?index=5"
+
+        result, screens = self._process_qr(app, payload)
+
+        self.assertTrue(result)
+        self.assertEqual(len(screens), 2)
+        self.assertIsInstance(screens[0], _DummyPrompt)
+        self.assertIn("Script match only", screens[0].args[0])
+        self.assertEqual(screens[1].kwargs["branch_index"], 0)
+
+    def test_indexed_liquid_change_address_uses_change_branch(self):
+        app = get_wallets_app(self.keystore, "liquidv1")
+        address, _ = app.manager.wallets[0].get_address(2, app.manager.network, 1)
+        payload = "liquidnetwork:" + address + "?index=2"
+
+        result, screens = self._process_qr(app, payload)
+
+        self.assertTrue(result)
+        self.assertEqual(len(screens), 1)
+        self.assertEqual(screens[0].kwargs["branch_index"], 1)
+
+    def test_indexed_uppercase_bitcoin_address(self):
+        app = get_wallets_app(self.keystore, "regtest")
+        address, _ = app.manager.wallets[0].get_address(2, app.manager.network)
+        result, screens = self._process_qr(
+            app, "bitcoin:" + address.upper() + "?index=2"
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(len(screens), 1)
+        self.assertEqual(screens[0].args[2], 2)
+
     def test_liquid_confidential_qr_exact_match_needs_no_script_prompt(self):
         app = get_wallets_app(self.keystore, "liquidv1")
         confidential_address, _ = app.manager.wallets[0].get_address(

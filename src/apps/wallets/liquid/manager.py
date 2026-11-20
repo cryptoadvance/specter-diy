@@ -130,10 +130,12 @@ class LWalletManager(WalletManager):
             # A malformed or non-Liquid scanned address cannot match.
             return None
 
-        candidate_is_confidential = candidate != candidate_unconf
-        if candidate_is_confidential and target_is_confidential:
+        # A scanned confidential address must match the entire address,
+        # including its blinding key. An unconfidential wallet address must
+        # never "verify" someone else's confidential receiving address.
+        if target_is_confidential:
             return None
-        if candidate_unconf == target_unconf:
+        if candidate != candidate_unconf and candidate_unconf == target_unconf:
             return "same_script"
         return None
 
