@@ -27,8 +27,32 @@ exact PR comment:
 rechecks the writer's current repository permission before dispatching the
 combined build. This starts a new Web Simulator workflow for the **current**
 PR commit and does **not** change the status of an older, expired native GitHub
-CI check. Maintainers can also use `Actions → Specter PR Build (Firmware + Simulator) →
-Run workflow` with a PR number.
+CI check.
+
+To approve automatic firmware and browser-simulator builds on all subsequent
+commits **within the current PR open period**, a maintainer can instead post:
+
+```
+/build-auto
+```
+
+`/build-auto` also builds the current commit immediately. On each new commit
+(`pull_request_target: synchronize`), the dispatcher checks that the PR is
+still open, the approval comment is intact and unedited, and its author still
+has `write`, `maintain` or `admin` access. It dispatches the combined
+build directly; a parallel `workflow_run` dispatcher skips the duplicate.
+The native GitHub CI approval is **not** bypassed or modified: it can still
+show `Approve and run` separately even while the combined build runs.
+
+**Closing the PR ends /build-auto approval.** After reopening, approvals
+created before the latest GitHub `reopened` event are invalid. The maintainer
+must post a fresh `/build-auto` to enable automatic builds again. The
+dispatcher reads the PR's official issue-event history, so no database,
+label or explicit `/build-auto-off` command is needed. Deleting the
+approval comment or removing its author's write permission also revokes it.
+
+Maintainers can additionally use `Actions → Specter PR Build (Firmware + Simulator)
+→ Run workflow` with a PR number.
 
 Only trusted default-branch dispatcher code sees the narrow
 `WEB_SIMULATOR_DISPATCH_TOKEN`; untrusted PR code and submodules execute
