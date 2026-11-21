@@ -155,7 +155,13 @@ def has_write_access(repository, username, token):
     """Never trust comment text, author_association, or an unchecked username."""
     if not isinstance(username, str) or not LOGIN_RE.fullmatch(username):
         return False
-    permission = gh("GET", f"/repos/{repository}/collaborators/{username}/permission", token)
+    try:
+        permission = gh("GET", f"/repos/{repository}/collaborators/{username}/permission", token)
+    except RuntimeError as exc:
+        # GitHub returns 404 when the commenter is not a collaborator.
+        if "HTTP 404" in str(exc):
+            return False
+        raise
     return isinstance(permission, dict) and permission.get("permission") in (
         "write", "maintain", "admin"
     )
