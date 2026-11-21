@@ -1,0 +1,64 @@
+name: Specter PR Build (Firmware + Simulator)
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+  workflow_run:
+    workflows: ["CI"]
+    types: [in_progress]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Open Specter DIY pull request to build
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  actions: read
+
+concurrency:
+  group: browser-preview-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    name: Dispatch firmware and simulator build
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.base.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       (github.event.comment.body == '/build' || github.event.comment.body == '/Build' ||
+        github.event.comment.body == '/build-auto' || github.event.comment.body == '/Build-Auto')) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted default-branch dispatcher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4 pinned commit
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Validate PR and dispatch paired service
+        env:
+          BASE_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action || '' }}
+          COMMENT_ID: ${{ github.event.comment.id || '' }}
+          ACTION: ${{ github.event.action == 'closed' && 'delete' || 'build' }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          GITHUB_TOKEN: ${{ github.token }}
+          WEB_SIMULATOR_DISPATCH_TOKEN: ${{ secrets.WEB_SIMULATOR_DISPATCH_TOKEN }}
+          WEB_SIMULATOR_REPOSITORY: ${{ vars.WEB_SIMULATOR_REPOSITORY }}
+        run: python3 .github/scripts/dispatch_browser_preview.py

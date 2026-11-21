@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   native-tests:
     runs-on: ubuntu-latest
@@ -12,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -25,14 +29,19 @@ jobs:
         run: |
           python3 run_native_tests.py
           python3 -m compileall ../src ../test
+      - name: Test browser preview dispatcher
+        run: python3 .github/scripts/test_dispatch_browser_preview.py
 
   tests:
-    runs-on: ubuntu-latest
+    # MicroPython Unix frozen-import smoke currently segfaults on Ubuntu 26.04;
+    # pin the last verified runner until compatibility is fixed upstream.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          persist-credentials: false
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -46,3 +55,28 @@ jobs:
             python3
       - name: Run tests
         run: make test
+
+  # PR firmware and browser builds live in the paired Web Simulator service.
+  # Keep a standalone firmware build only for pushes to the protected branch.
+  default-branch-firmware:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v14
+      - name: Build Unix simulator and STM32 firmware
+        run: |
+          nix develop -c make unix
+          nix develop -c make disco
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-binaries
+          path: |
+            bin/specter-diy.bin
+            bin/specter-diy.hex
