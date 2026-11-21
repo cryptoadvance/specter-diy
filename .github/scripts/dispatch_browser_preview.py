@@ -246,9 +246,10 @@ def approved_ci_pr(env, token):
     if (not isinstance(run, dict) or run.get("id") != run_id or
             (run.get("repository") or {}).get("full_name", "").lower() != repository.lower() or
             run.get("name") != "CI" or run.get("event") != "pull_request" or
-            not str(run.get("path", "")).startswith(CI_WORKFLOW + "@")):
+            not (run.get("path") == CI_WORKFLOW or
+                 str(run.get("path", "")).startswith(CI_WORKFLOW + "@"))):
         return None
-    if run.get("status") != "in_progress" and not (
+    if run.get("status") not in ("queued", "in_progress") and not (
         run.get("status") == "completed" and
         run.get("conclusion") in ("success", "failure", "timed_out")
     ):
