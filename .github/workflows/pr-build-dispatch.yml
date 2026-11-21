@@ -35,7 +35,8 @@ jobs:
        github.event.workflow_run.event == 'pull_request') ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
-       (github.event.comment.body == '/build' || github.event.comment.body == '/Build')) ||
+       (github.event.comment.body == '/build' || github.event.comment.body == '/Build' ||
+        github.event.comment.body == '/build-auto' || github.event.comment.body == '/Build-Auto')) ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -51,6 +52,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}
           CI_RUN_ID: ${{ github.event.workflow_run.id || '' }}
           EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action || '' }}
           COMMENT_ID: ${{ github.event.comment.id || '' }}
           ACTION: ${{ github.event.action == 'closed' && 'delete' || 'build' }}
           GITHUB_ACTOR: ${{ github.actor }}
