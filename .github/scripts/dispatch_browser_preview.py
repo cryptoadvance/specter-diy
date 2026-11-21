@@ -144,7 +144,8 @@ def current(request, token, pull_fetcher=None):
 
 # Only an authenticated repository writer can manually run a build. Approving
 # the native CI run uses GitHub's own workflow permission gate instead.
-COMMAND = "/build"
+ONCE_COMMAND = "/build"
+AUTO_COMMAND = "/build-auto"
 LOGIN_RE = re.compile(r"[A-Za-z0-9-]{1,39}\Z")
 CI_WORKFLOW = ".github/workflows/test.yml"
 SIMULATOR_WORKFLOW = "preview.yml"
@@ -172,8 +173,14 @@ def is_maintainer_command(repository, number, comment, token):
         return False
     if comment.get("issue_url") != f"{API}/repos/{repository}/issues/{number}":
         return False
-    if (comment.get("body") or "").strip().lower() != COMMAND:
+    command = (comment.get("body") or "").strip().lower()
+    if command not in (ONCE_COMMAND, AUTO_COMMAND):
         return False
+    if command == AUTO_COMMAND:
+        # Edited comments must not silently turn into durable approvals.
+        created, updated = comment.get("created_at"), comment.get("updated_at")
+        if not created or not updated or parse_time(created) != parse_time(updated):
+            return False
     return has_write_access(repository, (comment.get("user") or {}).get("login"), token)
 
 
@@ -200,7 +207,57 @@ def comment_command_valid(env, token):
     if not 1 <= number <= 9999999 or comment_id <= 0:
         raise ValueError("invalid PR/comment ID")
     comment = gh("GET", f"/repos/{repository}/issues/comments/{comment_id}", token)
-    return is_maintainer_command(repository, number, comment, token)
+    if not is_maintainer_command(repository, number, comment, token):
+        return None
+    return (comment.get("body") or "").strip().lower()
+
+
+def _issue_open_epoch(repository, number, pr, token):
+    """Use GitHub's PR timeline so a reopened PR loses prior auto approvals."""
+    epoch = parse_time(pr["created_at"])
+    for page in range(1, 21):
+        events = gh("GET", f"/repos/{repository}/issues/{number}/events?per_page=100&page={page}", token)
+        if not isinstance(events, list):
+            raise ValueError("invalid issue events response")
+        for event in events:
+            if event.get("event") == "reopened":
+                epoch = max(epoch, parse_time(event["created_at"]))
+        if len(events) < 100:
+            return epoch
+    # Fail closed if the issue history exceeds the bounded API scan.
+    raise ValueError("PR has too many issue events to verify automatic approval")
+
+
+def auto_build_approved(repository, number, pr, token):
+    """Durable for one open epoch only; no database or GitHub labels needed."""
+    if pr.get("state") != "open":
+        return False
+    candidates = []
+    for page in range(1, 21):
+        comments = gh("GET", f"/repos/{repository}/issues/{number}/comments?per_page=100&page={page}", token)
+        if not isinstance(comments, list):
+            raise ValueError("invalid issue comments response")
+        for comment in comments:
+            if (isinstance(comment, dict) and
+                    (comment.get("body") or "").strip().lower() == AUTO_COMMAND and
+                    comment.get("issue_url") == f"{API}/repos/{repository}/issues/{number}"):
+                candidates.append(comment)
+        if len(comments) < 100:
+            break
+    else:
+        raise ValueError("PR has too many comments to verify automatic approval")
+    if not candidates:
+        return False
+    epoch = _issue_open_epoch(repository, number, pr, token)
+    for comment in candidates:
+        created, updated = comment.get("created_at"), comment.get("updated_at")
+        if (not created or not updated or
+                parse_time(created) != parse_time(updated) or
+                parse_time(created) <= epoch):
+            continue
+        if is_maintainer_command(repository, number, comment, token):
+            return True
+    return False
 
 
 def dispatch_to_service(request, simulator, token, workflow=SIMULATOR_WORKFLOW):
@@ -282,7 +339,8 @@ def main():
 
     action = "build"
     if event_name == "issue_comment":
-        if not comment_command_valid(env, token):
+        command = comment_command_valid(env, token)
+        if command is None:
             return
         number = int(env["PR_NUMBER"])
         pr = gh("GET", f"/repos/{repository}/pulls/{number}", token)
@@ -291,6 +349,10 @@ def main():
         if checked is None:
             return
         number, pr = checked
+        # The pull_request_target synchronize event owns builds for auto-approved
+        # PRs. Avoid dispatching the same SHA again when native CI also starts.
+        if auto_build_approved(repository, number, pr, token):
+            return
     else:
         number = int(env["PR_NUMBER"])
         if event_name == "workflow_dispatch" and not has_write_access(
@@ -315,10 +377,15 @@ def main():
     # Reuse the existing same-owner guard from request_from_environment().
     dispatch_token = env["WEB_SIMULATOR_DISPATCH_TOKEN"]
     if event_name == "pull_request_target" and action == "build":
-        # No untrusted PR code is run here. The simulator's trusted reporter
-        # verifies a real action_required CI run before it writes the comment.
-        dispatch_to_service(request, simulator, dispatch_token, APPROVAL_WORKFLOW)
+        if env.get("GITHUB_EVENT_ACTION") == "synchronize" and auto_build_approved(
+                repository, number, pr, token):
+            # Subsequent commits are trusted only for the *current* open epoch.
+            dispatch_to_service(request, simulator, dispatch_token)
+        else:
+            # The reporter checks for a genuine native GitHub approval request.
+            dispatch_to_service(request, simulator, dispatch_token, APPROVAL_WORKFLOW)
     else:
+        # /build and /build-auto both explicitly launch this SHA once.
         dispatch_to_service(request, simulator, dispatch_token)
 
 
