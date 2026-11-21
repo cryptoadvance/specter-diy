@@ -1,31 +1,39 @@
 # Browser simulator PR previews
 
-## PR-specific preview approval
+## Native GitHub approval and manual builds
 
-Known contributors (GitHub `author_association` of `OWNER`, `MEMBER`,
-`COLLABORATOR`, or `CONTRIBUTOR`) trigger browser previews automatically.
-Other contributors need one approval comment on **each PR**:
+The normal PR `CI` workflow acts as the approval gate for **both** matching
+firmware and browser-simulator artifacts. When GitHub starts a native PR CI
+run, the trusted `workflow_run: in_progress` dispatcher verifies the CI
+identity, the live PR and exact head SHA, then starts the paired Web Simulator.
+For a first-time contributor, GitHub may keep CI in `action_required` until
+a maintainer selects **Approve and run** in the native workflow run.
+
+A separate trusted `pull_request_target` dispatcher asks the paired Web
+Simulator to check whether CI is truly awaiting approval. If so, the machine
+user creates or updates **one** PR comment with the direct approval link.
+After approval, the same marked comment becomes the combined build result.
+This notice works only when the repository/organization policy permits the
+trusted `pull_request_target` event and the bot token is configured.
+
+A maintainer with `write`, `maintain`, or `admin` access can also post the
+exact PR comment:
 
 ```
-/build preview
+/build
 ```
 
-This command must be posted by a user with current `write`, `maintain`,
-or `admin` permission on Specter DIY. The dispatcher verifies actual
-repository permissions using GitHub's API; a comment from a user with
-`read` or `triage` permission never approves a build.
+`/Build` is also accepted. The dispatcher fetches the real comment and
+rechecks the writer's current repository permission before dispatching the
+combined build. This starts a new Web Simulator workflow for the **current**
+PR commit and does **not** change the status of an older, expired native GitHub
+CI check. Maintainers can also use `Actions → Browser simulator preview →
+Run workflow` with a PR number.
 
-**One approval covers the entire PR, including subsequent commits.**
-The dispatcher checks the PR's own comments on every update. An approval on
-PR #123 never authorizes PR #124, even for the same author. The approval is
-stored as the maintainer's comment, requiring no new repository write token.
-Deleting or editing the command comment, or revoking the approving user's
-write permission, stops future automatic preview dispatches. Closing a PR
-still triggers preview cleanup independently of its approval status.
-
-The comment-triggered workflow only runs trusted default-branch dispatcher
-code. PR-controlled code is executed solely by the separate unprivileged
-simulator build.
+Only trusted default-branch dispatcher code sees the narrow
+`WEB_SIMULATOR_DISPATCH_TOKEN`; untrusted PR code and submodules execute
+without write tokens, secrets, Pages access or comment permissions. Closing a
+PR still dispatches preview cleanup.
 
 Browser previews are built and hosted by the paired
 [`specter-diy-web-simulator`](https://github.com/cryptoadvance/specter-diy-web-simulator)
@@ -45,9 +53,12 @@ The bot account must never have write access to the Specter DIY repository.
 When a new commit preview succeeds, the publisher removes the older browser pages
 for that PR; failed builds keep the last successful preview online.
 
-The existing Specter DIY firmware build and its GitHub Actions artifacts are
-not changed by this PR. All preview-specific firmware artifacts are created
-and managed independently by the Web Simulator. After successfully publishing
+The legacy PR-only `.github/workflows/build.yml` is removed to prevent
+duplicate firmware builds. The unified Web Simulator workflow runs
+`make unix`, `make disco`, native tests and browser tests from the exact
+PR source SHA. The native `test.yml` remains as the approval gate, and a
+firmware build on protected `master` pushes is retained in that CI file.
+Preview-specific firmware artifacts are owned by the Web Simulator. After successfully publishing
 and reporting a newer preview, the Web Simulator removes its own superseded
 firmware artifacts; a failed build preserves the last successful preview and
 firmware. Closing a PR triggers cleanup of the Web Simulator's own firmware
@@ -72,8 +83,8 @@ GitHub machine-user account with **no repository write permissions**. Its
 Actions secret `SPECTER_PREVIEW_BOT_TOKEN`; set
 `SPECTER_PREVIEW_BOT_LOGIN` as the Web Simulator Actions variable. A fresh
 production PAT should be created separately from the successful fork test PAT.
-The token is used **only by the trusted Web Simulator finalizer**, never by
-untrusted PR build or verification jobs. The finalizer verifies the GitHub
+The token is used **only by the trusted Web Simulator approval reporter and
+finalizer**, never by untrusted PR build or verification jobs. The finalizer verifies the GitHub
 identity, validates the exact live PR, and edits/deletes only its own marked
 preview comments. A regular machine user does not get GitHub's official Bot
 badge. Although `public_repo` is not a comment-only scope, the user's lack
