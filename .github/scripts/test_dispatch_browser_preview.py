@@ -150,7 +150,7 @@ class DispatchTests(unittest.TestCase):
         self.assertFalse(self.posts())
 
     def test_workflow_and_trust_boundary(self):
-        workflow = (ROOT / ".github/workflows/browser-preview.yml").read_text()
+        workflow = (ROOT / ".github/workflows/pr-build-dispatch.yml").read_text()
         self.assertIn("workflow_run:", workflow)
         self.assertIn("types: [in_progress]", workflow)
         self.assertIn("issue_comment:", workflow)
