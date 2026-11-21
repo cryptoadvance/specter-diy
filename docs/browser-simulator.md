@@ -27,7 +27,7 @@ exact PR comment:
 rechecks the writer's current repository permission before dispatching the
 combined build. This starts a new Web Simulator workflow for the **current**
 PR commit and does **not** change the status of an older, expired native GitHub
-CI check. Maintainers can also use `Actions → Browser simulator preview →
+CI check. Maintainers can also use `Actions → Specter PR Build (Firmware + Simulator) →
 Run workflow` with a PR number.
 
 Only trusted default-branch dispatcher code sees the narrow
