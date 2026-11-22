@@ -31,6 +31,20 @@ jobs:
           python3 -m compileall ../src ../test
       - name: Test browser preview dispatcher
         run: python3 .github/scripts/test_dispatch_browser_preview.py
+      - name: Check paired Web Simulator workflow contract
+        if: github.event_name == 'pull_request'
+        env:
+          PAIRED_REPOSITORY_OWNER: ${{ github.event.pull_request.head.repo.owner.login }}
+        run: |
+          if [[ ! "$PAIRED_REPOSITORY_OWNER" =~ ^[A-Za-z0-9-]+$ ]]; then
+            echo "Invalid paired repository owner" >&2
+            exit 1
+          fi
+          git clone --depth 1 --branch feat/pr-approval-and-unified-build \
+            "https://github.com/$PAIRED_REPOSITORY_OWNER/specter-diy-web-simulator.git" \
+            paired-web-simulator
+          python3 .github/scripts/test_dispatch_browser_preview_integration.py \
+            paired-web-simulator/.github/workflows
 
   tests:
     # MicroPython Unix frozen-import smoke currently segfaults on Ubuntu 26.04;

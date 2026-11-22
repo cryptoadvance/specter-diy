@@ -150,6 +150,19 @@ LOGIN_RE = re.compile(r"[A-Za-z0-9-]{1,39}\Z")
 CI_WORKFLOW = ".github/workflows/test.yml"
 SIMULATOR_WORKFLOW = "preview.yml"
 APPROVAL_WORKFLOW = "approval.yml"
+SIMULATOR_WORKFLOW_INPUTS = (
+    "request_id",
+    "action",
+    "base_repository",
+    "base_sha",
+    "base_ref",
+    "pr_number",
+    "head_repository",
+    "head_sha",
+    "head_ref",
+    "source_updated_at",
+)
+APPROVAL_WORKFLOW_INPUTS = ("pr_number", "head_sha", "source_updated_at")
 
 
 def has_write_access(repository, username, token):
@@ -266,13 +279,9 @@ def dispatch_to_service(request, simulator, token, workflow=SIMULATOR_WORKFLOW):
     if not isinstance(branch, str) or not valid_ref(branch):
         raise RuntimeError("Web Simulator has no valid default branch")
     if workflow == SIMULATOR_WORKFLOW:
-        inputs = {key: str(value) for key, value in request.items()}
+        inputs = {key: str(request[key]) for key in SIMULATOR_WORKFLOW_INPUTS}
     elif workflow == APPROVAL_WORKFLOW:
-        inputs = {
-            "pr_number": str(request["pr_number"]),
-            "head_sha": request["head_sha"],
-            "source_updated_at": request["source_updated_at"],
-        }
+        inputs = {key: str(request[key]) for key in APPROVAL_WORKFLOW_INPUTS}
     else:
         raise ValueError("unsupported service workflow")
     gh("POST", f"/repos/{simulator}/actions/workflows/{workflow}/dispatches", token,
