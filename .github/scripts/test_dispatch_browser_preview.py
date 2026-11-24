@@ -60,6 +60,7 @@ class DispatchTests(unittest.TestCase):
         self.comments = []
         self.events = []
         self.command_body = "/Build"
+        self.deleted_auto = False
 
     @staticmethod
     def auto_comment(created_at="2026-11-20T09:00:00Z", updated_at=None):
@@ -75,6 +76,22 @@ class DispatchTests(unittest.TestCase):
             return [self.pr]
         if path == f"/repos/{BASE}/pulls/391":
             return self.pr
+        if path == "/graphql":
+            if "issueComments" in data["query"]:
+                nodes = []
+                if self.comments:
+                    nodes = [{"body": "<!-- specter-web-simulator-preview -->\n<!-- specter-auto-mode:71 -->",
+                              "issue": {"number": 391, "repository": {"nameWithOwner": BASE}}}]
+                return {"data": {"user": {"issueComments": {"nodes": nodes,
+                    "pageInfo": {"hasNextPage": False, "endCursor": None}}}}}
+            reopened = [e for e in self.events if e["event"] == "reopened"]
+            nodes = [{"createdAt": reopened[-1]["created_at"]}] if reopened else []
+            return {"data": {"repository": {"pullRequest": {"state": "OPEN",
+                "timelineItems": {"nodes": nodes}}}}}
+        if path == f"/repos/{BASE}/issues/comments/71":
+            if not self.comments or self.deleted_auto:
+                raise RuntimeError("GitHub API GET returned HTTP 404")
+            return self.comments[0]
         if path == f"/repos/{SERVICE}":
             return {"default_branch": "main"}
         if path == f"/repos/{BASE}/issues/comments/55":
@@ -98,7 +115,7 @@ class DispatchTests(unittest.TestCase):
             app.main()
 
     def posts(self):
-        return [c for c in self.calls if c[0] == "POST"]
+        return [c for c in self.calls if c[0] == "POST" and c[1] != "/graphql"]
 
     def test_started_native_pr_ci_dispatches_full_combined_build(self):
         self.invoke()
@@ -189,8 +206,9 @@ class DispatchTests(unittest.TestCase):
     def test_build_auto_comment_triggers_combined_build(self):
         self.command_body = "/build-auto"
         self.invoke("issue_comment", PR_NUMBER="391", COMMENT_ID="55")
-        self.assertEqual(len(self.posts()), 1)
-        self.assertIn("/preview.yml/dispatches", self.posts()[0][1])
+        self.assertEqual(len(self.posts()), 2)
+        self.assertIn("/auto-mode.yml/dispatches", self.posts()[0][1])
+        self.assertIn("/preview.yml/dispatches", self.posts()[1][1])
 
     def test_read_only_build_auto_comment_cannot_trigger(self):
         self.command_body = "/build-auto"
@@ -222,12 +240,14 @@ class DispatchTests(unittest.TestCase):
         self.events = [{"event": "closed", "created_at": "2026-11-20T09:10:00Z"},
                        {"event": "reopened", "created_at": "2026-11-20T09:20:00Z"}]
         self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
-        self.assertEqual(len(self.posts()), 1)
-        self.assertIn("/approval.yml/dispatches", self.posts()[0][1])
+        self.assertEqual(len(self.posts()), 2)
+        self.assertIn("/auto-mode.yml/dispatches", self.posts()[0][1])
+        self.assertIn("/approval.yml/dispatches", self.posts()[1][1])
         self.calls.clear()
         self.invoke("workflow_run")
-        self.assertEqual(len(self.posts()), 1)
-        self.assertIn("/preview.yml/dispatches", self.posts()[0][1])
+        self.assertEqual(len(self.posts()), 2)
+        self.assertIn("/auto-mode.yml/dispatches", self.posts()[0][1])
+        self.assertIn("/preview.yml/dispatches", self.posts()[1][1])
 
     def test_reopen_requires_new_auto_command_before_future_commits(self):
         self.comments = [self.auto_comment(created_at="2026-11-20T09:25:00Z")]
@@ -239,33 +259,44 @@ class DispatchTests(unittest.TestCase):
     def test_edited_auto_comment_does_not_authorize_new_commits(self):
         self.comments = [self.auto_comment(updated_at="2026-11-20T09:05:00Z")]
         self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
-        self.assertEqual(len(self.posts()), 1)
-        self.assertIn("/approval.yml/dispatches", self.posts()[0][1])
+        self.assertEqual(len(self.posts()), 2)
+        self.assertIn("/auto-mode.yml/dispatches", self.posts()[0][1])
+        self.assertIn("/approval.yml/dispatches", self.posts()[1][1])
 
     def test_deleted_auto_comment_revokes_permission(self):
-        self.comments = []
+        self.comments = [self.auto_comment()]
+        self.deleted_auto = True
         self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
-        self.assertEqual(len(self.posts()), 1)
-        self.assertIn("/approval.yml/dispatches", self.posts()[0][1])
+        self.assertEqual(len(self.posts()), 2)
+        self.assertIn("/auto-mode.yml/dispatches", self.posts()[0][1])
+        self.assertEqual(self.posts()[0][3]["inputs"]["action"], "clear")
+        self.assertIn("/approval.yml/dispatches", self.posts()[1][1])
 
     def test_writer_permission_is_rechecked_for_auto_on_each_commit(self):
         self.comments = [self.auto_comment()]
         self.permission = "read"
         self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
-        self.assertEqual(len(self.posts()), 1)
-        self.assertIn("/approval.yml/dispatches", self.posts()[0][1])
+        self.assertEqual(len(self.posts()), 2)
+        self.assertIn("/auto-mode.yml/dispatches", self.posts()[0][1])
+        self.assertIn("/approval.yml/dispatches", self.posts()[1][1])
 
-    def test_auto_history_overflow_fails_closed(self):
+    def test_repeated_commands_from_same_user_require_one_permission_lookup(self):
+        self.comments = [self.auto_comment()] * 50
+        self.permission = "read"
+        self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
+        lookups = [c for c in self.calls if c[1].endswith("/maintainer/permission")]
+        self.assertEqual(len(lookups), 1)
+
+    def test_irrelevant_issue_history_does_not_break_auto_approval(self):
         self.comments = [self.auto_comment()]
         self.events = [{"event": "commented", "created_at": UPDATED}] * 100
-        with self.assertRaisesRegex(ValueError, "too many issue events"):
-            self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
-        self.assertFalse(self.posts())
+        self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
+        self.assertIn("/preview.yml/dispatches", self.posts()[0][1])
 
     def test_auto_comment_invalid_on_a_different_pr(self):
         self.comments = [dict(self.auto_comment(), issue_url="https://api.github.com/repos/cryptoadvance/specter-diy/issues/392")]
         self.invoke("pull_request_target", PR_NUMBER="391", GITHUB_EVENT_ACTION="synchronize")
-        self.assertIn("/approval.yml/dispatches", self.posts()[0][1])
+        self.assertIn("/approval.yml/dispatches", self.posts()[-1][1])
 
     def test_workflow_includes_build_auto_comment_trigger(self):
         workflow = (ROOT / ".github/workflows/pr-build-dispatch.yml").read_text()

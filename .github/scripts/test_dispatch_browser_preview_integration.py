@@ -48,6 +48,7 @@ def main():
     contracts = (
         (dispatcher.SIMULATOR_WORKFLOW, dispatcher.SIMULATOR_WORKFLOW_INPUTS),
         (dispatcher.APPROVAL_WORKFLOW, dispatcher.APPROVAL_WORKFLOW_INPUTS),
+        (dispatcher.AUTO_MODE_WORKFLOW, ("pr_number", "comment_id", "action")),
     )
     for workflow_name, expected_inputs in contracts:
         path = workflow_dir / workflow_name

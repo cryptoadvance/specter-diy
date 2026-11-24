@@ -150,6 +150,7 @@ LOGIN_RE = re.compile(r"[A-Za-z0-9-]{1,39}\Z")
 CI_WORKFLOW = ".github/workflows/test.yml"
 SIMULATOR_WORKFLOW = "preview.yml"
 APPROVAL_WORKFLOW = "approval.yml"
+AUTO_MODE_WORKFLOW = "auto-mode.yml"
 SIMULATOR_WORKFLOW_INPUTS = (
     "request_id",
     "action",
@@ -226,51 +227,86 @@ def comment_command_valid(env, token):
 
 
 def _issue_open_epoch(repository, number, pr, token):
-    """Use GitHub's PR timeline so a reopened PR loses prior auto approvals."""
-    epoch = parse_time(pr["created_at"])
-    for page in range(1, 21):
-        events = gh("GET", f"/repos/{repository}/issues/{number}/events?per_page=100&page={page}", token)
-        if not isinstance(events, list):
-            raise ValueError("invalid issue events response")
-        for event in events:
-            if event.get("event") == "reopened":
-                epoch = max(epoch, parse_time(event["created_at"]))
-        if len(events) < 100:
-            return epoch
-    # Fail closed if the issue history exceeds the bounded API scan.
-    raise ValueError("PR has too many issue events to verify automatic approval")
+    """Read the latest reopen event directly rather than scanning the timeline."""
+    owner, name = repository.split("/", 1)
+    query = """query($owner:String!,$name:String!,$number:Int!) {
+      repository(owner:$owner,name:$name) { pullRequest(number:$number) {
+        state timelineItems(last:1,itemTypes:[REOPENED_EVENT]) {
+          nodes { ... on ReopenedEvent { createdAt } } } } } }"""
+    result = gh("POST", "/graphql", token, {"query": query, "variables": {
+        "owner": owner, "name": name, "number": number}})
+    if not isinstance(result, dict) or result.get("errors"):
+        raise ValueError("cannot verify PR open period")
+    try:
+        live = result["data"]["repository"]["pullRequest"]
+        if live["state"] != "OPEN":
+            raise ValueError("PR no longer open")
+        events = live["timelineItems"]["nodes"]
+        if len(events) > 1:
+            raise ValueError("invalid reopen history")
+        epoch = parse_time(pr["created_at"])
+        return max(epoch, parse_time(events[0]["createdAt"])) if events else epoch
+    except (TypeError, KeyError) as exc:
+        raise ValueError("invalid reopen history") from exc
+
+
+def auto_build_status(repository, number, pr, token, bot_login="specter-preview-bot"):
+    """Find the bot's card, then independently verify the original command."""
+    if pr.get("state") != "open":
+        return False, None
+    if not isinstance(bot_login, str) or not LOGIN_RE.fullmatch(bot_login):
+        raise ValueError("invalid configured preview bot login")
+    query = """query($login:String!,$cursor:String) { user(login:$login) {
+      issueComments(first:100,after:$cursor) { pageInfo { hasNextPage endCursor }
+        nodes { body issue { number repository { nameWithOwner } } } } } }"""
+    cursor = None
+    for _ in range(100):
+        result = gh("POST", "/graphql", token, {"query": query, "variables": {
+            "login": bot_login, "cursor": cursor}})
+        if not isinstance(result, dict) or result.get("errors"):
+            raise ValueError("cannot inspect bot comments")
+        try:
+            page = result["data"]["user"]["issueComments"]
+            for item in page["nodes"]:
+                if not isinstance(item, dict) or not isinstance(item.get("issue"), dict):
+                    continue
+                issue = item["issue"]
+                body = item.get("body")
+                if not isinstance(body, str):
+                    continue
+                if (issue["number"] != number or issue["repository"]["nameWithOwner"].lower() != repository.lower()
+                        or "<!-- specter-web-simulator-preview -->" not in body):
+                    continue
+                markers = re.findall(r"<!-- specter-auto-mode:([1-9][0-9]*) -->", body)
+                if len(markers) != 1:
+                    return False, None
+                comment_id = int(markers[0])
+                try:
+                    comment = gh("GET", f"/repos/{repository}/issues/comments/{comment_id}", token)
+                except RuntimeError as exc:
+                    if "HTTP 404" in str(exc):
+                        return False, comment_id
+                    raise
+                if (not isinstance(comment, dict) or (comment.get("body") or "").strip().lower() != AUTO_COMMAND
+                        or not is_maintainer_command(repository, number, comment, token)):
+                    return False, comment_id
+                if parse_time(comment["created_at"]) <= _issue_open_epoch(repository, number, pr, token):
+                    return False, comment_id
+                return True, comment_id
+            info = page["pageInfo"]
+            if not info["hasNextPage"]:
+                return False, None
+            next_cursor = info["endCursor"]
+            if not isinstance(next_cursor, str) or not next_cursor or next_cursor == cursor:
+                raise ValueError("invalid bot comment pagination")
+            cursor = next_cursor
+        except (KeyError, TypeError) as exc:
+            raise ValueError("invalid bot comments response") from exc
+    raise ValueError("bot comment lookup exceeded its page limit")
 
 
 def auto_build_approved(repository, number, pr, token):
-    """Durable for one open epoch only; no database or GitHub labels needed."""
-    if pr.get("state") != "open":
-        return False
-    candidates = []
-    for page in range(1, 21):
-        comments = gh("GET", f"/repos/{repository}/issues/{number}/comments?per_page=100&page={page}", token)
-        if not isinstance(comments, list):
-            raise ValueError("invalid issue comments response")
-        for comment in comments:
-            if (isinstance(comment, dict) and
-                    (comment.get("body") or "").strip().lower() == AUTO_COMMAND and
-                    comment.get("issue_url") == f"{API}/repos/{repository}/issues/{number}"):
-                candidates.append(comment)
-        if len(comments) < 100:
-            break
-    else:
-        raise ValueError("PR has too many comments to verify automatic approval")
-    if not candidates:
-        return False
-    epoch = _issue_open_epoch(repository, number, pr, token)
-    for comment in candidates:
-        created, updated = comment.get("created_at"), comment.get("updated_at")
-        if (not created or not updated or
-                parse_time(created) != parse_time(updated) or
-                parse_time(created) <= epoch):
-            continue
-        if is_maintainer_command(repository, number, comment, token):
-            return True
-    return False
+    return auto_build_status(repository, number, pr, token)[0]
 
 
 def dispatch_to_service(request, simulator, token, workflow=SIMULATOR_WORKFLOW):
@@ -282,6 +318,8 @@ def dispatch_to_service(request, simulator, token, workflow=SIMULATOR_WORKFLOW):
         inputs = {key: str(request[key]) for key in SIMULATOR_WORKFLOW_INPUTS}
     elif workflow == APPROVAL_WORKFLOW:
         inputs = {key: str(request[key]) for key in APPROVAL_WORKFLOW_INPUTS}
+    elif workflow == AUTO_MODE_WORKFLOW:
+        inputs = {key: str(request[key]) for key in ("pr_number", "comment_id", "action")}
     else:
         raise ValueError("unsupported service workflow")
     gh("POST", f"/repos/{simulator}/actions/workflows/{workflow}/dispatches", token,
@@ -346,7 +384,9 @@ def main():
             repository.rsplit("/", 1)[1].lower() != "specter-diy"):
         raise ValueError("invalid Specter repository")
 
+    bot_login = env.get("SPECTER_PREVIEW_BOT_LOGIN", "").strip() or "specter-preview-bot"
     action = "build"
+    invalid_auto_comment = None
     if event_name == "issue_comment":
         command = comment_command_valid(env, token)
         if command is None:
@@ -360,7 +400,8 @@ def main():
         number, pr = checked
         # The pull_request_target synchronize event owns builds for auto-approved
         # PRs. Avoid dispatching the same SHA again when native CI also starts.
-        if auto_build_approved(repository, number, pr, token):
+        approved, invalid_auto_comment = auto_build_status(repository, number, pr, token, bot_login)
+        if approved:
             return
     else:
         number = int(env["PR_NUMBER"])
@@ -385,9 +426,20 @@ def main():
         simulator = f"{repository.split('/', 1)[0]}/specter-diy-web-simulator"
     # Reuse the existing same-owner guard from request_from_environment().
     dispatch_token = env["WEB_SIMULATOR_DISPATCH_TOKEN"]
+    if event_name == "issue_comment" and command == AUTO_COMMAND:
+        dispatch_to_service({"pr_number": number, "comment_id": env["COMMENT_ID"], "action": "set"},
+                            simulator, dispatch_token, AUTO_MODE_WORKFLOW)
+    if event_name == "workflow_run" and invalid_auto_comment:
+        dispatch_to_service({"pr_number": number, "comment_id": invalid_auto_comment, "action": "clear"},
+                            simulator, dispatch_token, AUTO_MODE_WORKFLOW)
     if event_name == "pull_request_target" and action == "build":
-        if env.get("GITHUB_EVENT_ACTION") == "synchronize" and auto_build_approved(
-                repository, number, pr, token):
+        approved, comment_id = (False, None)
+        if env.get("GITHUB_EVENT_ACTION") == "synchronize":
+            approved, comment_id = auto_build_status(repository, number, pr, token, bot_login)
+        if comment_id and not approved:
+            dispatch_to_service({"pr_number": number, "comment_id": comment_id, "action": "clear"},
+                                simulator, dispatch_token, AUTO_MODE_WORKFLOW)
+        if approved:
             # Subsequent commits are trusted only for the *current* open epoch.
             dispatch_to_service(request, simulator, dispatch_token)
         else:

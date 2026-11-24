@@ -61,4 +61,5 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           WEB_SIMULATOR_DISPATCH_TOKEN: ${{ secrets.WEB_SIMULATOR_DISPATCH_TOKEN }}
           WEB_SIMULATOR_REPOSITORY: ${{ vars.WEB_SIMULATOR_REPOSITORY }}
+          SPECTER_PREVIEW_BOT_LOGIN: ${{ vars.SPECTER_PREVIEW_BOT_LOGIN || 'specter-preview-bot' }}
         run: python3 .github/scripts/dispatch_browser_preview.py

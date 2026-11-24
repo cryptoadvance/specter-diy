@@ -36,9 +36,11 @@ commits **within the current PR open period**, a maintainer can instead post:
 /build-auto
 ```
 
-`/build-auto` also builds the current commit immediately. On each new commit
-(`pull_request_target: synchronize`), the dispatcher checks that the PR is
-still open, the approval comment is intact and unedited, and its author still
+`/build-auto` also builds the current commit immediately. The bot comment
+shows the approving GitHub user and links to the original command. On each new
+commit (`pull_request_target: synchronize`), the dispatcher reads the pointer
+from the bot's own comment and checks that the PR is still open, the original
+approval comment is intact and unedited, and its author still
 has `write`, `maintain` or `admin` access. It dispatches the combined
 build directly; a parallel `workflow_run` dispatcher skips the duplicate.
 The native GitHub CI approval is **not** bypassed or modified: it can still
@@ -49,7 +51,16 @@ created before the latest GitHub `reopened` event are invalid. The maintainer
 must post a fresh `/build-auto` to enable automatic builds again. The
 dispatcher reads the PR's official issue-event history, so no database,
 label or explicit `/build-auto-off` command is needed. Deleting the
-approval comment or removing its author's write permission also revokes it.
+approval comment or removing its author's write permission also revokes this
+extra authorization. The next dispatcher check requests an asynchronous update
+of the bot comment to show that auto approval is no longer active. That display
+can be delayed if the simulator workflow fails; it does not itself authorize a
+build. Native CI starting can still trigger a preview independently;
+revoking `/build-auto` alone does not stop that path. To prevent automatic
+previews, close the PR or prevent its native CI from starting.
+
+Draft PRs are not dispatched for builds. An existing preview is not removed
+when a PR is converted to draft; closing the PR requests cleanup.
 
 Maintainers can additionally use `Actions → Specter PR Build (Firmware + Simulator)
 → Run workflow` with a PR number.
@@ -74,6 +85,9 @@ using a dedicated, non-collaborator machine-user account (for example
 `specter-preview-bot`). It updates its own existing comment **in place** rather
 than reposting, preventing duplicate timeline entries and notifications.
 The bot account must never have write access to the Specter DIY repository.
+The dispatcher defaults to the bot login `specter-preview-bot`. If another
+login is configured in the simulator, set the Specter DIY repository variable
+`SPECTER_PREVIEW_BOT_LOGIN` to the same login.
 When a new commit preview succeeds, the publisher removes the older browser pages
 for that PR; failed builds keep the last successful preview online.
 
