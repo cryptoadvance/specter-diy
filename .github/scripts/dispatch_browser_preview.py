@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+from urllib.parse import urlencode
 
 
 API = "https://api.github.com"
@@ -327,23 +328,39 @@ def dispatch_to_service(request, simulator, token, workflow=SIMULATOR_WORKFLOW):
 
 
 def find_pr_for_ci(repository, run, token):
-    """Look up live open PRs; fork workflow_run.pull_requests can be empty."""
+    """Resolve a CI run to one exact live PR, failing closed on ambiguity."""
     sha = run.get("head_sha")
     head_repository = (run.get("head_repository") or {}).get("full_name", "")
     if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
         return None
-    for page in range(1, 6):
-        pulls = gh("GET", f"/repos/{repository}/pulls?state=open&per_page=100&page={page}", token)
-        if not isinstance(pulls, list):
-            raise ValueError("invalid pull request search result")
-        for pr in pulls:
-            head = pr.get("head") or {}
-            if (head.get("sha") == sha and
-                    (head.get("repo") or {}).get("full_name", "").lower() == head_repository.lower()):
-                return pr
-        if len(pulls) < 100:
-            break
-    return None
+
+    head_branch = run.get("head_branch")
+    if head_branch is not None and (not isinstance(head_branch, str) or not head_branch):
+        return None
+
+    associated = run.get("pull_requests") or []
+    if associated and (not isinstance(associated, list) or len(associated) != 1 or
+                       not isinstance(associated[0], dict) or
+                       type(associated[0].get("number")) is not int):
+        return None
+    associated_number = associated[0]["number"] if associated else None
+
+    query = {"state": "open", "per_page": 100}
+    if head_branch and REPOSITORY_RE.fullmatch(head_repository):
+        query["head"] = f"{head_repository.split('/', 1)[0]}:{head_branch}"
+    pulls = gh("GET", f"/repos/{repository}/pulls?{urlencode(query)}", token)
+    if not isinstance(pulls, list):
+        raise ValueError("invalid pull request search result")
+    if len(pulls) >= 100:
+        # The filtered result is truncated, so uniqueness cannot be established.
+        return None
+    matches = [pr for pr in pulls
+               if (pr.get("head") or {}).get("sha") == sha and
+               ((pr.get("head") or {}).get("repo") or {}).get("full_name", "").lower() == head_repository.lower() and
+               (head_branch is None or (pr.get("head") or {}).get("ref") == head_branch) and
+               ((pr.get("base") or {}).get("repo") or {}).get("full_name", "").lower() == repository.lower() and
+               (associated_number is None or pr.get("number") == associated_number)]
+    return matches[0] if len(matches) == 1 else None
 
 
 def approved_ci_pr(env, token):
