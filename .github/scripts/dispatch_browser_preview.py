@@ -124,7 +124,7 @@ def current(request, token, pull_fetcher=None):
     if head.get("sha") != request["head_sha"]:
         return False
     if request["action"] == "build":
-        if (pr.get("state") != "open" or base.get("sha") != request["base_sha"] or
+        if (pr.get("state") != "open" or pr.get("draft") is True or base.get("sha") != request["base_sha"] or
                 base.get("ref") != request["base_ref"]):
             return False
         if ((head.get("repo") or {}).get("full_name", "").lower() !=
@@ -377,7 +377,7 @@ def main():
     env["ACTION"] = action
     env = request_environment_for_pr(env, pr)
     request = request_from_environment(env)
-    if not current(request, token, lambda *_: pr):
+    if not current(request, token):
         return
 
     simulator = env.get("WEB_SIMULATOR_REPOSITORY", "").strip()

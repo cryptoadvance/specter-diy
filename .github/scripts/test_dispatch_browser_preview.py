@@ -128,6 +128,26 @@ class DispatchTests(unittest.TestCase):
         self.invoke()
         self.assertFalse(self.posts())
 
+    def test_draft_is_not_built_but_closed_draft_is_cleaned_up(self):
+        self.pr["draft"] = True
+        self.invoke()
+        self.assertFalse(self.posts())
+        self.invoke("issue_comment", PR_NUMBER="391", COMMENT_ID="55")
+        self.assertFalse(self.posts())
+        self.pr["state"] = "closed"
+        self.invoke("pull_request_target", PR_NUMBER="391", ACTION="delete")
+        self.assertEqual(self.posts()[0][3]["inputs"]["action"], "delete")
+
+    def test_live_pr_is_rechecked_before_dispatch(self):
+        original = self.gh
+        def changed(method, path, token, data=None):
+            if path == f"/repos/{BASE}/pulls/391":
+                return live_pr(sha="f" * 40)
+            return original(method, path, token, data)
+        with patch.dict(os.environ, environ()), patch.object(app, "gh", side_effect=changed):
+            app.main()
+        self.assertFalse(self.posts())
+
     def test_maintainer_build_command_bypasses_native_gate(self):
         self.invoke("issue_comment", PR_NUMBER="391", COMMENT_ID="55")
         self.assertEqual(len(self.posts()), 1)
