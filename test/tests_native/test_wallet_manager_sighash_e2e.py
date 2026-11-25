@@ -23,11 +23,19 @@ from io import BytesIO
 from unittest import TestCase
 
 from embit.descriptor import Descriptor
+from embit.ec import PublicKey, SchnorrSig
+from embit.liquid.pset import PSET
+from embit.liquid.psetview import PSETView
+from embit.liquid.transaction import (
+    LSIGHASH, LTransaction, LTransactionInput, LTransactionOutput,
+)
 from embit.networks import NETWORKS
 from embit.psbt import PSBT, DerivationPath
 from embit.psbtview import PSBTView
+from embit.script import Script
 from embit.transaction import SIGHASH, Transaction, TransactionInput, TransactionOutput
 
+from apps.wallets.wallet import WalletError
 from tests.util import get_keystore, get_wallets_app, clear_testdir
 
 H = 0x80000000
@@ -44,17 +52,21 @@ def _run(coro):
 class _FakePrompt:
     def __init__(self, *args, **kwargs):
         self.args = args
+        self.kwargs = kwargs
 
 
 class _Screens:
-    """show_screen double that always confirms Prompt dialogs."""
+    """show_screen double that records Prompt dialogs."""
 
-    def __init__(self):
+    def __init__(self, response=True):
         self.log = []
+        self.screens = []
+        self.response = response
 
     async def __call__(self, screen):
         self.log.append(type(screen).__name__)
-        return True
+        self.screens.append(screen)
+        return self.response
 
 
 def _tr_descriptor(keystore, network):
@@ -143,6 +155,16 @@ def _taproot_keypath_sig(signed_input):
     return items[0]
 
 
+def _verify_taproot_sig(psbt, index, sig, sighash):
+    values = [inp.utxo.value for inp in psbt.inputs]
+    scripts = [inp.utxo.script_pubkey for inp in psbt.inputs]
+    digest = psbt.tx.sighash_taproot(
+        index, script_pubkeys=scripts, values=values, sighash=sighash
+    )
+    pub = PublicKey.from_xonly(scripts[index].data[2:])
+    return pub.schnorr_verify(SchnorrSig.parse(sig[:64]), digest)
+
+
 class TaprootDefaultSighashE2ETest(TestCase):
     def setUp(self):
         clear_testdir()
@@ -161,8 +183,8 @@ class TaprootDefaultSighashE2ETest(TestCase):
 
         sig = _taproot_keypath_sig(signed.inputs[0])
         self.assertEqual(len(sig), 64)
-        # no trailing SIGHASH_ALL byte
-        self.assertNotEqual(sig[-1:], b"\x01")
+        self.assertTrue(_verify_taproot_sig(psbt, 0, sig, SIGHASH.DEFAULT))
+        self.assertFalse(_verify_taproot_sig(psbt, 0, sig, SIGHASH.ALL))
 
     def test_explicit_default_zero_is_preserved(self):
         """Case 2: taproot PSBT with explicit SIGHASH.DEFAULT (0x00)."""
@@ -174,7 +196,15 @@ class TaprootDefaultSighashE2ETest(TestCase):
 
         sig = _taproot_keypath_sig(signed.inputs[0])
         self.assertEqual(len(sig), 64)
-        self.assertNotEqual(sig[-1:], b"\x01")
+        self.assertTrue(_verify_taproot_sig(psbt, 0, sig, SIGHASH.DEFAULT))
+
+    def test_explicit_zero_override_is_preserved(self):
+        psbt = self.fx.build([("taproot", None)])
+        signed, _ = self.fx.sign(psbt, forced_sighash=SIGHASH.DEFAULT)
+
+        sig = _taproot_keypath_sig(signed.inputs[0])
+        self.assertEqual(len(sig), 64)
+        self.assertTrue(_verify_taproot_sig(psbt, 0, sig, SIGHASH.DEFAULT))
 
     def test_explicit_all_produces_65_byte_sig_ending_in_0x01(self):
         """Case 3: taproot PSBT with explicit SIGHASH.ALL (0x01)."""
@@ -187,6 +217,8 @@ class TaprootDefaultSighashE2ETest(TestCase):
         sig = _taproot_keypath_sig(signed.inputs[0])
         self.assertEqual(len(sig), 65)
         self.assertEqual(sig[-1], SIGHASH.ALL)
+        self.assertTrue(_verify_taproot_sig(psbt, 0, sig, SIGHASH.ALL))
+        self.assertFalse(_verify_taproot_sig(psbt, 0, sig, SIGHASH.DEFAULT))
 
     def test_old_falsy_zero_bug_would_regress_this(self):
         """
@@ -312,3 +344,122 @@ class ConfirmSighashesE2ETest(TestCase):
         res = _run(self.fx.manager.confirm_sighashes(meta, screens))
         self.assertEqual(screens.log, [])  # no Prompt shown
         self.assertIsNone(res)
+
+    def test_only_sign_all_when_taproot_all_is_only_input(self):
+        psbt = self.fx.build([("taproot", SIGHASH.ALL)])
+        meta = self._meta([("taproot", SIGHASH.ALL)])
+        screens = _Screens(response=False)
+        sighash = _run(self.fx.manager.confirm_sighashes(meta, screens))
+
+        self.assertEqual(screens.screens[0].kwargs["cancel_text"], "Only sign ALL")
+        self.assertEqual(sighash, SIGHASH.ALL)
+        signed, _ = self.fx.sign(psbt, forced_sighash=sighash)
+        sig = _taproot_keypath_sig(signed.inputs[0])
+        self.assertEqual(len(sig), 65)
+        self.assertEqual(sig[-1], SIGHASH.ALL)
+        self.assertTrue(_verify_taproot_sig(psbt, 0, sig, SIGHASH.ALL))
+
+    def test_only_sign_all_when_every_input_is_custom(self):
+        specs = [("taproot", SIGHASH.ALL), ("taproot", SIGHASH.NONE)]
+        psbt = self.fx.build(specs)
+        meta = self._meta(specs)
+        screens = _Screens(response=False)
+        sighash = _run(self.fx.manager.confirm_sighashes(meta, screens))
+
+        self.assertEqual(screens.screens[0].kwargs["cancel_text"], "Only sign ALL")
+        self.assertEqual(sighash, SIGHASH.ALL)
+        signed, _ = self.fx.sign(psbt, forced_sighash=sighash)
+        sig = _taproot_keypath_sig(signed.inputs[0])
+        self.assertEqual(len(sig), 65)
+        self.assertEqual(sig[-1], SIGHASH.ALL)
+        self.assertTrue(_verify_taproot_sig(psbt, 0, sig, SIGHASH.ALL))
+        self.assertIsNone(signed.inputs[1].final_scriptwitness)
+
+    def test_only_sign_all_includes_explicit_taproot_all(self):
+        psbt = self.fx.build([("taproot", SIGHASH.ALL), ("wpkh", None)])
+        meta = self._meta([("taproot", SIGHASH.ALL), ("wpkh", None)])
+        screens = _Screens(response=False)
+        sighash = _run(self.fx.manager.confirm_sighashes(meta, screens))
+
+        self.assertEqual(screens.screens[0].kwargs["cancel_text"], "Only sign ALL")
+        self.assertEqual(sighash, SIGHASH.ALL)
+        signed, _ = self.fx.sign(psbt, forced_sighash=sighash)
+        sig = _taproot_keypath_sig(signed.inputs[0])
+        self.assertEqual(len(sig), 65)
+        self.assertEqual(sig[-1], SIGHASH.ALL)
+        self.assertTrue(_verify_taproot_sig(psbt, 0, sig, SIGHASH.ALL))
+        self.assertEqual(list(signed.inputs[1].partial_sigs.values())[0][-1], SIGHASH.ALL)
+
+    def test_only_sign_all_skips_taproot_none(self):
+        psbt = self.fx.build([("taproot", SIGHASH.NONE), ("wpkh", None)])
+        meta = self._meta([("taproot", SIGHASH.NONE), ("wpkh", None)])
+        screens = _Screens(response=False)
+        sighash = _run(self.fx.manager.confirm_sighashes(meta, screens))
+
+        self.assertEqual(screens.screens[0].kwargs["cancel_text"], "Only sign ALL")
+        self.assertEqual(sighash, SIGHASH.ALL)
+        signed, _ = self.fx.sign(psbt, forced_sighash=sighash)
+        self.assertIsNone(signed.inputs[0].final_scriptwitness)
+        self.assertEqual(list(signed.inputs[1].partial_sigs.values())[0][-1], SIGHASH.ALL)
+
+    def test_declining_when_all_inputs_are_custom_cancels(self):
+        meta = self._meta([("taproot", SIGHASH.NONE)])
+        screens = _Screens(response=False)
+        self.assertIs(_run(self.fx.manager.confirm_sighashes(meta, screens)), False)
+        self.assertEqual(screens.screens[0].kwargs["cancel_text"], "Cancel")
+
+
+class LiquidSighashE2ETest(TestCase):
+    def setUp(self):
+        clear_testdir()
+        self.keystore = get_keystore()
+        self.manager = get_wallets_app(self.keystore, "elementsregtest").manager
+        from apps.wallets.liquid import manager as liquid_manager
+        self._liquid_manager = liquid_manager
+        self._get_preallocated_ram = liquid_manager.get_preallocated_ram
+        # This unblinded fixture does not use the firmware's proof buffer.
+        liquid_manager.get_preallocated_ram = lambda: (0, 0)
+
+    def tearDown(self):
+        self._liquid_manager.get_preallocated_ram = self._get_preallocated_ram
+        clear_testdir()
+        gc.collect()
+
+    def _pset(self, sighash=None):
+        desc = self.manager.wallets[0].descriptor.derive(0, branch_index=0)
+        pub = desc.keys[0].get_public_key()
+        asset = bytes(range(32))
+        tx = LTransaction(
+            vin=[LTransactionInput(PREV_TXID, 0)],
+            vout=[
+                LTransactionOutput(asset, 90_000, desc.script_pubkey()),
+                LTransactionOutput(asset, 10_000, Script()),
+            ],
+        )
+        pset = PSET(tx)
+        inp = pset.inputs[0]
+        inp.witness_utxo = LTransactionOutput(asset, 100_000, desc.script_pubkey())
+        inp.bip32_derivations[pub] = DerivationPath(
+            self.keystore.fingerprint, [H + 84, H + 1, H, 0, 0]
+        )
+        inp.sighash_type = sighash
+        return pset
+
+    def test_implicit_default_signs_with_all_and_rangeproof(self):
+        pset = self._pset()
+        filled = BytesIO()
+        wallets, meta = self.manager.preprocess_psbt(BytesIO(pset.serialize()), filled)
+        self.assertNotIn("sighash", meta["inputs"][0])
+
+        filled.seek(0)
+        out = BytesIO()
+        self.manager.sign_psbtview(PSETView.view(filled), out, wallets, None)
+        signed = PSET.parse(out.getvalue())
+        sigs = list(signed.inputs[0].partial_sigs.values())
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0][-1], LSIGHASH.ALL | LSIGHASH.RANGEPROOF)
+
+    def test_explicit_zero_is_rejected_during_preprocessing(self):
+        pset = self._pset(SIGHASH.DEFAULT)
+        with self.assertRaises(WalletError):
+            self.manager.preprocess_psbt(BytesIO(pset.serialize()), BytesIO())

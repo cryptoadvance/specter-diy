@@ -434,9 +434,13 @@ class WalletManager(BaseApp):
                 for (i, inp) in enumerate(meta["inputs"])
                 if "sighash" in inp
         ]
+        has_default_compatible_input = any(
+            inp.get("sighash", sighash_name) == sighash_name
+            for inp in meta["inputs"]
+        )
         canceltxt = (
             ("Only sign %s" % sighash_name)
-            if len(custom_sighashes) != len(meta["inputs"])
+            if has_default_compatible_input
             else "Cancel"
         )
         confirm = await show_screen(Prompt("Warning!",
@@ -447,10 +451,7 @@ class WalletManager(BaseApp):
             # we set sighash to None
             # if we want to use whatever sighash is provided in input
             return None
-        # if we are forced to use default sighash - check
-        # that not all inputs have custom sighashes
-        if len(custom_sighashes) == len(meta["inputs"]):
-            # nothing to sign
+        if not has_default_compatible_input:
             return False
         return self.DEFAULT_SIGHASH
 
