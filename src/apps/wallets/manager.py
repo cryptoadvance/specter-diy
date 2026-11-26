@@ -44,6 +44,11 @@ ADDRESS_URI_NETWORKS = {
 }
 
 
+def starts_with_any(address, prefixes):
+    # MicroPython's str.startswith accepts only a single string.
+    return any(address.startswith(prefix) for prefix in prefixes)
+
+
 def address_uri_scheme(payload):
     separator = b":" if isinstance(payload, bytes) else ":"
     prefix, found, _ = payload.partition(separator)
@@ -392,7 +397,7 @@ class WalletManager(BaseApp):
     @staticmethod
     def normalize_verification_address(address):
         """Normalize case-insensitive Bitcoin bech32 addresses before matching."""
-        if address.lower().startswith(("bc1", "tb1", "bcrt1")):
+        if starts_with_any(address.lower(), ("bc1", "tb1", "bcrt1")):
             return address.lower()
         return address
 
@@ -558,19 +563,19 @@ class WalletManager(BaseApp):
         addr = address
         lower_addr = addr.lower()
         # Liquid uses ex1/lq1 on mainnet and tex1/tlq1 on testnet.
-        if lower_addr.startswith(("ex1", "lq1")):
+        if starts_with_any(lower_addr, ("ex1", "lq1")):
             return "liquidv1", "Liquid Mainnet"
-        if lower_addr.startswith(("tex1", "tlq1")):
+        if starts_with_any(lower_addr, ("tex1", "tlq1")):
             return "liquidtestnet", "Liquid Testnet"
-        if lower_addr.startswith(("ert1", "el1")):
+        if starts_with_any(lower_addr, ("ert1", "el1")):
             return "elementsregtest", "Liquid Regtest"
-        if lower_addr.startswith("bc1") or addr.startswith(("1", "3")):
+        if lower_addr.startswith("bc1") or starts_with_any(addr, ("1", "3")):
             return "main", "Bitcoin Mainnet"
         # Testnet and Signet share tb1. Legacy m/n/2 addresses also use the
         # same prefixes on Regtest, so they cannot identify one network alone.
         if lower_addr.startswith("tb1"):
             return ("test", "signet"), "Bitcoin Testnet or Signet"
-        if addr.startswith(("m", "n", "2")):
+        if starts_with_any(addr, ("m", "n", "2")):
             return ("test", "signet", "regtest"), "Bitcoin Testnet, Signet or Regtest"
         if lower_addr.startswith("bcrt1"):
             return "regtest", "Bitcoin Regtest"

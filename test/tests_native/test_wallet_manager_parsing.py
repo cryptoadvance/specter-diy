@@ -18,6 +18,7 @@ from embit.liquid.networks import NETWORKS as LIQUID_NETWORKS
 from embit.networks import NETWORKS
 from tests.util import get_keystore, get_wallets_app, clear_testdir
 from apps.wallets.manager import ADD_WALLET, SIGN_PSBT, VERIFY_ADDRESS
+from apps.wallets.liquid.manager import LWalletManager
 from apps.wallets.wallet import WalletError
 
 DOC_DESCRIPTOR = (
@@ -113,6 +114,42 @@ class WalletManagerParsingTest(TestCase):
                 self.manager.address_network_hint(address),
                 ("main", "Bitcoin Mainnet"),
             )
+
+    def test_address_prefix_checks_work_with_micropython_strings(self):
+        class StrictString(str):
+            def lower(self):
+                return StrictString(super().lower())
+
+            def startswith(self, prefix, *args):
+                if not isinstance(prefix, str):
+                    raise TypeError("MicroPython requires a string prefix")
+                return super().startswith(prefix, *args)
+
+        for prefix, expected in (
+            ("bc1", "main"), ("1", "main"), ("3", "main"),
+            ("tb1", ("test", "signet")), ("bcrt1", "regtest"),
+            ("m", ("test", "signet", "regtest")),
+            ("n", ("test", "signet", "regtest")),
+            ("2", ("test", "signet", "regtest")),
+            ("ex1", "liquidv1"), ("lq1", "liquidv1"),
+            ("tex1", "liquidtestnet"), ("tlq1", "liquidtestnet"),
+            ("ert1", "elementsregtest"), ("el1", "elementsregtest"),
+        ):
+            address = StrictString(prefix + "example")
+            self.assertEqual(self.manager.address_network_hint(address)[0], expected)
+        for prefix in ("bc1", "tb1", "bcrt1"):
+            address = StrictString(prefix.upper() + "EXAMPLE")
+            self.assertEqual(self.manager.normalize_verification_address(address), address.lower())
+
+        liquid = LWalletManager.__new__(LWalletManager)
+        output_script = script.Script(b"\\x00\\x14" + b"\\x11" * 20)
+        key = ec.PrivateKey(b"\\x00" * 31 + b"\\x01").get_public_key()
+        for network in ("liquidv1", "liquidtestnet", "elementsregtest"):
+            address = liquid_address(output_script, key, network=LIQUID_NETWORKS[network])
+            strict = StrictString(address.upper())
+            with patch("apps.wallets.liquid.manager.to_unconfidential", return_value=address):
+                liquid.validate_address(strict)
+            self.assertEqual(liquid.address_match_type(strict, address), "exact")
 
     def test_invalid_address_is_rejected_before_wallet_selection(self):
         shown_screens = []

@@ -49,7 +49,7 @@ class LWalletManager(WalletManager):
         """Reject malformed or unsupported Liquid addresses before wallet search."""
         if address == "Fee":
             raise WalletError("Invalid Liquid address")
-        if address.lower().startswith(("lq1", "tlq1", "ex1", "tex1", "el1", "ert1")):
+        if starts_with_any(address.lower(), ("lq1", "tlq1", "ex1", "tex1", "el1", "ert1")):
             if not (address.islower() or address.isupper()):
                 raise WalletError("Invalid Liquid address")
             address = address.lower()
@@ -76,7 +76,7 @@ class LWalletManager(WalletManager):
         bech32_prefixes = ("lq1", "tlq1", "ex1", "tex1", "el1", "ert1")
 
         def normalize_bech32_case(address):
-            if address.lower().startswith(bech32_prefixes) and (
+            if starts_with_any(address.lower(), bech32_prefixes) and (
                 address.islower() or address.isupper()
             ):
                 return address.lower()
