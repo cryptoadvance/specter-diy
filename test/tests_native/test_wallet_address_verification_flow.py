@@ -26,12 +26,30 @@ class _DummyScreen:
         self.kwargs = kwargs
 
 
+class _DummyLabel:
+    def __init__(self, y=40, height=40):
+        self.y = y
+        self.height = height
+
+    def get_y(self):
+        return self.y
+
+    def get_height(self):
+        return self.height
+
+    def set_y(self, y):
+        self.y = y
+
+
 class _DummyMenu(_DummyScreen):
     pass
 
 
 class _DummyPrompt(_DummyScreen):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.page = object()
+        self.message = _DummyLabel()
 
 
 class WalletAddressVerificationFlowTest(TestCase):
@@ -195,7 +213,22 @@ class WalletAddressVerificationFlowTest(TestCase):
     def test_cancel_after_address_search_batch(self):
         app = get_wallets_app(self.keystore, "regtest")
         address, _ = app.manager.wallets[0].get_address(26, app.manager.network)
-        result, screens = self._process_qr(app, address, confirm=False)
+        formatted = "formatted address"
+        address_label = _DummyLabel(y=40, height=56)
+        with patch.object(
+            wallet_manager_module, "format_addr", return_value=formatted
+        ) as formatter:
+            with patch.object(
+                wallet_manager_module, "add_label", return_value=address_label
+            ) as add_address:
+                result, screens = self._process_qr(app, address, confirm=False)
+        formatter.assert_called_once_with(address, words=4)
+        add_address.assert_called_once_with(formatted, scr=screens[1].page)
+        self.assertEqual(
+            screens[1].args[1],
+            "Was not found between indexes 0 and 24.\n\nCheck the next 25 addresses?",
+        )
+        self.assertEqual(screens[1].message.y, 116)
         self.assertFalse(result)
         self.assertEqual(len(screens), 2)
         self.assertIsInstance(screens[1], _DummyPrompt)
