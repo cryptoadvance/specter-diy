@@ -9,6 +9,8 @@ import asyncio
 from io import BytesIO
 from unittest import TestCase
 from unittest.mock import patch
+from apps.wallets.wallet import WalletError
+from apps.wallets.screens import WalletScreen
 import gc
 
 import apps.wallets.manager as wallet_manager_module
@@ -45,7 +47,7 @@ class WalletAddressVerificationFlowTest(TestCase):
 
         async def show_screen(screen):
             shown_screens.append(screen)
-            if len(shown_screens) == 1:
+            if isinstance(screen, _DummyMenu):
                 return app.manager.wallets[0]
             if isinstance(screen, _DummyPrompt):
                 return True
@@ -88,7 +90,7 @@ class WalletAddressVerificationFlowTest(TestCase):
         self.assertTrue(result)
         self.assertEqual(len(shown_screens), 3)
         self.assertIsInstance(shown_screens[1], _DummyPrompt)
-        self.assertIn("same output script", shown_screens[1].args[1])
+        self.assertIn("output script", shown_screens[1].args[1])
         scanned_target_decodes = [
             call for call in decode_address.call_args_list
             if call.args[0] == unconfidential_address
@@ -143,3 +145,34 @@ class WalletAddressVerificationFlowTest(TestCase):
 
         self.assertTrue(result)
         self.assertEqual(len(shown_screens), 2)
+
+    def test_wallet_qr_roundtrip(self):
+        for network in ("main", "regtest", "liquidv1", "liquidtestnet", "elementsregtest"):
+            app = get_wallets_app(self.keystore, network)
+            address, _ = app.manager.wallets[0].get_address(2, network)
+            payload = WalletScreen.address_qr_payload(network, address)
+            result, screens = self._process_qr(app, payload)
+            self.assertTrue(result, network)
+            self.assertEqual(screens[-1].args[2], 2)
+
+    def test_mismatched_uri_scheme_is_rejected(self):
+        for network, scheme in (
+            ("regtest", "liquid"),
+            ("liquidv1", "bitcoin"),
+            ("liquidv1", "liquidtestnet"),
+            ("liquidtestnet", "liquidnetwork"),
+        ):
+            app = get_wallets_app(self.keystore, network)
+            address, _ = app.manager.wallets[0].get_address(0, network)
+            with self.assertRaises(WalletError) as err:
+                self._process_qr(app, scheme + ":" + address)
+            self.assertIn("scheme does not match", str(err.exception))
+
+    def test_raw_address_search_continues_to_next_batch(self):
+        app = get_wallets_app(self.keystore, "regtest")
+        address, _ = app.manager.wallets[0].get_address(26, app.manager.network, 1)
+        result, screens = self._process_qr(app, address)
+        self.assertTrue(result)
+        self.assertIsInstance(screens[1], _DummyPrompt)
+        self.assertEqual(screens[-1].args[2], 26)
+        self.assertEqual(screens[-1].kwargs["branch_index"], 1)

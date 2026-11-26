@@ -6,6 +6,16 @@ from .commands import DELETE, EDIT, MENU
 
 
 class WalletScreen(QRAlert):
+    @staticmethod
+    def address_qr_payload(network, addr):
+        if network == "liquidv1":
+            return "liquidnetwork:" + addr
+        if network == "liquidtestnet":
+            return "liquidtestnet:" + addr
+        if network == "elementsregtest":
+            return addr
+        return "bitcoin:" + addr
+
     def __init__(self, wallet, network, idx=None, branch_index=0):
         self.wallet = wallet
         self.network = network
@@ -18,7 +28,7 @@ class WalletScreen(QRAlert):
         super().__init__(
             "    " + wallet.name + "  #708092 " + lv.SYMBOL.EDIT,
             format_addr(addr, words=4),
-            "bitcoin:" + addr,
+            self.address_qr_payload(network, addr),
             qr_width=350,
         )
         self.title.set_recolor(True)
@@ -108,7 +118,7 @@ class WalletScreen(QRAlert):
         note = "%s address #%d" % (self.prefix, self.idx)
         self.note.set_text(note)
         self.message.set_text(format_addr(addr, words=4))
-        self.qr.set_text("bitcoin:" + addr)
+        self.qr.set_text(self.address_qr_payload(self.network, addr))
 
         if self.idx > gap:
             self.warning.set_text(

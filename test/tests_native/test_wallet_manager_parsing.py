@@ -7,6 +7,8 @@ if sys.implementation.name != 'micropython':
 
 import asyncio
 from unittest import TestCase
+from unittest.mock import patch
+from app import BaseApp
 from io import BytesIO
 import gc
 
@@ -80,7 +82,7 @@ class WalletManagerParsingTest(TestCase):
         cmd, stream = self._parse_command(DOC_ADDRESS_REQUEST.encode())
         self.assertEqual(cmd, VERIFY_ADDRESS)
         # parse_stream should keep address data available for processing
-        self.assertEqual(stream.read().decode(), DOC_ADDRESS_REQUEST.replace("bitcoin:", "", 1))
+        self.assertEqual(stream.read().decode(), DOC_ADDRESS_REQUEST)
 
     def test_regtest_legacy_address_hint_includes_regtest(self):
         public_key = ec.PrivateKey(b"\x00" * 31 + b"\x01").get_public_key()
@@ -145,3 +147,30 @@ class WalletManagerParsingTest(TestCase):
             )
 
         self.assertEqual(shown_screens, [])
+
+    def test_seed_payloads_are_not_claimed_by_wallet_manager(self):
+        for network in ("regtest", "liquidv1"):
+            manager = get_wallets_app(self.keystore, network).manager
+            with patch.object(BaseApp, "get_prefix", BaseApp._native_original_get_prefix):
+                for payload in (
+                    b"0000" * 11 + b"0003",
+                    b"0000" * 23 + b"0102",
+                    b"ABCD1234EFGH5678",
+                    b"0123456789ABCDEF0123456789ABCDEF",
+                    b"\x00" * 16,
+                    b"\x00" * 32,
+                ):
+                    self.assertFalse(manager.can_process(BytesIO(payload)), (network, payload))
+
+    def test_raw_address_and_late_index_are_detected(self):
+        for network in ("regtest", "liquidv1", "liquidtestnet", "elementsregtest"):
+            manager = get_wallets_app(self.keystore, network).manager
+            address, _ = manager.wallets[0].get_address(2, network)
+            for payload in (address, address + "?index=2"):
+                with patch.object(BaseApp, "get_prefix", BaseApp._native_original_get_prefix):
+                    self.assertTrue(manager.can_process(BytesIO(payload.encode())), network)
+
+    def test_mixed_case_uri_scheme_is_detected(self):
+        cmd, stream = self._parse_command(DOC_ADDRESS_REQUEST.replace("bitcoin:", "BiTcOiN:").encode())
+        self.assertEqual(cmd, VERIFY_ADDRESS)
+        self.assertTrue(stream.read().startswith(b"BiTcOiN:"))

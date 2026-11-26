@@ -9,6 +9,8 @@ from embit import script, bip32, compact, base58
 from embit.psbt import DerivationPath, CompressMode
 from embit.psbtview import PSBTView, read_write, PSBTError
 from embit.networks import NETWORKS
+from embit.liquid.networks import NETWORKS as LIQUID_NETWORKS
+from embit.liquid.addresses import addr_decode as decode_liquid_address
 from embit.transaction import SIGHASH
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
@@ -33,6 +35,67 @@ LIST_WALLETS = 0x06
 
 BASE64_STREAM = 0x64
 RAW_STREAM = 0xFF
+
+ADDRESS_URI_NETWORKS = {
+    "bitcoin": ("main", "test", "signet", "regtest"),
+    "liquidnetwork": ("liquidv1",),
+    "liquidtestnet": ("liquidtestnet",),
+    "liquid": ("liquidv1", "liquidtestnet", "elementsregtest"),
+}
+
+
+def address_uri_scheme(payload):
+    separator = b":" if isinstance(payload, bytes) else ":"
+    prefix, found, _ = payload.partition(separator)
+    if not found:
+        return None
+    try:
+        scheme = (
+            prefix.decode("ascii").lower()
+            if isinstance(prefix, bytes) else prefix.lower()
+        )
+    except UnicodeError:
+        return None
+    return scheme if scheme in ADDRESS_URI_NETWORKS else None
+
+
+def is_raw_address(payload):
+    """Recognize checked addresses without claiming SeedQRs or other host data."""
+    try:
+        addr = payload.decode("ascii").strip().split("?", 1)[0].strip()
+    except UnicodeError:
+        return False
+    if not addr or len(addr) > 150 or addr.isdigit():
+        return False
+    lower = addr.lower()
+    try:
+        if lower.startswith(("bc1", "tb1", "bcrt1")):
+            return (
+                (addr.islower() or addr.isupper())
+                and script.address_to_scriptpubkey(lower) is not None
+            )
+        if lower.startswith(("ex1", "lq1", "tex1", "tlq1", "ert1", "el1")):
+            if not (addr.islower() or addr.isupper()):
+                return False
+            sc, _ = decode_liquid_address(lower)
+            return len(sc.data) > 0
+        data = base58.decode_check(addr)
+        if len(data) == 21:
+            return any(
+                data[:1] in (net.get("p2pkh"), net.get("p2sh"))
+                for net in NETWORKS.values()
+            ) or any(
+                data[:1] == net.get("p2sh")
+                for net in LIQUID_NETWORKS.values()
+            )
+        if len(data) == 55 and any(
+            data[:2] == net.get("bp2sh") for net in LIQUID_NETWORKS.values()
+        ):
+            decode_liquid_address(addr)
+            return True
+    except Exception:
+        return False
+    return False
 
 SIGHASH_NAMES = {
     SIGHASH.ALL: "ALL",
@@ -162,8 +225,8 @@ class WalletManager(BaseApp):
                 return ADD_WALLET, stream
             elif prefix == b"listwallets":
                 return LIST_WALLETS, stream
-            else:
-                return None, None
+            # Unknown prefixes may be addresses or other unprefixed data.
+            stream.seek(0)
         # if not - we get data any without prefix
         # trying to detect type:
         # probably base64-encoded PSBT
@@ -193,33 +256,13 @@ class WalletManager(BaseApp):
             # rewind
             stream.seek(0)
             return ADD_WALLET, stream
-        # probably verifying address
-        if (data.startswith(b"bitcoin:") or data.startswith(b"BITCOIN:") or
-                data.startswith(b"liquid:") or data.startswith(b"LIQUID:") or
-                b"index=" in data):
-            if data.startswith(b"bitcoin:") or data.startswith(b"BITCOIN:"):
-                stream.seek(8)
-            elif data.startswith(b"liquid:") or data.startswith(b"LIQUID:"):
-                stream.seek(7)
-            else:
-                stream.seek(0)
+        # Recognize explicit URIs before validating the address itself.
+        # Read only enough to cover the longest supported address and its scheme.
+        stream.seek(0)
+        data = stream.read(180).strip()
+        if address_uri_scheme(data) is not None or is_raw_address(data):
+            stream.seek(0)
             return VERIFY_ADDRESS, stream
-        # probably raw bitcoin address (base58 or bech32)
-        try:
-            txt = data.decode().strip()
-        except UnicodeDecodeError:
-            txt = ""
-        if txt:
-            addr_chars = set(
-                "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-            )
-            bech32_chars = set("023456789acdefghjklmnpqrstuvwxyz")
-            addr_chars |= {c.upper() for c in bech32_chars}
-            addr_chars |= bech32_chars
-            candidate = txt.split("\n")[0].strip()
-            if candidate and all(c in addr_chars for c in candidate):
-                stream.seek(0)
-                return VERIFY_ADDRESS, stream
 
         return None, None
 
@@ -279,9 +322,10 @@ class WalletManager(BaseApp):
             return bool(confirm)
         elif cmd == VERIFY_ADDRESS:
             raw = stream.read().decode().strip()
-            # Liquid wallets use the same URI shape but with a liquid: scheme.
-            if (raw.lower().startswith("bitcoin:") or
-                    raw.lower().startswith("liquid:")):
+            scheme = address_uri_scheme(raw)
+            if scheme is not None:
+                if self.network not in ADDRESS_URI_NETWORKS[scheme]:
+                    raise WalletError("QR payment scheme does not match the selected network.")
                 raw = raw.split(":", 1)[1]
             addr_part = raw
             query = ""
@@ -517,6 +561,8 @@ class WalletManager(BaseApp):
             return "liquidv1", "Liquid Mainnet"
         if lower_addr.startswith(("tex1", "tlq1")):
             return "liquidtestnet", "Liquid Testnet"
+        if lower_addr.startswith(("ert1", "el1")):
+            return "elementsregtest", "Liquid Regtest"
         if lower_addr.startswith("bc1") or addr.startswith(("1", "3")):
             return "main", "Bitcoin Mainnet"
         # Testnet and Signet share tb1. Legacy m/n/2 addresses also use the
@@ -527,6 +573,16 @@ class WalletManager(BaseApp):
             return ("test", "signet", "regtest"), "Bitcoin Testnet, Signet or Regtest"
         if lower_addr.startswith("bcrt1"):
             return "regtest", "Bitcoin Regtest"
+        try:
+            payload = base58.decode_check(address)
+        except Exception:
+            return None
+        for name in ("liquidv1", "liquidtestnet", "elementsregtest"):
+            net = LIQUID_NETWORKS[name]
+            if (len(payload) == 21 and payload[:1] == net["p2sh"]) or (
+                len(payload) == 55 and payload[:2] == net["bp2sh"]
+            ):
+                return name, net["name"]
         return None
 
     async def sign_psbt(self, stream, show_screen, encoding=BASE64_STREAM):
