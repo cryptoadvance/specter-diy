@@ -3,6 +3,7 @@ from gui.screens import Menu, InputScreen, Prompt, TransactionScreen
 from .screens import WalletScreen, ConfirmWalletScreen
 
 import platform
+import asyncio
 import os
 from binascii import hexlify, unhexlify, a2b_base64
 from embit import script, bip32, compact, base58
@@ -423,18 +424,31 @@ class WalletManager(BaseApp):
         start_idx = 0
         branches = wallet.descriptor.num_branches
         gui_loader = getattr(self.show_loader, "__self__", None)
+        cancelled = False
+
+        def cancel():
+            nonlocal cancelled
+            cancelled = True
+
         while True:
             end_idx = start_idx + batch_size - 1
-            self.show_loader(
-                title="Checking addresses %d-%d..." % (start_idx, end_idx)
-            )
             found = None
             try:
+                self.show_loader(
+                    title="Checking addresses %d-%d..." % (start_idx, end_idx),
+                    on_cancel=cancel,
+                )
                 for branch_idx in range(branches):
                     for idx in range(start_idx, start_idx + batch_size):
+                        if cancelled:
+                            return False
                         candidate, _ = wallet.get_address(
                             idx, self.network, branch_idx
                         )
+                        # Let the GUI process touch events between derivations.
+                        await asyncio.sleep(0)
+                        if cancelled:
+                            return False
                         match_type = self.address_match_type(
                             self.normalize_verification_address(candidate),
                             target,
@@ -449,6 +463,8 @@ class WalletManager(BaseApp):
                 if gui_loader is not None and hasattr(gui_loader, "hide_loader"):
                     gui_loader.hide_loader()
 
+            if cancelled:
+                return False
             if found is not None:
                 idx, branch_idx, match_type = found
                 return await self.show_verified_address(
@@ -465,7 +481,7 @@ class WalletManager(BaseApp):
                     "Address not found",
                     message,
                     confirm_text="Next %d" % batch_size,
-                    cancel_text="Abort",
+                    cancel_text="Cancel",
                 )
             )
             if not cont:
