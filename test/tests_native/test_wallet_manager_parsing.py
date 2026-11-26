@@ -17,7 +17,13 @@ from embit.liquid.addresses import address as liquid_address
 from embit.liquid.networks import NETWORKS as LIQUID_NETWORKS
 from embit.networks import NETWORKS
 from tests.util import get_keystore, get_wallets_app, clear_testdir
-from apps.wallets.manager import ADD_WALLET, SIGN_PSBT, VERIFY_ADDRESS
+from apps.wallets.manager import (
+    ADDRESS_URI_SCHEMES,
+    ADD_WALLET,
+    SIGN_PSBT,
+    VERIFY_ADDRESS,
+    address_uri_scheme,
+)
 from apps.wallets.liquid.manager import LWalletManager
 from apps.wallets.wallet import WalletError
 
@@ -84,8 +90,14 @@ class WalletManagerParsingTest(TestCase):
     def test_docs_address_request_is_detected(self):
         cmd, stream = self._parse_command(DOC_ADDRESS_REQUEST.encode())
         self.assertEqual(cmd, VERIFY_ADDRESS)
-        # parse_stream should keep address data available for processing
+        # Keep the URI scheme intact until address/network verification.
         self.assertEqual(stream.read().decode(), DOC_ADDRESS_REQUEST)
+
+    def test_address_uri_scheme_requires_colon(self):
+        for scheme in ADDRESS_URI_SCHEMES:
+            with self.subTest(scheme=scheme):
+                self.assertIsNone(address_uri_scheme(scheme))
+                self.assertIsNone(address_uri_scheme(scheme.encode()))
 
     def test_regtest_legacy_address_hint_includes_regtest(self):
         public_key = ec.PrivateKey(b"\x00" * 31 + b"\x01").get_public_key()

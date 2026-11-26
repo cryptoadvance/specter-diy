@@ -35,8 +35,8 @@ LIST_WALLETS = 0x06
 
 BASE64_STREAM = 0x64
 RAW_STREAM = 0xFF
-
-ADDRESS_URI_NETWORKS = {
+ADDRESS_URI_SCHEMES = ("bitcoin", "liquidnetwork", "liquidtestnet", "liquid")
+URI_NETWORKS = {
     "bitcoin": ("main", "test", "signet", "regtest"),
     "liquidnetwork": ("liquidv1",),
     "liquidtestnet": ("liquidtestnet",),
@@ -44,25 +44,26 @@ ADDRESS_URI_NETWORKS = {
 }
 
 
-def starts_with_any(address, prefixes):
-    # MicroPython's str.startswith accepts only a single string.
-    return any(address.startswith(prefix) for prefix in prefixes)
-
-
 def address_uri_scheme(payload):
+    """Return a supported URI scheme only when the payload contains a colon."""
     separator = b":" if isinstance(payload, bytes) else ":"
-    prefix, found, _ = payload.partition(separator)
-    if not found:
+    prefix, found_separator, _ = payload.partition(separator)
+    if not found_separator:
         return None
     try:
         scheme = (
             prefix.decode("ascii").lower()
-            if isinstance(prefix, bytes) else prefix.lower()
+            if isinstance(prefix, bytes)
+            else prefix.lower()
         )
-    except UnicodeError:
+    except UnicodeDecodeError:
         return None
-    return scheme if scheme in ADDRESS_URI_NETWORKS else None
+    return scheme if scheme in ADDRESS_URI_SCHEMES else None
 
+
+def starts_with_any(address, prefixes):
+    # MicroPython's str.startswith accepts only a single string.
+    return any(address.startswith(prefix) for prefix in prefixes)
 
 def is_raw_address(payload):
     """Use the same address validators for dispatch and wallet verification."""
@@ -312,10 +313,9 @@ class WalletManager(BaseApp):
             return bool(confirm)
         elif cmd == VERIFY_ADDRESS:
             raw = stream.read().decode().strip()
-            scheme = address_uri_scheme(raw)
-            if scheme is not None:
-                if self.network not in ADDRESS_URI_NETWORKS[scheme]:
-                    raise WalletError("QR payment scheme does not match the selected network.")
+            uri_scheme = address_uri_scheme(raw)
+            self.validate_uri_network(uri_scheme)
+            if uri_scheme is not None:
                 raw = raw.split(":", 1)[1]
             addr_part = raw
             query = ""
@@ -581,6 +581,13 @@ class WalletManager(BaseApp):
             ):
                 return name, "Liquid Mainnet" if name == "liquidv1" else net["name"]
         return None
+
+    def validate_uri_network(self, scheme):
+        """Reject an address URI whose scheme conflicts with the active network."""
+        if scheme is not None and self.network not in URI_NETWORKS[scheme]:
+            raise WalletError(
+                "QR payment scheme does not match the selected network."
+            )
 
     async def sign_psbt(self, stream, show_screen, encoding=BASE64_STREAM):
         if encoding == BASE64_STREAM:
