@@ -1,7 +1,6 @@
 import lvgl as lv
 import asyncio
-from ..common import styles, HOR_RES, add_button
-from ..decorators import on_release
+from ..common import styles, HOR_RES
 from ..core import update
 from ..components.modal import Modal
 from ..components.battery import Battery
@@ -22,7 +21,6 @@ class Screen(lv.obj):
         super().__init__()
         self.waiting = True
         self._value = None
-        self._loader_cancel_button = None
         self.battery = Battery(self)
         self.battery.align(self, lv.ALIGN.IN_TOP_RIGHT, -20, 10)
 
@@ -60,18 +58,10 @@ class Screen(lv.obj):
 
     def show_loader(self,
                     text="Please wait until the process is complete.",
-                    title="Processing...", on_cancel=None):
+                    title="Processing..."):
         if self.mbox is None:
             self.mbox = Modal(self)
         self.mbox.set_text("\n\n"+title+"\n\n"+text+"\n\n")
-        if on_cancel is not None:
-            if self._loader_cancel_button is None:
-                self._loader_cancel_button = add_button("Cancel", scr=self.mbox)
-                self._loader_cancel_button.align(self.mbox, lv.ALIGN.IN_BOTTOM_MID, 0, -20)
-            self._loader_cancel_button.set_event_cb(on_release(on_cancel))
-        elif self._loader_cancel_button is not None:
-            self._loader_cancel_button.del_async()
-            self._loader_cancel_button = None
         # trigger update of the screen
         update()
         update()
@@ -81,5 +71,4 @@ class Screen(lv.obj):
             return
         self.mbox.del_async()
         self.mbox = None
-        self._loader_cancel_button = None
         update()

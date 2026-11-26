@@ -192,44 +192,6 @@ class WalletAddressVerificationFlowTest(TestCase):
                 self._process_qr(app, scheme + ":" + address)
             self.assertIn("scheme does not match", str(err.exception))
 
-    def test_cancel_during_address_search(self):
-        app = get_wallets_app(self.keystore, "regtest")
-        manager = app.manager
-        wallet = manager.wallets[0]
-        original_get_address = wallet.get_address
-
-        class Loader:
-            def __init__(self):
-                self.hidden = 0
-
-            def show_loader(self, title, on_cancel):
-                self.cancel = on_cancel
-
-            def hide_loader(self):
-                self.hidden += 1
-
-        # Cancel even if the current derivation would otherwise match.
-        for index in (0, 10):
-            target, _ = original_get_address(index, manager.network)
-            loader = Loader()
-            manager.show_loader = loader.show_loader
-
-            def derive(*args):
-                result = original_get_address(*args)
-                asyncio.get_running_loop().call_soon(loader.cancel)
-                return result
-
-            async def show_screen(screen):
-                self.fail("Cancelled search must not display a result or prompt")
-
-            with patch.object(wallet, "get_address", side_effect=derive) as get_address:
-                result = asyncio.run(
-                    manager.verify_address_in_wallet(wallet, target, show_screen)
-                )
-            self.assertFalse(result)
-            self.assertEqual(get_address.call_count, 1)
-            self.assertEqual(loader.hidden, 1)
-
     def test_cancel_after_address_search_batch(self):
         app = get_wallets_app(self.keystore, "regtest")
         address, _ = app.manager.wallets[0].get_address(26, app.manager.network)
