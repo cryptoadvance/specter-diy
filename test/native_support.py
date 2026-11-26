@@ -209,8 +209,8 @@ def setup_native_stubs():
     except ModuleNotFoundError as exc:
         if exc.name.startswith("embit"):
             raise ModuleNotFoundError(
-                "Native test suite requires the 'embit' package. "
-                "Install it with 'pip install -r test/integration/requirements.txt'."
+                "Native test suite requires the embit git submodule. "
+                "Run 'git submodule update --init --recursive'."
             ) from exc
         raise
 

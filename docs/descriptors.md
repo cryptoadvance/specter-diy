@@ -17,6 +17,15 @@ Here for receiving address number 17 the wallet will use the script from `wsh(so
 
 The only requirement is that the number of indexes in all sets is the same (3 in the case above).
 
+Automatic change classification is deliberately narrower than descriptor
+parsing. The device treats only descriptors with exactly two branches as
+having the canonical receive/change shape. In a two-branch descriptor,
+branch-list position 0 is receive and position 1 is change. A raw child
+number is not the position: in `<22;33>`, raw value 33 is position 1 and is
+eligible for change classification. Descriptors with one, three, or more
+branches remain valid descriptors, but their outputs are never hidden as
+automatic change.
+
 ## Default derivations
 
 If the descriptor contains master public keys but doesn't contain wildcard derivations, the default derivation `/{0,1}/*` will be added to all extended keys in the descriptor. If at least one of the xpubs has a wildcard derivation the descriptor will not be changed.

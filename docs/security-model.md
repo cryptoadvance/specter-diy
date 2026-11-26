@@ -88,14 +88,18 @@ After the initial installation, the device only accepts signed firmware:
 The **initial** installation is the trust-critical step, because the
 bootloader is not installed at the factory — you flash it yourself:
 
-1. Verify the PGP signature of `sha256.signed.txt`. Since v1.10.3 the
-   hash file is signed with the **"Specter Signer 2026"** key,
-   controlled by k9ert
-   (fingerprint `9DC3 3CA8 3058 9DE3 B322 5C26 EEF5 756B 2EA4 2349`,
-   available from the
-   [Ubuntu keyserver](http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9dc33ca830589de3b3225c26eef5756b2ea42349)).
-   Older releases were signed with [Stepan's release
-   key](https://stepansnigirev.com/ss-specter-release.asc).
+1. Verify the PGP signature of `sha256.signed.txt`. The signing key varies
+   by release — check the release notes for which one applies:
+   - **v1.10.5**: Mike Tolkachev (@miketlk), fingerprint
+     `F2DB C4C6 14C1 13E2 B15F 879A DD5C 1264 EBD6 45BE`, key at
+     <https://github.com/miketlk.gpg> (also listed in
+     [SECURITY.md](https://github.com/cryptoadvance/specter-diy/blob/master/SECURITY.md)).
+   - **v1.10.3–v1.10.4**: the **"Specter Signer 2026"** key, controlled by
+     k9ert (fingerprint `9DC3 3CA8 3058 9DE3 B322 5C26 EEF5 756B 2EA4 2349`,
+     available from the
+     [Ubuntu keyserver](http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9dc33ca830589de3b3225c26eef5756b2ea42349)).
+   - **Older releases**: [Stepan's release
+     key](https://stepansnigirev.com/ss-specter-release.asc).
 2. Verify the hash of `initial_firmware_<version>.bin` against the signed
    hash file.
 3. Flash from a computer you trust.
@@ -292,22 +296,39 @@ The following rules apply to transactions that the wallet will sign:
   the wallet it belongs to and its amount, so you can see exactly which
   of your wallets is spending. Inputs that belong to a wallet the device
   does **not** know are shown as "Unknown wallet" and trigger an explicit
-  warning, because the device cannot verify change for them. Note: if a
-  transaction spends from several of your *own* wallets at once, the
-  device shows you the per-wallet breakdown but does not block or
-  specifically warn about it — check the breakdown yourself. (A dedicated
-  "mixed inputs" warning existed in older firmware versions but was
-  removed; it related to the multisig change-address
-  [attack](https://blog.trezor.io/details-of-the-multisig-change-address-issue-and-its-mitigation-6370ad73ed2a).)
+  warning, because the device cannot verify change for them. If a
+  transaction spends inputs from more than one wallet group, the device
+  shows an explicit mixed-inputs warning at the top of the transaction
+  confirmation, so it is visible without scrolling.
+  This also applies when known-wallet and unknown-wallet inputs are mixed:
+  the unknown-wallet warning is shown and the mixed-inputs warning is
+  included in the transaction confirmation. The warning is particularly
+  intended to mitigate the class of multisig/mixed-input change-address
+  [attack](https://blog.trezor.io/details-of-the-multisig-change-address-issue-and-its-mitigation-6370ad73ed2a).
 - Change outputs show the name of the wallet they are sent to.
 - To use a multisig or miniscript wallet you first need to import the
   wallet by adding the wallet descriptor (over QR, USB or SD card). The
   device only signs for wallets it knows.
 
-Change is verified for you automatically: the device identifies change
-outputs against the imported wallet descriptor and labels them with the
-wallet name. What the device cannot check is the *recipient* — so always
-verify the receive address and the transaction details (amounts, fees)
+Change is verified for you automatically only when there is one unambiguous
+spending wallet, its descriptor has exactly two branches, the output
+derivation resolves to branch-list position 1, and the device re-derives the
+exact output script from that branch and index. Every other output remains
+visible, including receive-branch self-payments and outputs from unusual
+descriptors. The branch position is not the raw child-number value in the
+descriptor.
+
+The Bitcoin transaction does not contain an `is_change` flag. A PSBT may carry
+host-supplied BIP32 or Taproot derivation metadata, but that metadata is
+untrusted and is checked against the locally stored descriptor and the actual
+output script. If a branch-1 wallet claim does not match, the output remains
+visible and the device displays: `Invalid change metadata! Host claimed this
+output as wallet change, but it does not match your wallet. Verify the
+destination.` This reports inconsistent host metadata; it does not claim that
+Bitcoin marked the output as change.
+
+What the device cannot check is the *recipient* of an unverified output — so
+always verify the receive address and the transaction details (amounts, fees)
 on the device screen. The screen is the trusted output channel, the host
 computer is not.
 
@@ -348,14 +369,12 @@ sign something you didn't confirm on the device screen.
   secrets from the main MCU (see "Threat model").
 - Transaction warnings are currently implemented in several different
   places rather than in one central pipeline: the device warns about
-  unknown wallets in the inputs, about sighash flags other than
-  SIGHASH_ALL (offering to sign SIGHASH_ALL inputs only), about
-  transactions that were already signed, and about address indexes beyond
-  the wallet's gap limit. Brainstorming / open work: consolidate these
-  checks into a single warning pipeline and maintain a complete list of
-  everything the device verifies before signing, so this documentation
-  cannot silently drift away from the implementation again (as happened
-  with the removed "mixed inputs" warning).
+  unknown wallets in the inputs, about mixed-wallet inputs, about sighash
+  flags other than SIGHASH_ALL (offering to sign SIGHASH_ALL inputs only),
+  about transactions that were already signed, and about address indexes
+  beyond the wallet's gap limit. Brainstorming / open work: consolidate
+  these checks into a single warning pipeline and maintain a complete list
+  of everything the device verifies before signing.
 
 ## Reporting vulnerabilities
 

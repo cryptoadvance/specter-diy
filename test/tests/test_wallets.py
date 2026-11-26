@@ -1,10 +1,83 @@
 from unittest import TestCase
 from apps.wallets.wallet import Wallet
 from embit.descriptor import Key
+from embit.descriptor.errors import DescriptorError
+from embit.liquid.descriptor import LDescriptor
 
 TEST_DIR = "testdir"
 
 class WalletsTest(TestCase):
+
+    XPUB = "[8cce63f8/84h/1h/0h]tpubDCZWxJ6kKqRHep5a2XycxrXRaTES1vs3ysfV7sdv5uhkaEgxBEdVbyQT46m3NcaLJqVNd41TYqDyQfvweLLXGmkxdHRnhxuJPf7BAWMXni2"
+
+    def test_mixed_multipath_sortedmulti(self):
+        multipath = self.XPUB + "/<0;1>/*"
+        fixed = self.XPUB + "/0/*"
+        descriptor = "wsh(sortedmulti(1,%s,%s))" % (multipath, fixed)
+
+        parsed = Wallet.parse(descriptor).descriptor
+        self.assertEqual(parsed.num_branches, 2)
+        self.assertEqual(str(parsed), descriptor)
+        self.assertIn("/0/*", str(parsed.branch(0).keys[0]))
+        self.assertIn("/1/*", str(parsed.branch(1).keys[0]))
+        self.assertEqual(str(parsed.branch(0).keys[1]), str(parsed.branch(1).keys[1]))
+        derived_receive = parsed.derive(7, branch_index=0)
+        derived_change = parsed.derive(7, branch_index=1)
+        self.assertTrue(str(derived_receive.keys[0].origin).endswith("/0/7"))
+        self.assertTrue(str(derived_change.keys[0].origin).endswith("/1/7"))
+        self.assertEqual(
+            str(derived_receive.keys[1]),
+            str(derived_change.keys[1]),
+        )
+
+    def test_stored_mixed_multipath_descriptor_loads(self):
+        multipath = self.XPUB + "/<0;1>/*"
+        fixed = self.XPUB + "/0/*"
+        descriptor = "wsh(sortedmulti(1,%s,%s))" % (multipath, fixed)
+
+        class StoredWalletKeyStore:
+            def load_aead(self, path):
+                if path.endswith("/descriptor"):
+                    return None, descriptor.encode()
+                return None, b'{"gaps":[20,20],"name":"Stored","unused_recv":0}'
+
+        wallet = Wallet.from_path(TEST_DIR + "/wallet", StoredWalletKeyStore())
+        self.assertEqual(str(wallet.descriptor), descriptor)
+        self.assertEqual(wallet.descriptor.num_branches, 2)
+        self.assertEqual(wallet.name, "Stored")
+
+    def test_mixed_multipath_recovery_miniscript(self):
+        multipath = self.XPUB + "/<0;1>/*"
+        fixed = self.XPUB + "/0/*"
+        descriptor = "wsh(or_d(pk(%s),and_v(v:pk(%s),older(10))))" % (
+            multipath,
+            fixed,
+        )
+
+        parsed = Wallet.parse(descriptor).descriptor
+        self.assertEqual(parsed.num_branches, 2)
+        self.assertIsNotNone(parsed.derive(7, branch_index=0).script_pubkey())
+        self.assertIsNotNone(parsed.derive(7, branch_index=1).script_pubkey())
+
+    def test_unequal_multipath_lengths_still_fail(self):
+        two_branches = self.XPUB + "/<0;1>/*"
+        three_branches = self.XPUB + "/<0;1;2>/*"
+        descriptor = "wsh(sortedmulti(1,%s,%s))" % (
+            two_branches,
+            three_branches,
+        )
+
+        with self.assertRaises(DescriptorError):
+            Wallet.parse(descriptor)
+
+    def test_mixed_multipath_liquid_descriptor(self):
+        multipath = self.XPUB + "/<0;1>/*"
+        fixed = self.XPUB + "/0/*"
+        descriptor = "wsh(sortedmulti(1,%s,%s))" % (multipath, fixed)
+
+        parsed = LDescriptor.from_string(descriptor)
+        self.assertEqual(parsed.num_branches, 2)
+        self.assertEqual(str(parsed), descriptor)
 
     def test_descriptors(self):
         """Test initial config creation"""

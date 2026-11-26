@@ -29,8 +29,12 @@ not disclose vulnerability details there — anything that could put users'
 funds at risk belongs in an (ideally encrypted) e-mail first, until a fix
 is released.
 
-The release hash manifests (`sha256.signed.txt`) are signed with the
-"Specter Signer 2026" key, controlled by k9ert, fingerprint
+The release hash manifests (`sha256.signed.txt`) are signed by one of the
+release signers above; which key was used for a given release is stated in
+that release's notes. As of v1.10.5 the manifest is signed with Mike
+Tolkachev's key from the table above
+(`F2DB C4C6 14C1 13E2 B15F 879A DD5C 1264 EBD6 45BE`). v1.10.3–v1.10.4 used a
+dedicated "Specter Signer 2026" key controlled by k9ert, fingerprint
 `9DC3 3CA8 3058 9DE3 B322 5C26 EEF5 756B 2EA4 2349`
 ([Ubuntu keyserver](http://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9dc33ca830589de3b3225c26eef5756b2ea42349)).
 

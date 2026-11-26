@@ -9,10 +9,13 @@ from embit.descriptor import Descriptor
 from embit.descriptor.checksum import add_checksum
 from embit.descriptor.arguments import AllowedDerivation
 from embit.transaction import SIGHASH
+from .embit_compat import apply_descriptor_branch_compatibility
 from .screens import WalletScreen, WalletInfoScreen
 from .commands import DELETE, EDIT, MENU, INFO, EXPORT
 from gui.screens import Menu, QRAlert, Alert, Prompt
 import lvgl as lv
+
+apply_descriptor_branch_compatibility()
 
 class WalletError(AppError):
     NAME = "Wallet error"
