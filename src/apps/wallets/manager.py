@@ -317,6 +317,7 @@ class WalletManager(BaseApp):
         # now we can work with copletely filled psbt:
         with open(self.tempdir + "/filled_psbt", "rb") as f:
             psbtv = self.PSBTViewClass.view(f, compress=True)
+            self.check_sighash_single(psbtv)
 
             # ask user for everything, if None is returned - user cancelled at some point
             options = await self.confirm_transaction(wallets, meta, show_screen)
@@ -1007,7 +1008,15 @@ class WalletManager(BaseApp):
             if warning not in warnings:
                 warnings.append(warning)
 
+    def check_sighash_single(self, psbtv, sighash=None):
+        # SINGLE must commit to an existing output, even with modifier flags.
+        for i in range(psbtv.num_outputs, psbtv.num_inputs):
+            for sh in (sighash, psbtv.input(i).sighash_type):
+                if sh is not None and (sh & 0x1f) == SIGHASH.SINGLE:
+                    raise WalletError("SIGHASH_SINGLE requires a corresponding output (input %d)." % i)
+
     def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
+        self.check_sighash_single(psbtv, sighash)
         for w in wallets:
             if w is None:
                 continue
