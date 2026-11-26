@@ -12,7 +12,9 @@ from app import BaseApp
 from io import BytesIO
 import gc
 
-from embit import ec, script
+from embit import ec, script, base58
+from embit.liquid.addresses import address as liquid_address
+from embit.liquid.networks import NETWORKS as LIQUID_NETWORKS
 from embit.networks import NETWORKS
 from tests.util import get_keystore, get_wallets_app, clear_testdir
 from apps.wallets.manager import ADD_WALLET, SIGN_PSBT, VERIFY_ADDRESS
@@ -174,3 +176,20 @@ class WalletManagerParsingTest(TestCase):
         cmd, stream = self._parse_command(DOC_ADDRESS_REQUEST.replace("bitcoin:", "BiTcOiN:").encode())
         self.assertEqual(cmd, VERIFY_ADDRESS)
         self.assertTrue(stream.read().startswith(b"BiTcOiN:"))
+
+    def test_raw_addresses_are_recognized_across_networks(self):
+        public_key = ec.PrivateKey(b"\x00" * 31 + b"\x01").get_public_key()
+        output_script = script.p2sh(script.p2wpkh(public_key))
+        for network in ("liquidv1", "liquidtestnet", "elementsregtest"):
+            net = LIQUID_NETWORKS[network]
+            for key in (None, public_key):
+                address = liquid_address(output_script, key, network=net)
+                self.assertTrue(self.manager.can_process(BytesIO(address.encode())))
+                self.assertEqual(self.manager.address_network_hint(address)[0], network)
+
+    def test_malformed_raw_address_is_not_claimed(self):
+        address, _ = self.manager.wallets[0].get_address(2, self.manager.network)
+        invalid = address[:-1] + ("q" if address[-1] != "q" else "p")
+        self.assertFalse(self.manager.can_process(BytesIO(invalid.encode())))
+        invalid_liquid = base58.encode_check(LIQUID_NETWORKS["liquidv1"]["p2sh"] + b"\x01" * 19)
+        self.assertFalse(self.manager.can_process(BytesIO(invalid_liquid.encode())))

@@ -10,7 +10,6 @@ from embit.psbt import DerivationPath, CompressMode
 from embit.psbtview import PSBTView, read_write, PSBTError
 from embit.networks import NETWORKS
 from embit.liquid.networks import NETWORKS as LIQUID_NETWORKS
-from embit.liquid.addresses import addr_decode as decode_liquid_address
 from embit.transaction import SIGHASH
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
@@ -60,42 +59,24 @@ def address_uri_scheme(payload):
 
 
 def is_raw_address(payload):
-    """Recognize checked addresses without claiming SeedQRs or other host data."""
+    """Use the same address validators for dispatch and wallet verification."""
     try:
         addr = payload.decode("ascii").strip().split("?", 1)[0].strip()
     except UnicodeError:
         return False
     if not addr or len(addr) > 150 or addr.isdigit():
         return False
-    lower = addr.lower()
     try:
-        if lower.startswith(("bc1", "tb1", "bcrt1")):
-            return (
-                (addr.islower() or addr.isupper())
-                and script.address_to_scriptpubkey(lower) is not None
-            )
-        if lower.startswith(("ex1", "lq1", "tex1", "tlq1", "ert1", "el1")):
-            if not (addr.islower() or addr.isupper()):
-                return False
-            sc, _ = decode_liquid_address(lower)
-            return len(sc.data) > 0
-        data = base58.decode_check(addr)
-        if len(data) == 21:
-            return any(
-                data[:1] in (net.get("p2pkh"), net.get("p2sh"))
-                for net in NETWORKS.values()
-            ) or any(
-                data[:1] == net.get("p2sh")
-                for net in LIQUID_NETWORKS.values()
-            )
-        if len(data) == 55 and any(
-            data[:2] == net.get("bp2sh") for net in LIQUID_NETWORKS.values()
-        ):
-            decode_liquid_address(addr)
+        WalletManager.validate_address(addr)
+        return True
+    except WalletError:
+        from .liquid.manager import LWalletManager
+        try:
+            LWalletManager.validate_address(addr)
             return True
-    except Exception:
-        return False
-    return False
+        except WalletError:
+            return False
+
 
 SIGHASH_NAMES = {
     SIGHASH.ALL: "ALL",
@@ -518,7 +499,8 @@ class WalletManager(BaseApp):
     def address_match_type(self, candidate, target, prepared_target=None):
         return "exact" if self.addresses_match(candidate, target) else None
 
-    def validate_address(self, address, prepare_match=False):
+    @staticmethod
+    def validate_address(address, prepare_match=False):
         """Reject malformed or unsupported Bitcoin addresses before wallet search."""
         address = address.strip()
         normalized = address.lower()
@@ -526,7 +508,7 @@ class WalletManager(BaseApp):
         hrp = normalized[:separator] if separator > 0 else None
         bech32_hrps = [
             network.get("bech32")
-            for network in self.Networks.values()
+            for network in NETWORKS.values()
             if network.get("bech32")
         ]
 
@@ -534,7 +516,8 @@ class WalletManager(BaseApp):
             if not (address.islower() or address.isupper()):
                 raise WalletError("Invalid Bitcoin address")
             try:
-                script.address_to_scriptpubkey(normalized)
+                if script.address_to_scriptpubkey(normalized) is None:
+                    raise WalletError("Invalid Bitcoin address")
             except Exception:
                 raise WalletError("Invalid Bitcoin address")
             return
@@ -545,7 +528,7 @@ class WalletManager(BaseApp):
             raise WalletError("Invalid Bitcoin address")
         base58_versions = [
             network.get(version)
-            for network in self.Networks.values()
+            for network in NETWORKS.values()
             for version in ("p2pkh", "p2sh")
             if network.get(version)
         ]
@@ -582,7 +565,7 @@ class WalletManager(BaseApp):
             if (len(payload) == 21 and payload[:1] == net["p2sh"]) or (
                 len(payload) == 55 and payload[:2] == net["bp2sh"]
             ):
-                return name, net["name"]
+                return name, "Liquid Mainnet" if name == "liquidv1" else net["name"]
         return None
 
     async def sign_psbt(self, stream, show_screen, encoding=BASE64_STREAM):
