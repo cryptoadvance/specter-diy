@@ -16,6 +16,10 @@ class WalletScreen(QRAlert):
             return addr
         return "bitcoin:" + addr
 
+    @staticmethod
+    def policy_label(wallet):
+        return wallet.policy + (" (watch-only)" if wallet.is_watchonly else "")
+
     def __init__(self, wallet, network, idx=None, branch_index=0):
         self.wallet = wallet
         self.network = network
@@ -34,7 +38,7 @@ class WalletScreen(QRAlert):
         self.title.set_recolor(True)
         self.title.set_click(True)
         self.title.set_event_cb(on_release(self.rename))
-        self.policy = add_label(wallet.policy, y=55, style="hint", scr=self)
+        self.policy = add_label(self.policy_label(wallet), y=55, style="hint", scr=self)
 
         style = lv.style_t()
         lv.style_copy(style, self.message.get_style(0))

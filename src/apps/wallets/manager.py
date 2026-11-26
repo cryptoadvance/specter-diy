@@ -153,13 +153,16 @@ class WalletManager(BaseApp):
             # use hex if script doesn't have address representation
             return hexlify(psbtout.script_pubkey.data).decode()
 
-    async def menu(self, show_screen):
+    def wallet_menu_buttons(self):
         buttons = [(None, "Your wallets")]
         buttons += [(w, w.name) for w in self.wallets if not w.is_watchonly]
         if len(buttons) != (len(self.wallets)+1):
             buttons += [(None, "Watch only wallets")]
             buttons += [(w, w.name) for w in self.wallets if w.is_watchonly]
-        menuitem = await show_screen(Menu(buttons, last=(255, None)))
+        return buttons
+
+    async def menu(self, show_screen):
+        menuitem = await show_screen(Menu(self.wallet_menu_buttons(), last=(255, None)))
         if menuitem == 255:
             # we are done
             return False
@@ -374,9 +377,8 @@ class WalletManager(BaseApp):
     async def select_wallet_for_verification(self, show_screen):
         if not self.wallets:
             raise WalletError("No wallets available")
-        buttons = [(w, w.name) for w in self.wallets]
         menu = Menu(
-            buttons,
+            self.wallet_menu_buttons(),
             last=(255, None),
             title="Select wallet",
             note="Choose a wallet to check the scanned address.",

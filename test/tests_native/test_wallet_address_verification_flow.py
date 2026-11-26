@@ -7,6 +7,7 @@ if sys.implementation.name != 'micropython':
 
 import asyncio
 from io import BytesIO
+from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 from apps.wallets.wallet import WalletError
@@ -69,6 +70,29 @@ class WalletAddressVerificationFlowTest(TestCase):
 
         self.assertTrue(result)
         self.assertEqual(len(shown_screens), 2)
+
+    def test_verification_menu_groups_watch_only_wallets(self):
+        app = get_wallets_app(self.keystore, "regtest")
+        own = app.manager.wallets[0]
+        watch = SimpleNamespace(name="External wallet", is_watchonly=True)
+        app.manager.wallets = [watch, own]
+
+        async def show_screen(screen):
+            self.assertEqual(screen.args[0], [
+                (None, "Your wallets"), (own, own.name),
+                (None, "Watch only wallets"), (watch, watch.name),
+            ])
+            return watch
+
+        with patch.object(wallet_manager_module, "Menu", _DummyMenu):
+            result = asyncio.run(app.manager.select_wallet_for_verification(show_screen))
+        self.assertIs(result, watch)
+
+    def test_wallet_screen_policy_marks_watch_only(self):
+        wallet = SimpleNamespace(policy="Native Segwit, single key", is_watchonly=False)
+        self.assertEqual(WalletScreen.policy_label(wallet), wallet.policy)
+        wallet.is_watchonly = True
+        self.assertEqual(WalletScreen.policy_label(wallet), wallet.policy + " (watch-only)")
 
     def test_liquid_qr_verifies_unconfidential_form_of_wallet_address(self):
         app = get_wallets_app(self.keystore, "liquidv1")
