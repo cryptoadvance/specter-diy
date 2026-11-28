@@ -1,7 +1,8 @@
 from ..manager import *
 from gui.common import format_addr
 
-from embit import script, bip32, ec, compact, hashes
+from embit import base58, script, bip32, ec, compact, hashes
+from embit.base import EmbitError
 from embit.liquid.psetview import PSETView, ser_string
 from embit.liquid.networks import NETWORKS
 from embit.liquid.transaction import LSIGHASH as SIGHASH
@@ -42,6 +43,73 @@ class LWalletManager(WalletManager):
     # supported networks
     Networks = {k: v for k, v in NETWORKS.items() if v.get("blech32")}
     DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
+
+    @staticmethod
+    def validate_address(address, prepare_match=False):
+        """Reject malformed or unsupported Liquid addresses before wallet search."""
+        if address == "Fee":
+            raise WalletError("Invalid Liquid address")
+        if starts_with_any(address.lower(), ("lq1", "tlq1", "ex1", "tex1", "el1", "ert1")):
+            if not (address.islower() or address.isupper()):
+                raise WalletError("Invalid Liquid address")
+            address = address.lower()
+        else:
+            try:
+                payload = base58.decode_check(address)
+            except Exception:
+                raise WalletError("Invalid Liquid address")
+            if not any(
+                (len(payload) == 21 and payload[:1] == net["p2sh"]) or
+                (len(payload) == 55 and payload[:2] == net["bp2sh"])
+                for net in LWalletManager.Networks.values()
+            ):
+                raise WalletError("Invalid Liquid address")
+        try:
+            unconfidential = to_unconfidential(address)
+        except (ValueError, TypeError, RuntimeError, EmbitError, IndexError):
+            raise WalletError("Invalid Liquid address")
+        if prepare_match:
+            return address, unconfidential, address != unconfidential
+
+    def address_match_type(self, candidate, target, prepared_target=None):
+        """Classify Liquid matches while preserving blinding-key identity."""
+        bech32_prefixes = ("lq1", "tlq1", "ex1", "tex1", "el1", "ert1")
+
+        def normalize_bech32_case(address):
+            if starts_with_any(address.lower(), bech32_prefixes) and (
+                address.islower() or address.isupper()
+            ):
+                return address.lower()
+            return address
+
+        candidate = normalize_bech32_case(candidate)
+        if prepared_target is None:
+            target = normalize_bech32_case(target)
+        else:
+            target, target_unconf, target_is_confidential = prepared_target
+        if candidate == target:
+            return "exact"
+
+        try:
+            candidate_unconf = to_unconfidential(candidate)
+            if prepared_target is None:
+                target_unconf = to_unconfidential(target)
+                target_is_confidential = target != target_unconf
+        except (ValueError, TypeError, RuntimeError, EmbitError, IndexError):
+            # A malformed or non-Liquid scanned address cannot match.
+            return None
+
+        # A scanned confidential address must match the entire address,
+        # including its blinding key. An unconfidential wallet address must
+        # never "verify" someone else's confidential receiving address.
+        if target_is_confidential:
+            return None
+        if candidate != candidate_unconf and candidate_unconf == target_unconf:
+            return "same_script"
+        return None
+
+    def addresses_match(self, candidate, target):
+        return self.address_match_type(candidate, target) is not None
 
 
     def __init__(self, path):
