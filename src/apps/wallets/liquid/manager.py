@@ -42,6 +42,7 @@ class LWalletManager(WalletManager):
     # supported networks
     Networks = {k: v for k, v in NETWORKS.items() if v.get("blech32")}
     DEFAULT_SIGHASH = (SIGHASH.ALL | SIGHASH.RANGEPROOF)
+    NET_SIGHASH = SIGHASH
 
 
     def __init__(self, path):

@@ -9,7 +9,7 @@ from embit import script, bip32, compact
 from embit.psbt import DerivationPath, CompressMode
 from embit.psbtview import PSBTView, read_write, PSBTError
 from embit.networks import NETWORKS
-from embit.transaction import SIGHASH
+from embit.transaction import SIGHASH, TransactionError
 from .wallet import WalletError, Wallet
 from .commands import DELETE, EDIT
 from io import BytesIO
@@ -73,6 +73,7 @@ class WalletManager(BaseApp):
     # supported networks
     Networks = NETWORKS
     DEFAULT_SIGHASH = SIGHASH.ALL
+    NET_SIGHASH = SIGHASH
 
     def __init__(self, path):
         self.root_path = path
@@ -1012,8 +1013,16 @@ class WalletManager(BaseApp):
         # SINGLE must commit to an existing output, even with modifier flags.
         for i in range(psbtv.num_outputs, psbtv.num_inputs):
             for sh in (sighash, psbtv.input(i).sighash_type):
-                if sh is not None and (sh & 0x1f) == SIGHASH.SINGLE:
-                    raise WalletError("SIGHASH_SINGLE requires a corresponding output (input %d)." % i)
+                if sh is None:
+                    continue
+                try:
+                    base_sighash = self.NET_SIGHASH.check(sh)[0]
+                except TransactionError:
+                    raise WalletError("Unknown sighash type: %d!" % sh)
+                if base_sighash == self.NET_SIGHASH.SINGLE:
+                    raise WalletError(
+                        "SIGHASH_SINGLE requires a corresponding output (input %d)." % i
+                    )
 
     def sign_psbtview(self, psbtv, out_stream, wallets, sighash):
         self.check_sighash_single(psbtv, sighash)
