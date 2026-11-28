@@ -6,6 +6,20 @@ from .commands import DELETE, EDIT, MENU
 
 
 class WalletScreen(QRAlert):
+    @staticmethod
+    def address_qr_payload(network, addr):
+        if network == "liquidv1":
+            return "liquidnetwork:" + addr
+        if network == "liquidtestnet":
+            return "liquidtestnet:" + addr
+        if network == "elementsregtest":
+            return addr
+        return "bitcoin:" + addr
+
+    @staticmethod
+    def policy_label(wallet):
+        return wallet.policy + (" (watch-only)" if wallet.is_watchonly else "")
+
     def __init__(self, wallet, network, idx=None, branch_index=0):
         self.wallet = wallet
         self.network = network
@@ -18,13 +32,13 @@ class WalletScreen(QRAlert):
         super().__init__(
             "    " + wallet.name + "  #708092 " + lv.SYMBOL.EDIT,
             format_addr(addr, words=4),
-            "bitcoin:" + addr,
+            self.address_qr_payload(network, addr),
             qr_width=350,
         )
         self.title.set_recolor(True)
         self.title.set_click(True)
         self.title.set_event_cb(on_release(self.rename))
-        self.policy = add_label(wallet.policy, y=55, style="hint", scr=self)
+        self.policy = add_label(self.policy_label(wallet), y=55, style="hint", scr=self)
 
         style = lv.style_t()
         lv.style_copy(style, self.message.get_style(0))
@@ -108,7 +122,7 @@ class WalletScreen(QRAlert):
         note = "%s address #%d" % (self.prefix, self.idx)
         self.note.set_text(note)
         self.message.set_text(format_addr(addr, words=4))
-        self.qr.set_text("bitcoin:" + addr)
+        self.qr.set_text(self.address_qr_payload(self.network, addr))
 
         if self.idx > gap:
             self.warning.set_text(
