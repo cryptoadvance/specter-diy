@@ -5,6 +5,7 @@ from io import BytesIO
 from rng import get_random_bytes
 from ucryptolib import aes
 from binascii import hexlify
+from helpers import consteq
 
 AES_BLOCK = 16
 IV_SIZE = 16
@@ -99,7 +100,8 @@ class SecureChannel:
             h = hmac.new(self.card_mac_key, digestmod="sha256")
             h.update(data)
             expected_hmac = h.digest()[:MAC_SIZE]
-            if expected_hmac != recv_hmac:
+            # constant-time compare (L6) - do not replace with == / !=
+            if not consteq(expected_hmac, recv_hmac):
                 raise SecureChannelError("Wrong HMAC.")
             data += recv_hmac
             raw_sig = s.read()
@@ -129,7 +131,8 @@ class SecureChannel:
             h = hmac.new(self.card_mac_key, digestmod="sha256")
             h.update(data)
             expected_hmac = h.digest()[:MAC_SIZE]
-            if expected_hmac != recv_hmac:
+            # constant-time compare (L6) - do not replace with == / !=
+            if not consteq(expected_hmac, recv_hmac):
                 raise SecureChannelError("Wrong HMAC.")
             data += recv_hmac
             sig = secp256k1.ecdsa_signature_parse_der(s.read())
@@ -167,7 +170,8 @@ class SecureChannel:
         h.update(iv)
         h.update(ct)
         expected_hmac = h.digest()[:MAC_SIZE]
-        if expected_hmac != recv_hmac:
+        # constant-time compare (L6) - do not replace with == / !=
+        if not consteq(expected_hmac, recv_hmac):
             raise SecureChannelError("Wrong HMAC.")
         crypto = aes(self.card_aes_key, AES_CBC, iv)
         plain = crypto.decrypt(ct)
